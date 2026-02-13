@@ -38,3 +38,8 @@ next-env.d.ts
 
 # supabase
 .supabase/
+
+# Arquivos com secrets (não commitar)
+COMANDOS_DEPLOY.md
+DEPLOY_OPENAI.md
+NEXT_STEPS.md
