@@ -1,0 +1,224 @@
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { differenceInDays, startOfDay } from 'date-fns'
+
+export interface PatientEngineData {
+    loading: boolean
+    activeProtocol: any
+    currentDayItems: any[]
+    progress: Record<string, boolean>
+    stats: {
+        currentDay: number
+        totalDays: number
+        completionRate: number
+        totalPoints: number
+        currentStreak: number
+    }
+    toggleCheckin: (itemId: string, currentStatus: boolean) => Promise<void>
+    refresh: () => Promise<void>
+}
+
+export function usePatientEngine(): PatientEngineData {
+    const [loading, setLoading] = useState(true)
+    const [activeProtocol, setActiveProtocol] = useState<any>(null)
+    const [currentDayItems, setCurrentDayItems] = useState<any[]>([])
+    const [progress, setProgress] = useState<Record<string, boolean>>({})
+    const [stats, setStats] = useState({
+        currentDay: 1,
+        totalDays: 21,
+        completionRate: 0,
+        totalPoints: 0,
+        currentStreak: 0
+    })
+
+    useEffect(() => {
+        fetchDailyData()
+    }, [])
+
+    async function fetchDailyData() {
+        try {
+            setLoading(true)
+            console.log('🔍 [PatientEngine] Iniciando busca de dados...')
+
+            const { data: { user } } = await supabase.auth.getUser()
+            console.log('👤 [PatientEngine] Usuário:', user?.id || 'NÃO AUTENTICADO')
+
+            if (!user) {
+                console.warn('⚠️ [PatientEngine] Sem usuário autenticado!')
+                setLoading(false)
+                return
+            }
+
+            // A. Buscar perfil do usuário para stats (OPCIONAL - comentado se não existir tabela users)
+            // const { data: userProfile } = await supabase
+            //     .from('users')
+            //     .select('total_points, current_streak')
+            //     .eq('id', user.id)
+            //     .single()
+
+            // if (userProfile) {
+            //     setStats(prev => ({
+            //         ...prev,
+            //         totalPoints: userProfile.total_points || 0,
+            //         currentStreak: userProfile.current_streak || 0
+            //     }))
+            // }
+
+            // B. Buscar Atribuição Ativa (protocol_assignments)
+            console.log('🔎 [PatientEngine] Buscando assignments para user:', user.id)
+            const { data: assignments, error: assignError } = await supabase
+                .from('protocol_assignments')
+                .select(`
+                    *,
+                    protocol:protocols (*)
+                `)
+                .eq('user_id', user.id)
+                .eq('status', 'active')
+                .order('created_at', { ascending: false })
+                .limit(1)
+
+            console.log('📦 [PatientEngine] Assignments encontrados:', assignments)
+            console.log('❌ [PatientEngine] Erro assignments:', assignError)
+
+            const assignment = assignments?.[0]
+
+            if (assignment && assignment.protocol) {
+                // C. Calcular Dia Atual baseado na data de início
+                const daysPassed = differenceInDays(
+                    startOfDay(new Date()),
+                    startOfDay(new Date(assignment.start_date))
+                )
+                const currentDay = Math.max(1, daysPassed + 1)
+
+                setActiveProtocol({
+                    ...assignment.protocol,
+                    assignmentId: assignment.id,
+                    startDate: assignment.start_date
+                })
+
+                // D. Buscar dias do protocolo
+                const { data: protocolDays } = await supabase
+                    .from('protocol_days')
+                    .select('id, day_number, title')
+                    .eq('protocol_id', assignment.protocol.id)
+                    .eq('day_number', currentDay)
+                    .single()
+
+                // E. Buscar itens do dia atual
+                if (protocolDays) {
+                    const { data: items } = await supabase
+                        .from('protocol_items')
+                        .select('*')
+                        .eq('protocol_day_id', protocolDays.id)
+                        .order('time', { ascending: true })
+
+                    setCurrentDayItems(items || [])
+
+                    // F. Buscar progresso de hoje (protocol_progress)
+                    const today = new Date().toISOString().split('T')[0]
+                    const { data: progressData } = await supabase
+                        .from('protocol_progress')
+                        .select('protocol_item_id, completed_at')
+                        .eq('assignment_id', assignment.id)
+                        .gte('completed_at', `${today}T00:00:00`)
+                        .lte('completed_at', `${today}T23:59:59`)
+
+                    const progressMap: Record<string, boolean> = {}
+                    progressData?.forEach((p: any) => {
+                        progressMap[p.protocol_item_id] = true
+                    })
+                    setProgress(progressMap)
+
+                    // G. Calcular taxa de conclusão
+                    const totalItems = items?.length || 1
+                    const completedItems = progressData?.length || 0
+                    const completionRate = Math.round((completedItems / totalItems) * 100)
+
+                    setStats(prev => ({
+                        ...prev,
+                        currentDay,
+                        totalDays: assignment.protocol.duration_days || 21,
+                        completionRate
+                    }))
+                } else {
+                    // Dia não tem itens configurados ainda
+                    setCurrentDayItems([])
+                    setStats(prev => ({
+                        ...prev,
+                        currentDay,
+                        totalDays: assignment.protocol.duration_days || 21,
+                        completionRate: 0
+                    }))
+                }
+            }
+        } catch (error) {
+            console.error('Erro no motor da paciente:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    async function toggleCheckin(itemId: string, currentStatus: boolean) {
+        if (!activeProtocol) return
+
+        const newStatus = !currentStatus
+
+        // Optimistic UI update
+        setProgress(prev => ({ ...prev, [itemId]: newStatus }))
+
+        try {
+            if (newStatus) {
+                // Marcar como concluído
+                const { error } = await supabase
+                    .from('protocol_progress')
+                    .insert({
+                        assignment_id: activeProtocol.assignmentId,
+                        protocol_item_id: itemId,
+                        completed_at: new Date().toISOString(),
+                        points_earned: 10 // Valor padrão, pode ser customizado
+                    })
+
+                if (error) throw error
+
+                // Atualizar pontos do usuário
+                const { data: { user } } = await supabase.auth.getUser()
+                if (user) {
+                    await supabase.rpc('increment_user_points', {
+                        user_id: user.id,
+                        points_to_add: 10
+                    })
+                }
+            } else {
+                // Desmarcar - remover do progresso
+                await supabase
+                    .from('protocol_progress')
+                    .delete()
+                    .eq('assignment_id', activeProtocol.assignmentId)
+                    .eq('protocol_item_id', itemId)
+            }
+
+            // Recalcular stats
+            const totalItems = currentDayItems.length
+            const completedCount = Object.values({ ...progress, [itemId]: newStatus }).filter(Boolean).length
+            setStats(prev => ({
+                ...prev,
+                completionRate: Math.round((completedCount / totalItems) * 100)
+            }))
+
+        } catch (error) {
+            console.error('Erro ao salvar checkin:', error)
+            // Reverter em caso de erro
+            setProgress(prev => ({ ...prev, [itemId]: currentStatus }))
+        }
+    }
+
+    return {
+        loading,
+        activeProtocol,
+        currentDayItems,
+        progress,
+        stats,
+        toggleCheckin,
+        refresh: fetchDailyData
+    }
+}
