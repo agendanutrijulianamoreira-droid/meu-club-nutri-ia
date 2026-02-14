@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase-browser'
 import { differenceInDays, startOfDay } from 'date-fns'
 
 export interface PatientEngineData {
@@ -49,20 +49,21 @@ export function usePatientEngine(): PatientEngineData {
                 return
             }
 
-            // A. Buscar perfil do usuário para stats (OPCIONAL - comentado se não existir tabela users)
-            // const { data: userProfile } = await supabase
-            //     .from('users')
-            //     .select('total_points, current_streak')
-            //     .eq('id', user.id)
-            //     .single()
+            // A. Buscar perfil do usuário para stats
+            const { data: userProfile } = await supabase
+                .from('profiles')
+                .select('nutri_coins, total_xp, current_streak')
+                .eq('user_id', user.id)
+                .single()
 
-            // if (userProfile) {
-            //     setStats(prev => ({
-            //         ...prev,
-            //         totalPoints: userProfile.total_points || 0,
-            //         currentStreak: userProfile.current_streak || 0
-            //     }))
-            // }
+            if (userProfile) {
+                setStats(prev => ({
+                    ...prev,
+                    totalPoints: userProfile.total_xp || 0,
+                    currentStreak: userProfile.current_streak || 0,
+                    nutriCoins: userProfile.nutri_coins || 0
+                }))
+            }
 
             // B. Buscar Atribuição Ativa (protocol_assignments)
             console.log('🔎 [PatientEngine] Buscando assignments para user:', user.id)

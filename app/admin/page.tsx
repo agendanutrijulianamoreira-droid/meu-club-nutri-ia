@@ -37,8 +37,10 @@ import { SalesPageGenerator } from "./views/SalesPageGenerator"
 import { LibraryView } from "./views/LibraryView"
 import { AISettingsView } from "./views/AISettingsView"
 import { SettingsView } from "./views/SettingsView"
+import { NutritionistsView } from "./views/NutritionistsView"
+import { TeamView } from "./views/TeamView"
 
-type ViewType = 'dashboard' | 'planner' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'library' | 'settings'
+type ViewType = 'dashboard' | 'planner' | 'protocols' | 'challenges' | 'patients' | 'nutritionists' | 'team' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'library' | 'settings'
 
 const navItems = [
     { id: 'dashboard' as ViewType, label: 'Painel Central', icon: LayoutDashboard },
@@ -46,6 +48,8 @@ const navItems = [
     { id: 'protocols' as ViewType, label: 'Bio-Protocolos', icon: FileText },
     { id: 'challenges' as ViewType, label: 'Jornadas', icon: Trophy },
     { id: 'patients' as ViewType, label: 'Rainhas', icon: Users },
+    { id: 'nutritionists' as ViewType, label: 'Nutricionistas', icon: ShieldCheck },
+    { id: 'team' as ViewType, label: 'Equipe & Parceiros', icon: Users },
     { id: 'rewards' as ViewType, label: 'Recompensas', icon: Crown },
     { id: 'checkins' as ViewType, label: 'Check-ins IA', icon: MessageCircle },
     { id: 'library' as ViewType, label: 'Cérebro Técnico', icon: BookOpen },
@@ -66,6 +70,8 @@ export default function AdminDashboard() {
             case 'protocols': return <ProtocolsView {...props} />
             case 'challenges': return <ChallengesView {...props} />
             case 'patients': return <PatientsView {...props} />
+            case 'nutritionists': return <NutritionistsView {...props} />
+            case 'team': return <TeamView />
             case 'rewards': return <RewardsView {...props} />
             case 'checkins': return <CheckinsView {...props} />
             case 'library': return <LibraryView {...props} />

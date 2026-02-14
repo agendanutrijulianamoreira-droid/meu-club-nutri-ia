@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-browser'
 
 interface Profile {
     id: string;
@@ -29,7 +29,7 @@ export function useProfile(userId: string | null) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const supabase = createClient();
+    // supabase importado do singleton
 
     // Buscar perfil
     useEffect(() => {

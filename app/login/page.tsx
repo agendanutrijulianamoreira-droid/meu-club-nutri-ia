@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-browser'
 import { signupUser } from '@/app/auth/actions';
 import { useRouter } from 'next/navigation';
 
@@ -40,7 +40,7 @@ export default function LoginPage() {
                 setFullName('');
             } else {
                 // Login
-                const supabase = createClient();
+                // supabase importado do singleton
                 const { data: authData, error } = await supabase.auth.signInWithPassword({
                     email,
                     password,
@@ -50,10 +50,17 @@ export default function LoginPage() {
 
                 if (authData.user) {
                     // Redirecionar baseado no tipo
-                    if (userType === 'nutri') {
-                        router.push('/admin'); // ou outra rota para nutricionista
+                    // Buscar Role do Perfil
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('role')
+                        .eq('user_id', authData.user.id)
+                        .single();
+
+                    if (profile?.role === 'admin' || profile?.role === 'nutritionist') {
+                        router.push('/admin');
                     } else {
-                        router.push('/dashboard');
+                        router.push('/patient/home');
                     }
                 }
             }
@@ -88,8 +95,8 @@ export default function LoginPage() {
                             type="button"
                             onClick={() => setUserType('patient')}
                             className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${userType === 'patient'
-                                    ? 'bg-indigo-600 text-white shadow-md'
-                                    : 'text-slate-400 hover:text-white'
+                                ? 'bg-indigo-600 text-white shadow-md'
+                                : 'text-slate-400 hover:text-white'
                                 }`}
                         >
                             <span>👑</span> Sou Aluna
@@ -98,8 +105,8 @@ export default function LoginPage() {
                             type="button"
                             onClick={() => setUserType('nutri')}
                             className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${userType === 'nutri'
-                                    ? 'bg-indigo-600 text-white shadow-md'
-                                    : 'text-slate-400 hover:text-white'
+                                ? 'bg-indigo-600 text-white shadow-md'
+                                : 'text-slate-400 hover:text-white'
                                 }`}
                         >
                             <span>🩺</span> Sou Nutri

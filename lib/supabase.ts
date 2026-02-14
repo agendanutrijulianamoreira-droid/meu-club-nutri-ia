@@ -10,3 +10,6 @@ export function createClient() {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 }
+
+// Export direto para compatibilidade com imports existentes
+export const supabase = createClient();

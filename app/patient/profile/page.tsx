@@ -15,7 +15,7 @@ import {
     Activity
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { supabase } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase-browser"
 import { useRouter } from "next/navigation"
 
 export default function PatientProfilePage() {
@@ -30,9 +30,9 @@ export default function PatientProfilePage() {
                 setUser(user)
 
                 const { data: profileData } = await supabase
-                    .from('users')
+                    .from('profiles')
                     .select('*')
-                    .eq('id', user.id)
+                    .eq('user_id', user.id)
                     .single()
 
                 setProfile(profileData)
@@ -47,10 +47,10 @@ export default function PatientProfilePage() {
     }
 
     const stats = [
-        { label: "Dias no Clube", value: "28", icon: Calendar, color: "indigo" },
-        { label: "XP Total", value: profile?.total_points || "0", icon: Award, color: "purple" },
-        { label: "Sequência Atual", value: profile?.current_streak || "0", icon: Activity, color: "orange" },
-        { label: "Conquistas", value: "12", icon: Target, color: "green" },
+        { label: "Dias no Clube", value: "28", icon: Calendar, color: "indigo", bg: "bg-indigo-600/20", text: "text-indigo-400" },
+        { label: "XP Total", value: profile?.total_xp || "0", icon: Award, color: "purple", bg: "bg-purple-600/20", text: "text-purple-400" },
+        { label: "Sequência Atual", value: profile?.current_streak || "0", icon: Activity, color: "orange", bg: "bg-orange-600/20", text: "text-orange-400" },
+        { label: "Conquistas", value: "12", icon: Target, color: "green", bg: "bg-green-600/20", text: "text-green-400" },
     ]
 
     const achievements = [
@@ -64,10 +64,10 @@ export default function PatientProfilePage() {
             {/* Header */}
             <div className="mb-6 text-center">
                 <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 mb-4 text-3xl font-bold text-white shadow-lg shadow-indigo-500/30">
-                    {profile?.full_name?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || "R"}
+                    {profile?.name?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || "R"}
                 </div>
                 <h1 className="text-2xl font-bold text-white mb-1">
-                    {profile?.full_name || "Rainha do Reino"}
+                    {profile?.name || "Rainha do Reino"}
                 </h1>
                 <p className="text-sm text-slate-400">{user?.email}</p>
             </div>
@@ -84,8 +84,8 @@ export default function PatientProfilePage() {
                             transition={{ delay: index * 0.1 }}
                             className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4"
                         >
-                            <div className={`w-10 h-10 rounded-xl bg-${stat.color}-600/20 flex items-center justify-center mb-3`}>
-                                <Icon className={`text-${stat.color}-400`} size={20} />
+                            <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center mb-3`}>
+                                <Icon className={stat.text} size={20} />
                             </div>
                             <p className="text-2xl font-bold text-white mb-1">{stat.value}</p>
                             <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">{stat.label}</p>
@@ -105,8 +105,8 @@ export default function PatientProfilePage() {
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: index * 0.1 }}
                             className={`flex items-center gap-4 p-4 rounded-2xl border ${achievement.unlocked
-                                    ? "bg-indigo-600/10 border-indigo-500/30"
-                                    : "bg-white/5 border-white/10 opacity-50"
+                                ? "bg-indigo-600/10 border-indigo-500/30"
+                                : "bg-white/5 border-white/10 opacity-50"
                                 }`}
                         >
                             <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${achievement.unlocked ? "bg-indigo-600/20" : "bg-slate-800/50"

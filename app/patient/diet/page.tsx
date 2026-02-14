@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Clock, ChevronDown, ChevronUp, CheckCircle, Circle } from "lucide-react"
+import { Clock, ChevronDown, ChevronUp, CheckCircle, Circle, Loader2 } from "lucide-react"
 import { useAssignments } from "@/lib/hooks/useDatabase"
-import { supabase } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase-browser"
 
 export default function PatientDietPage() {
     const [userId, setUserId] = useState<string | null>(null)
@@ -21,33 +21,24 @@ export default function PatientDietPage() {
     const { assignments, loading } = useAssignments(userId || undefined)
     const activeProtocol = assignments?.[0]
 
-    // Mock data para demonstração (será substituído por dados reais do banco)
-    const mockDays = [
-        {
-            day: 1,
-            title: "Dia 1: Despertar Metabólico",
-            items: [
-                { time: "08:00", type: "shot", title: "Shot Detox Matinal", description: "Água morna + limão + gengibre", completed: true },
-                { time: "09:00", type: "meal", title: "Café Premium", description: "Ovos + abacate + frutas vermelhas", completed: true },
-                { time: "12:00", type: "meal", title: "Almoço Estratégico", description: "Proteína + salada colorida + quinoa", completed: false },
-                { time: "16:00", type: "shot", title: "Bio-Shot da Tarde", description: "Shake verde energizante", completed: false },
-                { time: "19:00", type: "meal", title: "Jantar Leve", description: "Peixe + legumes grelhados", completed: false },
-            ]
-        },
-        {
-            day: 2,
-            title: "Dia 2: Potencialização",
-            items: [
-                { time: "07:30", type: "shot", title: "Ativação Matinal", description: "Limão + cúrcuma + pimenta", completed: false },
-                { time: "09:00", type: "meal", title: "Café Completo", description: "Tapioca + pasta de amendoim + banana", completed: false },
-            ]
-        },
-    ]
+    // Mapear dias do protocolo real
+    const protocolDays = activeProtocol?.protocol?.days?.sort((a: any, b: any) => a.day_number - b.day_number).map((d: any) => ({
+        day: d.day_number,
+        title: d.title || `Dia ${d.day_number}`,
+        items: d.items?.sort((a: any, b: any) => a.time.localeCompare(b.time)).map((i: any) => ({
+            time: i.time,
+            type: i.item_type,
+            title: i.title,
+            description: i.description,
+            completed: false // TODO: Conectar com protocol_progress
+        })) || []
+    })) || []
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="text-white">Carregando seu protocolo...</div>
+            <div className="min-h-screen flex flex-col items-center justify-center gap-3">
+                <Loader2 className="animate-spin text-indigo-500" size={32} />
+                <div className="text-slate-400 text-sm">Carregando seu protocolo...</div>
             </div>
         )
     }
@@ -97,7 +88,7 @@ export default function PatientDietPage() {
 
             {/* Days Accordion */}
             <div className="space-y-3">
-                {mockDays.map((day) => {
+                {protocolDays.map((day: any) => {
                     const isExpanded = expandedDay === day.day
                     const completedItems = day.items.filter(i => i.completed).length
                     const totalItems = day.items.length
@@ -152,8 +143,8 @@ export default function PatientDietPage() {
                                         <div
                                             key={idx}
                                             className={`flex items-start gap-3 p-3 rounded-xl border ${item.completed
-                                                    ? "bg-indigo-600/5 border-indigo-500/20"
-                                                    : "bg-white/5 border-white/10"
+                                                ? "bg-indigo-600/5 border-indigo-500/20"
+                                                : "bg-white/5 border-white/10"
                                                 }`}
                                         >
                                             <div className="flex-shrink-0 pt-1">
@@ -169,8 +160,8 @@ export default function PatientDietPage() {
                                                     <Clock className="text-slate-500" size={12} />
                                                     <span className="text-xs font-bold text-slate-500">{item.time}</span>
                                                     <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${item.type === 'shot'
-                                                            ? 'bg-orange-500/20 text-orange-400'
-                                                            : 'bg-green-500/20 text-green-400'
+                                                        ? 'bg-orange-500/20 text-orange-400'
+                                                        : 'bg-green-500/20 text-green-400'
                                                         }`}>
                                                         {item.type === 'shot' ? 'SHOT' : 'REFEIÇÃO'}
                                                     </span>

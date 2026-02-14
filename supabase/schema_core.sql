@@ -98,7 +98,10 @@ CREATE TABLE profiles (
     "notifications_enabled": true,
     "daily_reminder_time": "08:00",
     "weekly_summary": true
-  }'
+  }',
+
+  -- RBAC Role
+  role TEXT DEFAULT 'patient' CHECK (role IN ('patient', 'nutritionist', 'admin'))
 );
 
 -- Índices
@@ -255,15 +258,11 @@ CREATE POLICY "Admins can update own tenant"
 -- POLICIES - PROFILES
 -- ============================================
 
--- Usuários veem apenas perfis do mesmo tenant
-CREATE POLICY "Users see profiles from same tenant"
+-- Usuários veem apenas o próprio perfil (evita recursão)
+CREATE POLICY "Users see own profile"
   ON profiles FOR SELECT
   TO authenticated
-  USING (
-    tenant_id IN (
-      SELECT tenant_id FROM profiles WHERE user_id = auth.uid()
-    )
-  );
+  USING (user_id = auth.uid());
 
 -- Usuários podem atualizar apenas próprio perfil
 CREATE POLICY "Users can update own profile"
@@ -424,9 +423,9 @@ BEGIN
   -- Atualizar perfil do usuário
   UPDATE profiles 
   SET 
-    nutri_coins = nutri_coins + NEW.coins_earned,
-    total_xp = total_xp + NEW.xp_earned,
-    current_level = calculate_level(total_xp + NEW.xp_earned),
+    nutri_coins = nutri_coins + (NEW.coins_earned - COALESCE(OLD.coins_earned, 0)),
+    total_xp = total_xp + (NEW.xp_earned - COALESCE(OLD.xp_earned, 0)),
+    current_level = calculate_level(total_xp + (NEW.xp_earned - COALESCE(OLD.xp_earned, 0))),
     last_checkin_date = NEW.log_date,
     -- Atualizar streak
     current_streak = CASE 

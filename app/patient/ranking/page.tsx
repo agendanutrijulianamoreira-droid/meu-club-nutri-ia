@@ -1,27 +1,42 @@
-"use client"
-
-import { motion } from "framer-motion"
-import { Crown, Trophy, TrendingUp, Medal, Flame } from "lucide-react"
+import { Crown, Trophy, TrendingUp, Medal, Flame, Loader2 } from "lucide-react"
+import { useState, useEffect } from "react"
+import { supabase } from "@/lib/supabase-browser"
 
 export default function PatientRankingPage() {
-    // Mock data (será conectado ao Supabase depois)
-    const currentUser = {
-        rank: 3,
+    const [leaderboard, setLeaderboard] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const [userId, setUserId] = useState<string | null>(null)
+
+    useEffect(() => {
+        const loadRanking = async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser()
+                if (user) setUserId(user.id)
+
+                const { data, error } = await supabase
+                    .from('patient_ranking')
+                    .select('*')
+                    .order('rank', { ascending: true })
+                    .limit(50)
+
+                if (error) throw error
+                setLeaderboard(data || [])
+            } catch (err) {
+                console.error("Erro ao carregar ranking:", err)
+            } finally {
+                setLoading(false)
+            }
+        }
+        loadRanking()
+    }, [])
+
+    const currentUser = leaderboard.find(p => p.user_id === userId) || {
+        rank: '-',
         name: "Você",
-        points: 850,
-        streak: 7,
+        total_xp: 0,
+        current_streak: 0,
         isCurrentUser: true
     }
-
-    const leaderboard = [
-        { rank: 1, name: "Marina Silva", points: 1250, streak: 14, avatar: "M" },
-        { rank: 2, name: "Julia Santos", points: 1100, streak: 12, avatar: "J" },
-        { rank: 3, name: "Você", points: 850, streak: 7, avatar: "V", isCurrentUser: true },
-        { rank: 4, name: "Ana Costa", points: 720, streak: 8, avatar: "A" },
-        { rank: 5, name: "Carolina Lima", points: 680, streak: 5, avatar: "C" },
-        { rank: 6, name: "Beatriz Alves", points: 550, streak: 4, avatar: "B" },
-        { rank: 7, name: "Laura Rocha", points: 420, streak: 3, avatar: "L" },
-    ]
 
     const getRankColor = (rank: number) => {
         if (rank === 1) return "from-yellow-500 to-orange-500"
@@ -61,18 +76,18 @@ export default function PatientRankingPage() {
                             </div>
                             <div>
                                 <p className="text-3xl font-bold text-white">#{currentUser.rank}</p>
-                                <p className="text-xs text-slate-400">de {leaderboard.length}</p>
+                                <p className="text-xs text-slate-400">no Reino</p>
                             </div>
                         </div>
                     </div>
                     <div className="text-right">
                         <div className="flex items-center gap-2 justify-end mb-2">
                             <TrendingUp className="text-green-400" size={16} />
-                            <span className="text-sm font-bold text-green-400">+120 XP</span>
+                            <span className="text-sm font-bold text-green-400">Nível {currentUser.current_level || 1}</span>
                         </div>
                         <div className="flex items-center gap-2 justify-end">
                             <Flame className="text-orange-400" size={16} />
-                            <span className="text-sm font-bold text-white">{currentUser.streak} dias</span>
+                            <span className="text-sm font-bold text-white">{currentUser.current_streak || 0} dias</span>
                         </div>
                     </div>
                 </div>
@@ -80,11 +95,11 @@ export default function PatientRankingPage() {
                 <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10">
                     <div>
                         <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider mb-1">Total de XP</p>
-                        <p className="text-xl font-bold text-white">{currentUser.points}</p>
+                        <p className="text-xl font-bold text-white">{currentUser.total_xp || 0}</p>
                     </div>
                     <div>
-                        <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider mb-1">Próximo Nível</p>
-                        <p className="text-xl font-bold text-white">150 XP</p>
+                        <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider mb-1">NutriCoins</p>
+                        <p className="text-xl font-bold text-white">{currentUser.nutri_coins || 0} 🪙</p>
                     </div>
                 </div>
             </div>
@@ -93,60 +108,68 @@ export default function PatientRankingPage() {
             <div className="space-y-3">
                 <h2 className="text-sm font-bold uppercase text-slate-400 tracking-wider mb-4">Top Rainhas 👑</h2>
 
-                {leaderboard.map((player, index) => {
-                    const isTop3 = player.rank <= 3
+                {loading ? (
+                    <div className="flex flex-col items-center justify-center py-12 gap-3">
+                        <Loader2 className="animate-spin text-indigo-500" size={32} />
+                        <p className="text-slate-500 text-sm">Carregando Reino...</p>
+                    </div>
+                ) : (
+                    leaderboard.map((player, index) => {
+                        const isTop3 = player.rank <= 3
+                        const isMe = player.user_id === userId
 
-                    return (
-                        <motion.div
-                            key={player.rank}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.1 }}
-                            className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${player.isCurrentUser
+                        return (
+                            <motion.div
+                                key={player.user_id}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: index * 0.05 }}
+                                className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${isMe
                                     ? "bg-indigo-600/10 border-indigo-500/30 ring-2 ring-indigo-500/20"
                                     : "bg-white/5 border-white/10"
-                                }`}
-                        >
-                            {/* Rank Badge */}
-                            <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${isTop3
+                                    }`}
+                            >
+                                {/* Rank Badge */}
+                                <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${isTop3
                                     ? `bg-gradient-to-br ${getRankColor(player.rank)}`
                                     : "bg-slate-800/50"
-                                }`}>
-                                {isTop3 ? (
-                                    getRankIcon(player.rank)
-                                ) : (
-                                    <span className="text-sm font-bold text-slate-400">#{player.rank}</span>
-                                )}
-                            </div>
-
-                            {/* Player Info */}
-                            <div className="flex-1">
-                                <h3 className={`font-bold text-sm ${player.isCurrentUser ? "text-indigo-300" : "text-white"}`}>
-                                    {player.name}
-                                    {player.isCurrentUser && (
-                                        <span className="ml-2 text-[9px] bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-full">VOCÊ</span>
+                                    }`}>
+                                    {isTop3 ? (
+                                        getRankIcon(player.rank)
+                                    ) : (
+                                        <span className="text-sm font-bold text-slate-400">#{player.rank}</span>
                                     )}
-                                </h3>
-                                <div className="flex items-center gap-3 mt-1">
-                                    <div className="flex items-center gap-1">
-                                        <TrendingUp className="text-slate-500" size={12} />
-                                        <span className="text-xs text-slate-400">{player.points} XP</span>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                        <Flame className="text-orange-400" size={12} />
-                                        <span className="text-xs text-slate-400">{player.streak}d</span>
+                                </div>
+
+                                {/* Player Info */}
+                                <div className="flex-1">
+                                    <h3 className={`font-bold text-sm ${isMe ? "text-indigo-300" : "text-white"}`}>
+                                        {player.name}
+                                        {isMe && (
+                                            <span className="ml-2 text-[9px] bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-full">VOCÊ</span>
+                                        )}
+                                    </h3>
+                                    <div className="flex items-center gap-3 mt-1">
+                                        <div className="flex items-center gap-1">
+                                            <TrendingUp className="text-slate-500" size={12} />
+                                            <span className="text-xs text-slate-400">Nível {player.current_level}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <Flame className="text-orange-400" size={12} />
+                                            <span className="text-xs text-slate-400">{player.current_streak}d</span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* Points Display */}
-                            <div className="text-right">
-                                <p className="text-lg font-bold text-white">{player.points}</p>
-                                <p className="text-[10px] uppercase font-bold text-slate-500">pontos</p>
-                            </div>
-                        </motion.div>
-                    )
-                })}
+                                {/* Points Display */}
+                                <div className="text-right">
+                                    <p className="text-lg font-bold text-white">{player.total_xp}</p>
+                                    <p className="text-[10px] uppercase font-bold text-slate-500">XP</p>
+                                </div>
+                            </motion.div>
+                        )
+                    })
+                )}
             </div>
 
             {/* Achievement Hint */}

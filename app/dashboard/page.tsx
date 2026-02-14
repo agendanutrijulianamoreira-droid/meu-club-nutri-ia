@@ -7,7 +7,7 @@ import { PanicButton } from '@/components/dashboard/panic-button';
 import { GlassCard } from '@/components/ui/glass-card';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { useDailyLogs } from '@/lib/hooks/useDailyLogs';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-browser'
 
 /**
  * Dashboard do Paciente - Integração Completa
@@ -18,7 +18,7 @@ import { createClient } from '@/lib/supabase';
  * - PanicButton aparece apenas para VIPs
  */
 export default function DashboardPage() {
-    const supabase = createClient();
+    // supabase importado do singleton
     const [userId, setUserId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 

@@ -11,67 +11,69 @@ import {
     ChevronRight,
     Clock,
     Send,
-    Smartphone,
     X,
     Sparkles,
     Trash2,
     Loader2,
-    Droplets,
     Apple,
     Video,
-    Image
+    Image,
+    Copy,
+    Star,
+    Repeat
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
-import { supabase } from "@/lib/supabase"
-
-interface ScheduledEvent {
-    id: string
-    day: number
-    type: 'push' | 'content' | 'challenge'
-    title: string
-    message?: string
-    time: string
-    contentType?: 'diet' | 'recipe' | 'video' | 'pdf'
-}
+import { useScheduledEvents, type ScheduledEvent, type CreateEventData } from "@/lib/hooks/useScheduledEvents"
+import { useContentTemplates, type ContentTemplate } from "@/lib/hooks/useContentTemplates"
 
 export function StrategicPlannerView({ setView }: { setView: (v: any) => void }) {
     const [currentMonth, setCurrentMonth] = useState(new Date())
     const [selectedDate, setSelectedDate] = useState<number | null>(null)
     const [showModal, setShowModal] = useState(false)
+    const [showTemplates, setShowTemplates] = useState(false)
     const [modalType, setModalType] = useState<'push' | 'content'>('push')
     const [saving, setSaving] = useState(false)
+    const [selectedEvent, setSelectedEvent] = useState<ScheduledEvent | null>(null)
+
+    // Hooks para dados reais
+    const {
+        events,
+        loading,
+        createEvent,
+        createEvents,
+        updateEvent,
+        updateRecurringEvents,
+        deleteEvent: removeEvent,
+        deleteRecurringEvents,
+        duplicateEvent
+    } = useScheduledEvents(currentMonth.getMonth(), currentMonth.getFullYear())
+
+    const { templates, popular, useTemplate: applyTemplate } = useContentTemplates()
 
     const [formData, setFormData] = useState({
         title: "",
         message: "",
         time: "09:00",
-        contentType: "diet"
+        contentType: "diet" as any,
+        recurrence: 'none' as 'none' | 'daily' | 'weekly' | 'weekdays' | 'monthly' | 'custom',
+        recurrenceDays: [] as number[], // 0-6 (Dom-Sab)
+        repeatUntil: "" as string // YYYY-MM-DD
     })
-
-    // Events loaded from database or setup
-    const [events, setEvents] = useState<ScheduledEvent[]>([
-        // Mock data - would come from database
-        { id: '1', day: 2, type: 'content', title: 'Liberação: Dieta Fase 1', time: '08:00', contentType: 'diet' },
-        { id: '2', day: 2, type: 'push', title: 'Começou! Acesse sua dieta.', message: 'Sua nova fase está liberada no app. Clique para ver!', time: '08:05' },
-        { id: '3', day: 5, type: 'challenge', title: 'Missão: Foto do Almoço', time: '12:00' },
-        { id: '4', day: 10, type: 'push', title: 'Metade do caminho!', message: 'Você está indo muito bem! Continue assim 💪', time: '10:00' },
-        { id: '5', day: 15, type: 'push', title: 'Bebeu água hoje?', message: 'Sua meta está quase batida. Vamos lá? 💧', time: '15:00' },
-        { id: '6', day: 21, type: 'content', title: 'Receita: Shot Detox', time: '07:00', contentType: 'recipe' },
-        { id: '7', day: 28, type: 'push', title: 'Parabéns! Mês concluído!', message: 'Você completou o protocolo. Confira seu progresso! 🎉', time: '18:00' },
-    ])
 
     // Strategy context from setup
     const [strategy, setStrategy] = useState({
-        name: "Protocolo Folia: Energia & Hidratação",
+        name: "Protoc olo Folia: Energia & Hidratação",
         description: "Foco total em retenção de líquidos e energia rápida para o pré-carnaval.",
         suggestedPush: "Faltam 5 dias para a folia! Já garantiu seu shot de imunidade hoje? 💉"
     })
 
     const monthNames = [
         "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+        "Julho", "Agosto", "Setembro", "Octubro", "Novembro", "Dezembro"
     ]
+
+    const [showDatePicker, setShowDatePicker] = useState(false)
 
     const getDaysInMonth = (date: Date) => {
         return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
@@ -83,9 +85,30 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
 
     const handleDayClick = (day: number) => {
         setSelectedDate(day)
-        setFormData({ title: "", message: "", time: "09:00", contentType: "diet" })
+        setSelectedEvent(null)
+        setFormData({ title: "", message: "", time: "09:00", contentType: "diet", recurrence: 'none', recurrenceDays: [], repeatUntil: "" })
         setModalType('push')
         setShowModal(true)
+        setShowTemplates(false)
+    }
+
+    const handleEventClick = (event: ScheduledEvent, e: React.MouseEvent) => {
+        e.stopPropagation()
+        const eventDate = new Date(event.scheduled_date)
+        setSelectedDate(eventDate.getDate())
+        setSelectedEvent(event)
+        setFormData({
+            title: event.title,
+            message: event.message || "",
+            time: event.scheduled_time,
+            contentType: event.content_type || "diet",
+            recurrence: 'none',
+            recurrenceDays: [],
+            repeatUntil: ""
+        })
+        setModalType(event.event_type === 'push' ? 'push' : 'content')
+        setShowModal(true)
+        setShowTemplates(false)
     }
 
     const handlePrevMonth = () => {
@@ -96,8 +119,19 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
         setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
     }
 
+    // Converter eventos do banco para eventos do dia (agrupados por dia)
+    // Usamos split('-') para evitar problemas de fuso horário do JS
     const getEventsForDay = (day: number) => {
-        return events.filter(e => e.day === day)
+        return events.filter(e => {
+            const dateParts = e.scheduled_date.split('-')
+            const eventDay = parseInt(dateParts[2])
+            const eventMonth = parseInt(dateParts[1]) - 1
+            const eventYear = parseInt(dateParts[0])
+
+            return eventDay === day &&
+                eventMonth === currentMonth.getMonth() &&
+                eventYear === currentMonth.getFullYear()
+        })
     }
 
     const getEventIcon = (type: string) => {
@@ -123,26 +157,207 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
 
         setSaving(true)
 
-        // Simulate API call
-        await new Promise(r => setTimeout(r, 1000))
+        try {
+            // Criar data local segura (YYYY-MM-DD)
+            const dateStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(selectedDate).padStart(2, '0')}`
 
-        const newEvent: ScheduledEvent = {
-            id: `evt-${Date.now()}`,
-            day: selectedDate,
-            type: modalType,
-            title: formData.title,
-            message: formData.message,
-            time: formData.time,
-            contentType: formData.contentType as any
+            const eventData: CreateEventData = {
+                scheduled_date: dateStr,
+                scheduled_time: formData.time,
+                event_type: modalType,
+                title: formData.title,
+                message: formData.message || undefined,
+                content_type: modalType === 'content' ? formData.contentType : undefined
+            }
+
+            if (selectedEvent) {
+                // Atualizar evento existente
+                const isRecurring = !!selectedEvent.recurrence_id
+                let updateAll = false
+
+                if (isRecurring) {
+                    const choice = confirm('Esta notificação faz parte de uma SÉRIE (repetição).\n\nOK: Aplicar alterações em TODA A SÉRIE?\nCancelar: Aplicar APENAS NESTA data?')
+                    if (choice) updateAll = true
+                }
+
+                if (updateAll && selectedEvent.recurrence_id) {
+                    // Remover a data para não sobrescrever todas as datas da série com o mesmo dia
+                    const { scheduled_date: _, ...bulkUpdateData } = eventData
+                    await updateRecurringEvents(selectedEvent.recurrence_id, bulkUpdateData)
+                } else {
+                    await updateEvent(selectedEvent.id, eventData)
+                }
+            } else if (formData.recurrence !== 'none') {
+                // CRIAR RECORRÊNCIA AVANÇADA (BULK)
+                const eventsToCreate: CreateEventData[] = [eventData]
+
+                // Definir limite de repetição (Parse local para evitar timezone jumps)
+                let limitDate: Date | null = null
+                if (formData.repeatUntil) {
+                    const [y, m, d] = formData.repeatUntil.split('-').map(Number)
+                    limitDate = new Date(y, m - 1, d, 23, 59, 59)
+                }
+
+                let nextDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), selectedDate)
+
+                // MÁXIMO DE SEGURANÇA para evitar loop infinito caso o usuário coloque uma data muito distante (ex: ano 3000)
+                const safetyLimit = 500
+                let createdCount = 0
+
+                while (createdCount < safetyLimit) {
+                    nextDay.setDate(nextDay.getDate() + 1)
+
+                    if (limitDate && nextDay > limitDate) break
+                    // Se não tiver data limite, o padrão antigo era até o fim do mês. 
+                    // Agora, se o usuário NÃO preencher, manteremos o limite de 60 dias para não sobrecarregar.
+                    if (!limitDate && createdCount >= 60) break
+
+                    const dayOfWeek = nextDay.getDay()
+                    let shouldCreate = false
+
+                    if (formData.recurrence === 'daily') {
+                        shouldCreate = true
+                    } else if (formData.recurrence === 'weekly') {
+                        // Agora 'weekly' usa os dias selecionados (ou o dia original)
+                        shouldCreate = formData.recurrenceDays.includes(dayOfWeek)
+                    } else if (formData.recurrence === 'weekdays') {
+                        shouldCreate = dayOfWeek !== 0 && dayOfWeek !== 6
+                    } else if (formData.recurrence === 'monthly') {
+                        shouldCreate = nextDay.getDate() === selectedDate
+                    }
+
+                    if (shouldCreate) {
+                        const nextDateStr = `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, '0')}-${String(nextDay.getDate()).padStart(2, '0')}`
+                        eventsToCreate.push({
+                            ...eventData,
+                            scheduled_date: nextDateStr
+                        })
+                    }
+                    createdCount++
+                }
+
+                // Usar o novo hook de criação em massa
+                await createEvents(eventsToCreate)
+            } else {
+                // Criar apenas um evento (padrão)
+                await createEvent(eventData)
+            }
+
+            setShowModal(false)
+            setSelectedEvent(null)
+        } catch (error: any) {
+            console.error('Error saving event:', error)
+            let msg = error?.message || 'Erro ao salvar evento'
+
+            // Dica amigável se a coluna recurrence_id estiver faltando
+            if (msg.includes('recurrence_id') || error?.code === '42703') {
+                msg = "O banco de dados precisa ser atualizado para suportar eventos repetidos. Por favor, execute o script 'supabase/add_recurrence_id.sql' no seu painel do Supabase."
+            }
+
+            alert(`❌ ${msg}`)
+        } finally {
+            setSaving(false)
         }
-
-        setEvents(prev => [...prev, newEvent])
-        setShowModal(false)
-        setSaving(false)
     }
 
-    const deleteEvent = (eventId: string) => {
-        setEvents(prev => prev.filter(e => e.id !== eventId))
+    // Handlers para Drag & Drop
+    const handleDragStart = (e: React.DragEvent, eventId: string) => {
+        e.dataTransfer.setData('eventId', eventId)
+        e.dataTransfer.dropEffect = 'move'
+    }
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+    }
+
+    const handleDrop = async (e: React.DragEvent, day: number) => {
+        e.preventDefault()
+        const eventId = e.dataTransfer.getData('eventId')
+        if (!eventId) return
+
+        const dateStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+
+        try {
+            await updateEvent(eventId, { scheduled_date: dateStr })
+        } catch (error: any) {
+            console.error('Error dropping event:', error)
+            alert('Erro ao mover evento: ' + error.message)
+        }
+    }
+
+    const handleDeleteEvent = async (deleteAllInSeries = false) => {
+        if (!selectedEvent) return
+
+        const isRecurring = !!selectedEvent.recurrence_id
+
+        if (isRecurring && !deleteAllInSeries) {
+            // Se for recorrente e ainda não escolheu, confirmar (ou já foi clicado em 'apenas este')
+            if (!confirm('Deseja deletar APENAS este evento?')) return
+        } else if (!isRecurring) {
+            if (!confirm('Tem certeza que deseja deletar este evento?')) return
+        }
+
+        try {
+            if (deleteAllInSeries && selectedEvent.recurrence_id) {
+                await deleteRecurringEvents(selectedEvent.recurrence_id)
+            } else {
+                await removeEvent(selectedEvent.id)
+            }
+            setShowModal(false)
+            setSelectedEvent(null)
+        } catch (error) {
+            console.error('Error deleting event:', error)
+            alert('Erro ao deletar evento. Tente novamente.')
+        }
+    }
+
+    const handleDuplicateEvent = async () => {
+        if (!selectedEvent) return
+
+        const newDate = prompt('Digite a nova data (DD):', String(selectedDate))
+        if (!newDate) return
+
+        const day = parseInt(newDate)
+        if (isNaN(day) || day < 1 || day > getDaysInMonth(currentMonth)) {
+            alert('Data inválida!')
+            return
+        }
+
+        try {
+            const dateStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+            await duplicateEvent(selectedEvent.id, dateStr)
+            setShowModal(false)
+        } catch (error) {
+            console.error('Error duplicating event:', error)
+            alert('Erro ao duplicar evento. Tente novamente.')
+        }
+    }
+
+    const handleUseTemplate = async (template: ContentTemplate) => {
+        try {
+            // Se não houver data selecionada (ex: vindo da barra lateral), bota pra hoje
+            if (!selectedDate) {
+                setSelectedDate(new Date().getDate())
+            }
+
+            const templateData = await applyTemplate(template.id)
+            setFormData({
+                title: templateData.title,
+                message: templateData.message,
+                time: templateData.scheduled_time,
+                contentType: templateData.content_type || 'diet',
+                recurrence: 'none',
+                recurrenceDays: [],
+                repeatUntil: ""
+            })
+            setModalType(templateData.event_type as any)
+            setShowTemplates(false)
+            setShowModal(true)
+        } catch (error: any) {
+            console.error('Error using template:', error)
+            alert(`Erro ao carregar template: ${error.message || 'Tente novamente.'}`)
+        }
     }
 
     const useSuggestedPush = () => {
@@ -188,70 +403,85 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                     </div>
                 </div>
 
-                {/* Calendar Grid */}
-                <div className="grid grid-cols-7 gap-2">
-                    {/* Week Days Header */}
-                    {['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].map(d => (
-                        <div key={d} className="text-center text-xs font-bold text-gray-500 py-2">{d}</div>
-                    ))}
+                {loading && (
+                    <div className="flex items-center justify-center py-20">
+                        <Loader2 className="animate-spin text-purple-400" size={40} />
+                    </div>
+                )}
 
-                    {/* Empty cells for offset */}
-                    {Array.from({ length: firstDay }).map((_, i) => (
-                        <div key={`empty-${i}`} className="min-h-[120px] bg-white/[0.01] rounded-xl" />
-                    ))}
+                {!loading && (
+                    <>
+                        {/* Calendar Grid */}
+                        <div className="grid grid-cols-7 gap-2">
+                            {/* Week Days Header */}
+                            {['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].map(d => (
+                                <div key={d} className="text-center text-xs font-bold text-gray-500 py-2">{d}</div>
+                            ))}
 
-                    {/* Days */}
-                    {Array.from({ length: daysInMonth }).map((_, i) => {
-                        const day = i + 1
-                        const dayEvents = getEventsForDay(day)
-                        const isToday = isCurrentMonth && day === today
+                            {/* Empty cells for offset */}
+                            {Array.from({ length: firstDay }).map((_, i) => (
+                                <div key={`empty-${i}`} className="min-h-[120px] bg-white/[0.01] rounded-xl" />
+                            ))}
 
-                        return (
-                            <motion.div
-                                key={day}
-                                whileHover={{ scale: 1.02 }}
-                                onClick={() => handleDayClick(day)}
-                                className={`min-h-[120px] glass-panel rounded-xl p-2 cursor-pointer transition-all group relative ${isToday ? 'ring-2 ring-purple-500 bg-purple-500/5' : 'hover:border-purple-500/30'
-                                    }`}
-                            >
-                                {/* Day Number */}
-                                <div className="flex justify-between items-start mb-2">
-                                    <span className={`text-sm font-bold ${isToday ? 'text-purple-400' :
-                                        dayEvents.length > 0 ? 'text-white' : 'text-gray-500'
-                                        }`}>
-                                        {day}
-                                    </span>
+                            {/* Days */}
+                            {Array.from({ length: daysInMonth }).map((_, i) => {
+                                const day = i + 1
+                                const dayEvents = getEventsForDay(day)
+                                const isToday = isCurrentMonth && day === today
 
-                                    {/* Add Button (on hover) */}
-                                    <button
-                                        className="opacity-0 group-hover:opacity-100 bg-purple-600 text-white p-1 rounded-md transition hover:scale-110"
-                                        onClick={(e) => { e.stopPropagation(); handleDayClick(day) }}
+                                return (
+                                    <motion.div
+                                        key={day}
+                                        whileHover={{ scale: 1.01 }}
+                                        onClick={() => handleDayClick(day)}
+                                        onDragOver={handleDragOver}
+                                        onDrop={(e) => handleDrop(e, day)}
+                                        className={`min-h-[120px] glass-panel rounded-xl p-2 cursor-pointer transition-all group relative ${isToday ? 'ring-2 ring-purple-500 bg-purple-500/5' : 'hover:border-purple-500/30'
+                                            }`}
                                     >
-                                        <Plus size={12} />
-                                    </button>
-                                </div>
+                                        {/* Day Number */}
+                                        <div className="flex justify-between items-start mb-2 text-gray-400 group-hover:text-gray-200">
+                                            <span className={`text-sm font-bold ${isToday ? 'text-purple-400 font-black scale-110' :
+                                                dayEvents.length > 0 ? 'text-white' : 'text-gray-500'
+                                                }`}>
+                                                {day}
+                                            </span>
 
-                                {/* Event Pills */}
-                                <div className="space-y-1">
-                                    {dayEvents.slice(0, 3).map((evt) => (
-                                        <div
-                                            key={evt.id}
-                                            className={`text-[10px] px-2 py-1 rounded border truncate font-medium flex items-center gap-1 ${getEventStyle(evt.type)}`}
-                                        >
-                                            {getEventIcon(evt.type)}
-                                            <span className="truncate">{evt.title}</span>
+                                            {/* Add Button (on hover) */}
+                                            <button
+                                                className="opacity-0 group-hover:opacity-100 bg-purple-600/50 hover:bg-purple-600 text-white p-1 rounded-md transition-all hover:scale-110"
+                                                onClick={(e) => { e.stopPropagation(); handleDayClick(day) }}
+                                            >
+                                                <Plus size={12} />
+                                            </button>
                                         </div>
-                                    ))}
-                                    {dayEvents.length > 3 && (
-                                        <div className="text-[10px] text-gray-500 pl-1">
-                                            +{dayEvents.length - 3} mais
+
+                                        {/* Event Pills */}
+                                        <div className="space-y-1">
+                                            {dayEvents.slice(0, 4).map((evt) => (
+                                                <div
+                                                    key={evt.id}
+                                                    draggable
+                                                    onDragStart={(e) => handleDragStart(e, evt.id)}
+                                                    onClick={(e) => handleEventClick(evt, e)}
+                                                    className={`text-[9px] px-2 py-1 rounded border truncate font-medium flex items-center gap-1 cursor-grab active:cursor-grabbing transition-transform hover:translate-x-1 ${getEventStyle(evt.event_type)}`}
+                                                >
+                                                    {getEventIcon(evt.event_type)}
+                                                    <span className="truncate">{evt.title}</span>
+                                                </div>
+                                            ))}
+                                            {dayEvents.length > 4 && (
+                                                <div className="text-[9px] text-gray-500 pl-1 font-bold">
+                                                    +{dayEvents.length - 4} mais
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
-                                </div>
-                            </motion.div>
-                        )
-                    })}
-                </div>
+                                    </motion.div>
+                                )
+                            })}
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* ===== SIDEBAR (Strategy Context) ===== */}
@@ -282,6 +512,39 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                     </Button>
                 </div>
 
+                {/* Templates Rápidos */}
+                <div className="glass-panel p-4 rounded-xl border border-purple-500/20 mb-6">
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-bold text-purple-400 uppercase">Templates Rápidos</span>
+                        <Star size={14} className="text-purple-400" />
+                    </div>
+                    <div className="space-y-2">
+                        {popular.slice(0, 3).map((template) => (
+                            <button
+                                key={template.id}
+                                onClick={() => {
+                                    setShowTemplates(true)
+                                    setShowModal(false)
+                                }}
+                                className="w-full text-left p-2 rounded-lg bg-white/5 hover:bg-white/10 transition text-xs"
+                            >
+                                <span className="mr-1">{template.emoji}</span>
+                                {template.name}
+                            </button>
+                        ))}
+                    </div>
+                    <Button
+                        onClick={() => {
+                            setShowTemplates(true)
+                            setSelectedDate(new Date().getDate())
+                        }}
+                        variant="ghost"
+                        className="w-full mt-2 text-xs"
+                    >
+                        Ver Todos
+                    </Button>
+                </div>
+
                 {/* Quick Stats */}
                 <div className="glass-panel p-4 rounded-xl border border-white/5 mb-6">
                     <h4 className="text-xs font-bold text-gray-500 uppercase mb-3">Este Mês</h4>
@@ -292,7 +555,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                 Push Notifications
                             </span>
                             <span className="font-bold text-yellow-400">
-                                {events.filter(e => e.type === 'push').length}
+                                {events.filter(e => e.event_type === 'push').length}
                             </span>
                         </div>
                         <div className="flex items-center justify-between">
@@ -301,7 +564,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                 Conteúdos
                             </span>
                             <span className="font-bold text-purple-400">
-                                {events.filter(e => e.type === 'content').length}
+                                {events.filter(e => e.event_type === 'content').length}
                             </span>
                         </div>
                         <div className="flex items-center justify-between">
@@ -310,7 +573,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                 Desafios
                             </span>
                             <span className="font-bold text-green-400">
-                                {events.filter(e => e.type === 'challenge').length}
+                                {events.filter(e => e.event_type === 'challenge').length}
                             </span>
                         </div>
                     </div>
@@ -339,6 +602,68 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                 </div>
             </div>
 
+            {/* ===== TEMPLATES MODAL ===== */}
+            <AnimatePresence>
+                {showTemplates && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.95, y: 20 }}
+                            className="bg-[#1a1a2e] border border-white/10 w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl"
+                        >
+                            {/* Header */}
+                            <div className="bg-white/[0.02] p-6 border-b border-white/5 flex justify-between items-center">
+                                <div>
+                                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                        <Star className="text-purple-400" />
+                                        Templates Rápidos
+                                    </h3>
+                                    <p className="text-sm text-gray-400 mt-1">Escolha um template para começar rapidamente</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowTemplates(false)}
+                                    className="text-gray-500 hover:text-white p-2 hover:bg-white/5 rounded-lg transition"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            {/* Templates Grid */}
+                            <div className="p-6 max-h-[60vh] overflow-y-auto">
+                                <div className="grid grid-cols-2 gap-3">
+                                    {templates.map((template) => (
+                                        <button
+                                            key={template.id}
+                                            onClick={() => handleUseTemplate(template)}
+                                            className="text-left p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-500/30 transition group"
+                                        >
+                                            <div className="flex items-start justify-between mb-2">
+                                                <span className="text-2xl">{template.emoji}</span>
+                                                <span className="text-xs text-gray-500">Usado {template.usage_count}x</span>
+                                            </div>
+                                            <h4 className="font-bold text-white mb-1">{template.name}</h4>
+                                            <p className="text-xs text-gray-400 line-clamp-2">{template.title}</p>
+                                            <div className="mt-2 flex items-center gap-2">
+                                                {template.event_type === 'push' && <Bell size={12} className="text-yellow-400" />}
+                                                {template.event_type === 'content' && <FileText size={12} className="text-purple-400" />}
+                                                {template.event_type === 'challenge' && <Trophy size={12} className="text-green-400" />}
+                                                <span className="text-xs text-gray-500">{template.event_type}</span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* ===== SCHEDULING MODAL ===== */}
             <AnimatePresence>
                 {showModal && (
@@ -359,16 +684,60 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                 <div>
                                     <h3 className="text-xl font-bold text-white flex items-center gap-2">
                                         <Calendar className="text-purple-400" size={20} />
-                                        Agendar para Dia {selectedDate}
+                                        {selectedEvent ? 'Editar Evento' : `Agendar para Dia ${selectedDate}`}
                                     </h3>
-                                    <p className="text-sm text-gray-400 mt-1">O que vai acontecer neste dia?</p>
+                                    <p className="text-sm text-gray-400 mt-1">
+                                        {selectedEvent ? 'Faça as alterações necessárias' : 'O que vai acontecer neste dia?'}
+                                    </p>
                                 </div>
-                                <button
-                                    onClick={() => setShowModal(false)}
-                                    className="text-gray-500 hover:text-white p-2 hover:bg-white/5 rounded-lg transition"
-                                >
-                                    <X size={20} />
-                                </button>
+                                <div className="flex gap-2">
+                                    {selectedEvent && (
+                                        <>
+                                            <button
+                                                onClick={handleDuplicateEvent}
+                                                className="text-purple-400 hover:text-purple-300 p-2 hover:bg-white/5 rounded-lg transition"
+                                                title="Duplicar evento"
+                                            >
+                                                <Copy size={18} />
+                                            </button>
+
+                                            {/* Delete Options for Recurring Events */}
+                                            {selectedEvent.recurrence_id ? (
+                                                <div className="flex bg-white/5 rounded-lg overflow-hidden border border-white/10 ring-1 ring-red-500/20">
+                                                    <button
+                                                        onClick={() => handleDeleteEvent(false)}
+                                                        className="px-3 py-2 text-[10px] font-bold text-red-400 hover:bg-red-500/10 transition border-r border-white/10"
+                                                        title="Deletar apenas este"
+                                                    >
+                                                        ESTE
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteEvent(true)}
+                                                        className="px-3 py-2 text-[10px] font-bold text-white bg-red-600/20 hover:bg-red-600/40 transition flex items-center gap-1"
+                                                        title="Deletar toda a série"
+                                                    >
+                                                        <Trash2 size={12} className="text-red-500" />
+                                                        SÉRIE
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleDeleteEvent()}
+                                                    className="text-red-400 hover:text-red-300 p-2 hover:bg-white/5 rounded-lg transition border border-white/10"
+                                                    title="Deletar evento"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            )}
+                                        </>
+                                    )}
+                                    <button
+                                        onClick={() => setShowModal(false)}
+                                        className="text-gray-500 hover:text-white p-2 hover:bg-white/5 rounded-lg transition"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="flex h-[420px]">
@@ -398,6 +767,153 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                             Conteúdo no App
                                         </button>
                                     </div>
+
+                                    {/* Date, Time and Recurrence */}
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className="relative">
+                                            <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">
+                                                Data
+                                            </label>
+                                            <button
+                                                onClick={() => setShowDatePicker(!showDatePicker)}
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl p-3 pl-10 text-[13px] text-white flex items-center gap-2 hover:border-purple-500 transition-all text-left"
+                                            >
+                                                <Calendar className="absolute left-3 text-gray-500" size={14} />
+                                                <span>Dia {selectedDate}</span>
+                                            </button>
+
+                                            {/* Mini Calendar Popover */}
+                                            {showDatePicker && (
+                                                <div className="absolute left-0 top-full mt-2 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-2xl p-4 z-[100] w-[280px]">
+                                                    <div className="grid grid-cols-7 gap-1">
+                                                        {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map(d => (
+                                                            <div key={d} className="text-center text-[10px] text-gray-600 font-bold py-1">{d}</div>
+                                                        ))}
+                                                        {Array.from({ length: getFirstDayOfMonth(currentMonth) }).map((_, i) => (
+                                                            <div key={`empty-${i}`} />
+                                                        ))}
+                                                        {Array.from({ length: daysInMonth }).map((_, i) => {
+                                                            const d = i + 1
+                                                            const isSelected = selectedDate === d
+                                                            return (
+                                                                <button
+                                                                    key={d}
+                                                                    onClick={() => {
+                                                                        setSelectedDate(d)
+                                                                        setShowDatePicker(false)
+                                                                    }}
+                                                                    className={`w-8 h-8 rounded-lg text-xs transition-all ${isSelected
+                                                                        ? 'bg-purple-600 text-white font-bold'
+                                                                        : 'text-gray-400 hover:bg-white/5'
+                                                                        }`}
+                                                                >
+                                                                    {d}
+                                                                </button>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">
+                                                Horário
+                                            </label>
+                                            <div className="relative">
+                                                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+                                                <input
+                                                    type="time"
+                                                    value={formData.time}
+                                                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 pl-9 text-[13px] text-white focus:border-purple-500 outline-none"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">
+                                                Repetir
+                                            </label>
+                                            <div className="relative">
+                                                <Repeat className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+                                                <select
+                                                    value={formData.recurrence || 'none'}
+                                                    onChange={(e) => {
+                                                        const newVal = e.target.value as any;
+                                                        let newDays = formData.recurrenceDays;
+
+                                                        // Se selecionar semanal e não tiver dias marcados, marcar o dia atual
+                                                        if (newVal === 'weekly' && newDays.length === 0 && selectedDate !== null) {
+                                                            const dateObj = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), selectedDate);
+                                                            newDays = [dateObj.getDay()];
+                                                        }
+
+                                                        setFormData({ ...formData, recurrence: newVal, recurrenceDays: newDays });
+                                                    }}
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 pl-9 text-[13px] text-white focus:border-purple-500 outline-none appearance-none"
+                                                >
+                                                    <option value="none">Não repetir</option>
+                                                    <option value="daily">Todo dia</option>
+                                                    <option value="weekly">Semanal...</option>
+                                                    <option value="weekdays">Seg-Sex</option>
+                                                    <option value="monthly">Mensal</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Repeat Until / End Date */}
+                                    {formData.recurrence !== 'none' && (
+                                        <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                                            <label className="block text-[10px] font-bold text-gray-500 mb-2 uppercase tracking-wider">
+                                                Repetir até:
+                                            </label>
+                                            <div className="relative">
+                                                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+                                                <input
+                                                    type="date"
+                                                    value={formData.repeatUntil}
+                                                    onChange={(e) => setFormData({ ...formData, repeatUntil: e.target.value })}
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 pl-9 text-[13px] text-white focus:border-purple-500 outline-none"
+                                                />
+                                            </div>
+                                            <p className="text-[10px] text-gray-500 mt-2 italic">
+                                                * Caso vazio, repetirá até o final do mês atual.
+                                            </p>
+                                        </div>
+                                    )}
+
+
+                                    {/* Custom Days Selector (Visible for Weekly) */}
+                                    {formData.recurrence === 'weekly' && (
+                                        <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                                            <label className="block text-[10px] font-bold text-gray-500 mb-3 uppercase tracking-wider text-center">
+                                                Repetir nestes dias da semana:
+                                            </label>
+                                            <div className="flex justify-between gap-1">
+                                                {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((day, i) => {
+                                                    const isSelected = formData.recurrenceDays.includes(i)
+                                                    return (
+                                                        <button
+                                                            key={i}
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                const newDays = isSelected
+                                                                    ? formData.recurrenceDays.filter(d => d !== i)
+                                                                    : [...formData.recurrenceDays, i]
+                                                                setFormData({ ...formData, recurrenceDays: newDays })
+                                                            }}
+                                                            className={`w-9 h-9 rounded-full text-xs font-bold transition-all border ${isSelected
+                                                                ? 'bg-purple-600 border-purple-400 text-white shadow-[0_0_15px_rgba(168,85,247,0.4)]'
+                                                                : 'bg-black/40 border-white/10 text-gray-500 hover:border-gray-500'
+                                                                }`}
+                                                        >
+                                                            {day}
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Title */}
                                     <div>
@@ -456,21 +972,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                         </div>
                                     )}
 
-                                    {/* Time */}
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">
-                                            Horário de Envio
-                                        </label>
-                                        <div className="flex items-center gap-3 bg-black/40 border border-white/10 rounded-xl p-4">
-                                            <Clock size={18} className="text-gray-500" />
-                                            <input
-                                                type="time"
-                                                value={formData.time}
-                                                onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                                                className="bg-transparent outline-none text-white flex-1"
-                                            />
-                                        </div>
-                                    </div>
+
                                 </div>
 
                                 {/* Right: Preview */}
@@ -561,7 +1063,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                     ) : (
                                         <Send size={16} className="mr-2" />
                                     )}
-                                    {saving ? 'Agendando...' : 'Agendar Liberação'}
+                                    {saving ? 'Salvando...' : selectedEvent ? 'Salvar Alterações' : 'Agendar Liberação'}
                                 </Button>
                             </div>
                         </motion.div>

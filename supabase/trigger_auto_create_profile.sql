@@ -21,7 +21,8 @@ BEGIN
     current_streak,
     longest_streak,
     primary_goal,
-    dietary_restrictions
+    dietary_restrictions,
+    role
   )
   VALUES (
     NEW.id,
@@ -35,7 +36,8 @@ BEGIN
     0, -- Streak inicial
     0, -- Longest streak inicial
     NULL, -- Objetivo será definido depois
-    '[]'::jsonb -- Sem restrições alimentares inicialmente
+    '[]'::jsonb, -- Sem restrições alimentares inicialmente
+    COALESCE(NEW.raw_user_meta_data->>'user_type', 'patient') -- Role do metadata ou default
   );
   
   RETURN NEW;

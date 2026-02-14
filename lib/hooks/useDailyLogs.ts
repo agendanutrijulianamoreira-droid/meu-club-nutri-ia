@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-browser';
 
 interface DailyLog {
     id: string;
@@ -25,7 +25,7 @@ export function useDailyLogs(userId: string) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const supabase = createClient();
+    // Removido const supabase = createClient() pois agora usamos o singleton importado
 
     // Buscar log de hoje
     useEffect(() => {
@@ -60,49 +60,28 @@ export function useDailyLogs(userId: string) {
     }, [userId]);
 
     /**
-     * Salvar ou atualizar check-in do dia
+     * Salvar ou atualizar check-in do dia usando UPSERT
      */
-    const saveCheckIn = async (checks: {
-        water_check?: boolean;
-        workout_check?: boolean;
-        sleep_check?: boolean;
-        meal_plan_check?: boolean;
-        daily_victory?: string;
-        proof_photo_url?: string;
-    }) => {
+    const saveCheckIn = async (checks: Partial<DailyLog>) => {
         try {
             const today = new Date().toISOString().split('T')[0];
 
-            if (todayLog) {
-                // Atualizar log existente
-                const { data, error } = await supabase
-                    .from('daily_logs')
-                    .update(checks)
-                    .eq('id', todayLog.id)
-                    .select()
-                    .single();
+            const { data, error } = await supabase
+                .from('daily_logs')
+                .upsert({
+                    user_id: userId,
+                    log_date: today,
+                    ...checks,
+                }, {
+                    onConflict: 'user_id,log_date'
+                })
+                .select()
+                .single();
 
-                if (error) throw error;
+            if (error) throw error;
 
-                setTodayLog(data);
-                return { success: true, data };
-            } else {
-                // Criar novo log
-                const { data, error } = await supabase
-                    .from('daily_logs')
-                    .insert({
-                        user_id: userId,
-                        log_date: today,
-                        ...checks,
-                    })
-                    .select()
-                    .single();
-
-                if (error) throw error;
-
-                setTodayLog(data);
-                return { success: true, data };
-            }
+            setTodayLog(data);
+            return { success: true, data };
         } catch (err: any) {
             console.error('Erro ao salvar check-in:', err);
             return { success: false, error: err.message };
@@ -113,8 +92,9 @@ export function useDailyLogs(userId: string) {
      * Marcar check-in individual
      */
     const toggleCheck = async (checkType: 'water' | 'workout' | 'sleep' | 'meal') => {
-        const checkField = `${checkType}_check` as keyof typeof checks;
-        const currentValue = todayLog?.[checkField] || false;
+        // Mapeamento correto: meal -> meal_plan_check
+        const checkField = checkType === 'meal' ? 'meal_plan_check' : (`${checkType}_check` as keyof DailyLog);
+        const currentValue = todayLog ? !!todayLog[checkField as keyof DailyLog] : false;
 
         const checks = {
             [checkField]: !currentValue,
