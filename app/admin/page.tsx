@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase-browser"
 import { Button } from "@/components/ui/button"
 import {
     LayoutDashboard,
@@ -59,8 +61,57 @@ const navItems = [
 ]
 
 export default function AdminDashboard() {
+    const router = useRouter()
     const [activeView, setActiveView] = useState<ViewType>('dashboard')
     const [sidebarOpen, setSidebarOpen] = useState(true)
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        const checkTenant = async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user) {
+                    router.push('/login')
+                    return
+                }
+
+                // Get profile to check tenant_id
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('tenant_id, role')
+                    .eq('user_id', user.id)
+                    .single()
+
+                if (!profile || !profile.tenant_id) {
+                    // Se o usuário é admin/nutri mas não tem clinica, setup
+                    if (profile?.role === 'admin' || profile?.role === 'nutritionist' || profile?.role === 'nutri') {
+                        router.push('/admin/setup')
+                    } else {
+                        // Se caiu aqui e não é admin, tchau
+                        router.push('/login')
+                    }
+                } else {
+                    setLoading(false)
+                }
+            } catch (err) {
+                console.error("Error checking tenant:", err)
+                setLoading(false)
+            }
+        }
+
+        checkTenant()
+    }, [router])
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <Brain size={40} className="text-indigo-500 animate-pulse" />
+                    <p className="text-slate-400 text-xs font-black uppercase tracking-widest animate-pulse">Autenticando Clínica...</p>
+                </div>
+            </div>
+        )
+    }
 
     const renderView = () => {
         const props = { setView: setActiveView }

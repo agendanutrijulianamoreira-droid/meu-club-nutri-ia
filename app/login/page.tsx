@@ -33,7 +33,7 @@ export default function LoginPage() {
                     router.push('/admin');
                 } else if (role === 'patient') {
                     console.log("Redirecionando paciente:", role);
-                    router.push('/dashboard');
+                    router.push('/patient/home');
                 } else {
                     console.log("Papel desconhecido no redirecionamento automático:", role);
                     // Não redireciona automaticamente se não tiver certeza do papel
@@ -106,11 +106,11 @@ export default function LoginPage() {
                     if (isAdmin) {
                         router.push('/admin');
                     } else if (role === 'patient') {
-                        router.push('/dashboard');
+                        router.push('/patient/home');
                     } else {
                         // Se o perfil/metadata falhou mas ele escolheu ser nutri no formulário, confia no formulário
                         console.log("Papel indeciso. Fallback para formulário:", userType);
-                        router.push(userType === 'nutri' ? '/admin' : '/dashboard');
+                        router.push(userType === 'nutri' ? '/admin' : '/patient/home');
                     }
                 }
             }

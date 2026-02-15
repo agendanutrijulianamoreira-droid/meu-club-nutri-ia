@@ -2,8 +2,8 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 
 const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Origin': '*', // Recommendation: restricted origin in prod
+    'Access-Control-Allow-Headers': 'x-client-info, content-type, x-cron-secret',
 }
 
 serve(async (req) => {
@@ -12,13 +12,21 @@ serve(async (req) => {
     }
 
     try {
+        const cronHeader = req.headers.get('x-cron-secret')
+        const cronSecret = Deno.env.get('CRON_SECRET')
+
+        if (!cronHeader || cronHeader !== cronSecret) {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 401,
+            })
+        }
+
         const supabase = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         )
 
-        // Security check: Only allow service role or authenticated admin
-        // For MVP, we presume this is called by a secure internal cron or specific admin route
         const { campaign_id, process_all } = await req.json()
 
         if (process_all) {

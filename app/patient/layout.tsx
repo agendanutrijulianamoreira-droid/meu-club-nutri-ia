@@ -11,8 +11,8 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname()
     const router = useRouter()
 
-    // Ativar captura de Token FCM para Push
-    useFCMToken()
+    // Ativar captura de Token FCM para Push (Desativado para MVP - Foco Inbox)
+    // useFCMToken()
 
     // Proteção extra: Redirecionar nutris que caírem aqui por engano (sessão antiga/metadata)
     useEffect(() => {

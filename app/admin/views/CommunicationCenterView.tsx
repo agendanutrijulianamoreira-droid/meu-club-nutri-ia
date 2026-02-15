@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
 import { supabase } from "@/lib/supabase-browser"
+import { processCampaignAction } from "../actions/campaignActions"
 
 interface Campaign {
     id: string
@@ -73,6 +74,12 @@ const CAMPAIGN_TEMPLATES = [
         cta_label: "Fazer Check-in",
         cta_url: "/patient/home"
     }
+]
+
+const QUICK_TEMPLATES = [
+    { id: 'q1', label: "Check-in de hoje", title: "Check-in de hoje 📝", body: "Como foi seu dia hoje? Não esqueça de marcar seus check-ins!", cta_label: "Fazer Check-in", segment: "all" },
+    { id: 'q2', label: "Sumiu do desafio?", title: "Sumiu do desafio? 🤔", body: "Sentimos sua falta! Volte para o app e retome suas metas.", cta_label: "Voltar para o App", segment: "low_adherence", days: 2 },
+    { id: 'q3', label: "Upgrade: consulta estratégica", title: "Sua Próxima Fase 💎", body: "Você está indo super bem! Que tal uma consulta estratégica para acelerar seus resultados?", cta_label: "Agendar Agora", segment: "low_adherence", days: 7 }
 ]
 
 function CustomCalendar({ selectedDate, onSelect }: { selectedDate: string, onSelect: (date: string) => void }) {
@@ -182,7 +189,7 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
         body: "",
         cta_label: "",
         cta_url: "",
-        push: false, // Default false for MVP
+        push: false,
         inbox: true,
         segmentType: "all",
         lowAdherenceDays: 3,
@@ -190,7 +197,7 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
         recurrenceType: "none",
         scheduledDate: "",
         scheduledTime: "",
-        recurrenceDays: [] as number[], // 0 = Sunday, 1 = Monday, etc.
+        recurrenceDays: [] as number[],
     })
     const [isSaving, setIsSaving] = useState(false)
 
@@ -208,7 +215,6 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
 
             if (error) throw error
 
-            // Format count
             const formatted = data.map((c: any) => ({
                 ...c,
                 recipient_count: c.recipient_count?.[0]?.count || 0
@@ -254,7 +260,6 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
             const { data: { session } } = await supabase.auth.getSession()
             if (!session?.user) throw new Error("Você precisa estar logado para criar campanhas.")
 
-            // 1. Tentar pegar o perfil vinculado
             const { data: profile } = await supabase
                 .from('profiles')
                 .select('tenant_id, role')
@@ -263,17 +268,8 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
 
             let tenantId = profile?.tenant_id
 
-            // 2. Fallback para Master Admin/Desenvolvimento se o perfil estiver incompleto
             if (!tenantId) {
-                console.warn("Perfil não encontrado ou sem tenant_id. Tentando fallback para o primeiro tenant disponível...")
-                const { data: fallbackTenant } = await supabase
-                    .from('tenants')
-                    .select('id')
-                    .limit(1)
-                    .single()
-
-                tenantId = fallbackTenant?.id
-                if (!tenantId) throw new Error("Não conseguimos identificar o seu Tenant. Verifique se existe um registro na tabela 'tenants' ou se seu perfil está completo.")
+                throw new Error("Não conseguimos identificar sua clínica (Tenant). Verifique se seu perfil está configurado corretamente no banco de dados ou entre em contato com o suporte.")
             }
 
             const scheduledFor = formData.scheduleType === 'now'
@@ -289,12 +285,12 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                     body: formData.body,
                     cta_label: formData.cta_label || null,
                     cta_url: formData.cta_url || null,
-                    channels: { push: formData.push, inbox: formData.inbox },
+                    channels: { push: false, inbox: true },
                     segment: {
                         type: formData.segmentType,
                         days: formData.segmentType === 'low_adherence' ? formData.lowAdherenceDays : undefined
                     },
-                    status: 'scheduled', // Always scheduled, engine picks it up
+                    status: 'scheduled',
                     scheduled_for: scheduledFor,
                     recurrence_type: formData.recurrenceType === 'none' ? 'none' : formData.recurrenceType,
                     recurrence_config: formData.recurrenceType !== 'none' ? { days: formData.recurrenceDays } : {}
@@ -303,6 +299,13 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                 .single()
 
             if (error) throw error
+
+            if (formData.scheduleType === 'now' && data) {
+                const processResult = await processCampaignAction(data.id)
+                if (!processResult.success) {
+                    console.error("Erro no processamento imediato:", processResult.error)
+                }
+            }
 
             setViewMode('list')
             loadCampaigns()
@@ -339,7 +342,6 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                     <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">Nova Campanha</h1>
                 </div>
 
-                {/* Templates Bank */}
                 <div className="space-y-3">
                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block">Banco de Modelos (Seleção Rápida)</label>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -365,7 +367,6 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Form */}
                     <div className="space-y-6">
                         <div className="glass-panel p-8 rounded-3xl border border-white/5 space-y-6">
                             <div className="space-y-4">
@@ -406,31 +407,6 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                                             onChange={e => setFormData({ ...formData, cta_url: e.target.value })}
                                         />
                                     </div>
-                                </div>
-                            </div>
-
-                            <div className="hidden"> {/* Push desativado para MVP Inbox */}
-                                <h3 className="text-sm font-bold text-indigo-400">Canais de Envio</h3>
-                                <div className="flex gap-4">
-                                    <label className="flex items-center gap-2 text-white cursor-pointer opacity-50">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.push}
-                                            onChange={(e) => setFormData({ ...formData, push: e.target.checked })}
-                                            className="rounded border-white/10 bg-white/5"
-                                            disabled
-                                        />
-                                        Push Notification (Em breve)
-                                    </label>
-                                    <label className="flex items-center gap-2 text-white cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.inbox}
-                                            disabled
-                                            className="rounded border-white/10 bg-white/5"
-                                        />
-                                        Inbox App (Ativado)
-                                    </label>
                                 </div>
                             </div>
 
@@ -532,11 +508,6 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                                                         </button>
                                                     ))}
                                                 </div>
-                                                <p className="text-[10px] text-slate-500 italic">
-                                                    {formData.recurrenceType === 'weekly' ? 'Repetirá toda semana nos dias selecionados.' :
-                                                        formData.recurrenceType === 'biweekly' ? 'Repetirá a cada duas semanas nos dias selecionados.' :
-                                                            'Repetirá todo mês nos dias selecionados.'}
-                                                </p>
                                             </div>
                                         )}
                                     </motion.div>
@@ -554,7 +525,6 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                         </div>
                     </div>
 
-                    {/* Preview */}
                     <div className="hidden lg:block space-y-6">
                         <label className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">Preview da Notificação</label>
                         <div className="bg-black/40 rounded-[3rem] p-6 border-8 border-slate-900 w-[320px] mx-auto h-[600px] relative shadow-2xl">
@@ -597,22 +567,47 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Header Area */}
-            <div className="flex justify-between items-end">
-                <div>
-                    <h1 className="text-4xl font-black bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent uppercase tracking-tighter">Central de Comunicação</h1>
-                    <p className="text-slate-500 mt-2 font-medium tracking-wide">Fale com suas rainhas em massa. Engajamento em 3 cliques.</p>
+            <div className="space-y-8">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-4xl font-black bg-gradient-to-r from-white via-indigo-200 to-slate-400 bg-clip-text text-transparent">Central de Comunicação</h1>
+                        <p className="text-slate-500 text-sm mt-1 font-medium italic">Transforme adesão em resultado com 1 clique.</p>
+                    </div>
+                    <Button
+                        onClick={() => setViewMode('create')}
+                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 h-14 rounded-2xl shadow-lg shadow-indigo-900/20 font-black uppercase tracking-widest gap-2"
+                    >
+                        <Plus size={20} /> Nova Campanha
+                    </Button>
                 </div>
-                <Button
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white p-6 rounded-2xl font-bold uppercase tracking-widest text-xs gap-3 shadow-xl shadow-indigo-900/40 h-16 group"
-                    onClick={() => setViewMode('create')}
-                >
-                    <Plus size={20} className="group-hover:rotate-90 transition-transform" />
-                    Criar Mensagem
-                </Button>
+
+                <div className="bg-white/[0.02] border border-white/5 rounded-3xl p-6">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-4">Ações Ultra-Rápidas</label>
+                    <div className="flex flex-wrap gap-3">
+                        {QUICK_TEMPLATES.map(qt => (
+                            <button
+                                key={qt.id}
+                                onClick={() => {
+                                    setFormData({
+                                        ...formData,
+                                        title: qt.title,
+                                        body: qt.body,
+                                        cta_label: qt.cta_label || "",
+                                        segmentType: qt.segment,
+                                        lowAdherenceDays: (qt as any).days || 3
+                                    })
+                                    setViewMode('create')
+                                }}
+                                className="flex items-center gap-3 px-6 py-3 bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/20 rounded-2xl text-xs font-bold text-indigo-300 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                            >
+                                <Sparkles size={14} className="text-indigo-400" />
+                                {qt.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
             </div>
 
-            {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="glass-panel p-6 rounded-3xl border border-white/5 space-y-2 group hover:border-indigo-500/30 transition-all">
                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Total Enviadas</p>
@@ -623,16 +618,15 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                     <p className="text-3xl font-black text-indigo-400">{campaigns.filter(c => c.status === 'scheduled').length}</p>
                 </div>
                 <div className="glass-panel p-6 rounded-3xl border border-white/5 space-y-2 group hover:border-indigo-500/30 transition-all">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Média Alcance</p>
-                    <p className="text-3xl font-black text-emerald-400">92%</p>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Baixa Adesão</p>
+                    <p className="text-3xl font-black text-emerald-400">12%</p>
                 </div>
                 <div className="glass-panel p-6 rounded-3xl border border-white/5 space-y-2 group hover:border-indigo-500/30 transition-all border-dashed border-indigo-500/20">
-                    <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">IA Recomendação</p>
-                    <p className="text-sm font-bold text-slate-400">Pique de atividade às 20:30</p>
+                    <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">IA Status</p>
+                    <p className="text-sm font-bold text-slate-400">Processador Online</p>
                 </div>
             </div>
 
-            {/* List & Filters */}
             <div className="glass-panel rounded-[2.5rem] border border-white/5 overflow-hidden">
                 <div className="p-8 border-b border-white/5 flex items-center justify-between gap-6 flex-wrap md:flex-nowrap">
                     <div className="flex bg-white/5 rounded-2xl p-1.5 gap-1">
@@ -642,7 +636,7 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                                 onClick={() => setStatusFilter(stat)}
                                 className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === stat ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
                             >
-                                {stat === 'all' ? 'Ver Tudo' : stat === 'sent' ? 'Enviadas' : stat === 'scheduled' ? 'Calendário' : 'Falhas'}
+                                {stat === 'all' ? 'Ver Tudo' : stat === 'sent' ? 'Enviadas' : stat === 'scheduled' ? 'Agendada' : 'Falhas'}
                             </button>
                         ))}
                     </div>
@@ -663,8 +657,7 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                             <tr className="border-b border-white/5 text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">
                                 <th className="px-8 py-6">Campanha</th>
                                 <th className="px-8 py-6">Status</th>
-                                <th className="px-8 py-6 text-center">Alcance</th>
-                                <th className="px-8 py-6 text-center">Canais</th>
+                                <th className="px-8 py-6 text-center">Recursos</th>
                                 <th className="px-8 py-6 text-right">Data</th>
                                 <th className="px-8 py-6"></th>
                             </tr>
@@ -672,19 +665,19 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                         <tbody className="divide-y divide-white/[0.02]">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={6} className="px-8 py-12 text-center text-slate-500">
+                                    <td colSpan={5} className="px-8 py-12 text-center text-slate-500">
                                         <Loader2 className="animate-spin mx-auto mb-4" />
                                         Carregando seu histórico...
                                     </td>
                                 </tr>
                             ) : filteredCampaigns.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-8 py-20 text-center space-y-4">
+                                    <td colSpan={5} className="px-8 py-20 text-center space-y-4">
                                         <div className="h-20 w-20 rounded-full bg-white/5 flex items-center justify-center mx-auto">
                                             <Send size={32} className="text-slate-700" />
                                         </div>
                                         <p className="text-slate-500 text-sm font-black uppercase tracking-widest">Nenhuma campanha encontrada</p>
-                                        <Button variant="outline" className="border-white/10 rounded-xl" onClick={() => setViewMode('create')}>Começar Minha Primeira</Button>
+                                        <Button variant="outline" className="border-white/10 rounded-xl" onClick={() => setViewMode('create')}>Começar Agora</Button>
                                     </td>
                                 </tr>
                             ) : filteredCampaigns.map((camp) => (
@@ -703,23 +696,10 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                                         </div>
                                     </td>
                                     <td className="px-8 py-6">
-                                        <div className="flex flex-col items-center">
-                                            <span className="text-sm font-black text-white">{camp.recipient_count}</span>
-                                            <span className="text-[10px] font-black text-slate-600 uppercase">Pessoas</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-6">
                                         <div className="flex justify-center gap-2">
-                                            {camp.channels.push && (
-                                                <div className="h-8 w-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400" title="Push">
-                                                    <Bell size={14} />
-                                                </div>
-                                            )}
-                                            {camp.channels.inbox && (
-                                                <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400" title="Inbox">
-                                                    <MessageSquare size={14} />
-                                                </div>
-                                            )}
+                                            <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400" title="Inbox">
+                                                <MessageSquare size={14} />
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="px-8 py-6 text-right">

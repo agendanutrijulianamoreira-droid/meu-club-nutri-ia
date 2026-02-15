@@ -59,13 +59,12 @@ export async function middleware(req: NextRequest) {
             return NextResponse.redirect(new URL('/login', req.url))
         }
 
-        // Se acessar /dashboard, redireciona baseado no papel (role)
+        // Se acessar /dashboard, redireciona para /patient/home (Unificação MVP)
         if (req.nextUrl.pathname === '/dashboard' || req.nextUrl.pathname.startsWith('/dashboard')) {
             if (userRole === 'admin' || userRole === 'nutritionist' || userRole === 'nutri') {
                 return NextResponse.redirect(new URL('/admin', req.url))
             }
-            // Para pacientes ou undefined, permite o acesso ao /dashboard
-            return res
+            return NextResponse.redirect(new URL('/patient/home', req.url))
         }
     }
 

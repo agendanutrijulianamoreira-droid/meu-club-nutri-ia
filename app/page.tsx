@@ -31,7 +31,7 @@ export default async function Home() {
     if (userRole === 'admin' || userRole === 'nutritionist' || userRole === 'nutri') {
       redirect('/admin');
     } else if (userRole === 'patient') {
-      redirect('/dashboard');
+      redirect('/patient/home');
     }
   }
 

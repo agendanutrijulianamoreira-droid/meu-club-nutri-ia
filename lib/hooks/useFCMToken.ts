@@ -4,30 +4,8 @@ import { supabase } from '@/lib/supabase-browser'
 // This hook handles FCM token registration for the patient
 export function useFCMToken() {
     useEffect(() => {
-        const setupFCM = async () => {
-            // 1. Check if browser supports notifications
-            if (!('Notification' in window)) return
-
-            // 2. Request permission if not granted
-            if (Notification.permission === 'default') {
-                const permission = await Notification.requestPermission()
-                if (permission !== 'granted') return
-            }
-
-            // 3. Get FCM Token (Disabled for Inbox MVP)
-            /*
-            try {
-                const token = "MOCK_TOKEN_" + Math.random().toString(36).substring(7)
-                if (token) {
-                    await syncToken(token)
-                }
-            } catch (err) {
-                console.error("FCM Token Error:", err)
-            }
-            */
-        }
-
-        setupFCM()
+        // Notification logic disabled for MVP (Inbox priority)
+        return
     }, [])
 
     const syncToken = async (token: string) => {
