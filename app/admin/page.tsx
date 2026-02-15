@@ -16,62 +16,65 @@ export default async function AdminPage() {
     }
 
     // Get profile to check tenant_id and role
-    const { data: profile, error } = await supabase
+    const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('tenant_id, role')
         .eq('user_id', session.user.id)
         .single();
 
-    if (error) {
-        console.error("AdminPage: Error fetching profile:", error);
-    }
-
     const dbRole = profile?.role;
     const metadataRole = session.user.user_metadata?.user_type || session.user.user_metadata?.role;
     const role = dbRole || metadataRole;
-
     const isDemoTenant = profile?.tenant_id === '00000000-0000-0000-0000-000000000001';
-
-    // Log detalhado para depuração (visível no servidor)
-    console.log("AdminPage Check:", {
-        userId: session.user.id,
-        tenantId: profile?.tenant_id,
-        isDemoTenant,
-        dbRole,
-        metadataRole,
-        finalRole: role
-    });
 
     const roleLower = (role || '').toLowerCase();
     const isAdmin = ['admin', 'nutritionist', 'nutri'].includes(roleLower);
 
-    // Se temos um tenant válido E somos admin, entra direto
+    console.log("[Admin Guard] Status:", {
+        userId: session.user.id,
+        tenantId: profile?.tenant_id,
+        isDemoTenant,
+        role: roleLower,
+        isAdmin
+    });
+
+    // 1. Caminho Padrão: Tenant Válido + Admin
     if (profile?.tenant_id && !isDemoTenant && isAdmin) {
-        console.log("AdminPage: Access granted");
+        console.log("[Admin Guard] Access Granted (Standard)");
         return <AdminDashboardClient />;
     }
 
-    // Se não temos tenant ou é demo, mas somos admin, vai para onboarding
+    // 2. Autocura: Se o perfil está sem tenant ou no demo, mas o usuário é admin,
+    // verificamos se ele JÁ possui um tenant criado (evita delay de sync do perfil)
     if ((!profile?.tenant_id || isDemoTenant) && isAdmin) {
-        console.log("AdminPage: Missing or demo tenant for admin/nutri, redirecting to onboarding");
+        console.log("[Admin Guard] Missing tenant for Admin. Scanning for owned clinics...");
+        const { data: ownedTenants } = await supabase
+            .from('tenants')
+            .select('id')
+            .eq('owner_id', session.user.id)
+            .limit(1);
+
+        if (ownedTenants && ownedTenants.length > 0) {
+            console.log("[Admin Guard] Self-healing found owned clinic:", ownedTenants[0].id);
+            return <AdminDashboardClient />;
+        }
+
+        console.log("[Admin Guard] No owned clinic found. Redirecting to onboarding...");
         redirect('/admin/clinic');
     }
 
-    // Se for explicitamente paciente, vai para home de paciente
+    // 3. Redirecionamento de Paciente
     if (roleLower === 'patient') {
-        console.log("AdminPage: User is patient, redirecting to patient home");
+        console.log("[Admin Guard] Redirecting patient to home");
         redirect('/patient/home');
     }
 
-    // Caso de fallback: Se chegamos aqui e estamos autenticados, mas o perfil ainda não carregou 
-    // ou o tenant acabou de ser criado e o cache está teimoso.
-    // Em vez de chutar para o login, tentamos renderizar o dashboard (autoproteção via client-side se necessário)
-    // ou mostramos uma tela de carregamento/erro amigável.
+    // 4. Fallback de Segurança: Se logado, tenta carregar o dashboard
     if (session) {
-        console.log("AdminPage: Fallback access for authenticated user");
+        console.log("[Admin Guard] Fallback granted for authenticated user");
         return <AdminDashboardClient />;
     }
 
-    console.log("AdminPage: Final fallback, redirecting to login");
+    console.log("[Admin Guard] Final fallback to login");
     redirect('/login');
 }

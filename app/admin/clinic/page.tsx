@@ -58,7 +58,7 @@ export default function ClinicOnboardingPage() {
 
             setTimeout(() => {
                 router.push('/admin')
-            }, 1000)
+            }, 2000)
 
         } catch (err: any) {
             console.error("Erro no onboarding:", err)
