@@ -14,22 +14,17 @@ export function useFCMToken() {
                 if (permission !== 'granted') return
             }
 
-            // 3. Get FCM Token (Using Firebase SDK)
-            // This requires the Firebase config to be initialized in a client-side layout or here
-            // For MVP, we presume Firebase is initialized.
+            // 3. Get FCM Token (Disabled for Inbox MVP)
+            /*
             try {
-                // Placeholder for Firebase Messaging token retrieval
-                // const messaging = getMessaging();
-                // const token = await getToken(messaging, { vapidKey: 'YOUR_VAPID_KEY' });
-
-                const token = "MOCK_TOKEN_" + Math.random().toString(36).substring(7) // Placeholder
-
+                const token = "MOCK_TOKEN_" + Math.random().toString(36).substring(7)
                 if (token) {
                     await syncToken(token)
                 }
             } catch (err) {
                 console.error("FCM Token Error:", err)
             }
+            */
         }
 
         setupFCM()

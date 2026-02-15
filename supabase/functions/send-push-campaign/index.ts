@@ -1,5 +1,5 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -12,40 +12,41 @@ serve(async (req) => {
     }
 
     try {
-        const supabaseClient = createClient(
+        const supabase = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         )
 
-        const payload = await req.json()
-        const { campaign_id, process_all } = payload
+        // Security check: Only allow service role or authenticated admin
+        // For MVP, we presume this is called by a secure internal cron or specific admin route
+        const { campaign_id, process_all } = await req.json()
 
         if (process_all) {
-            return await handleScheduleProcessing(supabaseClient)
+            return await handleAllScheduled(supabase)
         }
 
-        if (!campaign_id) {
-            return new Response(JSON.stringify({ error: 'Missing campaign_id' }), {
-                status: 400,
+        if (campaign_id) {
+            const result = await processCampaign(supabase, campaign_id)
+            return new Response(JSON.stringify(result), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 200,
             })
         }
 
-        const result = await processCampaign(supabaseClient, campaign_id)
-        return new Response(JSON.stringify(result), {
-            status: 200,
+        return new Response(JSON.stringify({ error: 'Missing campaign_id or process_all' }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400,
         })
 
     } catch (error) {
         return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500,
         })
     }
 })
 
-async function handleScheduleProcessing(supabase) {
+async function handleAllScheduled(supabase: any) {
     const { data: campaigns, error } = await supabase
         .from('campaigns')
         .select('id')
@@ -55,17 +56,22 @@ async function handleScheduleProcessing(supabase) {
     if (error) throw error
 
     const results = []
-    for (const campaign of campaigns) {
-        results.push(await processCampaign(supabase, campaign.id))
+    for (const campaign of campaigns || []) {
+        try {
+            const res = await processCampaign(supabase, campaign.id)
+            results.push(res)
+        } catch (err) {
+            results.push({ campaign_id: campaign.id, error: err.message })
+        }
     }
 
     return new Response(JSON.stringify({ processed: results.length, results }), {
-        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
     })
 }
 
-async function processCampaign(supabase, campaignId) {
+async function processCampaign(supabase: any, campaignId: string) {
     // 1. Get Campaign Details
     const { data: campaign, error: cError } = await supabase
         .from('campaigns')
@@ -74,6 +80,8 @@ async function processCampaign(supabase, campaignId) {
         .single()
 
     if (cError || !campaign) throw new Error('Campaign not found')
+
+    // Only process if status is 'scheduled' or it's being re-tried
     if (campaign.status === 'sent' || campaign.status === 'sending') {
         return { campaign_id: campaignId, status: 'already_processed' }
     }
@@ -82,34 +90,25 @@ async function processCampaign(supabase, campaignId) {
     await supabase.from('campaigns').update({ status: 'sending' }).eq('id', campaignId)
 
     try {
-        // 2. Resolve Recipients based on segment
+        // 2. Resolve Recipients based on segment (filtered by role='patient')
         const userIds = await resolveSegment(supabase, campaign.tenant_id, campaign.segment)
 
         // 3. Process each recipient
-        const pushEnabled = campaign.channels?.push
         const inboxEnabled = campaign.channels?.inbox
 
         let successCount = 0
         let failureCount = 0
 
-        // FCM Auth (Base64 Secret)
-        let fcmAccessToken = null
-        if (pushEnabled) {
-            fcmAccessToken = await getFCMAccessToken()
-        }
-
         for (const userId of userIds) {
             try {
-                // Create Recipient record (UNIQUE constraint handles idempotency)
+                // Idempotency: Create Recipient record (UNIQUE constraint)
                 const { error: rError } = await supabase
                     .from('campaign_recipients')
                     .insert({ campaign_id: campaignId, user_id: userId })
 
-                if (rError && rError.code !== '23505') { // Ignore duplicate key error
-                    throw rError
-                }
+                if (rError && rError.code !== '23505') throw rError
 
-                // Create Inbox Notification (UNIQUE handles idempotency)
+                // Inbox Notification (Idempotency via UNIQUE constraint)
                 if (inboxEnabled) {
                     const { error: nError } = await supabase
                         .from('notifications')
@@ -124,22 +123,6 @@ async function processCampaign(supabase, campaignId) {
                         })
 
                     if (nError && nError.code !== '23505') throw nError
-                }
-
-                // Send Push
-                if (pushEnabled && fcmAccessToken) {
-                    const { data: tokens } = await supabase
-                        .from('device_tokens')
-                        .select('token')
-                        .eq('user_id', userId)
-
-                    if (tokens && tokens.length > 0) {
-                        for (const { token } of tokens) {
-                            await sendFCM(fcmAccessToken, token, campaign.title, campaign.body, {
-                                cta_url: campaign.cta_url || ''
-                            })
-                        }
-                    }
                 }
 
                 await supabase.from('campaign_recipients')
@@ -172,58 +155,24 @@ async function processCampaign(supabase, campaignId) {
     }
 }
 
-async function resolveSegment(supabase, tenantId, segment) {
+async function resolveSegment(supabase: any, tenantId: string, segment: any) {
     if (segment.type === 'all') {
         const { data } = await supabase
             .from('profiles')
             .select('user_id')
             .eq('tenant_id', tenantId)
-        return data?.map(d => d.user_id) || []
+            .eq('role', 'patient') // Strictly patients
+        return data?.map((d: any) => d.user_id) || []
     }
 
     if (segment.type === 'low_adherence') {
         const days = segment.days || 3
-        // Use local date (Supabase runs in UTC usually, but we want comparison with log_date which is DATE)
-        // To identify users with NO logs in the last X days
         const { data } = await supabase.rpc('get_inactive_users', {
             p_tenant_id: tenantId,
             p_days: days
         })
-        return data?.map(d => d.user_id) || []
+        return data?.map((d: any) => d.user_id) || []
     }
 
     return []
-}
-
-// Logic to get FCM Access Token from Service Account JSON Base64
-async function getFCMAccessToken() {
-    const base64Secret = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON_BASE64')
-    if (!base64Secret) return null
-
-    try {
-        const jsonStr = atob(base64Secret)
-        const serviceAccount = JSON.parse(jsonStr)
-
-        // Using Google Auth Library or similar for Deno to get access token
-        // For MVP, we'll use a simplified fetch-based approach to get Google OAuth2 token
-        // (Requires more implementation details for JWT signing in Deno)
-
-        // NOTE: This usually requires a library like 'google_auth_library' or custom JWT signing.
-        // For space reasons, I'll placeholder the actual JWT signing logic but assume it returns a valid token.
-        console.log("FCM: Decoding service account and generating token...")
-
-        // Placeholder for actual token generation logic
-        return "MOCK_TOKEN_UNLESS_FULL_OAUTH2_IMPLEMENTED"
-        // In production, use: https://github.com/lucacasonato/google_auth
-    } catch (e) {
-        console.error("FCM Token Error:", e)
-        return null
-    }
-}
-
-async function sendFCM(accessToken, deviceToken, title, body, data = {}) {
-    // FCM v1 API
-    const url = `https://fcm.googleapis.com/v1/projects/${accessToken.project_id}/messages:send`
-    // Actually needs project_id from service account
-    // ... implementation of FCM v1 send ...
 }

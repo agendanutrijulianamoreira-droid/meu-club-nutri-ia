@@ -53,7 +53,7 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
         body: "",
         cta_label: "",
         cta_url: "",
-        push: true,
+        push: false, // Default false for MVP
         inbox: true,
         segmentType: "all",
         lowAdherenceDays: 3,
@@ -102,9 +102,9 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
             const { data: { session } } = await supabase.auth.getSession()
             const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('user_id', session?.user?.id).single()
 
-            const scheduledFor = formData.scheduleType === 'schedule'
-                ? `${formData.scheduledDate}T${formData.scheduledTime}`
-                : null
+            const scheduledFor = formData.scheduleType === 'now'
+                ? new Date().toISOString()
+                : `${formData.scheduledDate}T${formData.scheduledTime}`
 
             const { data, error } = await supabase
                 .from('campaigns')
@@ -120,7 +120,7 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                         type: formData.segmentType,
                         days: formData.segmentType === 'low_adherence' ? formData.lowAdherenceDays : undefined
                     },
-                    status: formData.scheduleType === 'now' ? 'sending' : 'scheduled',
+                    status: 'scheduled', // Always scheduled, engine picks it up
                     scheduled_for: scheduledFor
                 }])
                 .select()
@@ -128,14 +128,7 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
 
             if (error) throw error
 
-            // Se for "enviar agora", disparar Edge Function (opcional, pois o cron pegará, mas acelera)
-            if (formData.scheduleType === 'now') {
-                fetch(process.env.NEXT_PUBLIC_SUPABASE_URL + '/functions/v1/send-push-campaign', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-                    body: JSON.stringify({ campaign_id: data.id })
-                }).catch(e => console.error("Edge function sync trigger failed", e))
-            }
+            // Direct fetch removed for security (P0)
 
             setViewMode('list')
             loadCampaigns()
@@ -216,111 +209,122 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                             </div>
                         </div>
 
-                        <div className="border-t border-white/5 pt-6 space-y-4">
-                            <h3 className="text-sm font-bold text-indigo-400">Canais & Segmento</h3>
-                            <div className="flex gap-6">
-                                <label className="flex items-center gap-3 cursor-pointer group">
-                                    <input type="checkbox" checked={formData.push} onChange={e => setFormData({ ...formData, push: e.target.checked })} className="w-5 h-5 rounded border-white/10 bg-white/5 text-indigo-500 accent-indigo-500" />
-                                    <span className="text-sm font-medium text-slate-300 group-hover:text-white">Push Notification</span>
+                        <div className="hidden"> {/* Push desativado para MVP Inbox */}
+                            <h3 className="text-sm font-bold text-indigo-400">Canais de Envio</h3>
+                            <div className="flex gap-4">
+                                <label className="flex items-center gap-2 text-white cursor-pointer opacity-50">
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.push}
+                                        onChange={(e) => setFormData({ ...formData, push: e.target.checked })}
+                                        className="rounded border-white/10 bg-white/5"
+                                        disabled
+                                    />
+                                    Push Notification (Em breve)
                                 </label>
-                                <label className="flex items-center gap-3 cursor-pointer group">
-                                    <input type="checkbox" checked={formData.inbox} onChange={e => setFormData({ ...formData, inbox: e.target.checked })} className="w-5 h-5 rounded border-white/10 bg-white/5 text-indigo-500 accent-indigo-500" />
-                                    <span className="text-sm font-medium text-slate-300 group-hover:text-white">Inbox App</span>
+                                <label className="flex items-center gap-2 text-white cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.inbox}
+                                        disabled
+                                        className="rounded border-white/10 bg-white/5"
+                                    />
+                                    Inbox App (Ativado)
                                 </label>
-                            </div>
-
-                            <div className="p-4 bg-indigo-500/5 border border-indigo-500/20 rounded-2xl relative">
-                                <label className="text-xs font-black uppercase tracking-widest text-indigo-400 mb-3 block">Segmento de Pacientes</label>
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-3 cursor-pointer">
-                                        <input type="radio" name="segment" checked={formData.segmentType === 'all'} onChange={() => setFormData({ ...formData, segmentType: 'all' })} className="accent-indigo-500" />
-                                        <span className="text-sm">Todas as Rainhas</span>
-                                    </label>
-                                    <label className="flex items-center gap-3 cursor-pointer">
-                                        <input type="radio" name="segment" checked={formData.segmentType === 'low_adherence'} onChange={() => setFormData({ ...formData, segmentType: 'low_adherence' })} className="accent-indigo-500" />
-                                        <span className="text-sm">Baixa Adesão (Inativas há {formData.lowAdherenceDays} dias)</span>
-                                    </label>
-                                    {formData.segmentType === 'low_adherence' && (
-                                        <input
-                                            type="range" min="1" max="15" value={formData.lowAdherenceDays}
-                                            onChange={e => setFormData({ ...formData, lowAdherenceDays: parseInt(e.target.value) })}
-                                            className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                                        />
-                                    )}
-                                </div>
                             </div>
                         </div>
 
-                        <div className="border-t border-white/5 pt-6 space-y-4">
-                            <h3 className="text-sm font-bold text-indigo-400">Envio</h3>
-                            <div className="grid grid-cols-2 gap-4">
-                                <Button
-                                    variant={formData.scheduleType === 'now' ? 'primary' : 'outline'}
-                                    className={`rounded-xl h-12 gap-2 ${formData.scheduleType === 'now' ? 'bg-indigo-600' : 'border-white/10'}`}
-                                    onClick={() => setFormData({ ...formData, scheduleType: 'now' })}
-                                >
-                                    <Send size={16} /> Enviar Agora
-                                </Button>
-                                <Button
-                                    variant={formData.scheduleType === 'schedule' ? 'primary' : 'outline'}
-                                    className={`rounded-xl h-12 gap-2 ${formData.scheduleType === 'schedule' ? 'bg-indigo-600' : 'border-white/10'}`}
-                                    onClick={() => setFormData({ ...formData, scheduleType: 'schedule' })}
-                                >
-                                    <Calendar size={16} /> Agendar
-                                </Button>
+                        <div className="p-4 bg-indigo-500/5 border border-indigo-500/20 rounded-2xl relative">
+                            <label className="text-xs font-black uppercase tracking-widest text-indigo-400 mb-3 block">Segmento de Pacientes</label>
+                            <div className="space-y-2">
+                                <label className="flex items-center gap-3 cursor-pointer">
+                                    <input type="radio" name="segment" checked={formData.segmentType === 'all'} onChange={() => setFormData({ ...formData, segmentType: 'all' })} className="accent-indigo-500" />
+                                    <span className="text-sm">Todas as Rainhas</span>
+                                </label>
+                                <label className="flex items-center gap-3 cursor-pointer">
+                                    <input type="radio" name="segment" checked={formData.segmentType === 'low_adherence'} onChange={() => setFormData({ ...formData, segmentType: 'low_adherence' })} className="accent-indigo-500" />
+                                    <span className="text-sm">Baixa Adesão (Inativas há {formData.lowAdherenceDays} dias)</span>
+                                </label>
+                                {formData.segmentType === 'low_adherence' && (
+                                    <input
+                                        type="range" min="1" max="15" value={formData.lowAdherenceDays}
+                                        onChange={e => setFormData({ ...formData, lowAdherenceDays: parseInt(e.target.value) })}
+                                        className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                    />
+                                )}
                             </div>
-                            {formData.scheduleType === 'schedule' && (
-                                <div className="grid grid-cols-2 gap-4">
-                                    <input type="date" className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500" value={formData.scheduledDate} onChange={e => setFormData({ ...formData, scheduledDate: e.target.value })} />
-                                    <input type="time" className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500" value={formData.scheduledTime} onChange={e => setFormData({ ...formData, scheduledTime: e.target.value })} />
-                                </div>
-                            )}
                         </div>
-
-                        <Button
-                            className="w-full bg-indigo-600 hover:bg-indigo-500 h-16 rounded-2xl font-bold uppercase tracking-widest text-xs gap-3 shadow-xl shadow-indigo-900/40"
-                            disabled={isSaving}
-                            onClick={handleCreateCampaign}
-                        >
-                            {isSaving ? <Loader2 className="animate-spin" /> : <Plus size={18} />}
-                            {formData.scheduleType === 'now' ? 'Confirmar e Enviar' : 'Salvar Agendamento'}
-                        </Button>
                     </div>
 
-                    {/* Preview */}
-                    <div className="hidden lg:block space-y-6">
-                        <label className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">Preview da Notificação</label>
-                        <div className="bg-black/40 rounded-[3rem] p-6 border-8 border-slate-900 w-[320px] mx-auto h-[600px] relative shadow-2xl">
-                            <div className="bg-white/10 w-24 h-6 rounded-full mx-auto mb-8 flex items-center justify-center">
-                                <div className="w-1.5 h-1.5 rounded-full bg-white/40 mr-2"></div>
-                                <div className="w-8 h-1 rounded-full bg-white/20"></div>
+                    <div className="border-t border-white/5 pt-6 space-y-4">
+                        <h3 className="text-sm font-bold text-indigo-400">Envio</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            <Button
+                                variant={formData.scheduleType === 'now' ? 'primary' : 'outline'}
+                                className={`rounded-xl h-12 gap-2 ${formData.scheduleType === 'now' ? 'bg-indigo-600' : 'border-white/10'}`}
+                                onClick={() => setFormData({ ...formData, scheduleType: 'now' })}
+                            >
+                                <Send size={16} /> Enviar Agora
+                            </Button>
+                            <Button
+                                variant={formData.scheduleType === 'schedule' ? 'primary' : 'outline'}
+                                className={`rounded-xl h-12 gap-2 ${formData.scheduleType === 'schedule' ? 'bg-indigo-600' : 'border-white/10'}`}
+                                onClick={() => setFormData({ ...formData, scheduleType: 'schedule' })}
+                            >
+                                <Calendar size={16} /> Agendar
+                            </Button>
+                        </div>
+                        {formData.scheduleType === 'schedule' && (
+                            <div className="grid grid-cols-2 gap-4">
+                                <input type="date" className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500" value={formData.scheduledDate} onChange={e => setFormData({ ...formData, scheduledDate: e.target.value })} />
+                                <input type="time" className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500" value={formData.scheduledTime} onChange={e => setFormData({ ...formData, scheduledTime: e.target.value })} />
                             </div>
+                        )}
+                    </div>
 
-                            <div className="mt-8 space-y-4">
-                                <motion.div
-                                    initial={{ y: -20, opacity: 0 }}
-                                    animate={{ y: 0, opacity: 1 }}
-                                    className="bg-white/10 backdrop-blur-xl border border-white/10 rounded-3xl p-4 shadow-xl"
-                                >
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white">
-                                            <Sparkles size={16} />
-                                        </div>
-                                        <div className="flex-1">
-                                            <p className="text-[10px] font-bold text-white/40 uppercase">MEU CLUB NUTRI.AI</p>
-                                            <h4 className="text-xs font-bold text-white leading-tight">{formData.title || "Seu Título Aqui"}</h4>
-                                        </div>
-                                        <span className="text-[10px] text-white/40">Agora</span>
+                    <Button
+                        className="w-full bg-indigo-600 hover:bg-indigo-500 h-16 rounded-2xl font-bold uppercase tracking-widest text-xs gap-3 shadow-xl shadow-indigo-900/40"
+                        disabled={isSaving}
+                        onClick={handleCreateCampaign}
+                    >
+                        {isSaving ? <Loader2 className="animate-spin" /> : <Plus size={18} />}
+                        {formData.scheduleType === 'now' ? 'Confirmar e Enviar' : 'Salvar Agendamento'}
+                    </Button>
+                </div>
+
+                {/* Preview */}
+                <div className="hidden lg:block space-y-6">
+                    <label className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2 block">Preview da Notificação</label>
+                    <div className="bg-black/40 rounded-[3rem] p-6 border-8 border-slate-900 w-[320px] mx-auto h-[600px] relative shadow-2xl">
+                        <div className="bg-white/10 w-24 h-6 rounded-full mx-auto mb-8 flex items-center justify-center">
+                            <div className="w-1.5 h-1.5 rounded-full bg-white/40 mr-2"></div>
+                            <div className="w-8 h-1 rounded-full bg-white/20"></div>
+                        </div>
+
+                        <div className="mt-8 space-y-4">
+                            <motion.div
+                                initial={{ y: -20, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                className="bg-white/10 backdrop-blur-xl border border-white/10 rounded-3xl p-4 shadow-xl"
+                            >
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white">
+                                        <Sparkles size={16} />
                                     </div>
-                                    <p className="text-xs text-white/80 leading-relaxed pl-11">
-                                        {formData.body || "Sua mensagem aparecerá aqui para as rainhas..."}
-                                    </p>
-                                </motion.div>
-                            </div>
+                                    <div className="flex-1">
+                                        <p className="text-[10px] font-bold text-white/40 uppercase">MEU CLUB NUTRI.AI</p>
+                                        <h4 className="text-xs font-bold text-white leading-tight">{formData.title || "Seu Título Aqui"}</h4>
+                                    </div>
+                                    <span className="text-[10px] text-white/40">Agora</span>
+                                </div>
+                                <p className="text-xs text-white/80 leading-relaxed pl-11">
+                                    {formData.body || "Sua mensagem aparecerá aqui para as rainhas..."}
+                                </p>
+                            </motion.div>
+                        </div>
 
-                            <div className="absolute bottom-8 left-0 right-0 px-8">
-                                <div className="h-1.5 w-32 bg-white/20 rounded-full mx-auto" />
-                            </div>
+                        <div className="absolute bottom-8 left-0 right-0 px-8">
+                            <div className="h-1.5 w-32 bg-white/20 rounded-full mx-auto" />
                         </div>
                     </div>
                 </div>

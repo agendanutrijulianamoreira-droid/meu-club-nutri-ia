@@ -107,37 +107,18 @@ CREATE POLICY "Admins view tenant notifications" ON notifications
         )
     );
 
--- ============================================
--- AUTOMATION (Agendamento via pg_cron)
--- ============================================
-
--- Nota: pg_cron deve estar habilitado nas extensões do Supabase.
--- Se não estiver, esta parte falhará ou precisará ser feita via Dashboard.
-
--- Função para chamar a Edge Function de processamento de campanhas
-CREATE OR REPLACE FUNCTION process_scheduled_campaigns()
-RETURNS void AS $$
-BEGIN
-    -- Chamar a Edge Function para cada campanha agendada que ainda não foi processada
-    -- Usamos net.http_post se a extensão pg_net estiver disponível, 
-    -- ou simplesmente deixamos o pg_cron chamar um endpoint.
-    -- Para este MVP, criaremos uma lógica de trigger ou polling via Edge Function.
-    
-    -- Exemplo com pg_net (recomendado no Supabase):
-    -- SELECT net.http_post(
-    --     url := 'https://<PROJECT_REF>.supabase.co/functions/v1/send-push-campaign',
-    --     headers := '{"Content-Type": "application/json", "Authorization": "Bearer <SERVICE_ROLE_KEY>"}'::jsonb,
-    --     body := jsonb_build_object('process_all', true)
-    -- );
-    
-    -- Como não temos o SERVICE_ROLE_KEY no SQL, o ideal é configurar o cron no Dashboard ou 
-    -- usar um trigger que dispare para uma Edge Function (limitado).
-    -- Manteremos a definição da função para referência.
-    NULL;
-END;
-$$ LANGUAGE plpgsql;
-
--- SELECT cron.schedule('*/1 * * * *', 'SELECT process_scheduled_campaigns();');
+-- Restricted UPDATE for Patients (Only status and read_at)
+CREATE POLICY "Users mark own notifications as read" ON notifications
+    FOR UPDATE TO authenticated
+    USING (user_id = auth.uid())
+    WITH CHECK (
+        user_id = auth.uid() AND 
+        id = (SELECT id FROM notifications n WHERE n.id = notifications.id) AND
+        tenant_id = (SELECT tenant_id FROM notifications n WHERE n.id = notifications.id) AND
+        campaign_id IS NOT DISTINCT FROM (SELECT campaign_id FROM notifications n WHERE n.id = notifications.id) AND
+        title = (SELECT title FROM notifications n WHERE n.id = notifications.id) AND
+        body = (SELECT body FROM notifications n WHERE n.id = notifications.id)
+    );
 
 -- ============================================
 -- HELPERS FOR SEGMENTATION
@@ -150,7 +131,7 @@ BEGIN
     SELECT p.user_id 
     FROM profiles p
     WHERE p.tenant_id = p_tenant_id
-    AND p.role = 'patient'
+    AND p.role = 'patient'  -- Role filter guaranteed
     AND NOT EXISTS (
         SELECT 1 
         FROM daily_logs dl 
