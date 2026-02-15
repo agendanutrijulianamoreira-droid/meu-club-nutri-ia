@@ -45,6 +45,12 @@ export default function ClinicOnboardingPage() {
 
             if (rpcError) throw rpcError
 
+            // Força a atualização do metadata do usuário para 'admin'
+            // Isso garante que o middleware e os guards vejam o novo papel imediatamente
+            await supabase.auth.updateUser({
+                data: { user_type: 'admin', role: 'admin' }
+            })
+
             setIsSuccess(true)
 
             // Invalida o cache para que o componente servidor veja o novo tenant
