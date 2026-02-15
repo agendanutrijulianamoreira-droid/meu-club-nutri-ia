@@ -3,8 +3,8 @@
 -- ============================================
 
 ALTER TABLE campaigns 
-ADD COLUMN recurrence_type TEXT DEFAULT 'none' CHECK (recurrence_type IN ('none', 'daily', 'weekly', 'biweekly', 'monthly')),
-ADD COLUMN recurrence_config JSONB DEFAULT '{}';
+ADD COLUMN IF NOT EXISTS recurrence_type TEXT DEFAULT 'none' CHECK (recurrence_type IN ('none', 'daily', 'weekly', 'biweekly', 'monthly')),
+ADD COLUMN IF NOT EXISTS recurrence_config JSONB DEFAULT '{}';
 
 -- Add comment for clarity
 COMMENT ON COLUMN campaigns.recurrence_type IS 'Type of recurrence for the campaign (none, daily, weekly, biweekly, monthly)';

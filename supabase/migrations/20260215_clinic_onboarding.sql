@@ -37,9 +37,9 @@ BEGIN
     RAISE EXCEPTION 'O nome da clínica deve ter entre 3 e 80 caracteres.';
   END IF;
 
-  -- Check if user already has a tenant_id in their profile
+  -- Check if user already has a tenant_id in their profile (ignoring demo tenant)
   SELECT tenant_id INTO v_tenant_id FROM public.profiles WHERE user_id = v_uid;
-  IF v_tenant_id IS NOT NULL THEN
+  IF v_tenant_id IS NOT NULL AND v_tenant_id != '00000000-0000-0000-0000-000000000001'::uuid THEN
     RETURN v_tenant_id;
   END IF;
 
@@ -78,13 +78,12 @@ $$;
 -- Grant execution to authenticated users
 GRANT EXECUTE ON FUNCTION public.create_clinic_and_profile TO authenticated;
 
--- 2. Refine Tenants RLS
+-- 3. Update RLS policies for tenants
 ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing SELECT policy if exists
 DROP POLICY IF EXISTS "Admins can view own tenant" ON public.tenants;
 DROP POLICY IF EXISTS "Members can view tenant" ON public.tenants;
-
 -- New SELECT policy: Owner or Member
 CREATE POLICY "Members can view tenant"
 ON public.tenants FOR SELECT
@@ -96,6 +95,7 @@ USING (
 
 -- UPDATE/DELETE: Only owner or admin of the tenant
 DROP POLICY IF EXISTS "Owners can update own tenant" ON public.tenants;
+DROP POLICY IF EXISTS "Owners and admins can update tenant" ON public.tenants;
 CREATE POLICY "Owners and admins can update tenant"
 ON public.tenants FOR UPDATE
 TO authenticated
@@ -104,6 +104,15 @@ USING (
   OR id IN (SELECT tenant_id FROM public.profiles WHERE user_id = auth.uid() AND role = 'admin')
 )
 WITH CHECK (
+  owner_id = auth.uid() 
+  OR id IN (SELECT tenant_id FROM public.profiles WHERE user_id = auth.uid() AND role = 'admin')
+);
+
+DROP POLICY IF EXISTS "Owners and admins can delete tenant" ON public.tenants;
+CREATE POLICY "Owners and admins can delete tenant"
+ON public.tenants FOR DELETE
+TO authenticated
+USING (
   owner_id = auth.uid() 
   OR id IN (SELECT tenant_id FROM public.profiles WHERE user_id = auth.uid() AND role = 'admin')
 );

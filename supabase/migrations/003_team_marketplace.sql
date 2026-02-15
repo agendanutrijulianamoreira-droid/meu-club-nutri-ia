@@ -54,6 +54,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS set_referral_code ON public.professional_profiles;
 CREATE TRIGGER set_referral_code
 BEFORE INSERT ON public.professional_profiles
 FOR EACH ROW
@@ -70,6 +71,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_professional_profiles_updated_at ON public.professional_profiles;
 CREATE TRIGGER update_professional_profiles_updated_at
 BEFORE UPDATE ON public.professional_profiles
 FOR EACH ROW
@@ -127,6 +129,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS set_commission_amount ON public.sales;
 CREATE TRIGGER set_commission_amount
 BEFORE INSERT OR UPDATE ON public.sales
 FOR EACH ROW
@@ -149,6 +152,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_metrics_on_sale ON public.sales;
 CREATE TRIGGER update_metrics_on_sale
 AFTER UPDATE ON public.sales
 FOR EACH ROW

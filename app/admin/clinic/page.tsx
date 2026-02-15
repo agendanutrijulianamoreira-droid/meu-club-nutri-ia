@@ -47,11 +47,12 @@ export default function ClinicOnboardingPage() {
 
             setIsSuccess(true)
 
-            // Pequeno delay para mostrar o sucesso antes de redirecionar
+            // Invalida o cache para que o componente servidor veja o novo tenant
+            router.refresh()
+
             setTimeout(() => {
                 router.push('/admin')
-                router.refresh()
-            }, 1500)
+            }, 1000)
 
         } catch (err: any) {
             console.error("Erro no onboarding:", err)

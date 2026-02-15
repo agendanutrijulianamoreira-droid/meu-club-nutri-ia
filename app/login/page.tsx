@@ -31,7 +31,8 @@ export default function LoginPage() {
                 if (role === 'nutri' || role === 'nutritionist' || role === 'admin') {
                     console.log("Checando tenant para admin:", role);
                     const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('user_id', session.user.id).single();
-                    if (!profile?.tenant_id) {
+                    const isDemoTenant = profile?.tenant_id === '00000000-0000-0000-0000-000000000001';
+                    if (!profile?.tenant_id || isDemoTenant) {
                         router.push('/admin/clinic');
                     } else {
                         router.push('/admin');
@@ -110,7 +111,8 @@ export default function LoginPage() {
 
                     if (isAdmin) {
                         const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('user_id', authData.user.id).single();
-                        if (!profile?.tenant_id) {
+                        const isDemoTenant = profile?.tenant_id === '00000000-0000-0000-0000-000000000001';
+                        if (!profile?.tenant_id || isDemoTenant) {
                             router.push('/admin/clinic');
                         } else {
                             router.push('/admin');
@@ -122,7 +124,8 @@ export default function LoginPage() {
                         console.log("Papel indeciso. Fallback para formulário:", userType);
                         if (userType === 'nutri') {
                             const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('user_id', authData.user.id).single();
-                            router.push(!profile?.tenant_id ? '/admin/clinic' : '/admin');
+                            const isDemoTenant = profile?.tenant_id === '00000000-0000-0000-0000-000000000001';
+                            router.push((!profile?.tenant_id || isDemoTenant) ? '/admin/clinic' : '/admin');
                         } else {
                             router.push('/patient/home');
                         }

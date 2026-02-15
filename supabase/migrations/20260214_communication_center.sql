@@ -4,7 +4,7 @@
 -- ============================================
 
 -- 1. DEVICE TOKENS
-CREATE TABLE device_tokens (
+CREATE TABLE IF NOT EXISTS device_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
@@ -16,7 +16,7 @@ CREATE TABLE device_tokens (
 );
 
 -- 2. CAMPAIGNS
-CREATE TABLE campaigns (
+CREATE TABLE IF NOT EXISTS campaigns (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
     created_by UUID REFERENCES auth.users(id),
@@ -33,7 +33,7 @@ CREATE TABLE campaigns (
 );
 
 -- 3. CAMPAIGN RECIPIENTS (Idempotency: UNIQUE(campaign_id, user_id))
-CREATE TABLE campaign_recipients (
+CREATE TABLE IF NOT EXISTS campaign_recipients (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     campaign_id UUID REFERENCES campaigns(id) ON DELETE CASCADE,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -44,7 +44,7 @@ CREATE TABLE campaign_recipients (
 );
 
 -- 4. NOTIFICATIONS (Inbox) (Idempotency: UNIQUE(user_id, campaign_id))
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -69,12 +69,14 @@ ALTER TABLE campaign_recipients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
 -- Device Tokens: Patients manage their own
+DROP POLICY IF EXISTS "Users manage own tokens" ON device_tokens;
 CREATE POLICY "Users manage own tokens" ON device_tokens
     FOR ALL TO authenticated
     USING (user_id = auth.uid())
     WITH CHECK (user_id = auth.uid());
 
 -- Campaigns: Nutri/Admin manage their tenant's
+DROP POLICY IF EXISTS "Admins manage tenant campaigns" ON campaigns;
 CREATE POLICY "Admins manage tenant campaigns" ON campaigns
     FOR ALL TO authenticated
     USING (
@@ -84,6 +86,7 @@ CREATE POLICY "Admins manage tenant campaigns" ON campaigns
     );
 
 -- Recipients: Nutri/Admin see their tenant's
+DROP POLICY IF EXISTS "Admins view tenant recipients" ON campaign_recipients;
 CREATE POLICY "Admins view tenant recipients" ON campaign_recipients
     FOR SELECT TO authenticated
     USING (
@@ -95,10 +98,12 @@ CREATE POLICY "Admins view tenant recipients" ON campaign_recipients
     );
 
 -- Notifications: Patients see own; Admins see tenant's
+DROP POLICY IF EXISTS "Users view own notifications" ON notifications;
 CREATE POLICY "Users view own notifications" ON notifications
     FOR SELECT TO authenticated
     USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Admins view tenant notifications" ON notifications;
 CREATE POLICY "Admins view tenant notifications" ON notifications
     FOR SELECT TO authenticated
     USING (
@@ -108,6 +113,7 @@ CREATE POLICY "Admins view tenant notifications" ON notifications
     );
 
 -- Restricted UPDATE for Patients (Only status and read_at)
+DROP POLICY IF EXISTS "Users mark own notifications as read" ON notifications;
 CREATE POLICY "Users mark own notifications as read" ON notifications
     FOR UPDATE TO authenticated
     USING (user_id = auth.uid())
@@ -144,6 +150,6 @@ $$ LANGUAGE plpgsql;
 -- ============================================
 -- INDICES
 -- ============================================
-CREATE INDEX idx_campaigns_status ON campaigns(status) WHERE status = 'scheduled';
-CREATE INDEX idx_notifications_user_unread ON notifications(user_id) WHERE status = 'unread';
-CREATE INDEX idx_device_tokens_user ON device_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status) WHERE status = 'scheduled';
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id) WHERE status = 'unread';
+CREATE INDEX IF NOT EXISTS idx_device_tokens_user ON device_tokens(user_id);

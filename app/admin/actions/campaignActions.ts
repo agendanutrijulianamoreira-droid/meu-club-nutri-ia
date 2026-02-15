@@ -1,56 +1,56 @@
 "use server"
 
+import { createSupabaseServerClient } from "@/lib/supabase-server"
 import { createClient } from "@supabase/supabase-js"
 import { cookies } from 'next/headers'
 
 // Use Service Role Client for processing (bypassing RLS for internal logic)
-// BUT we MUST validate the user session/permissions first manually.
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 export async function processCampaignAction(campaignId: string) {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    // 1. COOKIE-BASED CLIENT FOR AUTH (SESSION VALIDATION)
+    const cookieSupabase = createSupabaseServerClient(cookies())
+
+    // Service role client for the actual heavy lifting/upserts
+    const adminSupabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
     try {
-        // --- 1. MANDATORY PERMISSION CHECK ---
-        // Get the actual user from the token in cookies
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        // --- A. GET USER SESSION ---
+        const { data: { user }, error: authError } = await cookieSupabase.auth.getUser()
         if (authError || !user) throw new Error("Não autorizado")
 
-        // Fetch user profile to verify tenant and role
-        const { data: profile } = await supabase
+        // --- B. VALIDATE PROFILE & TENANT (VIA COOKIE CLIENT RLS) ---
+        const { data: profile } = await cookieSupabase
             .from('profiles')
             .select('tenant_id, role')
             .eq('user_id', user.id)
             .single()
 
-        if (!profile || (profile.role !== 'admin' && profile.role !== 'nutritionist')) {
-            throw new Error("Permissão negada")
+        const isAuthorizedRole = profile?.role === 'admin' || profile?.role === 'nutritionist';
+        if (!profile || !isAuthorizedRole) {
+            throw new Error("Permissão negada: Somente administradores ou nutricionistas podem gerenciar campanhas.")
         }
 
-        // --- 2. FETCH CAMPAIGN & VALIDATE OWNERSHIP ---
-        const { data: campaign, error: cError } = await supabase
+        // --- C. FETCH CAMPAIGN (USING SERVER CLIENT TO VALIDATE OWNERSHIP/RLS) ---
+        const { data: campaign, error: cError } = await cookieSupabase
             .from('campaigns')
             .select('*')
             .eq('id', campaignId)
             .single()
 
-        if (cError || !campaign) throw new Error("Campanha não encontrada")
-
-        // Block if campaign doesn't belong to the user's tenant
-        if (campaign.tenant_id !== profile.tenant_id) {
-            throw new Error("Você não tem permissão para processar esta campanha")
-        }
+        if (cError || !campaign) throw new Error("Campanha não encontrada ou você não tem acesso.")
 
         if (campaign.status === 'sent') return { success: true, message: 'Já enviada' }
 
+        // --- D. ACTION PROCESSING (USING ADMIN SUPABASE) ---
         // Update status to sending
-        await supabase.from('campaigns').update({ status: 'sending' }).eq('id', campaignId)
+        await adminSupabase.from('campaigns').update({ status: 'sending' }).eq('id', campaignId)
 
-        // --- 3. RESOLVE RECIPIENTS (FILTERED BY ROLE='patient') ---
+        // --- E. RESOLVE RECIPIENTS (FILTERED BY ROLE='patient') ---
         let userIds: string[] = []
         if (campaign.segment?.type === 'all') {
-            const { data } = await supabase
+            const { data } = await adminSupabase
                 .from('profiles')
                 .select('user_id')
                 .eq('tenant_id', campaign.tenant_id)
@@ -58,25 +58,39 @@ export async function processCampaignAction(campaignId: string) {
             userIds = data?.map(d => d.user_id) || []
         } else if (campaign.segment?.type === 'low_adherence') {
             const days = campaign.segment?.days || 3
-            // Assuming get_inactive_users RPC exists or manual logic
-            const { data } = await supabase.rpc('get_inactive_users', {
+            // RPC should already filter for patients, but we force it to be safe
+            const { data } = await adminSupabase.rpc('get_inactive_users', {
                 p_tenant_id: campaign.tenant_id,
                 p_days: days
             })
-            userIds = data?.filter((d: any) => d.role === 'patient').map((d: any) => d.user_id) || []
+
+            // If the RPC returns a list of user_ids, we verify they are indeed patients in this tenant
+            if (data && data.length > 0) {
+                const rawIds = data.map((d: any) => typeof d === 'string' ? d : d.user_id)
+                const { data: verifiedPatients } = await adminSupabase
+                    .from('profiles')
+                    .select('user_id')
+                    .in('user_id', rawIds)
+                    .eq('tenant_id', campaign.tenant_id)
+                    .eq('role', 'patient')
+                userIds = verifiedPatients?.map(d => d.user_id) || []
+            }
         }
 
-        // --- 4. IDEMPOTENT PROCESSING ---
-        // We process in batch or iterative with upsert to avoid duplication on refresh
+        // --- F. IDEMPOTENT SENDING (BATCH UPSERT) ---
         for (const userId of userIds) {
             // Recipient Record (Dedupe)
-            await supabase.from('campaign_recipients').upsert(
-                { campaign_id: campaignId, user_id: userId, status: 'sent' },
+            await adminSupabase.from('campaign_recipients').upsert(
+                {
+                    campaign_id: campaignId,
+                    user_id: userId,
+                    status: 'sent'
+                },
                 { onConflict: 'campaign_id,user_id' }
             )
 
             // Internal Notification (Inbox Dedupe)
-            await supabase.from('notifications').upsert(
+            await adminSupabase.from('notifications').upsert(
                 {
                     tenant_id: campaign.tenant_id,
                     user_id: userId,
@@ -85,14 +99,15 @@ export async function processCampaignAction(campaignId: string) {
                     body: campaign.body,
                     cta_label: campaign.cta_label,
                     cta_url: campaign.cta_url,
-                    is_read: false
+                    status: 'unread',
+                    read_at: null
                 },
-                { onConflict: 'campaign_id,user_id' }
+                { onConflict: 'user_id,campaign_id' }
             )
         }
 
-        // --- 5. FINALIZE ---
-        const { error: finalError } = await supabase.from('campaigns')
+        // --- G. FINALIZE ---
+        const { error: finalError } = await adminSupabase.from('campaigns')
             .update({
                 status: 'sent',
                 sent_at: new Date().toISOString()
@@ -106,7 +121,7 @@ export async function processCampaignAction(campaignId: string) {
     } catch (error: any) {
         console.error("Error processing campaign:", error)
         // Only set failed if it wasn't already sent (to avoid overwriting success)
-        await supabase.from('campaigns')
+        await adminSupabase.from('campaigns')
             .update({ status: 'failed' })
             .eq('id', campaignId)
             .neq('status', 'sent')

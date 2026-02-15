@@ -36,7 +36,9 @@ export default async function Home() {
         .eq('user_id', session.user.id)
         .single();
 
-      if (!profile?.tenant_id) {
+      const isDemoTenant = profile?.tenant_id === '00000000-0000-0000-0000-000000000001';
+
+      if (!profile?.tenant_id || isDemoTenant) {
         redirect('/admin/clinic');
       }
       redirect('/admin');
