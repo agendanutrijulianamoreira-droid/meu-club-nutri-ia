@@ -1,11 +1,14 @@
+'use server';
+
 import { createSupabaseServerClient } from "@/lib/supabase-server"
+import { cookies } from "next/headers"
 
 /**
  * Server Action para criar novo usuário
  * Cria no Auth + cria perfil na tabela profiles
  */
 export async function signupUser(formData: FormData) {
-    const supabase = createSupabaseServerClient()
+    const supabase = createSupabaseServerClient(cookies())
     const email = formData.get("email") as string
     const password = formData.get("password") as string
     const fullName = formData.get("fullName") as string

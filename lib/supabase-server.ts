@@ -1,13 +1,11 @@
+import 'server-only'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 
 /**
  * Cria um cliente Supabase para o servidor (Server Components, Actions, Route Handlers).
- * Gerencia automaticamente os cookies de sessão.
+ * Aceita o cookieStore como argumento para evitar importação direta de next/headers.
  */
-export function createSupabaseServerClient() {
-    const { cookies } = require('next/headers')
-    const cookieStore = cookies()
-
+export function createSupabaseServerClient(cookieStore: any) {
     return createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

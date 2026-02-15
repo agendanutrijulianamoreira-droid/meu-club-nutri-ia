@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase-server"
+import { cookies } from "next/headers"
 import { redirect } from 'next/navigation'
 
 export default async function NutritionistLayout({
@@ -6,7 +7,7 @@ export default async function NutritionistLayout({
 }: {
     children: React.ReactNode
 }) {
-    const supabase = createSupabaseServerClient()
+    const supabase = createSupabaseServerClient(cookies())
 
     // Verificar autenticação
     const { data: { user } } = await supabase.auth.getUser()

@@ -34,20 +34,16 @@ export async function middleware(req: NextRequest) {
     // Refresh session if expired - required for Server Components
     const { data: { session } } = await supabase.auth.getSession()
 
+    const userMetadata = session?.user?.user_metadata
+    const userRole = userMetadata?.user_type || userMetadata?.role // Aceita ambos os campos comuns
+
     // 1. Proteger rotas /admin
     if (req.nextUrl.pathname.startsWith('/admin')) {
         if (!session) {
             return NextResponse.redirect(new URL('/login', req.url))
         }
 
-        // Buscar papel do usuário
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('user_id', session.user.id)
-            .single()
-
-        if (!profile || (profile.role !== 'admin' && profile.role !== 'nutritionist')) {
+        if (userRole !== 'admin' && userRole !== 'nutritionist' && userRole !== 'nutri') {
             // Se for paciente tentando entrar no admin, manda pro dashboard do paciente
             return NextResponse.redirect(new URL('/patient/home', req.url))
         }
@@ -60,18 +56,21 @@ export async function middleware(req: NextRequest) {
             return NextResponse.redirect(new URL('/login', req.url))
         }
 
-        // Se acessar /dashboard, redireciona baseado no papel
+        // Se acessar /dashboard, redireciona baseado no papel (role)
         if (req.nextUrl.pathname === '/dashboard' || req.nextUrl.pathname.startsWith('/dashboard')) {
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('user_id', session.user.id)
-                .single()
-
-            if (profile?.role === 'admin' || profile?.role === 'nutritionist') {
+            if (userRole === 'admin' || userRole === 'nutritionist' || userRole === 'nutri') {
                 return NextResponse.redirect(new URL('/admin', req.url))
             }
+            return NextResponse.redirect(new URL('/patient/home', req.url))
+        }
+    }
 
+    // 3. Redirecionar / (Root) se já estiver logado
+    if (req.nextUrl.pathname === '/') {
+        if (session) {
+            if (userRole === 'admin' || userRole === 'nutritionist' || userRole === 'nutri') {
+                return NextResponse.redirect(new URL('/admin', req.url))
+            }
             return NextResponse.redirect(new URL('/patient/home', req.url))
         }
     }

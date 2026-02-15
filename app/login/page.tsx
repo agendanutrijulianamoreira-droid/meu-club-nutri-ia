@@ -49,15 +49,10 @@ export default function LoginPage() {
                 if (error) throw error;
 
                 if (authData.user) {
-                    // Redirecionar baseado no tipo
-                    // Buscar Role do Perfil
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('role')
-                        .eq('user_id', authData.user.id)
-                        .single();
+                    // Redirecionar baseado no metadata do usuário (mais rápido e evita issues de permissão inicial)
+                    const userType = authData.user.user_metadata?.user_type;
 
-                    if (profile?.role === 'admin' || profile?.role === 'nutritionist') {
+                    if (userType === 'nutri' || userType === 'nutritionist' || userType === 'admin') {
                         router.push('/admin');
                     } else {
                         router.push('/patient/home');

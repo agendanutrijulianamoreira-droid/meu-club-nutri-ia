@@ -404,11 +404,12 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION update_gamification_after_log()
 RETURNS TRIGGER AS $$
 DECLARE
-  v_total_coins INTEGER;
-  v_total_xp INTEGER;
+  v_new_coins INTEGER;
+  v_old_coins INTEGER;
+  v_delta INTEGER;
 BEGIN
-  -- Calcular moedas ganhas (10 por check-in)
-  NEW.coins_earned := (
+  -- Calcular moedas do estado novo
+  v_new_coins := (
     CASE WHEN NEW.water_check THEN 10 ELSE 0 END +
     CASE WHEN NEW.workout_check THEN 20 ELSE 0 END +
     CASE WHEN NEW.sleep_check THEN 10 ELSE 0 END +
@@ -417,30 +418,43 @@ BEGIN
     CASE WHEN NEW.proof_photo_url IS NOT NULL THEN 10 ELSE 0 END
   );
   
-  -- XP = mesma lógica
-  NEW.xp_earned := NEW.coins_earned;
+  -- Calcular moedas do estado antigo (se existir)
+  v_old_coins := 0;
+  IF (TG_OP = 'UPDATE') THEN
+    v_old_coins := (
+      CASE WHEN OLD.water_check THEN 10 ELSE 0 END +
+      CASE WHEN OLD.workout_check THEN 20 ELSE 0 END +
+      CASE WHEN OLD.sleep_check THEN 10 ELSE 0 END +
+      CASE WHEN OLD.meal_plan_check THEN 30 ELSE 0 END +
+      CASE WHEN OLD.daily_victory IS NOT NULL THEN 10 ELSE 0 END +
+      CASE WHEN OLD.proof_photo_url IS NOT NULL THEN 10 ELSE 0 END
+    );
+  END IF;
+
+  -- Delta a ser aplicado
+  v_delta := v_new_coins - v_old_coins;
   
-  -- Atualizar perfil do usuário
-  UPDATE profiles 
-  SET 
-    nutri_coins = nutri_coins + (NEW.coins_earned - COALESCE(OLD.coins_earned, 0)),
-    total_xp = total_xp + (NEW.xp_earned - COALESCE(OLD.xp_earned, 0)),
-    current_level = calculate_level(total_xp + (NEW.xp_earned - COALESCE(OLD.xp_earned, 0))),
-    last_checkin_date = NEW.log_date,
-    -- Atualizar streak
-    current_streak = CASE 
-      WHEN last_checkin_date = NEW.log_date - INTERVAL '1 day' THEN current_streak + 1
-      WHEN last_checkin_date = NEW.log_date THEN current_streak -- Mesmo dia
-      ELSE 1 -- Quebrou streak
-    END,
-    longest_streak = GREATEST(
-      longest_streak, 
-      CASE 
+  -- Sincronizar campos de bônus no próprio log
+  NEW.coins_earned := v_new_coins;
+  NEW.xp_earned := v_new_coins;
+  
+  -- Atualizar perfil do usuário apenas se houver mudança
+  IF (v_delta != 0 OR TG_OP = 'INSERT') THEN
+    UPDATE profiles 
+    SET 
+      nutri_coins = GREATEST(0, nutri_coins + v_delta),
+      total_xp = GREATEST(0, total_xp + v_delta),
+      current_level = calculate_level(GREATEST(0, total_xp + v_delta)),
+      last_checkin_date = NEW.log_date,
+      -- Atualizar streak (lógica simplificada para MVP)
+      current_streak = CASE 
         WHEN last_checkin_date = NEW.log_date - INTERVAL '1 day' THEN current_streak + 1
-        ELSE current_streak
-      END
-    )
-  WHERE user_id = NEW.user_id;
+        WHEN last_checkin_date <= NEW.log_date - INTERVAL '2 days' THEN 1
+        ELSE current_streak -- Mesmo dia ou futuro (proteção)
+      END,
+      longest_streak = GREATEST(longest_streak, current_streak)
+    WHERE user_id = NEW.user_id;
+  END IF;
   
   RETURN NEW;
 END;
