@@ -1,7 +1,40 @@
 import { GlassCard } from '@/components/ui/glass-card';
 import Link from 'next/link';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 
-export default function Home() {
+export default async function Home() {
+  const supabase = createSupabaseServerClient(cookies());
+  const { data: { session } } = await supabase.auth.getSession();
+
+  // Se estiver logado, tenta redirecionar para a área correta (Healing)
+  if (session) {
+    const userMetadata = session.user.user_metadata;
+    let userRole = userMetadata?.user_type || userMetadata?.role;
+
+    // Se o metadata estiver vazio (sessão antiga), faz o check no banco
+    if (!userRole) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (profile) {
+        userRole = profile.role;
+        // Tenta atualizar o metadata para a próxima vez (background healing)
+        // Nota: updateUser em Server Component pode não refletir na sessão atual imediatamente sem refresh de cookie
+      }
+    }
+
+    if (userRole === 'admin' || userRole === 'nutritionist' || userRole === 'nutri') {
+      redirect('/admin');
+    } else if (userRole === 'patient') {
+      redirect('/dashboard');
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0f0c29] via-[#1a1744] to-[#0f0c29] flex items-center justify-center p-4">
       <GlassCard className="p-12 max-w-2xl text-center">
@@ -14,10 +47,10 @@ export default function Home() {
 
         <div className="flex gap-4 justify-center">
           <Link
-            href="/dashboard"
+            href="/login"
             className="px-8 py-4 rounded-xl bg-gradient-to-r from-pink-500 to-violet-500 text-white font-semibold hover:shadow-lg hover:shadow-pink-500/50 transition-all"
           >
-            Acessar Dashboard
+            Acessar Portal
           </Link>
         </div>
 

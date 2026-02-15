@@ -43,10 +43,13 @@ export async function middleware(req: NextRequest) {
             return NextResponse.redirect(new URL('/login', req.url))
         }
 
-        if (userRole !== 'admin' && userRole !== 'nutritionist' && userRole !== 'nutri') {
-            // Se for paciente tentando entrar no admin, manda pro dashboard do paciente
+        // BLOQUEIO RESTRITO: Só trava se tivermos CERTEZA que é um paciente no metadata
+        if (userRole === 'patient') {
             return NextResponse.redirect(new URL('/patient/home', req.url))
         }
+
+        // Se for nutri, admin ou undefined (old session), permite passar. 
+        // A página/layout de destino cuidará da validação DB se necessário.
     }
 
     // 2. Proteger rotas /patient ou /dashboard
@@ -61,17 +64,23 @@ export async function middleware(req: NextRequest) {
             if (userRole === 'admin' || userRole === 'nutritionist' || userRole === 'nutri') {
                 return NextResponse.redirect(new URL('/admin', req.url))
             }
-            return NextResponse.redirect(new URL('/patient/home', req.url))
+            // Para pacientes ou undefined, permite o acesso ao /dashboard
+            return res
         }
     }
 
     // 3. Redirecionar / (Root) se já estiver logado
     if (req.nextUrl.pathname === '/') {
         if (session) {
+            // Só redireciona automaticamente se o papel for conhecido no metadata
             if (userRole === 'admin' || userRole === 'nutritionist' || userRole === 'nutri') {
                 return NextResponse.redirect(new URL('/admin', req.url))
             }
-            return NextResponse.redirect(new URL('/patient/home', req.url))
+            if (userRole === 'patient') {
+                return NextResponse.redirect(new URL('/patient/home', req.url))
+            }
+            // Papel desconhecido (metadata antigo): Não redireciona. 
+            // Permite que o usuário veja a Home e o self-healing do app/page.tsx aja.
         }
     }
 

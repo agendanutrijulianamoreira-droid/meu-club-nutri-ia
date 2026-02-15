@@ -10,10 +10,15 @@ import {
     TrendingUp,
     Award,
     Clock,
-    Loader2
+    Loader2,
+    Bell,
+    CheckCircle
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { usePatientEngine } from "@/lib/hooks/usePatientEngine"
+import Link from "next/link"
+import { useState, useEffect } from "react"
+import { supabase } from "@/lib/supabase-browser"
 
 export default function PatientHomePage() {
     const {
@@ -24,6 +29,22 @@ export default function PatientHomePage() {
         stats,
         toggleCheckin
     } = usePatientEngine()
+    const [unreadCount, setUnreadCount] = useState(0)
+
+    useEffect(() => {
+        loadUnreadCount()
+    }, [])
+
+    const loadUnreadCount = async () => {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) return
+        const { count } = await supabase
+            .from('notifications')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', session.user.id)
+            .eq('status', 'unread')
+        setUnreadCount(count || 0)
+    }
 
     if (loading) {
         return (
@@ -49,9 +70,21 @@ export default function PatientHomePage() {
                             {activeProtocol ? `Dia ${stats.currentDay} de ${stats.totalDays}` : "Sua jornada de hoje"}
                         </p>
                     </div>
-                    <div className="flex items-center gap-2 bg-white/5 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-full">
-                        <Flame className="text-orange-400" size={18} />
-                        <span className="font-bold text-white">{stats.currentStreak} dias</span>
+                    <div className="flex items-center gap-3">
+                        <Link href="/patient/inbox" className="relative group">
+                            <div className="h-11 w-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-white/10 transition-all">
+                                <Bell className="text-slate-300 group-hover:text-white" size={20} />
+                            </div>
+                            {unreadCount > 0 && (
+                                <span className="absolute -top-1 -right-1 h-5 w-5 bg-indigo-600 border-2 border-[#020617] rounded-full flex items-center justify-center text-[10px] font-black text-white">
+                                    {unreadCount}
+                                </span>
+                            )}
+                        </Link>
+                        <div className="flex items-center gap-2 bg-white/5 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-full h-11">
+                            <Flame className="text-orange-400" size={18} />
+                            <span className="font-bold text-white">{stats.currentStreak} dias</span>
+                        </div>
                     </div>
                 </div>
 

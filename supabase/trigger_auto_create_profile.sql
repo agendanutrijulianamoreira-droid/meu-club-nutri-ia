@@ -37,7 +37,11 @@ BEGIN
     0, -- Longest streak inicial
     NULL, -- Objetivo será definido depois
     '[]'::jsonb, -- Sem restrições alimentares inicialmente
-    COALESCE(NEW.raw_user_meta_data->>'user_type', 'patient') -- Role do metadata ou default
+    CASE 
+      WHEN NEW.raw_user_meta_data->>'user_type' IN ('nutri', 'nutritionist') THEN 'nutritionist'
+      WHEN NEW.raw_user_meta_data->>'user_type' = 'admin' THEN 'admin'
+      ELSE 'patient'
+    END
   );
   
   RETURN NEW;

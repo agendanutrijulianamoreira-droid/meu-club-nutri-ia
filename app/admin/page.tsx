@@ -27,7 +27,7 @@ import { motion, AnimatePresence } from "framer-motion"
 
 // Sub-components
 import { DashboardView } from "./views/DashboardView"
-import { StrategicPlannerView } from "./views/StrategicPlannerView"
+import { CommunicationCenterView } from "./views/CommunicationCenterView"
 import { ProtocolsView } from "./views/ProtocolsView"
 import { ChallengesView } from "./views/ChallengesView"
 import { PatientsView } from "./views/PatientsView"
@@ -40,11 +40,11 @@ import { SettingsView } from "./views/SettingsView"
 import { NutritionistsView } from "./views/NutritionistsView"
 import { TeamView } from "./views/TeamView"
 
-type ViewType = 'dashboard' | 'planner' | 'protocols' | 'challenges' | 'patients' | 'nutritionists' | 'team' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'library' | 'settings'
+type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'nutritionists' | 'team' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'library' | 'settings'
 
 const navItems = [
     { id: 'dashboard' as ViewType, label: 'Painel Central', icon: LayoutDashboard },
-    { id: 'planner' as ViewType, label: 'Estratégia', icon: Calendar },
+    { id: 'communication' as ViewType, label: 'Comunicação', icon: MessageCircle },
     { id: 'protocols' as ViewType, label: 'Bio-Protocolos', icon: FileText },
     { id: 'challenges' as ViewType, label: 'Jornadas', icon: Trophy },
     { id: 'patients' as ViewType, label: 'Rainhas', icon: Users },
@@ -66,7 +66,7 @@ export default function AdminDashboard() {
         const props = { setView: setActiveView }
         switch (activeView) {
             case 'dashboard': return <DashboardView {...props} />
-            case 'planner': return <StrategicPlannerView {...props} />
+            case 'communication': return <CommunicationCenterView {...props} />
             case 'protocols': return <ProtocolsView {...props} />
             case 'challenges': return <ChallengesView {...props} />
             case 'patients': return <PatientsView {...props} />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase-browser'
 import { signupUser } from '@/app/auth/actions';
 import { useRouter } from 'next/navigation';
@@ -14,6 +14,34 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [fullName, setFullName] = useState('');
     const [error, setError] = useState<string | null>(null);
+
+    // Redirecionar se já estiver logado
+    useEffect(() => {
+        const checkUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                const userMetadata = session.user.user_metadata;
+                let role = userMetadata?.user_type || userMetadata?.role;
+
+                if (!role) {
+                    const { data: profile } = await supabase.from('profiles').select('role').eq('user_id', session.user.id).single();
+                    if (profile) role = profile.role;
+                }
+
+                if (role === 'nutri' || role === 'nutritionist' || role === 'admin') {
+                    console.log("Redirecionando admin:", role);
+                    router.push('/admin');
+                } else if (role === 'patient') {
+                    console.log("Redirecionando paciente:", role);
+                    router.push('/dashboard');
+                } else {
+                    console.log("Papel desconhecido no redirecionamento automático:", role);
+                    // Não redireciona automaticamente se não tiver certeza do papel
+                }
+            }
+        };
+        checkUser();
+    }, [router]);
 
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -49,13 +77,40 @@ export default function LoginPage() {
                 if (error) throw error;
 
                 if (authData.user) {
-                    // Redirecionar baseado no metadata do usuário (mais rápido e evita issues de permissão inicial)
-                    const userType = authData.user.user_metadata?.user_type;
+                    // Redirecionar baseado no metadata do usuário (mais rápido)
+                    const userMetadata = authData.user.user_metadata;
+                    let detectedRole = userMetadata?.user_type || userMetadata?.role;
 
-                    if (userType === 'nutri' || userType === 'nutritionist' || userType === 'admin') {
+                    // Fallback: Se não tiver no metadata, busca no banco e tenta "curar" o metadata
+                    if (!detectedRole) {
+                        console.log("Metadata ausente, buscando no perfil...");
+                        const { data: profile } = await supabase
+                            .from('profiles')
+                            .select('role')
+                            .eq('user_id', authData.user.id)
+                            .single();
+
+                        if (profile) {
+                            detectedRole = profile.role;
+                            // Update metadata for next time (Self-healing)
+                            await supabase.auth.updateUser({
+                                data: { user_type: detectedRole }
+                            });
+                        }
+                    }
+
+                    // Normalizar papel para evitar problemas de case/várias strings
+                    const role = (detectedRole || '').toLowerCase();
+                    const isAdmin = ['nutri', 'nutritionist', 'admin'].includes(role);
+
+                    if (isAdmin) {
                         router.push('/admin');
+                    } else if (role === 'patient') {
+                        router.push('/dashboard');
                     } else {
-                        router.push('/patient/home');
+                        // Se o perfil/metadata falhou mas ele escolheu ser nutri no formulário, confia no formulário
+                        console.log("Papel indeciso. Fallback para formulário:", userType);
+                        router.push(userType === 'nutri' ? '/admin' : '/dashboard');
                     }
                 }
             }

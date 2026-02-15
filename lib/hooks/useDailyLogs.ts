@@ -34,7 +34,13 @@ export function useDailyLogs(userId: string) {
         const fetchTodayLog = async () => {
             try {
                 setLoading(true);
-                const today = new Date().toISOString().split('T')[0];
+                // Data local (Brasil) formatada como YYYY-MM-DD
+                const today = new Intl.DateTimeFormat('fr-CA', {
+                    timeZone: 'America/Sao_Paulo',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                }).format(new Date());
 
                 const { data, error } = await supabase
                     .from('daily_logs')
@@ -64,7 +70,13 @@ export function useDailyLogs(userId: string) {
      */
     const saveCheckIn = async (checks: Partial<DailyLog>) => {
         try {
-            const today = new Date().toISOString().split('T')[0];
+            // Data local (Brasil) formatada como YYYY-MM-DD
+            const today = new Intl.DateTimeFormat('fr-CA', {
+                timeZone: 'America/Sao_Paulo',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            }).format(new Date());
 
             const { data, error } = await supabase
                 .from('daily_logs')

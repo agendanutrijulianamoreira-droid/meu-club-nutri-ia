@@ -1,12 +1,43 @@
 "use client"
 
-import { ReactNode } from "react"
+import { ReactNode, useEffect } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Home, Utensils, Trophy, User } from "lucide-react"
+import { supabase } from "@/lib/supabase-browser"
+import { useFCMToken } from "@/lib/hooks/useFCMToken"
 
 export default function PatientLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname()
+    const router = useRouter()
+
+    // Ativar captura de Token FCM para Push
+    useFCMToken()
+
+    // Proteção extra: Redirecionar nutris que caírem aqui por engano (sessão antiga/metadata)
+    useEffect(() => {
+        const checkRole = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                let userType = user.user_metadata?.user_type || user.user_metadata?.role;
+
+                // Se não tiver metadata, verifica no banco como última instância
+                if (!userType) {
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('role')
+                        .eq('user_id', user.id)
+                        .single();
+                    if (profile) userType = profile.role;
+                }
+
+                if (userType === 'nutri' || userType === 'nutritionist' || userType === 'admin') {
+                    router.push('/admin')
+                }
+            }
+        }
+        checkRole()
+    }, [router])
 
     const navItems = [
         { href: "/patient/home", label: "Início", icon: Home },
@@ -34,8 +65,8 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
                                 key={item.href}
                                 href={item.href}
                                 className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all ${isActive
-                                        ? "bg-indigo-600/20 text-indigo-400"
-                                        : "text-slate-500 hover:text-white"
+                                    ? "bg-indigo-600/20 text-indigo-400"
+                                    : "text-slate-500 hover:text-white"
                                     }`}
                             >
                                 <Icon size={20} className={isActive ? "text-indigo-400" : ""} />
