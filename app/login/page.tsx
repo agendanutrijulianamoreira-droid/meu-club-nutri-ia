@@ -29,8 +29,13 @@ export default function LoginPage() {
                 }
 
                 if (role === 'nutri' || role === 'nutritionist' || role === 'admin') {
-                    console.log("Redirecionando admin:", role);
-                    router.push('/admin');
+                    console.log("Checando tenant para admin:", role);
+                    const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('user_id', session.user.id).single();
+                    if (!profile?.tenant_id) {
+                        router.push('/admin/clinic');
+                    } else {
+                        router.push('/admin');
+                    }
                 } else if (role === 'patient') {
                     console.log("Redirecionando paciente:", role);
                     router.push('/patient/home');
@@ -104,13 +109,23 @@ export default function LoginPage() {
                     const isAdmin = ['nutri', 'nutritionist', 'admin'].includes(role);
 
                     if (isAdmin) {
-                        router.push('/admin');
+                        const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('user_id', authData.user.id).single();
+                        if (!profile?.tenant_id) {
+                            router.push('/admin/clinic');
+                        } else {
+                            router.push('/admin');
+                        }
                     } else if (role === 'patient') {
                         router.push('/patient/home');
                     } else {
                         // Se o perfil/metadata falhou mas ele escolheu ser nutri no formulário, confia no formulário
                         console.log("Papel indeciso. Fallback para formulário:", userType);
-                        router.push(userType === 'nutri' ? '/admin' : '/patient/home');
+                        if (userType === 'nutri') {
+                            const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('user_id', authData.user.id).single();
+                            router.push(!profile?.tenant_id ? '/admin/clinic' : '/admin');
+                        } else {
+                            router.push('/patient/home');
+                        }
                     }
                 }
             }

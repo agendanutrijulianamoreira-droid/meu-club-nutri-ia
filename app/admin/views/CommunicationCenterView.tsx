@@ -267,10 +267,7 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                 .single()
 
             let tenantId = profile?.tenant_id
-
-            if (!tenantId) {
-                throw new Error("Não conseguimos identificar sua clínica (Tenant). Verifique se seu perfil está configurado corretamente no banco de dados ou entre em contato com o suporte.")
-            }
+            if (!tenantId) return; // Top-level redirect should have caught this
 
             const scheduledFor = formData.scheduleType === 'now'
                 ? new Date().toISOString()

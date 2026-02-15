@@ -29,6 +29,16 @@ export default async function Home() {
     }
 
     if (userRole === 'admin' || userRole === 'nutritionist' || userRole === 'nutri') {
+      // Check for tenant_id specifically for admins/nutris
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('tenant_id')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (!profile?.tenant_id) {
+        redirect('/admin/clinic');
+      }
       redirect('/admin');
     } else if (userRole === 'patient') {
       redirect('/patient/home');
