@@ -25,7 +25,7 @@ export default async function AdminPage() {
     // Get profile to check tenant_id and role
     const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('tenant_id, role')
+        .select('tenant_id, role, name')
         .eq('user_id', session.user.id)
         .single();
 
@@ -37,6 +37,20 @@ export default async function AdminPage() {
     const roleLower = (role || '').toLowerCase();
     const isAdmin = ['admin', 'nutritionist', 'nutri'].includes(roleLower);
 
+    // Fetch tenant brand_name using the resolved tenant_id
+    let tenantName = '';
+    const resolvedTenantId = profile?.tenant_id;
+    if (resolvedTenantId && !isDemoTenant) {
+        const { data: tenant } = await supabase
+            .from('tenants')
+            .select('brand_name')
+            .eq('id', resolvedTenantId)
+            .single();
+        tenantName = tenant?.brand_name || '';
+    }
+
+    const userName = profile?.name || session.user.email?.split('@')[0] || 'Admin';
+
     console.log("[Admin Guard] Status:", {
         userId: session.user.id,
         email: session.user.email,
@@ -45,17 +59,22 @@ export default async function AdminPage() {
         metadata: session.user.user_metadata,
         isDemoTenant,
         calculatedRole: roleLower,
-        isAdmin
+        isAdmin,
+        userName,
+        tenantName
     });
 
     if (profileError) {
         console.error("[Admin Guard] Profile Error:", profileError);
     }
 
+    // Props to pass to client dashboard
+    const dashboardProps = { userName, tenantName, role: roleLower, tenantId: resolvedTenantId || '' };
+
     // 1. Caminho Padrão: Tenant Válido (Não Demo) + Admin
     if (profile?.tenant_id && !isDemoTenant && isAdmin) {
         console.log("[Admin Guard] Access Granted (Standard)");
-        return <AdminDashboardClient />;
+        return <AdminDashboardClient {...dashboardProps} />;
     }
 
     // 2. Autocura / Redirecionamento: Se o perfil está sem tenant ou no demo, 
@@ -74,12 +93,13 @@ export default async function AdminPage() {
 
             const { data: ownedTenants } = await supabaseAdmin
                 .from('tenants')
-                .select('id')
+                .select('id, brand_name')
                 .eq('owner_id', session.user.id)
                 .limit(1);
 
             if (ownedTenants && ownedTenants.length > 0) {
                 const realTenantId = ownedTenants[0].id;
+                const repairedTenantName = ownedTenants[0].brand_name || '';
                 console.log("[Admin Guard] Service Role found owned clinic:", realTenantId);
 
                 // Reparo forçado do perfil para evitar o loop
@@ -89,7 +109,7 @@ export default async function AdminPage() {
                     .eq('user_id', session.user.id);
 
                 console.log("[Admin Guard] Profile repaired. Refreshing dashboard...");
-                return <AdminDashboardClient />;
+                return <AdminDashboardClient userName={userName} tenantName={repairedTenantName} role="admin" tenantId={realTenantId} />;
             }
 
             console.log("[Admin Guard] No owned clinic found even via Admin scan. Redirecting to onboarding...");
@@ -106,7 +126,7 @@ export default async function AdminPage() {
     // 4. Fallback de Segurança: Se logado, tenta carregar o dashboard
     if (session) {
         console.log("[Admin Guard] Fallback granted for authenticated user");
-        return <AdminDashboardClient />;
+        return <AdminDashboardClient {...dashboardProps} />;
     }
 
     console.log("[Admin Guard] Final fallback to login");

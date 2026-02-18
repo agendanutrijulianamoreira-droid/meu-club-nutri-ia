@@ -44,8 +44,7 @@ interface TopQueen {
     rank: 1 | 2 | 3
 }
 
-export function DashboardView({ setView }: { setView: (v: any) => void }) {
-    const [tenantName, setTenantName] = useState<string>("")
+export function DashboardView({ setView, userName = '', tenantName = '', tenantId = '' }: { setView: (v: any) => void, userName?: string, tenantName?: string, tenantId?: string }) {
     const [methodName, setMethodName] = useState<string>("")
     const [activeProtocol, setActiveProtocol] = useState<any>(null)
     const [loading, setLoading] = useState(true)
@@ -87,15 +86,15 @@ export function DashboardView({ setView }: { setView: (v: any) => void }) {
 
     const loadData = async () => {
         try {
-            // Load Tenant & Method
-            const { data: tenant } = await supabase
-                .from('tenants')
-                .select('*')
-                .limit(1)
-                .single()
-
-            if (tenant?.name) setTenantName(tenant.name)
-            if (tenant?.method_name) setMethodName(tenant.method_name)
+            // Load Tenant Method (uses tenantId from props — no limit(1)!)
+            if (tenantId) {
+                const { data: tenant } = await supabase
+                    .from('tenants')
+                    .select('method_name')
+                    .eq('id', tenantId)
+                    .single()
+                if (tenant?.method_name) setMethodName(tenant.method_name)
+            }
 
             // Load Active Protocol
             const today = new Date().toISOString().split('T')[0]
@@ -172,9 +171,9 @@ export function DashboardView({ setView }: { setView: (v: any) => void }) {
                         animate={{ opacity: 1, y: 0 }}
                         className="text-4xl font-light text-white"
                     >
-                        {greeting}, <span className="font-bold">Dra. {tenantName.split(' ')[0]}</span>
+                        {greeting}, <span className="font-bold">{userName?.split(' ')[0]}</span>
                     </motion.h1>
-                    <p className="text-slate-400 text-sm font-medium">Método {methodName} • Centro de Comando Inteligente</p>
+                    <p className="text-slate-400 text-sm font-medium">{tenantName}{methodName ? ` • Método ${methodName}` : ''} • Centro de Comando Inteligente</p>
                 </div>
                 <div className="flex gap-3">
                     <Button
@@ -194,6 +193,28 @@ export function DashboardView({ setView }: { setView: (v: any) => void }) {
                     </Button>
                 </div>
             </div>
+
+            {/* --- CTA: PLANO DO CLUBE --- */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="mb-8 rounded-[2rem] p-6 bg-gradient-to-r from-violet-600/10 to-indigo-600/10 border border-violet-500/20 hover:border-violet-500/40 transition-all cursor-pointer group"
+                onClick={() => setView('club-plan')}
+            >
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-violet-500/20 p-3 rounded-2xl border border-violet-500/30">
+                            <Sparkles size={24} className="text-violet-400" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-white">Gerar Plano do Clube com IA</h3>
+                            <p className="text-sm text-slate-400">Crie um plano semestral ou anual em 1 clique</p>
+                        </div>
+                    </div>
+                    <ChevronRight size={24} className="text-violet-400 group-hover:translate-x-1 transition-transform" />
+                </div>
+            </motion.div>
 
             {/* --- GRID PRINCIPAL --- */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

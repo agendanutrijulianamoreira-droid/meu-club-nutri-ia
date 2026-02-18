@@ -41,11 +41,13 @@ import { AISettingsView } from "./views/AISettingsView"
 import { SettingsView } from "./views/SettingsView"
 import { NutritionistsView } from "./views/NutritionistsView"
 import { TeamView } from "./views/TeamView"
+import { ClubPlanView } from "./views/ClubPlanView"
 
-type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'nutritionists' | 'team' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'library' | 'settings'
+type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'nutritionists' | 'team' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'library' | 'settings' | 'club-plan'
 
 const navItems = [
     { id: 'dashboard' as ViewType, label: 'Painel Central', icon: LayoutDashboard },
+    { id: 'club-plan' as ViewType, label: 'Plano do Clube', icon: Calendar },
     { id: 'communication' as ViewType, label: 'Comunicação', icon: MessageCircle },
     { id: 'protocols' as ViewType, label: 'Bio-Protocolos', icon: FileText },
     { id: 'challenges' as ViewType, label: 'Jornadas', icon: Trophy },
@@ -60,28 +62,36 @@ const navItems = [
     { id: 'settings' as ViewType, label: 'Sistema', icon: Settings },
 ]
 
-export default function AdminDashboard() {
+interface AdminDashboardProps {
+    userName?: string
+    tenantName?: string
+    role?: string
+    tenantId?: string
+}
+
+export default function AdminDashboard({ userName = 'Admin', tenantName = '', role = 'admin', tenantId = '' }: AdminDashboardProps) {
     const router = useRouter()
     const [activeView, setActiveView] = useState<ViewType>('dashboard')
     const [sidebarOpen, setSidebarOpen] = useState(true)
     // REMOVED: loading/tenant check is now server-side in page.tsx
 
     const renderView = () => {
-        const props = { setView: setActiveView }
+        const props = { setView: setActiveView, userName, tenantName, tenantId }
         switch (activeView) {
             case 'dashboard': return <DashboardView {...props} />
-            case 'communication': return <CommunicationCenterView {...props} />
-            case 'protocols': return <ProtocolsView {...props} />
-            case 'challenges': return <ChallengesView {...props} />
-            case 'patients': return <PatientsView {...props} />
-            case 'nutritionists': return <NutritionistsView {...props} />
+            case 'communication': return <CommunicationCenterView setView={setActiveView} />
+            case 'protocols': return <ProtocolsView setView={setActiveView} />
+            case 'challenges': return <ChallengesView setView={setActiveView} />
+            case 'patients': return <PatientsView setView={setActiveView} />
+            case 'nutritionists': return <NutritionistsView setView={setActiveView} />
             case 'team': return <TeamView />
-            case 'rewards': return <RewardsView {...props} />
-            case 'checkins': return <CheckinsView {...props} />
-            case 'library': return <LibraryView {...props} />
-            case 'sales-page': return <SalesPageGenerator {...props} />
-            case 'ai-brain': return <AISettingsView {...props} />
-            case 'settings': return <SettingsView {...props} />
+            case 'rewards': return <RewardsView setView={setActiveView} />
+            case 'checkins': return <CheckinsView setView={setActiveView} />
+            case 'library': return <LibraryView setView={setActiveView} />
+            case 'sales-page': return <SalesPageGenerator setView={setActiveView} />
+            case 'ai-brain': return <AISettingsView setView={setActiveView} />
+            case 'settings': return <SettingsView setView={setActiveView} />
+            case 'club-plan': return <ClubPlanView setView={setActiveView} tenantId={tenantId} />
             default: return <DashboardView {...props} />
         }
     }
@@ -105,7 +115,7 @@ export default function AdminDashboard() {
                         {sidebarOpen && (
                             <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}>
                                 <h1 className="font-black text-lg text-white tracking-tight uppercase tracking-[0.05em]">Meu Club <span className="text-indigo-400 font-light">Nutri.AI</span></h1>
-                                <p className="text-[10px] text-slate-500 font-black tracking-widest uppercase">Admin Clinical</p>
+                                <p className="text-[10px] text-slate-500 font-black tracking-widest uppercase">{tenantName || 'Admin Clinical'}</p>
                             </motion.div>
                         )}
                     </div>
@@ -198,8 +208,8 @@ export default function AdminDashboard() {
                         <div className="h-10 w-px bg-white/5" />
                         <div className="flex items-center gap-4 group cursor-pointer">
                             <div className="text-right">
-                                <p className="text-xs font-bold text-white tracking-tight group-hover:text-indigo-400 transition-colors">Dr. Lucas</p>
-                                <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Master Admin</p>
+                                <p className="text-xs font-bold text-white tracking-tight group-hover:text-indigo-400 transition-colors">{userName}</p>
+                                <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{role === 'admin' ? 'Admin' : 'Nutricionista'}</p>
                             </div>
                             <div className="h-12 w-12 rounded-2xl border border-white/10 p-0.5 group-hover:border-indigo-500/40 transition-all">
                                 <img src="https://api.dicebear.com/9.x/micah/svg?seed=AdminBoss" className="w-full h-full rounded-xl bg-slate-900" alt="admin" />
