@@ -167,6 +167,7 @@ ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
 -- Policies para professional_profiles
 
 -- Admins veem e gerenciam tudo
+DROP POLICY IF EXISTS "Admins gerenciam profissionais" ON public.professional_profiles;
 CREATE POLICY "Admins gerenciam profissionais" 
 ON public.professional_profiles 
 FOR ALL 
@@ -179,12 +180,14 @@ USING (
 );
 
 -- Profissional vê seu próprio perfil
+DROP POLICY IF EXISTS "Profissional vê seu próprio perfil" ON public.professional_profiles;
 CREATE POLICY "Profissional vê seu próprio perfil" 
 ON public.professional_profiles 
 FOR SELECT 
 USING (user_id = auth.uid());
 
 -- Pacientes podem ver profissionais ativos (para escolher)
+DROP POLICY IF EXISTS "Pacientes veem profissionais ativos" ON public.professional_profiles;
 CREATE POLICY "Pacientes veem profissionais ativos" 
 ON public.professional_profiles 
 FOR SELECT 
@@ -193,6 +196,7 @@ USING (status = 'active');
 -- Policies para sales
 
 -- Admins veem todas as vendas
+DROP POLICY IF EXISTS "Admins veem todas vendas" ON public.sales;
 CREATE POLICY "Admins veem todas vendas" 
 ON public.sales 
 FOR ALL 
@@ -205,12 +209,14 @@ USING (
 );
 
 -- Profissional vê apenas suas vendas
+DROP POLICY IF EXISTS "Profissional vê suas vendas" ON public.sales;
 CREATE POLICY "Profissional vê suas vendas" 
 ON public.sales 
 FOR SELECT 
 USING (professional_id = auth.uid());
 
 -- Paciente vê suas compras
+DROP POLICY IF EXISTS "Paciente vê suas compras" ON public.sales;
 CREATE POLICY "Paciente vê suas compras" 
 ON public.sales 
 FOR SELECT 

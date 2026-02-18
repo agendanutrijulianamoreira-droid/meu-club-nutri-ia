@@ -27,7 +27,7 @@ export async function processCampaignAction(campaignId: string) {
             .eq('user_id', user.id)
             .single()
 
-        const isAuthorizedRole = profile?.role === 'admin' || profile?.role === 'nutritionist';
+        const isAuthorizedRole = profile?.role === 'admin' || profile?.role === 'nutritionist' || profile?.role === 'nutri';
         if (!profile || !isAuthorizedRole) {
             throw new Error("Permissão negada: Somente administradores ou nutricionistas podem gerenciar campanhas.")
         }
@@ -72,7 +72,6 @@ export async function processCampaignAction(campaignId: string) {
                     .select('user_id')
                     .in('user_id', rawIds)
                     .eq('tenant_id', campaign.tenant_id)
-                    .eq('role', 'patient')
                 userIds = verifiedPatients?.map(d => d.user_id) || []
             }
         }

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 // Admin client com service role para criar usuários
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!, // Precisa desta env var
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
         auth: {
             autoRefreshToken: false,
@@ -14,6 +16,28 @@ const supabaseAdmin = createClient(
 )
 
 export async function POST(request: NextRequest) {
+    // 0. Autenticação do Solicitante (Admin/Nutri)
+    const supabase = createSupabaseServerClient(cookies())
+    const { data: { user: currentUser }, error: authUserError } = await supabase.auth.getUser()
+
+    if (authUserError || !currentUser) {
+        return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+
+    // Buscar tenant_id do solicitante
+    const { data: requesterProfile } = await supabase
+        .from('profiles')
+        .select('tenant_id, role')
+        .eq('user_id', currentUser.id)
+        .single()
+
+    const isAuthorized = requesterProfile?.role === 'admin' || requesterProfile?.role === 'nutritionist'
+    if (!requesterProfile?.tenant_id || !isAuthorized) {
+        return NextResponse.json({ error: 'Permissão negada ou tenant não encontrado' }, { status: 403 })
+    }
+
+    const tenantId = requesterProfile.tenant_id
+
     try {
         const body = await request.json()
         const { email, password, name, commission_rate, is_moderator, has_agenda, pix_key } = body
@@ -30,10 +54,11 @@ export async function POST(request: NextRequest) {
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email,
             password,
-            email_confirm: true, // Auto-confirmar email
+            email_confirm: true,
             user_metadata: {
                 name,
-                role: 'professional'
+                role: 'professional',
+                tenant_id: tenantId
             }
         })
 
@@ -50,10 +75,11 @@ export async function POST(request: NextRequest) {
             .from('profiles')
             .insert({
                 user_id: authData.user.id,
-                tenant_id: '00000000-0000-0000-0000-000000000001', // Ajustar para o tenant correto
+                tenant_id: tenantId,
                 name,
                 email,
-                current_plan: 'professional', // Plano para profissionais
+                role: 'nutritionist', // O profissional atua como nutri no sistema
+                current_plan: 'professional',
                 nutri_coins: 0,
                 total_xp: 0,
                 current_level: 1,
@@ -63,9 +89,7 @@ export async function POST(request: NextRequest) {
 
         if (profileError) {
             console.error('Erro ao criar perfil:', profileError)
-            // Tentar deletar o usuário criado
             await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
-
             return NextResponse.json(
                 { error: 'Erro ao criar perfil: ' + profileError.message },
                 { status: 500 }
@@ -77,17 +101,16 @@ export async function POST(request: NextRequest) {
             .from('professional_profiles')
             .insert({
                 user_id: authData.user.id,
+                tenant_id: tenantId,
                 commission_rate: commission_rate || 10,
                 is_moderator: is_moderator || false,
                 has_agenda: has_agenda || false,
                 pix_key,
                 status: 'active'
-                // referral_code será gerado automaticamente pelo trigger
             })
 
         if (professionalError) {
             console.error('Erro ao criar perfil profissional:', professionalError)
-            // Rollback: deletar perfil e usuário
             await supabaseAdmin.from('profiles').delete().eq('user_id', authData.user.id)
             await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
 
@@ -97,7 +120,6 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Sucesso!
         return NextResponse.json({
             success: true,
             user_id: authData.user.id,

@@ -39,34 +39,31 @@ export function TeamView() {
 
     useEffect(() => {
         loadProfessionals()
-        loadStats()
     }, [])
 
     const loadProfessionals = async () => {
         try {
+            setLoading(true)
+            // Usar a view que Criamos para pegar dados agregados
             const { data, error } = await supabase
-                .from('professional_profiles')
-                .select(`
-          *,
-          profiles!professional_profiles_user_id_fkey (
-            name,
-            email,
-            avatar_url
-          )
-        `)
-                .order('created_at', { ascending: false })
+                .from('team_financial_summary')
+                .select('*')
+                .order('name', { ascending: true })
 
             if (error) throw error
 
-            // Flatten nested profile data
-            const formatted = data?.map(prof => ({
-                ...prof,
-                name: prof.profiles?.name,
-                email: prof.profiles?.email,
-                avatar_url: prof.profiles?.avatar_url
-            }))
+            setProfessionals(data || [])
 
-            setProfessionals(formatted || [])
+            // Stats baseados nos dados carregados
+            const totalPaid = data?.reduce((sum, p) => sum + Number(p.total_commission_earned || 0), 0) || 0
+            const topProf = [...(data || [])].sort((a, b) => b.total_sales - a.total_sales)[0]
+
+            setStats({
+                totalPaid,
+                totalAppointments: data?.length || 0,
+                topReferrer: topProf?.name || 'N/A'
+            })
+
         } catch (error) {
             console.error('Erro ao carregar profissionais:', error)
         } finally {
@@ -75,29 +72,7 @@ export function TeamView() {
     }
 
     const loadStats = async () => {
-        try {
-            // Buscar totais de comissão e vendas
-            const { data: salesData } = await supabase
-                .from('sales')
-                .select('professional_id, commission_amount')
-                .eq('commission_paid', true)
-
-            const totalPaid = salesData?.reduce((sum, s) => sum + Number(s.commission_amount || 0), 0) || 0
-
-            // Buscar agendamentos (se existir tabela de appointments)
-            // const { count } = await supabase.from('appointments').select('*', { count: 'exact', head: true })
-
-            // Top referrer
-            const topProf = professionals.sort((a, b) => b.total_sales - a.total_sales)[0]
-
-            setStats({
-                totalPaid,
-                totalAppointments: 0, // Placeholder
-                topReferrer: topProf?.name || 'N/A'
-            })
-        } catch (error) {
-            console.error('Erro ao carregar stats:', error)
-        }
+        // Já integrado no loadProfessionals via view
     }
 
     const copyReferralCode = (code: string) => {
@@ -296,15 +271,13 @@ export function TeamView() {
                 </div>
             </div>
 
-            {/* Modal de Adicionar (placeholder) */}
+            {/* Modal de Adicionar */}
             {isAddModalOpen && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <GlassCard className="max-w-xl w-full p-8">
-                        <h3 className="text-2xl font-bold text-white mb-6">Adicionar Profissional</h3>
-                        <p className="text-slate-400 mb-4">Funcionalidade em implementação...</p>
-                        <Button onClick={() => setIsAddModalOpen(false)}>Fechar</Button>
-                    </GlassCard>
-                </div>
+                <AddProfessionalModal
+                    isOpen={isAddModalOpen}
+                    onClose={() => setIsAddModalOpen(false)}
+                    onSuccess={() => loadProfessionals()}
+                />
             )}
 
         </div>

@@ -4,6 +4,7 @@
 
 -- 1. Campanhas: Permitir que qualquer Admin ou Nutri do mesmo Tenant gerencie
 DROP POLICY IF EXISTS "Admins manage tenant campaigns" ON public.campaigns;
+DROP POLICY IF EXISTS "Team manages tenant campaigns" ON public.campaigns;
 CREATE POLICY "Team manages tenant campaigns" ON public.campaigns
     FOR ALL TO authenticated
     USING (
@@ -25,6 +26,7 @@ CREATE POLICY "Team manages tenant campaigns" ON public.campaigns
 
 -- 2. Destinatários: Permitir visualização por Admins/Nutricionistas do Tenant
 DROP POLICY IF EXISTS "Admins view tenant recipients" ON public.campaign_recipients;
+DROP POLICY IF EXISTS "Team manages tenant recipients" ON public.campaign_recipients;
 CREATE POLICY "Team manages tenant recipients" ON public.campaign_recipients
     FOR ALL TO authenticated
     USING (
@@ -40,6 +42,7 @@ CREATE POLICY "Team manages tenant recipients" ON public.campaign_recipients
 
 -- 3. Notificações: Inserção e Visualização para Equipe; Visualização e "Lido" para Paciente
 DROP POLICY IF EXISTS "Admins view tenant notifications" ON public.notifications;
+DROP POLICY IF EXISTS "Team manages tenant notifications" ON public.notifications;
 CREATE POLICY "Team manages tenant notifications" ON public.notifications
     FOR ALL TO authenticated
     USING (
@@ -53,6 +56,7 @@ CREATE POLICY "Team manages tenant notifications" ON public.notifications
 
 DROP POLICY IF EXISTS "Users move own notifications as read" ON public.notifications;
 DROP POLICY IF EXISTS "Users mark own notifications as read" ON public.notifications;
+DROP POLICY IF EXISTS "Patients view and mark read own notifications" ON public.notifications;
 CREATE POLICY "Patients view and mark read own notifications" ON public.notifications
     FOR ALL TO authenticated
     USING (user_id = auth.uid())
