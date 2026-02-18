@@ -3,19 +3,27 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 
-// Admin client com service role para criar usuários
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false
-        }
-    }
-)
-
 export async function POST(request: NextRequest) {
+    // Admin client com service role para criar usuários
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseAdmin = serviceRoleKey
+        ? createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            serviceRoleKey,
+            {
+                auth: {
+                    autoRefreshToken: false,
+                    persistSession: false
+                }
+            }
+        )
+        : null;
+
+    if (!supabaseAdmin) {
+        console.error('API Error: SUPABASE_SERVICE_ROLE_KEY is missing');
+        return NextResponse.json({ error: 'Configuração do servidor incompleta (Service Role)' }, { status: 500 })
+    }
+
     // 0. Autenticação do Solicitante (Admin/Nutri)
     const supabase = createSupabaseServerClient(cookies())
     const { data: { user: currentUser }, error: authUserError } = await supabase.auth.getUser()

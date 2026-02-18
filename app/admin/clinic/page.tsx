@@ -45,19 +45,30 @@ export default function ClinicOnboardingPage() {
 
             if (rpcError) throw rpcError
 
+            // Validação pós-RPC: Verificar se o banco realmente atualizou o perfil
+            const { data: updatedProfile, error: verifyError } = await supabase
+                .from('profiles')
+                .select('tenant_id, role')
+                .eq('user_id', user.id)
+                .single()
+
+            const hasTenant = updatedProfile?.tenant_id && updatedProfile.tenant_id !== '00000000-0000-0000-0000-000000000001'
+            if (verifyError || !hasTenant) {
+                console.warn("Aviso: Perfil ainda não reflete a nova clínica. A 'autocura' no /admin tentará resolver.")
+            }
+
             // Força a atualização do metadata do usuário para 'admin'
-            // Isso garante que o middleware e os guards vejam o novo papel imediatamente
             await supabase.auth.updateUser({
                 data: { user_type: 'admin', role: 'admin' }
             })
 
             setIsSuccess(true)
 
-            // Invalida o cache para que o componente servidor veja o novo tenant
+            // Invalida o cache e força recarregamento total para atualizar cookies de sessão/role
             router.refresh()
 
             setTimeout(() => {
-                router.push('/admin')
+                window.location.assign('/admin')
             }, 2000)
 
         } catch (err: any) {

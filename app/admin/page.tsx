@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
 import AdminDashboardClient from './AdminClientPage';
 
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,12 @@ export default async function AdminPage() {
         console.log("AdminPage: No session found, redirecting to login");
         redirect('/login');
     }
+
+    // Admin client para bypassing RLS (Autocura)
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseAdmin = serviceRoleKey
+        ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey)
+        : null;
 
     // Get profile to check tenant_id and role
     const { data: profile, error: profileError } = await supabase
@@ -32,35 +39,62 @@ export default async function AdminPage() {
 
     console.log("[Admin Guard] Status:", {
         userId: session.user.id,
-        tenantId: profile?.tenant_id,
+        email: session.user.email,
+        dbTenantId: profile?.tenant_id,
+        dbRole: profile?.role,
+        metadata: session.user.user_metadata,
         isDemoTenant,
-        role: roleLower,
+        calculatedRole: roleLower,
         isAdmin
     });
 
-    // 1. Caminho Padrão: Tenant Válido + Admin
+    if (profileError) {
+        console.error("[Admin Guard] Profile Error:", profileError);
+    }
+
+    // 1. Caminho Padrão: Tenant Válido (Não Demo) + Admin
     if (profile?.tenant_id && !isDemoTenant && isAdmin) {
         console.log("[Admin Guard] Access Granted (Standard)");
         return <AdminDashboardClient />;
     }
 
-    // 2. Autocura: Se o perfil está sem tenant ou no demo, mas o usuário é admin,
-    // verificamos se ele JÁ possui um tenant criado (evita delay de sync do perfil)
-    if ((!profile?.tenant_id || isDemoTenant) && isAdmin) {
-        console.log("[Admin Guard] Missing tenant for Admin. Scanning for owned clinics...");
-        const { data: ownedTenants } = await supabase
-            .from('tenants')
-            .select('id')
-            .eq('owner_id', session.user.id)
-            .limit(1);
+    // 2. Autocura / Redirecionamento: Se o perfil está sem tenant ou no demo, 
+    // mas o usuário é admin/nutri, verificamos se ele já tem algo criado.
+    if (isAdmin) {
+        // Se está no demo ou sem tenant, tenta achar clínica própria via SERVICE ROLE (bypassing RLS)
+        if (!profile?.tenant_id || isDemoTenant) {
+            console.log("[Admin Guard] Missing real tenant for Admin.");
 
-        if (ownedTenants && ownedTenants.length > 0) {
-            console.log("[Admin Guard] Self-healing found owned clinic:", ownedTenants[0].id);
-            return <AdminDashboardClient />;
+            if (!supabaseAdmin) {
+                console.warn("[Admin Guard] Autocura desativada: SUPABASE_SERVICE_ROLE_KEY não encontrada no .env.local");
+                redirect('/admin/clinic');
+            }
+
+            console.log("[Admin Guard] Scanning via Service Role...");
+
+            const { data: ownedTenants } = await supabaseAdmin
+                .from('tenants')
+                .select('id')
+                .eq('owner_id', session.user.id)
+                .limit(1);
+
+            if (ownedTenants && ownedTenants.length > 0) {
+                const realTenantId = ownedTenants[0].id;
+                console.log("[Admin Guard] Service Role found owned clinic:", realTenantId);
+
+                // Reparo forçado do perfil para evitar o loop
+                await supabaseAdmin
+                    .from('profiles')
+                    .update({ tenant_id: realTenantId, role: 'admin' })
+                    .eq('user_id', session.user.id);
+
+                console.log("[Admin Guard] Profile repaired. Refreshing dashboard...");
+                return <AdminDashboardClient />;
+            }
+
+            console.log("[Admin Guard] No owned clinic found even via Admin scan. Redirecting to onboarding...");
+            redirect('/admin/clinic');
         }
-
-        console.log("[Admin Guard] No owned clinic found. Redirecting to onboarding...");
-        redirect('/admin/clinic');
     }
 
     // 3. Redirecionamento de Paciente
