@@ -15,6 +15,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
 import { generateClubPlan, saveClubPlan, loadClubPlan } from "../actions/clubPlanActions"
+import { ClubSetupWizard } from "./ClubSetupWizard"
+import { supabase } from "@/lib/supabase-browser"
 
 interface MonthPlan {
     month: number
@@ -34,11 +36,29 @@ export function ClubPlanView({ setView, tenantId = '' }: { setView: (v: any) => 
     const [editingMonth, setEditingMonth] = useState<number | null>(null)
     const [hasLoaded, setHasLoaded] = useState(false)
     const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+    const [showWizard, setShowWizard] = useState(false)
+    const [setupDone, setSetupDone] = useState<boolean | null>(null)
 
-    // Load existing plan on mount
+    // Check if club setup is done + load existing plan
     useEffect(() => {
-        loadExisting('semestral')
+        const init = async () => {
+            if (tenantId) {
+                const { data: tenant } = await supabase
+                    .from('tenants')
+                    .select('club_setup_done')
+                    .eq('id', tenantId)
+                    .single()
+                const done = tenant?.club_setup_done === true
+                setSetupDone(done)
+                if (!done) {
+                    setShowWizard(true)
+                }
+            }
+            loadExisting('semestral')
+        }
+        init()
     }, [])
+
 
     const loadExisting = async (type: 'semestral' | 'anual') => {
         setPlanType(type)
@@ -92,6 +112,22 @@ export function ClubPlanView({ setView, tenantId = '' }: { setView: (v: any) => 
         setMonths(prev => prev.map((m, i) => i === index ? { ...m, [field]: value } : m))
     }
 
+    // Wizard modal
+    if (showWizard && tenantId) {
+        return (
+            <ClubSetupWizard
+                tenantId={tenantId}
+                onComplete={() => {
+                    setShowWizard(false)
+                    setSetupDone(true)
+                }}
+                onClose={() => {
+                    setShowWizard(false)
+                }}
+            />
+        )
+    }
+
     // Empty state
     if (hasLoaded && months.length === 0 && !loading) {
         return (
@@ -106,8 +142,21 @@ export function ClubPlanView({ setView, tenantId = '' }: { setView: (v: any) => 
                     </div>
                     <div>
                         <h2 className="text-3xl font-black text-white mb-2">Plano do Clube</h2>
-                        <p className="text-slate-400 text-lg">Gere um plano estratégico completo com IA em 1 clique.</p>
+                        <p className="text-slate-400 text-lg">
+                            {setupDone
+                                ? 'Setup concluído! Gere seu plano personalizado.'
+                                : 'Configure seu clube em 60 segundos e gere um plano com a sua cara.'}
+                        </p>
                     </div>
+
+                    {!setupDone && (
+                        <Button
+                            onClick={() => setShowWizard(true)}
+                            className="h-16 px-8 bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl gap-3 mx-auto"
+                        >
+                            <Sparkles size={20} /> Setup Express (60s)
+                        </Button>
+                    )}
 
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
                         <Button

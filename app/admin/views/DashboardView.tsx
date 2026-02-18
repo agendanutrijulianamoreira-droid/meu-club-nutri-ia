@@ -177,12 +177,12 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
                 </div>
                 <div className="flex gap-3">
                     <Button
-                        onClick={() => setView('planner')}
+                        onClick={() => setView('club-plan')}
                         variant="outline"
                         className="h-12 border-white/5 bg-white/5 hover:bg-white/10 text-slate-300 backdrop-blur-md rounded-xl"
                     >
                         <Calendar size={18} className="mr-2" />
-                        Ver Agenda
+                        Ver Plano do Clube
                     </Button>
                     <Button
                         onClick={() => alert('Entrando na Central de Ação IA... ⚡')}

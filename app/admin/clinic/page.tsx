@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase-browser"
 import { Button } from "@/components/ui/button"
@@ -26,9 +26,25 @@ export default function ClinicOnboardingPage() {
         adminName: ""
     })
 
+    // Prefill adminName from user metadata or email
+    useEffect(() => {
+        const prefill = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                const fullName = user.user_metadata?.full_name || user.user_metadata?.name || ''
+                const emailPrefix = user.email?.split('@')[0]?.replace(/[._]/g, ' ') || ''
+                const prefilled = fullName || emailPrefix
+                if (prefilled) {
+                    setFormData(prev => ({ ...prev, adminName: prev.adminName || prefilled }))
+                }
+            }
+        }
+        prefill()
+    }, [])
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!formData.brandName.trim()) return
+        if (!formData.brandName.trim() || !formData.adminName.trim()) return
 
         setIsLoading(true)
         setError(null)
@@ -57,9 +73,9 @@ export default function ClinicOnboardingPage() {
                 console.warn("Aviso: Perfil ainda não reflete a nova clínica. A 'autocura' no /admin tentará resolver.")
             }
 
-            // Força a atualização do metadata do usuário para 'admin'
+            // Força a atualização do metadata do usuário para 'admin' + salva full_name
             await supabase.auth.updateUser({
-                data: { user_type: 'admin', role: 'admin' }
+                data: { user_type: 'admin', role: 'admin', full_name: formData.adminName.trim() }
             })
 
             setIsSuccess(true)
@@ -149,12 +165,13 @@ export default function ClinicOnboardingPage() {
                                     <User size={12} /> Seu Nome (Admin)
                                 </label>
                                 <input
+                                    required
                                     className="w-full bg-white/5 border border-white/10 rounded-2xl py-5 px-6 text-white text-lg placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all font-medium"
-                                    placeholder="Como quer ser chamado(a)?"
+                                    placeholder="Ex: Juliana Moreira"
                                     value={formData.adminName}
                                     onChange={e => setFormData({ ...formData, adminName: e.target.value })}
                                 />
-                                <p className="text-[10px] text-slate-600 font-medium ml-1">Opcional. Padrão: "Admin"</p>
+                                <p className="text-[10px] text-slate-600 font-medium ml-1">Será exibido no painel como saudação</p>
                             </div>
                         </div>
 
@@ -170,7 +187,7 @@ export default function ClinicOnboardingPage() {
 
                         <Button
                             type="submit"
-                            disabled={isLoading || !formData.brandName.trim()}
+                            disabled={isLoading || !formData.brandName.trim() || !formData.adminName.trim()}
                             className="w-full h-20 bg-indigo-600 hover:bg-indigo-500 text-white rounded-3xl font-black uppercase tracking-widest text-sm gap-4 shadow-xl shadow-indigo-900/40 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:scale-100"
                         >
                             {isLoading ? (
