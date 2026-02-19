@@ -3,12 +3,19 @@
 import { createSupabaseServerClient } from "@/lib/supabase-server"
 import { createClient } from "@supabase/supabase-js"
 import { cookies } from 'next/headers'
+import { z } from "zod"
 
 // Use Service Role Client for processing (bypassing RLS for internal logic)
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
+const campaignIdSchema = z.string().uuid('ID da campanha inválido')
+
 export async function processCampaignAction(campaignId: string) {
+    const parsed = campaignIdSchema.safeParse(campaignId)
+    if (!parsed.success) {
+        return { success: false, error: parsed.error.issues[0]?.message || 'ID inválido' }
+    }
     // 1. COOKIE-BASED CLIENT FOR AUTH (SESSION VALIDATION)
     const cookieSupabase = createSupabaseServerClient(cookies())
 

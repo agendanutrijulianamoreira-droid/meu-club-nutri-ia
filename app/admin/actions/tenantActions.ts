@@ -2,9 +2,19 @@
 
 import { createClient } from "@supabase/supabase-js"
 import { cookies } from 'next/headers'
+import { z } from "zod"
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+const tenantSchema = z.object({
+    brandName: z.string().min(2, 'Nome da marca deve ter no mínimo 2 caracteres'),
+    slug: z.string().min(2, 'Slug deve ter no mínimo 2 caracteres').regex(/^[a-z0-9-]+$/, 'Slug deve conter apenas letras minúsculas, números e hífens'),
+    primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Cor primária inválida').default('#EC4899'),
+    secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Cor secundária inválida').default('#8B5CF6'),
+    whatsapp: z.string().optional(),
+    logoUrl: z.string().url().optional().or(z.literal(''))
+})
 
 export async function createTenantAndBindProfileAction(formData: {
     brandName: string,
@@ -14,6 +24,11 @@ export async function createTenantAndBindProfileAction(formData: {
     whatsapp?: string,
     logoUrl?: string
 }) {
+    const parsed = tenantSchema.safeParse(formData)
+    if (!parsed.success) {
+        return { success: false, error: parsed.error.issues[0]?.message || 'Dados inválidos' }
+    }
+
     // We use service role to bypass RLS constraints during onboarding setup
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 

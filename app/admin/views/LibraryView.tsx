@@ -337,7 +337,7 @@ function ItemDetailsModal({ item, onClose }: { item: Protocol, onClose: () => vo
 
                         {/* Technical Badges */}
                         <div className="flex flex-wrap gap-2 pt-6">
-                            {tags.map((tag, i) => (
+                            {tags.map((tag: string, i: number) => (
                                 <span key={i} className="px-3 py-1.5 rounded-xl bg-slate-900 border border-white/10 text-[9px] font-bold text-slate-400 uppercase">
                                     {tag}
                                 </span>

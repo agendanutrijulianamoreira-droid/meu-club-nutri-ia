@@ -22,7 +22,7 @@ export default function PatientDietPage() {
     const activeProtocol = assignments?.[0]
 
     // Mapear dias do protocolo real
-    const protocolDays = activeProtocol?.protocol?.days?.sort((a: any, b: any) => a.day_number - b.day_number).map((d: any) => ({
+    const protocolDays = (activeProtocol?.protocol as any)?.days?.sort((a: any, b: any) => a.day_number - b.day_number).map((d: any) => ({
         day: d.day_number,
         title: d.title || `Dia ${d.day_number}`,
         items: d.items?.sort((a: any, b: any) => a.time.localeCompare(b.time)).map((i: any) => ({
@@ -90,7 +90,7 @@ export default function PatientDietPage() {
             <div className="space-y-3">
                 {protocolDays.map((day: any) => {
                     const isExpanded = expandedDay === day.day
-                    const completedItems = day.items.filter(i => i.completed).length
+                    const completedItems = day.items.filter((i: any) => i.completed).length
                     const totalItems = day.items.length
                     const dayProgress = (completedItems / totalItems) * 100
 
@@ -139,7 +139,7 @@ export default function PatientDietPage() {
                                     transition={{ duration: 0.3 }}
                                     className="p-4 space-y-3 border-t border-white/5"
                                 >
-                                    {day.items.map((item, idx) => (
+                                    {day.items.map((item: any, idx: number) => (
                                         <div
                                             key={idx}
                                             className={`flex items-start gap-3 p-3 rounded-xl border ${item.completed

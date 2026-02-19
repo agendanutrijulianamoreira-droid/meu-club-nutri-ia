@@ -2,6 +2,14 @@
 
 import { createSupabaseServerClient } from "@/lib/supabase-server"
 import { cookies } from "next/headers"
+import { z } from "zod"
+
+const signupSchema = z.object({
+    email: z.string().email('E-mail inválido'),
+    password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
+    fullName: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
+    userType: z.enum(['patient', 'nutritionist', 'admin']).default('patient')
+})
 
 /**
  * Server Action para criar novo usuário
@@ -9,10 +17,19 @@ import { cookies } from "next/headers"
  */
 export async function signupUser(formData: FormData) {
     const supabase = createSupabaseServerClient(cookies())
-    const email = formData.get("email") as string
-    const password = formData.get("password") as string
-    const fullName = formData.get("fullName") as string
-    const userType = (formData.get("userType") as string) || "patient"
+
+    const parsed = signupSchema.safeParse({
+        email: formData.get("email"),
+        password: formData.get("password"),
+        fullName: formData.get("fullName"),
+        userType: formData.get("userType") || "patient"
+    })
+
+    if (!parsed.success) {
+        return { success: false, error: parsed.error.issues[0]?.message || 'Dados inválidos' }
+    }
+
+    const { email, password, fullName, userType } = parsed.data
 
     console.log("Criando usuário:", email)
 

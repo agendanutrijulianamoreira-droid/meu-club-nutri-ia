@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTenant } from "@/lib/hooks/useDatabase";
 
-export function AISettingsView({ setView }: { setView: (v: any) => void }) {
-    const { tenant, updateTenant, loading: loadingTenant } = useTenant();
+export function AISettingsView({ setView, tenantId }: { setView: (v: any) => void, tenantId?: string }) {
+    const { tenant, updateTenant, loading: loadingTenant } = useTenant(tenantId);
     const [tone, setTone] = useState('acolhedora');
     const [emojiLevel, setEmojiLevel] = useState(2);
     const [methodName, setMethodName] = useState('Método NutriGenética 360º');
@@ -125,8 +125,8 @@ export function AISettingsView({ setView }: { setView: (v: any) => void }) {
                                     whileHover={{ x: 5 }}
                                     onClick={() => setTone(item.id)}
                                     className={`p-5 rounded-2xl border cursor-pointer transition-all relative overflow-hidden group ${tone === item.id
-                                            ? 'bg-indigo-600/10 border-indigo-500 shadow-xl shadow-indigo-900/20'
-                                            : 'bg-white/[0.02] border-white/5 hover:border-white/20'
+                                        ? 'bg-indigo-600/10 border-indigo-500 shadow-xl shadow-indigo-900/20'
+                                        : 'bg-white/[0.02] border-white/5 hover:border-white/20'
                                         }`}
                                 >
                                     <div className="flex justify-between items-center mb-1">

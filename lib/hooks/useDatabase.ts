@@ -33,6 +33,7 @@ export function useProtocols() {
                 .from('protocols')
                 .select('*')
                 .order('created_at', { ascending: false })
+                .limit(50)
 
             if (category) {
                 query = query.eq('category', category)
@@ -148,6 +149,7 @@ export function useChallenges() {
                 .from('challenges')
                 .select('*')
                 .order('created_at', { ascending: false })
+                .limit(50)
 
             if (error) throw error
             setChallenges(data || [])
@@ -260,6 +262,7 @@ export function usePatients() {
                 `)
                 .eq('role', 'patient')
                 .order('created_at', { ascending: false })
+                .limit(100)
 
             if (error) throw error
 
@@ -306,18 +309,21 @@ export interface Tenant {
     created_at: string
 }
 
-export function useTenant() {
+export function useTenant(tenantId?: string) {
     const [tenant, setTenant] = useState<Tenant | null>(null)
     const [loading, setLoading] = useState(true)
 
     const fetchTenant = async () => {
+        if (!tenantId) {
+            setLoading(false)
+            return
+        }
         try {
             setLoading(true)
-            // Pega o primeiro tenant (depois implementar multi-tenant)
             const { data, error } = await supabase
                 .from('tenants')
                 .select('*')
-                .limit(1)
+                .eq('id', tenantId)
                 .single()
 
             if (error) throw error
@@ -348,7 +354,7 @@ export function useTenant() {
 
     useEffect(() => {
         fetchTenant()
-    }, [])
+    }, [tenantId])
 
     return {
         tenant,
@@ -386,6 +392,7 @@ export function useAssignments(userId?: string) {
                 .select('*, protocol:protocols(*)')
                 .eq('user_id', userId)
                 .order('created_at', { ascending: false })
+                .limit(50)
 
             if (error) throw error
             setAssignments(data || [])
@@ -444,6 +451,7 @@ export function useProgress(assignmentId?: string) {
                 .from('protocol_progress')
                 .select('*')
                 .eq('assignment_id', assignmentId)
+                .limit(200)
 
             if (error) throw error
             setProgress(data || [])

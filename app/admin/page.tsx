@@ -77,20 +77,18 @@ export default async function AdminPage() {
         return <AdminDashboardClient {...dashboardProps} />;
     }
 
-    // 2. Autocura / Redirecionamento: Se o perfil está sem tenant ou no demo, 
-    // mas o usuário é admin/nutri, verificamos se ele já tem algo criado.
+    // 2. Autocura: Se admin sem tenant real, detectar mas NÃO mutar durante render.
+    // A mutação será feita pelo client via Server Action (repairProfileAction).
     if (isAdmin) {
-        // Se está no demo ou sem tenant, tenta achar clínica própria via SERVICE ROLE (bypassing RLS)
         if (!profile?.tenant_id || isDemoTenant) {
-            console.log("[Admin Guard] Missing real tenant for Admin.");
+            console.log("[Admin Guard] Missing real tenant for Admin. Passing needsRepair to client.");
 
             if (!supabaseAdmin) {
-                console.warn("[Admin Guard] Autocura desativada: SUPABASE_SERVICE_ROLE_KEY não encontrada no .env.local");
+                console.warn("[Admin Guard] Autocura desativada: SUPABASE_SERVICE_ROLE_KEY ausente.");
                 redirect('/admin/clinic');
             }
 
-            console.log("[Admin Guard] Scanning via Service Role...");
-
+            // Apenas LEITURA: verificar se existe clínica para exibir o dashboard
             const { data: ownedTenants } = await supabaseAdmin
                 .from('tenants')
                 .select('id, brand_name')
@@ -98,21 +96,19 @@ export default async function AdminPage() {
                 .limit(1);
 
             if (ownedTenants && ownedTenants.length > 0) {
-                const realTenantId = ownedTenants[0].id;
-                const repairedTenantName = ownedTenants[0].brand_name || '';
-                console.log("[Admin Guard] Service Role found owned clinic:", realTenantId);
-
-                // Reparo forçado do perfil para evitar o loop
-                await supabaseAdmin
-                    .from('profiles')
-                    .update({ tenant_id: realTenantId, role: 'admin' })
-                    .eq('user_id', session.user.id);
-
-                console.log("[Admin Guard] Profile repaired. Refreshing dashboard...");
-                return <AdminDashboardClient userName={userName} tenantName={repairedTenantName} role="admin" tenantId={realTenantId} />;
+                // Tem clínica, mas perfil está desatualizado → client vai reparar
+                const previewTenantName = ownedTenants[0].brand_name || '';
+                console.log("[Admin Guard] Found clinic, client will repair profile via Server Action.");
+                return <AdminDashboardClient
+                    userName={userName}
+                    tenantName={previewTenantName}
+                    role="admin"
+                    tenantId={ownedTenants[0].id}
+                    needsRepair={true}
+                />;
             }
 
-            console.log("[Admin Guard] No owned clinic found even via Admin scan. Redirecting to onboarding...");
+            console.log("[Admin Guard] No owned clinic found. Redirecting to onboarding...");
             redirect('/admin/clinic');
         }
     }

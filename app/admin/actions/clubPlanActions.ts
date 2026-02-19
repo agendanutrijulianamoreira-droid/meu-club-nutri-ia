@@ -2,6 +2,7 @@
 
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { cookies } from 'next/headers'
+import { z } from 'zod'
 
 interface MonthPlan {
     month: number
@@ -18,7 +19,22 @@ const MONTH_NAMES = [
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ]
 
+const planTypeSchema = z.enum(['semestral', 'anual'], { error: 'Tipo de plano inválido' })
+
+const monthPlanSchema = z.object({
+    month: z.number().min(1).max(12),
+    monthName: z.string(),
+    theme: z.string().min(1),
+    protocol_title: z.string().min(1),
+    challenge_title: z.string().min(1),
+    inbox_templates: z.array(z.string()),
+    upgrade_cta: z.string()
+})
+
 export async function generateClubPlan(planType: 'semestral' | 'anual') {
+    const parsed = planTypeSchema.safeParse(planType)
+    if (!parsed.success) return { error: parsed.error.issues[0]?.message || 'Tipo inválido' }
+
     const supabase = createSupabaseServerClient(cookies())
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: 'Não autenticado' }
@@ -147,6 +163,11 @@ export async function generateClubPlan(planType: 'semestral' | 'anual') {
 }
 
 export async function saveClubPlan(planType: 'semestral' | 'anual', months: MonthPlan[]) {
+    const parsedType = planTypeSchema.safeParse(planType)
+    if (!parsedType.success) return { error: 'Tipo de plano inválido' }
+    const parsedMonths = z.array(monthPlanSchema).min(1).safeParse(months)
+    if (!parsedMonths.success) return { error: 'Dados dos meses inválidos' }
+
     const supabase = createSupabaseServerClient(cookies())
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: 'Não autenticado' }
@@ -185,6 +206,9 @@ export async function saveClubPlan(planType: 'semestral' | 'anual', months: Mont
 }
 
 export async function loadClubPlan(planType: 'semestral' | 'anual') {
+    const parsedType = planTypeSchema.safeParse(planType)
+    if (!parsedType.success) return { error: 'Tipo de plano inválido', months: null }
+
     const supabase = createSupabaseServerClient(cookies())
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: 'Não autenticado', months: null }

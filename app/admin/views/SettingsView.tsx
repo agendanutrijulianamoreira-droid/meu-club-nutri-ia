@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button"
 import { useTenant } from "@/lib/hooks/useDatabase"
 import { useStorage } from "@/lib/hooks/useStorage"
 
-export function SettingsView({ setView }: { setView: (v: any) => void }) {
-    const { tenant, updateTenant, loading } = useTenant();
+export function SettingsView({ setView, tenantId }: { setView: (v: any) => void, tenantId?: string }) {
+    const { tenant, updateTenant, loading } = useTenant(tenantId);
     const { uploadImage, uploading: isUploadingFile } = useStorage()
     const [clubName, setClubName] = useState("Clube da Nutri")
     const [brandColor, setBrandColor] = useState("#EC4899")

@@ -25,8 +25,8 @@ import { useTenant } from "@/lib/hooks/useDatabase"
 import { useStorage } from "@/lib/hooks/useStorage"
 import { useEffect } from "react"
 
-export function SalesPageGenerator({ setView }: { setView: (v: any) => void }) {
-    const { tenant, updateTenant, loading: loadingTenant } = useTenant()
+export function SalesPageGenerator({ setView, tenantId }: { setView: (v: any) => void, tenantId?: string }) {
+    const { tenant, updateTenant, loading: loadingTenant } = useTenant(tenantId)
     const { uploadImage, uploading: isUploadingFile } = useStorage()
     const [socialProofUrls, setSocialProofUrls] = useState<string[]>([])
     const [isSaving, setIsSaving] = useState(false)
@@ -245,8 +245,8 @@ export function SalesPageGenerator({ setView }: { setView: (v: any) => void }) {
                         onClick={handleGenerate}
                         disabled={generating}
                         className={`w-full py-6 text-lg font-black shadow-xl transition-all ${isGenerated
-                                ? 'bg-white text-black hover:bg-gray-200'
-                                : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-purple-900/20'
+                            ? 'bg-white text-black hover:bg-gray-200'
+                            : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-purple-900/20'
                             }`}
                     >
                         {generating ? (

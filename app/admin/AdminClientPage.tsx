@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase-browser"
 import { Button } from "@/components/ui/button"
@@ -42,6 +42,7 @@ import { SettingsView } from "./views/SettingsView"
 import { NutritionistsView } from "./views/NutritionistsView"
 import { TeamView } from "./views/TeamView"
 import { ClubPlanView } from "./views/ClubPlanView"
+import { repairProfile } from "./actions/repairProfileAction"
 
 type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'nutritionists' | 'team' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'library' | 'settings' | 'club-plan'
 
@@ -67,13 +68,25 @@ interface AdminDashboardProps {
     tenantName?: string
     role?: string
     tenantId?: string
+    needsRepair?: boolean
 }
 
-export default function AdminDashboard({ userName = 'Admin', tenantName = '', role = 'admin', tenantId = '' }: AdminDashboardProps) {
+export default function AdminDashboard({ userName = 'Admin', tenantName = '', role = 'admin', tenantId = '', needsRepair = false }: AdminDashboardProps) {
     const router = useRouter()
     const [activeView, setActiveView] = useState<ViewType>('dashboard')
     const [sidebarOpen, setSidebarOpen] = useState(true)
-    // REMOVED: loading/tenant check is now server-side in page.tsx
+
+    // Autocura: reparar perfil via Server Action (não durante render)
+    useEffect(() => {
+        if (needsRepair) {
+            repairProfile().then((result) => {
+                if (result.repaired) {
+                    console.log('[AdminDashboard] Profile repaired via Server Action, refreshing...');
+                    router.refresh();
+                }
+            }).catch(console.error);
+        }
+    }, [needsRepair, router])
 
     const renderView = () => {
         const props = { setView: setActiveView, userName, tenantName, tenantId }
@@ -88,9 +101,9 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
             case 'rewards': return <RewardsView setView={setActiveView} />
             case 'checkins': return <CheckinsView setView={setActiveView} />
             case 'library': return <LibraryView setView={setActiveView} />
-            case 'sales-page': return <SalesPageGenerator setView={setActiveView} />
-            case 'ai-brain': return <AISettingsView setView={setActiveView} />
-            case 'settings': return <SettingsView setView={setActiveView} />
+            case 'sales-page': return <SalesPageGenerator setView={setActiveView} tenantId={tenantId} />
+            case 'ai-brain': return <AISettingsView setView={setActiveView} tenantId={tenantId} />
+            case 'settings': return <SettingsView setView={setActiveView} tenantId={tenantId} />
             case 'club-plan': return <ClubPlanView setView={setActiveView} tenantId={tenantId} />
             default: return <DashboardView {...props} />
         }

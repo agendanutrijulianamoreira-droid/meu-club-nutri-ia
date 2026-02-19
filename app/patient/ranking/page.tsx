@@ -1,6 +1,9 @@
+"use client"
+
 import { Crown, Trophy, TrendingUp, Medal, Flame, Loader2 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase-browser"
+import { motion } from "framer-motion"
 
 export default function PatientRankingPage() {
     const [leaderboard, setLeaderboard] = useState<any[]>([])
