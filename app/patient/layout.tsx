@@ -14,30 +14,37 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
     // Ativar captura de Token FCM para Push (Desativado para MVP - Foco Inbox)
     // useFCMToken()
 
-    // Proteção extra: Redirecionar nutris que caírem aqui por engano (sessão antiga/metadata)
+    // Proteção: 
+    // 1. Redirecionar nutris que caírem aqui por engano
+    // 2. Forçar onboarding se não completou (trava-portas)
     useEffect(() => {
-        const checkRole = async () => {
+        const checkAccess = async () => {
             const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
-                let userType = user.user_metadata?.user_type || user.user_metadata?.role;
+            if (!user) return
 
-                // Se não tiver metadata, verifica no banco como última instância
-                if (!userType) {
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('role')
-                        .eq('user_id', user.id)
-                        .single();
-                    if (profile) userType = profile.role;
-                }
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('role, onboarding_completed')
+                .eq('user_id', user.id)
+                .single()
 
-                if (userType === 'nutri' || userType === 'nutritionist' || userType === 'admin') {
-                    router.push('/admin')
-                }
+            if (!profile) return
+
+            // Nutris → admin
+            const role = profile.role || user.user_metadata?.user_type
+            if (role === 'nutri' || role === 'nutritionist' || role === 'admin') {
+                router.push('/admin')
+                return
+            }
+
+            // Trava-portas: forçar onboarding (exceto se já está na página de onboarding)
+            const isOnboardingPage = pathname === '/patient/onboarding'
+            if (!profile.onboarding_completed && !isOnboardingPage) {
+                router.push('/patient/onboarding')
             }
         }
-        checkRole()
-    }, [router])
+        checkAccess()
+    }, [router, pathname])
 
     const navItems = [
         { href: "/patient/home", label: "Início", icon: Home },

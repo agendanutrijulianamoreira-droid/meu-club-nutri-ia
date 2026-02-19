@@ -38,18 +38,6 @@ export default function PatientHomePage() {
             const { data: { session } } = await supabase.auth.getSession()
             if (!session) return
 
-            // Check onboarding status
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('onboarding_completed')
-                .eq('user_id', session.user.id)
-                .single()
-
-            if (profile && !profile.onboarding_completed) {
-                router.push('/patient/onboarding')
-                return
-            }
-
             // Load unread count
             const { count } = await supabase
                 .from('notifications')
@@ -59,7 +47,7 @@ export default function PatientHomePage() {
             setUnreadCount(count || 0)
         }
         init()
-    }, [router])
+    }, [])
 
     if (loading) {
         return (

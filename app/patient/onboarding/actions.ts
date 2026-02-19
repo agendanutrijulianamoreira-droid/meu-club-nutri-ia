@@ -1,76 +1,51 @@
-'use server'
+'use server';
 
-import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { cookies } from 'next/headers'
-import { z } from 'zod'
+import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { z } from "zod";
 
 const onboardingSchema = z.object({
-    initial_weight: z.number().min(20).max(300).optional(),
-    current_weight: z.number().min(20).max(300).optional(),
-    height: z.number().min(50).max(250).optional(),
-    birth_date: z.string().optional(),
-    gender: z.enum(['female', 'male', 'other', 'prefer_not_say']).optional(),
-    primary_goal: z.string().min(3).max(200).optional(),
-    goal_timeline_days: z.number().min(7).max(365).optional(),
-    dietary_restrictions: z.array(z.string()).optional(),
-})
+    weight: z.string().min(1, "Peso é obrigatório"),
+    height: z.string().min(1, "Altura é obrigatória"),
+    mainGoal: z.string().min(1, "Selecione um objetivo"),
+    painPoints: z.string() // Array stringificado (JSON) das dores
+});
 
-/**
- * Server Action para salvar dados do onboarding do paciente
- */
-export async function saveOnboardingData(data: z.infer<typeof onboardingSchema>) {
-    const supabase = createSupabaseServerClient(cookies())
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+export async function completeOnboarding(formData: FormData) {
+    const supabase = createSupabaseServerClient(cookies());
 
-    if (authError || !user) {
-        return { error: 'Não autenticado' }
+    // 1. Pega o usuário logado
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return { error: "Não autorizado" };
+
+    const rawData = Object.fromEntries(formData.entries());
+    const parsed = onboardingSchema.safeParse(rawData);
+
+    if (!parsed.success) return { error: "Verifique os dados preenchidos." };
+
+    try {
+        // 2. Salva as informações iniciais no perfil do paciente
+        const { error } = await supabase
+            .from('profiles')
+            .update({
+                onboarding_completed: true,
+                metadata: {
+                    initial_weight: parsed.data.weight,
+                    height: parsed.data.height,
+                    main_goal: parsed.data.mainGoal,
+                    pain_points: JSON.parse(parsed.data.painPoints)
+                }
+            })
+            .eq('user_id', session.user.id);
+
+        if (error) throw error;
+
+    } catch (err: any) {
+        console.error("Erro no onboarding:", err);
+        return { error: "Erro ao salvar seus dados. Tente novamente." };
     }
 
-    const parsed = onboardingSchema.safeParse(data)
-    if (!parsed.success) {
-        return { error: parsed.error.issues.map(i => i.message).join(', ') }
-    }
-
-    const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-            ...parsed.data,
-            onboarding_completed: true,
-            onboarding_step: 4, // Completed all steps
-            updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', user.id)
-
-    if (updateError) {
-        return { error: updateError.message }
-    }
-
-    return { success: true }
-}
-
-/**
- * Server Action para salvar progresso parcial do onboarding
- */
-export async function saveOnboardingStep(step: number, data: Partial<z.infer<typeof onboardingSchema>>) {
-    const supabase = createSupabaseServerClient(cookies())
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-        return { error: 'Não autenticado' }
-    }
-
-    const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-            ...data,
-            onboarding_step: step,
-            updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', user.id)
-
-    if (updateError) {
-        return { error: updateError.message }
-    }
-
-    return { success: true }
+    // 3. Redireciona para a Home destravada
+    redirect('/patient/home?onboarded=true');
 }
