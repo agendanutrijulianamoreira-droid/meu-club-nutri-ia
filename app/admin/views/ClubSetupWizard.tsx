@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
 import { supabase } from "@/lib/supabase-browser"
 
+import { generateClinicalContent } from "@/app/admin/actions/generateAI"
+
 interface WizardProps {
     tenantId: string
     onComplete: () => void
@@ -26,21 +28,41 @@ export default function ClubSetupWizard({ tenantId, onComplete, onClose }: Wizar
         toneOfVoice: ""
     })
 
-    // 🪄 O botão que injeta a persona no sistema
-    const handlePreFillWithAI = () => {
+    // 🪄 O botão que injeta a persona no sistema de verdade
+    const handlePreFillWithAI = async () => {
+        const nicheToUse = formData.niche.trim() || "Nutrição Saúde da Mulher e Emagrecimento (Exemplo)";
+
+        if (!formData.niche.trim()) {
+            // Se não tiver nicho, avisa que estamos usando um exemplo
+            alert("Como você não preencheu o nicho, vou gerar um exemplo base para Saúde da Mulher. Edite conforme sua realidade depois! 🚀");
+        }
+
         setIsGenerating(true)
 
-        // Simulando tempo de pensamento da IA (futuramente, chamar Gemini)
-        setTimeout(() => {
-            setFormData({
-                niche: "Saúde da Mulher, Reprogramação Hormonal e Emagrecimento",
-                targetAudience: "Mulheres empreendedoras de 30 a 45 anos com rotina corrida, SOP, endometriose, candidíase ou miomas.",
-                biggestPain: "Efeito sanfona, inchaço constante, falta de energia, compulsão noturna e ansiedade que atrapalha o sono.",
-                mainGoal: "Ajudar mulheres a regularem hormônios, intestino e peso sem extremismos, devolvendo energia e paz com a comida.",
-                toneOfVoice: "Sábia, acolhedora, empática, mas muito fundamentada em ciência e resultados práticos (sem neuras)."
-            })
+        // Chamada real à Server Action
+        try {
+            const result = await generateClinicalContent(
+                `Sou uma nutricionista focada em: ${nicheToUse}. Crie minha persona de marca.`,
+                'persona'
+            );
+
+            if (result.success && result.data) {
+                setFormData({
+                    niche: result.data.niche || formData.niche,
+                    targetAudience: result.data.targetAudience || "",
+                    biggestPain: result.data.biggestPain || "",
+                    mainGoal: result.data.mainGoal || "",
+                    toneOfVoice: result.data.toneOfVoice || ""
+                })
+            } else {
+                alert("Erro ao gerar persona: " + (result.error || "Tente novamente."));
+            }
+        } catch (error) {
+            console.error("Erro na geração:", error);
+            alert("Erro de comunicação com a IA.");
+        } finally {
             setIsGenerating(false)
-        }, 1500)
+        }
     }
 
     const handleSave = async () => {
