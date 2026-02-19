@@ -81,16 +81,11 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
     console.log(`[Webhook] Checkout completed: user=${userId} → plan=${plan} (tenant=${tenantId})`)
 
-    // 1. Atualizar profile com o plano pago
-    await supabaseAdmin
-        .from('profiles')
-        .update({
-            current_plan: plan,
-            updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', userId)
+    // NOTA: NÃO atualizamos profiles aqui!
+    // A trigger sync_subscription_to_profile() faz isso automaticamente
+    // quando a subscription é inserida/atualizada abaixo.
 
-    // 2. Recuperar dados da subscription do Stripe
+    // 1. Recuperar dados da subscription do Stripe
     const subscriptionId = session.subscription as string
     let periodStart: string | null = null
     let periodEnd: string | null = null
