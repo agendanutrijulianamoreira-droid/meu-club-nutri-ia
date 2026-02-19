@@ -14,10 +14,12 @@ const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!
  * POST /api/webhooks/stripe
  * Recebe eventos do Stripe para processar pagamentos.
  * 
- * Eventos tratados:
- * - checkout.session.completed → Cria/ativa subscription + cria user se necessário
- * - customer.subscription.updated → Atualiza status da subscription
- * - customer.subscription.deleted → Cancela subscription
+ * FLUXO CORRETO:
+ * 1. Paciente cria conta no frontend (signUp)
+ * 2. Frontend chama /api/checkout com userId → Stripe Session com client_reference_id
+ * 3. Webhook recebe checkout.completed → apenas UPDATE no profile/subscription
+ * 
+ * NENHUM user é criado aqui. O user já existe.
  */
 export async function POST(request: NextRequest) {
     const body = await request.text()
@@ -64,84 +66,31 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Checkout concluído → cria/atualiza subscription + cria user se necessário
+ * Checkout concluído → ativa subscription (user já existe!)
  */
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+    // O user_id vem do client_reference_id (definido no /api/checkout)
+    const userId = session.client_reference_id || session.metadata?.user_id
     const tenantId = session.metadata?.tenant_id
     const plan = session.metadata?.plan
-    const customerEmail = session.customer_details?.email
 
-    if (!tenantId || !plan || !customerEmail) {
-        console.error('[Webhook] Missing metadata:', { tenantId, plan, customerEmail })
+    if (!userId || !tenantId || !plan) {
+        console.error('[Webhook] Missing data:', { userId, tenantId, plan })
         return
     }
 
-    console.log(`[Webhook] Checkout completed: ${customerEmail} → ${plan} (tenant: ${tenantId})`)
+    console.log(`[Webhook] Checkout completed: user=${userId} → plan=${plan} (tenant=${tenantId})`)
 
-    // 1. Buscar ou criar user no Supabase Auth
-    let userId: string
-
-    // Verificar se user já existe
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
-    const existingUser = existingUsers?.users?.find(u => u.email === customerEmail)
-
-    if (existingUser) {
-        userId = existingUser.id
-        console.log(`[Webhook] User exists: ${userId}`)
-    } else {
-        // Criar novo user com senha temporária
-        const tempPassword = `nutri_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
-        const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-            email: customerEmail,
-            password: tempPassword,
-            email_confirm: true,
-            user_metadata: {
-                full_name: session.customer_details?.name || customerEmail.split('@')[0],
-                user_type: 'patient',
-            },
-        })
-
-        if (createError || !newUser?.user) {
-            console.error('[Webhook] Failed to create user:', createError)
-            return
-        }
-
-        userId = newUser.user.id
-        console.log(`[Webhook] User created: ${userId}`)
-
-        // Enviar email de boas-vindas com link de reset de senha
-        await supabaseAdmin.auth.admin.generateLink({
-            type: 'recovery',
-            email: customerEmail,
-        })
-    }
-
-    // 2. Garantir que o profile existe e está no tenant correto
-    const { data: profile } = await supabaseAdmin
+    // 1. Atualizar profile com o plano pago
+    await supabaseAdmin
         .from('profiles')
-        .select('id')
-        .eq('user_id', userId)
-        .single()
-
-    if (!profile) {
-        // Criar profile (caso trigger não tenha criado)
-        await supabaseAdmin.from('profiles').insert({
-            user_id: userId,
-            tenant_id: tenantId,
-            name: session.customer_details?.name || customerEmail.split('@')[0],
-            email: customerEmail,
-            role: 'patient',
+        .update({
             current_plan: plan,
+            updated_at: new Date().toISOString(),
         })
-    } else {
-        // Atualizar tenant_id se necessário
-        await supabaseAdmin
-            .from('profiles')
-            .update({ tenant_id: tenantId })
-            .eq('user_id', userId)
-    }
+        .eq('user_id', userId)
 
-    // 3. Recuperar dados da subscription do Stripe
+    // 2. Recuperar dados da subscription do Stripe
     const subscriptionId = session.subscription as string
     let periodStart: string | null = null
     let periodEnd: string | null = null
@@ -154,7 +103,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         amountCents = sub.items?.data?.[0]?.price?.unit_amount || null
     }
 
-    // 4. Criar/atualizar record na tabela subscriptions
+    // 3. Criar record na tabela subscriptions
     const { error: subError } = await supabaseAdmin
         .from('subscriptions')
         .upsert({
@@ -175,7 +124,6 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         })
 
     if (subError) {
-        // Se não tem unique constraint, fazer insert direto
         console.warn('[Webhook] Upsert failed, trying insert:', subError.message)
         await supabaseAdmin.from('subscriptions').insert({
             user_id: userId,

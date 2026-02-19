@@ -1,6 +1,27 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase-browser'
-import { differenceInDays, startOfDay } from 'date-fns'
+import { differenceInDays, startOfDay, parseISO } from 'date-fns'
+
+/**
+ * Retorna a data local do usuário no formato YYYY-MM-DD.
+ * Usa o fuso do browser (que reflete o fuso do dispositivo).
+ * Ex: às 23:00 BRT (02:00 UTC do dia seguinte), retorna o dia correto em BRT.
+ */
+function getLocalDate(): string {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+}
+
+/**
+ * Retorna startOfDay usando a data LOCAL, não UTC.
+ */
+function localStartOfDay(): Date {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+}
 
 export interface PatientEngineData {
     loading: boolean
@@ -85,10 +106,12 @@ export function usePatientEngine(): PatientEngineData {
 
             if (assignment && assignment.protocol) {
                 // C. Calcular Dia Atual baseado na data de início
-                const daysPassed = differenceInDays(
-                    startOfDay(new Date()),
-                    startOfDay(new Date(assignment.start_date))
-                )
+                // ⚡ TIMEZONE FIX: Usar data LOCAL, não UTC
+                const todayLocal = localStartOfDay()
+                const startDate = parseISO(assignment.start_date)
+                const startLocal = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+
+                const daysPassed = differenceInDays(todayLocal, startLocal)
                 const currentDay = Math.max(1, daysPassed + 1)
 
                 setActiveProtocol({
@@ -116,13 +139,13 @@ export function usePatientEngine(): PatientEngineData {
                     setCurrentDayItems(items || [])
 
                     // F. Buscar progresso de hoje (protocol_progress)
-                    const today = new Date().toISOString().split('T')[0]
+                    // ⚡ TIMEZONE FIX: Usar checkin_date (DATE puro) com data local
+                    const todayStr = getLocalDate()
                     const { data: progressData } = await supabase
                         .from('protocol_progress')
-                        .select('protocol_item_id, completed_at')
+                        .select('protocol_item_id, completed_at, checkin_date')
                         .eq('assignment_id', assignment.id)
-                        .gte('completed_at', `${today}T00:00:00`)
-                        .lte('completed_at', `${today}T23:59:59`)
+                        .eq('checkin_date', todayStr) // ← DATE puro, sem timezone!
 
                     const progressMap: Record<string, boolean> = {}
                     progressData?.forEach((p: any) => {
@@ -142,7 +165,6 @@ export function usePatientEngine(): PatientEngineData {
                         completionRate
                     }))
                 } else {
-                    // Dia não tem itens configurados ainda
                     setCurrentDayItems([])
                     setStats(prev => ({
                         ...prev,
@@ -169,14 +191,17 @@ export function usePatientEngine(): PatientEngineData {
 
         try {
             if (newStatus) {
-                // Marcar como concluído
+                // ⚡ TIMEZONE FIX: Enviar checkin_date como DATE puro local
+                const todayStr = getLocalDate()
+
                 const { error } = await supabase
                     .from('protocol_progress')
                     .insert({
                         assignment_id: activeProtocol.assignmentId,
                         protocol_item_id: itemId,
-                        completed_at: new Date().toISOString(),
-                        points_earned: 10 // Valor padrão, pode ser customizado
+                        completed_at: new Date().toISOString(), // Timestamp real (p/ audit)
+                        checkin_date: todayStr,                 // ← DATE puro local!
+                        points_earned: 10
                     })
 
                 if (error) throw error

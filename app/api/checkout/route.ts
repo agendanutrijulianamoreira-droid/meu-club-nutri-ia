@@ -11,17 +11,23 @@ const supabaseAdmin = createClient(
  * POST /api/checkout
  * Cria uma Stripe Checkout Session para assinatura de um plano.
  * 
- * Body: { planId: 'tech_diet' | 'vip', tenantSlug: string, customerEmail?: string }
+ * Body: {
+ *   planId: 'tech_diet' | 'vip',
+ *   tenantSlug: string,
+ *   userId: string,       // Auth user id (já criado no frontend)
+ *   customerEmail: string,
+ *   customerName?: string
+ * }
  * Returns: { url: string } (Stripe Checkout URL para redirect)
  */
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json()
-        const { planId, tenantSlug, customerEmail } = body
+        const { planId, tenantSlug, userId, customerEmail, customerName } = body
 
-        if (!planId || !tenantSlug) {
+        if (!planId || !tenantSlug || !userId) {
             return NextResponse.json(
-                { error: 'planId e tenantSlug são obrigatórios' },
+                { error: 'planId, tenantSlug e userId são obrigatórios' },
                 { status: 400 }
             )
         }
@@ -47,7 +53,32 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Buscar preço configurado para o plano desse tenant
+        // Garantir que o profile existe e está vinculado ao tenant
+        const { data: existingProfile } = await supabaseAdmin
+            .from('profiles')
+            .select('id')
+            .eq('user_id', userId)
+            .single()
+
+        if (!existingProfile) {
+            // Criar profile básico — webhook vai completar com o plano
+            await supabaseAdmin.from('profiles').insert({
+                user_id: userId,
+                tenant_id: tenant.id,
+                name: customerName || customerEmail?.split('@')[0] || 'Paciente',
+                email: customerEmail,
+                role: 'patient',
+                current_plan: 'community', // Webhook atualiza para o plano pago
+            })
+        } else {
+            // Vincular ao tenant caso ainda não esteja
+            await supabaseAdmin
+                .from('profiles')
+                .update({ tenant_id: tenant.id })
+                .eq('user_id', userId)
+        }
+
+        // Buscar preço configurado para o plano
         const { data: planConfig } = await supabaseAdmin
             .from('tenant_plans')
             .select('price_cents, stripe_price_id, description')
@@ -68,28 +99,27 @@ export async function POST(request: NextRequest) {
         const successUrl = `${origin}/${tenantSlug}/checkout/success?session_id={CHECKOUT_SESSION_ID}`
         const cancelUrl = `${origin}/${tenantSlug}/checkout?plan=${planId}&cancelled=true`
 
-        // Criar Checkout Session
-        let sessionConfig: any = {
+        // Criar Checkout Session com client_reference_id
+        const sessionConfig: any = {
             mode: 'subscription',
+            client_reference_id: userId, // ← CHAVE: identifica o user no webhook
+            customer_email: customerEmail,
             success_url: successUrl,
             cancel_url: cancelUrl,
             metadata: {
                 tenant_id: tenant.id,
                 tenant_slug: tenantSlug,
                 plan: planId,
+                user_id: userId,
             },
             subscription_data: {
                 metadata: {
                     tenant_id: tenant.id,
                     plan: planId,
+                    user_id: userId,
                 },
             },
             allow_promotion_codes: true,
-        }
-
-        // Se tem email, pré-preencher
-        if (customerEmail) {
-            sessionConfig.customer_email = customerEmail
         }
 
         // Se tem stripe_price_id configurado, usar; senão, criar price ad-hoc
@@ -99,7 +129,6 @@ export async function POST(request: NextRequest) {
                 quantity: 1,
             }]
         } else {
-            // Preço ad-hoc (para quem não configurou no Stripe Dashboard)
             sessionConfig.line_items = [{
                 price_data: {
                     currency: 'brl',
