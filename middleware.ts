@@ -5,6 +5,17 @@ import type { NextRequest } from 'next/server'
 export async function middleware(req: NextRequest) {
     const res = NextResponse.next()
 
+    // Rotas públicas — não precisa de auth
+    const pathname = req.nextUrl.pathname
+    if (
+        pathname.includes('/checkout') ||
+        pathname.startsWith('/api/webhooks') ||
+        pathname.startsWith('/api/tenant-info') ||
+        pathname.startsWith('/api/checkout')
+    ) {
+        return res
+    }
+
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

@@ -19,8 +19,10 @@ import { usePatientEngine } from "@/lib/hooks/usePatientEngine"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase-browser"
+import { useRouter } from "next/navigation"
 
 export default function PatientHomePage() {
+    const router = useRouter()
     const {
         loading,
         activeProtocol,
@@ -32,19 +34,32 @@ export default function PatientHomePage() {
     const [unreadCount, setUnreadCount] = useState(0)
 
     useEffect(() => {
-        loadUnreadCount()
-    }, [])
+        const init = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session) return
 
-    const loadUnreadCount = async () => {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) return
-        const { count } = await supabase
-            .from('notifications')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', session.user.id)
-            .eq('status', 'unread')
-        setUnreadCount(count || 0)
-    }
+            // Check onboarding status
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('onboarding_completed')
+                .eq('user_id', session.user.id)
+                .single()
+
+            if (profile && !profile.onboarding_completed) {
+                router.push('/patient/onboarding')
+                return
+            }
+
+            // Load unread count
+            const { count } = await supabase
+                .from('notifications')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', session.user.id)
+                .eq('status', 'unread')
+            setUnreadCount(count || 0)
+        }
+        init()
+    }, [router])
 
     if (loading) {
         return (
@@ -169,10 +184,23 @@ export default function PatientHomePage() {
                 </div>
 
                 {!activeProtocol ? (
-                    <div className="text-center p-8 bg-white/5 rounded-2xl border border-white/10">
-                        <p className="text-slate-400 mb-4">Nenhum protocolo ativo</p>
-                        <p className="text-xs text-slate-500">Entre em contato com sua nutricionista</p>
-                    </div>
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-center p-8 bg-gradient-to-br from-purple-600/10 to-pink-600/10 rounded-3xl border border-purple-500/20"
+                    >
+                        <div className="h-16 w-16 rounded-full bg-purple-600/20 flex items-center justify-center mx-auto mb-4">
+                            <Sparkles className="text-purple-400" size={28} />
+                        </div>
+                        <h3 className="text-lg font-bold text-white mb-2">Protocolo a caminho! 🚀</h3>
+                        <p className="text-sm text-slate-400 mb-4 max-w-xs mx-auto">
+                            Sua nutricionista está preparando um plano personalizado para você. Em breve ele aparecerá aqui!
+                        </p>
+                        <div className="flex items-center justify-center gap-2 text-xs text-purple-400">
+                            <Loader2 size={14} className="animate-spin" />
+                            Aguardando protocolo...
+                        </div>
+                    </motion.div>
                 ) : currentDayItems.length === 0 ? (
                     <div className="text-center p-8 bg-white/5 rounded-2xl border border-white/10">
                         <p className="text-slate-400">Dia livre! 🎉</p>
