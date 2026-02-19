@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
@@ -8,7 +8,7 @@ import {
     Upload, Clock, Utensils, Coffee, Dumbbell, FileText, Droplet, Wand2, Loader2, Calendar
 } from "lucide-react"
 import { useProtocolBuilder, useAIWriter } from "@/lib/hooks/useProtocolBuilder"
-import { generateProtocolWithAI } from "@/lib/ai-generator"
+import { generateClinicalContent } from "@/app/admin/actions/generateAI"
 import { motion, AnimatePresence } from "framer-motion"
 
 const BLOCK_TYPES = [
@@ -27,7 +27,7 @@ const CATEGORIES = [
     { value: 'custom', label: '✨ Personalizado', description: 'Seu método único' },
 ]
 
-export default function ProtocolBuilderPage() {
+function ProtocolBuilderContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const editId = searchParams?.get('edit')
@@ -82,7 +82,7 @@ export default function ProtocolBuilderPage() {
         }
     }, [protocol])
 
-    // Magic AI Generator Function
+    // Magic AI Generator Function (Server Action — sem CORS, sem timeout)
     const handleMagicGenerate = async () => {
         if (!magicPrompt.trim()) {
             alert('Digite o objetivo do protocolo!')
@@ -91,17 +91,17 @@ export default function ProtocolBuilderPage() {
 
         setGeneratingProtocol(true)
 
-        const result = await generateProtocolWithAI(magicPrompt, magicDuration)
+        const prompt = `${magicPrompt}. Duração: ${magicDuration} dias.`
+        const result = await generateClinicalContent(prompt, 'protocol')
 
         setGeneratingProtocol(false)
 
-        if (result.success && result.protocol) {
-            // Auto-fill entire form!
-            const p = result.protocol
+        if (result.success && result.data) {
+            const p = result.data
 
             setFormData({
-                title: p.title,
-                description: p.description,
+                title: p.title || 'Protocolo gerado por IA',
+                description: p.description || '',
                 duration: magicDuration,
                 category: p.category || 'custom',
                 coverImage: '',
@@ -110,14 +110,16 @@ export default function ProtocolBuilderPage() {
                 autoActivate: true,
             })
 
-            setDays(p.days)
+            if (p.days && p.days.length > 0) {
+                setDays(p.days)
+            }
             setSelectedDay(0)
             setShowMagicModal(false)
             setMagicPrompt("")
 
             alert('✨ Protocolo gerado! Revise e edite antes de salvar.')
         } else {
-            alert('Erro ao gerar protocolo: ' + result.error)
+            alert('Erro ao gerar protocolo: ' + (result.error || 'Tente novamente'))
         }
     }
 
@@ -555,7 +557,7 @@ export default function ProtocolBuilderPage() {
                                                 ? 'bg-queen-pink text-white'
                                                 : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
                                     >
-                                        Dia {day.day_number}
+                                        Day {day.day_number}
                                         {day.items.length > 0 && (
                                             <span className="ml-2 text-xs opacity-70">({day.items.length})</span>
                                         )}
@@ -682,5 +684,20 @@ export default function ProtocolBuilderPage() {
                 </div>
             </div>
         </div>
+    )
+}
+
+export default function ProtocolBuilderPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-gradient-to-br from-[#0f0c29] via-[#1a1744] to-[#0f0c29] text-white flex items-center justify-center">
+                <div className="text-center">
+                    <Loader2 className="animate-spin text-queen-pink mx-auto mb-4" size={48} />
+                    <p className="text-gray-400">Carregando construtor...</p>
+                </div>
+            </div>
+        }>
+            <ProtocolBuilderContent />
+        </Suspense>
     )
 }

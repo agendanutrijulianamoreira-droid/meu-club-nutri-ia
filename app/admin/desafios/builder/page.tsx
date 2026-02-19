@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import {
     Trophy,
@@ -70,7 +70,7 @@ const DAY_THEMES = [
     "Superação 💪",
 ]
 
-export default function ChallengeBuilderPage() {
+function ChallengeBuilderContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const challengeId = searchParams.get('id')
@@ -738,5 +738,17 @@ export default function ChallengeBuilderPage() {
                 )}
             </div>
         </div>
+    )
+}
+
+export default function ChallengeBuilderPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-[#0a0a16] flex items-center justify-center">
+                <Loader2 className="animate-spin text-purple-400" size={48} />
+            </div>
+        }>
+            <ChallengeBuilderContent />
+        </Suspense>
     )
 }

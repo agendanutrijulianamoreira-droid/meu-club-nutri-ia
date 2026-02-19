@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
 import { generateClubPlan, saveClubPlan, loadClubPlan } from "../actions/clubPlanActions"
-import { ClubSetupWizard } from "./ClubSetupWizard"
+import ClubSetupWizard from "./ClubSetupWizard"
 import { supabase } from "@/lib/supabase-browser"
 
 interface MonthPlan {
