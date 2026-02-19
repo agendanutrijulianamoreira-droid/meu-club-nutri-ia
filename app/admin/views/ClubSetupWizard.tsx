@@ -68,9 +68,19 @@ export default function ClubSetupWizard({ tenantId, onComplete, onClose }: Wizar
     const handleSave = async () => {
         setIsSaving(true)
         try {
+
             const { error } = await supabase
                 .from('tenants')
                 .update({
+                    // P0 Review Fix: Save to real columns to enable Generator
+                    club_audience: formData.targetAudience,
+                    club_goal: formData.mainGoal,
+                    club_tone: formData.toneOfVoice,
+                    club_restrictions: formData.biggestPain, // Mapping Pain to Restrictions
+                    club_top_themes: formData.niche, // Mapping Niche to Themes
+                    club_setup_done: true,
+
+                    // Keep metadata as backup
                     metadata: {
                         club_setup: formData,
                         setup_completed_at: new Date().toISOString()

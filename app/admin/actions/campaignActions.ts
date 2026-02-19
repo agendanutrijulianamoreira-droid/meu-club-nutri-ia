@@ -84,32 +84,42 @@ export async function processCampaignAction(campaignId: string) {
         }
 
         // --- F. IDEMPOTENT SENDING (BATCH UPSERT) ---
-        for (const userId of userIds) {
-            // Recipient Record (Dedupe)
-            await adminSupabase.from('campaign_recipients').upsert(
-                {
-                    campaign_id: campaignId,
-                    user_id: userId,
-                    status: 'sent'
-                },
-                { onConflict: 'campaign_id,user_id' }
-            )
+        // P0 Review fix: Batch insert instead of loop
+        if (userIds.length > 0) {
+            const recipientRecords = userIds.map(uid => ({
+                campaign_id: campaignId,
+                user_id: uid,
+                status: 'sent'
+            }))
 
-            // Internal Notification (Inbox Dedupe)
-            await adminSupabase.from('notifications').upsert(
-                {
-                    tenant_id: campaign.tenant_id,
-                    user_id: userId,
-                    campaign_id: campaignId,
-                    title: campaign.title,
-                    body: campaign.body,
-                    cta_label: campaign.cta_label,
-                    cta_url: campaign.cta_url,
-                    status: 'unread',
-                    read_at: null
-                },
-                { onConflict: 'user_id,campaign_id' }
-            )
+            const notificationRecords = userIds.map(uid => ({
+                tenant_id: campaign.tenant_id,
+                user_id: uid,
+                campaign_id: campaignId,
+                title: campaign.title,
+                body: campaign.body,
+                cta_label: campaign.cta_label,
+                cta_url: campaign.cta_url,
+                status: 'unread',
+                read_at: null
+            }))
+
+            // Batch Upsert Local Recipients
+            const { error: batchRecipientsError } = await adminSupabase
+                .from('campaign_recipients')
+                .upsert(recipientRecords, { onConflict: 'campaign_id,user_id' })
+
+            if (batchRecipientsError) {
+                console.error("Batch recipient error", batchRecipientsError)
+                // Continue to notifications even if tracking fails? No, better warn but try not to fail everything.
+            }
+
+            // Batch Upsert Notifications
+            const { error: batchNotifError } = await adminSupabase
+                .from('notifications')
+                .upsert(notificationRecords, { onConflict: 'user_id,campaign_id' })
+
+            if (batchNotifError) console.error("Batch notification error", batchNotifError)
         }
 
         // --- G. FINALIZE ---

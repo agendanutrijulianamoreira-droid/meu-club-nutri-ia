@@ -113,18 +113,21 @@ export default async function AdminPage() {
         }
     }
 
-    // 3. Redirecionamento de Paciente
-    if (roleLower === 'patient') {
-        console.log("[Admin Guard] Redirecting patient to home");
+    // 4. Fallback de Segurança: Se não for admin, tchau!
+    // P0 Review fix: Sem fallback "bonzinho". Se não é admin/nutri, é paciente.
+    if (session && !isAdmin) {
+        console.log("[Admin Guard] User is not admin/nutritionist. Redirecting to patient home.");
         redirect('/patient/home');
     }
 
-    // 4. Fallback de Segurança: Se logado, tenta carregar o dashboard
-    if (session) {
-        console.log("[Admin Guard] Fallback granted for authenticated user");
-        return <AdminDashboardClient {...dashboardProps} />;
+    // Se chegou aqui e é admin, mas não caiu nos casos acima (ex: erro de leitura do profile), 
+    // manda para login por segurança
+    if (session && isAdmin) {
+        // Caso de borda: admin autenticado mas sem tenant resolvido (e não demo) e autocura falhou?
+        // Deixa passar se tiver profile, senão login.
+        if (profile) return <AdminDashboardClient {...dashboardProps} />;
     }
 
-    console.log("[Admin Guard] Final fallback to login");
+    console.log("[Admin Guard] Access Denied. Redirecting to login.");
     redirect('/login');
 }
