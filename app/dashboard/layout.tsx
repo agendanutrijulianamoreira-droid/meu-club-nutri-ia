@@ -28,7 +28,7 @@ export default function DashboardLayout({
                     if (profile) userType = profile.role;
                 }
 
-                if (userType === 'nutri' || userType === 'nutritionist' || userType === 'admin') {
+                if (userType === 'nutritionist' || userType === 'admin') {
                     router.push('/admin')
                 }
             }

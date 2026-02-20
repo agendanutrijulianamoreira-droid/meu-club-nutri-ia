@@ -34,58 +34,63 @@ export async function processCampaignAction(campaignId: string) {
             .eq('user_id', user.id)
             .single()
 
-        const isAuthorizedRole = profile?.role === 'admin' || profile?.role === 'nutritionist' || profile?.role === 'nutri';
+        const isAuthorizedRole = profile?.role === 'admin' || profile?.role === 'nutritionist';
         if (!profile || !isAuthorizedRole) {
             throw new Error("Permissão negada: Somente administradores ou nutricionistas podem gerenciar campanhas.")
         }
 
-        // --- C. FETCH CAMPAIGN (USING SERVER CLIENT TO VALIDATE OWNERSHIP/RLS) ---
+        // --- C. FETCH CAMPAIGN ---
         const { data: campaign, error: cError } = await cookieSupabase
             .from('campaigns')
             .select('*')
             .eq('id', campaignId)
             .single()
 
-        if (cError || !campaign) throw new Error("Campanha não encontrada ou você não tem acesso.")
+        if (cError || !campaign) throw new Error("Campanha não encontrada ou acesso negado.")
 
-        if (campaign.status === 'sent') return { success: true, message: 'Já enviada' }
+        // --- D. STATE MACHINE PROTECTION ---
+        if (campaign.status === 'sent') return { success: true, message: 'Campanha já foi enviada.' }
+        if (campaign.status === 'sending') return { success: false, error: 'Campanha já está em processamento.' }
 
-        // --- D. ACTION PROCESSING (USING ADMIN SUPABASE) ---
-        // Update status to sending
-        await adminSupabase.from('campaigns').update({ status: 'sending' }).eq('id', campaignId)
+        try {
+            // --- E. UPDATE STATUS TO SENDING ---
+            await adminSupabase.from('campaigns').update({ status: 'sending' }).eq('id', campaignId)
 
-        // --- E. RESOLVE RECIPIENTS (FILTERED BY ROLE='patient') ---
-        let userIds: string[] = []
-        if (campaign.segment?.type === 'all') {
-            const { data } = await adminSupabase
-                .from('profiles')
-                .select('user_id')
-                .eq('tenant_id', campaign.tenant_id)
-                .eq('role', 'patient')
-            userIds = data?.map(d => d.user_id) || []
-        } else if (campaign.segment?.type === 'low_adherence') {
-            const days = campaign.segment?.days || 3
-            // RPC should already filter for patients, but we force it to be safe
-            const { data } = await adminSupabase.rpc('get_inactive_users', {
-                p_tenant_id: campaign.tenant_id,
-                p_days: days
-            })
-
-            // If the RPC returns a list of user_ids, we verify they are indeed patients in this tenant
-            if (data && data.length > 0) {
-                const rawIds = data.map((d: any) => typeof d === 'string' ? d : d.user_id)
-                const { data: verifiedPatients } = await adminSupabase
+            // --- F. RESOLVE RECIPIENTS (STRICT PATIENT FILTERING) ---
+            let userIds: string[] = []
+            if (campaign.segment?.type === 'all') {
+                const { data: patients } = await adminSupabase
                     .from('profiles')
                     .select('user_id')
-                    .in('user_id', rawIds)
                     .eq('tenant_id', campaign.tenant_id)
-                userIds = verifiedPatients?.map(d => d.user_id) || []
-            }
-        }
+                    .eq('role', 'patient')
+                userIds = patients?.map(d => d.user_id) || []
+            } else if (campaign.segment?.type === 'low_adherence') {
+                const days = campaign.segment?.days || 3
+                // RPC should return candidate IDs, then we re-verify roles and tenant
+                const { data: candidateIds } = await adminSupabase.rpc('get_inactive_users', {
+                    p_tenant_id: campaign.tenant_id,
+                    p_days: days
+                })
 
-        // --- F. IDEMPOTENT SENDING (BATCH UPSERT) ---
-        // P0 Review fix: Batch insert instead of loop
-        if (userIds.length > 0) {
+                if (candidateIds && candidateIds.length > 0) {
+                    const rawIds = candidateIds.map((d: any) => typeof d === 'string' ? d : d.user_id)
+                    const { data: verifiedPatients } = await adminSupabase
+                        .from('profiles')
+                        .select('user_id')
+                        .in('user_id', rawIds)
+                        .eq('tenant_id', campaign.tenant_id)
+                        .eq('role', 'patient')
+                    userIds = verifiedPatients?.map(d => d.user_id) || []
+                }
+            }
+
+            if (userIds.length === 0) {
+                await adminSupabase.from('campaigns').update({ status: 'draft', sent_at: null }).eq('id', campaignId)
+                return { success: true, count: 0, message: "Nenhum destinatário encontrado para os filtros selecionados." }
+            }
+
+            // --- G. IDEMPOTENT BATCH UPSERT ---
             const recipientRecords = userIds.map(uid => ({
                 campaign_id: campaignId,
                 user_id: uid,
@@ -100,48 +105,38 @@ export async function processCampaignAction(campaignId: string) {
                 body: campaign.body,
                 cta_label: campaign.cta_label,
                 cta_url: campaign.cta_url,
-                status: 'unread',
-                read_at: null
+                status: 'unread'
             }))
 
-            // Batch Upsert Local Recipients
-            const { error: batchRecipientsError } = await adminSupabase
-                .from('campaign_recipients')
-                .upsert(recipientRecords, { onConflict: 'campaign_id,user_id' })
+            // Run both batch operations
+            await Promise.all([
+                adminSupabase.from('campaign_recipients').upsert(recipientRecords, { onConflict: 'campaign_id,user_id' }),
+                adminSupabase.from('notifications').upsert(notificationRecords, { onConflict: 'user_id,campaign_id' })
+            ])
 
-            if (batchRecipientsError) {
-                console.error("Batch recipient error", batchRecipientsError)
-                // Continue to notifications even if tracking fails? No, better warn but try not to fail everything.
-            }
+            // --- H. FINALIZE ---
+            await adminSupabase.from('campaigns')
+                .update({
+                    status: 'sent',
+                    sent_at: new Date().toISOString()
+                })
+                .eq('id', campaignId)
 
-            // Batch Upsert Notifications
-            const { error: batchNotifError } = await adminSupabase
-                .from('notifications')
-                .upsert(notificationRecords, { onConflict: 'user_id,campaign_id' })
+            return { success: true, count: userIds.length }
 
-            if (batchNotifError) console.error("Batch notification error", batchNotifError)
+        } catch (processError: any) {
+            console.error("Critical failure in campaign processing:", processError)
+            // Set back to failed but allow retry if not 'sent'
+            await adminSupabase.from('campaigns')
+                .update({ status: 'failed' })
+                .eq('id', campaignId)
+                .neq('status', 'sent')
+            throw processError
         }
-
-        // --- G. FINALIZE ---
-        const { error: finalError } = await adminSupabase.from('campaigns')
-            .update({
-                status: 'sent',
-                sent_at: new Date().toISOString()
-            })
-            .eq('id', campaignId)
-
-        if (finalError) throw finalError
-
-        return { success: true, count: userIds.length }
-
-    } catch (error: any) {
-        console.error("Error processing campaign:", error)
-        // Only set failed if it wasn't already sent (to avoid overwriting success)
-        await adminSupabase.from('campaigns')
-            .update({ status: 'failed' })
-            .eq('id', campaignId)
-            .neq('status', 'sent')
-
-        return { success: false, error: error.message }
+    } catch (authErr: any) {
+        // Auth or permission errors should NOT mark campaign as failed in most cases, 
+        // just return the error to the caller.
+        console.warn("Auth/Permission error in campaign action:", authErr.message)
+        return { success: false, error: authErr.message }
     }
 }

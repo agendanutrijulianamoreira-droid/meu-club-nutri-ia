@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase-browser"
+import { useOverlays } from "@/components/ui/OverlayStack"
 import { Button } from "@/components/ui/button"
 import {
     LayoutDashboard,
@@ -43,6 +44,7 @@ import { NutritionistsView } from "./views/NutritionistsView"
 import { TeamView } from "./views/TeamView"
 import { ClubPlanView } from "./views/ClubPlanView"
 import { repairProfile } from "./actions/repairProfileAction"
+import AccountOverlay from "./components/AccountOverlay"
 
 type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'nutritionists' | 'team' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'library' | 'settings' | 'club-plan'
 
@@ -75,6 +77,7 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
     const router = useRouter()
     const [activeView, setActiveView] = useState<ViewType>('dashboard')
     const [sidebarOpen, setSidebarOpen] = useState(true)
+    const { openOverlay } = useOverlays()
 
     // Autocura: reparar perfil via Server Action (não durante render)
     useEffect(() => {
@@ -219,9 +222,12 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
                             </div>
                         </div>
                         <div className="h-10 w-px bg-white/5" />
-                        <div className="flex items-center gap-4 group cursor-pointer">
+                        <div
+                            className="flex items-center gap-4 group cursor-pointer"
+                            onClick={() => openOverlay({ id: "account", content: <AccountOverlay index={0} />, title: "Minha Conta" })}
+                        >
                             <div className="text-right">
-                                <p className="text-xs font-bold text-white tracking-tight group-hover:text-indigo-400 transition-colors">{userName}</p>
+                                <p className="text-xs font-bold text-white tracking-tight group-hover:text-indigo-400 transition-colors uppercase tracking-widest">{userName}</p>
                                 <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{role === 'admin' ? 'Admin' : 'Nutricionista'}</p>
                             </div>
                             <div className="h-12 w-12 rounded-2xl border border-white/10 p-0.5 group-hover:border-indigo-500/40 transition-all">

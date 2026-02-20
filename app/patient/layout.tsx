@@ -32,7 +32,7 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
 
             // Nutris → admin
             const role = profile.role || user.user_metadata?.user_type
-            if (role === 'nutri' || role === 'nutritionist' || role === 'admin') {
+            if (role === 'nutritionist' || role === 'admin') {
                 router.push('/admin')
                 return
             }

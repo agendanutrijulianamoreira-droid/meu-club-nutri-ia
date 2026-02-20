@@ -19,19 +19,48 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
+import { supabase } from "@/lib/supabase-browser"
+import { useEffect } from "react"
 import Link from "next/link"
 
 export default function ProfilePage() {
-    const [user] = useState({
-        name: "Júlia",
-        avatar: "https://api.dicebear.com/9.x/micah/svg?seed=JuliaQueen",
-        level: 7,
-        xp: 1250,
-        weight: 65.2,
-        height: 165,
-        goal: "Emagrecimento",
-        plan: "Reinado Anual • Ativo"
+    const [user, setUser] = useState<any>({
+        name: "...",
+        avatar: "https://api.dicebear.com/9.x/micah/svg?seed=loading",
+        level: 1,
+        xp: 0,
+        weight: 0,
+        height: 0,
+        goal: "...",
+        plan: "Carregando..."
     })
+
+    useEffect(() => {
+        const load = async () => {
+            const { data: { user: authUser } } = await supabase.auth.getUser()
+            if (!authUser) return
+
+            const { data: profile } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("user_id", authUser.id)
+                .single()
+
+            if (profile) {
+                setUser({
+                    name: profile.name,
+                    avatar: profile.avatar_url || `https://api.dicebear.com/9.x/micah/svg?seed=${profile.name}`,
+                    level: profile.current_level || 1,
+                    xp: profile.total_xp || 0,
+                    weight: profile.current_weight || profile.initial_weight || 0,
+                    height: profile.height || 0,
+                    goal: profile.primary_goal || "Não definido",
+                    plan: `${profile.current_plan === 'vip' ? '👑 VIP' : profile.current_plan === 'tech_diet' ? '💎 Tech Diet' : '🌱 Community'} • Ativo`
+                })
+            }
+        }
+        load()
+    }, [])
 
     return (
         <div className="min-h-screen bg-[#0a0a16] text-white pb-36">

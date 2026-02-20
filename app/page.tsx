@@ -28,7 +28,7 @@ export default async function Home() {
       }
     }
 
-    if (userRole === 'admin' || userRole === 'nutritionist' || userRole === 'nutri') {
+    if (userRole === 'admin' || userRole === 'nutritionist') {
       // Check for tenant_id specifically for admins/nutris
       const { data: profile } = await supabase
         .from('profiles')

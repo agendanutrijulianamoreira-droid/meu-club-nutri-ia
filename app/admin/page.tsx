@@ -35,7 +35,7 @@ export default async function AdminPage() {
     const isDemoTenant = profile?.tenant_id === '00000000-0000-0000-0000-000000000001';
 
     const roleLower = (role || '').toLowerCase();
-    const isAdmin = ['admin', 'nutritionist', 'nutri'].includes(roleLower);
+    const isAdmin = ['admin', 'nutritionist'].includes(roleLower);
 
     // Fetch tenant brand_name using the resolved tenant_id
     let tenantName = '';

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Sparkles, ArrowRight, Loader2, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
@@ -25,8 +25,47 @@ export default function ClubSetupWizard({ tenantId, onComplete, onClose }: Wizar
         targetAudience: "",
         biggestPain: "",
         mainGoal: "",
-        toneOfVoice: ""
+        toneOfVoice: "",
+        duration: "6", // "6" or "12"
+        frequency: "semanal", // semanal, quinzenal, mensal
+        intensity: "moderada", // leve, moderada, intensa
+        products: "" // consulta, acompanhamento, etc.
     })
+
+    // Carregar dados existentes ao montar o componente
+    useEffect(() => {
+        const loadExistingData = async () => {
+            if (!tenantId) return;
+
+            try {
+                const { data, error } = await supabase
+                    .from('tenants')
+                    .select('club_audience, club_goal, club_tone, club_restrictions, club_top_themes')
+                    .eq('id', tenantId)
+                    .single();
+
+                if (error) throw error;
+
+                if (data) {
+                    setFormData({
+                        niche: data.club_top_themes || "",
+                        targetAudience: data.club_audience || "",
+                        biggestPain: data.club_restrictions || "",
+                        mainGoal: data.club_goal || "",
+                        toneOfVoice: data.club_tone || "",
+                        duration: data.club_duration?.toString() || "6",
+                        frequency: data.club_frequency || "semanal",
+                        intensity: data.club_intensity || "moderada",
+                        products: data.club_upgrades || ""
+                    });
+                }
+            } catch (err) {
+                console.error('Erro ao carregar dados do tenant:', err);
+            }
+        };
+
+        loadExistingData();
+    }, [tenantId]);
 
     // 🪄 O botão que injeta a persona no sistema de verdade
     const handlePreFillWithAI = async () => {
@@ -47,13 +86,14 @@ export default function ClubSetupWizard({ tenantId, onComplete, onClose }: Wizar
             );
 
             if (result.success && result.data) {
-                setFormData({
-                    niche: result.data.niche || formData.niche,
+                setFormData(prev => ({
+                    ...prev,
+                    niche: result.data.niche || prev.niche,
                     targetAudience: result.data.targetAudience || "",
                     biggestPain: result.data.biggestPain || "",
                     mainGoal: result.data.mainGoal || "",
                     toneOfVoice: result.data.toneOfVoice || ""
-                })
+                }))
             } else {
                 alert("Erro ao gerar persona: " + (result.error || "Tente novamente."));
             }
@@ -76,11 +116,14 @@ export default function ClubSetupWizard({ tenantId, onComplete, onClose }: Wizar
                     club_audience: formData.targetAudience,
                     club_goal: formData.mainGoal,
                     club_tone: formData.toneOfVoice,
-                    club_restrictions: formData.biggestPain, // Mapping Pain to Restrictions
-                    club_top_themes: formData.niche, // Mapping Niche to Themes
+                    club_restrictions: formData.biggestPain,
+                    club_top_themes: formData.niche,
+                    club_frequency: formData.frequency,
+                    club_upgrades: formData.products,
+                    club_duration: parseInt(formData.duration),
+                    club_intensity: formData.intensity,
                     club_setup_done: true,
 
-                    // Keep metadata as backup
                     metadata: {
                         club_setup: formData,
                         setup_completed_at: new Date().toISOString()
@@ -175,6 +218,56 @@ export default function ClubSetupWizard({ tenantId, onComplete, onClose }: Wizar
                         className="w-full h-20 bg-slate-950 border border-slate-800 rounded-xl p-4 text-white placeholder-slate-600 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all resize-none"
                         placeholder="Ex: Acolhedora, científica, sem neuras..."
                     />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                        <label className="text-sm text-slate-300 font-medium mb-2 block">Duração do Plano</label>
+                        <select
+                            value={formData.duration}
+                            onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white focus:border-indigo-500 outline-none"
+                        >
+                            <option value="6">Semestral (6 meses)</option>
+                            <option value="12">Anual (12 meses)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-sm text-slate-300 font-medium mb-2 block">Frequência de Conteúdo</label>
+                        <select
+                            value={formData.frequency}
+                            onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white focus:border-indigo-500 outline-none"
+                        >
+                            <option value="semanal">Semanal</option>
+                            <option value="quinzenal">Quinzenal</option>
+                            <option value="mensal">Mensal</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                        <label className="text-sm text-slate-300 font-medium mb-2 block">Intensidade do Clube</label>
+                        <select
+                            value={formData.intensity}
+                            onChange={(e) => setFormData({ ...formData, intensity: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white focus:border-indigo-500 outline-none"
+                        >
+                            <option value="leve">Leve (Foco em adesão)</option>
+                            <option value="moderada">Moderada (Equilibrada)</option>
+                            <option value="intensa">Intensa (Hardcore/Resultados rápidos)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-sm text-slate-300 font-medium mb-2 block">Produtos p/ Ofertar (Upgrade)</label>
+                        <input
+                            value={formData.products}
+                            onChange={(e) => setFormData({ ...formData, products: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-white placeholder-slate-600 focus:border-indigo-500 outline-none"
+                            placeholder="Ex: Consultas, E-books, Teste Genético"
+                        />
+                    </div>
                 </div>
 
                 {/* Ações */}
