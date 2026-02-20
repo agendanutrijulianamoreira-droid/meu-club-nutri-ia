@@ -106,6 +106,18 @@ export function SettingsView({ setView, tenantId }: { setView: (v: any) => void,
                     </h2>
 
                     <div className="space-y-6">
+                        <div className="flex items-center justify-between p-6 bg-indigo-600/10 border border-indigo-500/20 rounded-2xl">
+                            <div>
+                                <h3 className="font-bold text-indigo-400">Design da Página de Login</h3>
+                                <p className="text-sm text-slate-500">Personalize o visual e a copy da sua landing page.</p>
+                            </div>
+                            <Button
+                                onClick={() => setView('settings-login')}
+                                className="bg-indigo-600 hover:bg-indigo-500 h-12 rounded-xl text-xs font-black uppercase tracking-widest gap-2"
+                            >
+                                <Palette size={16} /> Abrir Editor
+                            </Button>
+                        </div>
                         <div>
                             <label className="text-sm font-medium text-gray-300 mb-2 block">Nome do Clube</label>
                             <input

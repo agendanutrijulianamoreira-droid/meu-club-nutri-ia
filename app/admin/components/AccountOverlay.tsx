@@ -1,12 +1,12 @@
 "use client"
 
-import React from "react"
-import { User, CreditCard, Save, Loader2, ExternalLink } from "lucide-react"
+import React, { useState, useEffect } from "react"
+import { User, CreditCard, Save, Loader2, ExternalLink, BadgeCheck, Phone, Mail, Award } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import SlideOver from "@/components/ui/SlideOver"
 import { useOverlays } from "@/components/ui/OverlayStack"
-import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase-browser"
+import { updateProfileAction } from "../actions/profileActions"
 
 export default function AccountOverlay({ index }: { index: number }) {
     const { closeOverlay } = useOverlays()
@@ -14,8 +14,13 @@ export default function AccountOverlay({ index }: { index: number }) {
     const [saving, setSaving] = useState(false)
     const [profile, setProfile] = useState<any>(null)
     const [formData, setFormData] = useState({
-        name: "",
+        honorific: "",
+        display_name: "",
         phone: "",
+        license_type: "CRN",
+        license_number: "",
+        license_state: "",
+        specialty: "",
         avatar_url: ""
     })
 
@@ -33,8 +38,13 @@ export default function AccountOverlay({ index }: { index: number }) {
             if (data) {
                 setProfile(data)
                 setFormData({
-                    name: data.name || "",
+                    honorific: data.honorific || "",
+                    display_name: data.display_name || data.name || "",
                     phone: data.phone || "",
+                    license_type: data.license_type || "CRN",
+                    license_number: data.license_number || "",
+                    license_state: data.license_state || "",
+                    specialty: data.specialty || "",
                     avatar_url: data.avatar_url || ""
                 })
             }
@@ -45,42 +55,13 @@ export default function AccountOverlay({ index }: { index: number }) {
 
     const handleSave = async () => {
         setSaving(true)
-        try {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) throw new Error("Não autenticado")
-
-            const { error } = await supabase
-                .from("profiles")
-                .update({
-                    name: formData.name,
-                    phone: formData.phone,
-                    avatar_url: formData.avatar_url
-                })
-                .eq("user_id", user.id)
-
-            if (error) throw error
-            alert("Perfil atualizado com sucesso!")
-        } catch (err) {
-            console.error(err)
-            alert("Erro ao salvar perfil.")
-        } finally {
-            setSaving(false)
+        const result = await updateProfileAction(formData)
+        if (result.success) {
+            alert("Perfil atualizado com sucesso! ✨")
+        } else {
+            alert("Erro ao salvar: " + result.error)
         }
-    }
-
-    const openBillingPortal = async () => {
-        try {
-            const res = await fetch("/api/billing-portal", { method: "POST" })
-            const data = await res.json()
-            if (data.url) {
-                window.location.href = data.url
-            } else {
-                alert("Erro ao abrir portal de faturamento. Verifique se o Stripe está configurado.")
-            }
-        } catch (err) {
-            console.error(err)
-            alert("Erro de conexão.")
-        }
+        setSaving(false)
     }
 
     if (loading) return (
@@ -92,89 +73,147 @@ export default function AccountOverlay({ index }: { index: number }) {
     )
 
     return (
-        <SlideOver id="account" title="Minha Conta" index={index}>
-            <div className="space-y-10">
-                {/* Profile Section */}
-                <section>
-                    <div className="flex items-center gap-2 mb-6 text-indigo-400">
-                        <User size={20} />
-                        <h3 className="font-black uppercase tracking-widest text-sm">Dados Pessoais</h3>
-                    </div>
-
-                    <div className="space-y-6 bg-white/[0.02] border border-white/5 p-6 rounded-3xl">
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase mb-2 block ml-1">Nome</label>
-                            <input
-                                type="text"
-                                value={formData.name}
-                                onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                className="w-full bg-slate-900 border border-white/10 rounded-xl p-4 text-white focus:border-indigo-500 transition-all outline-none"
-                            />
+        <SlideOver id="account" title="Meu Perfil Profissional" index={index}>
+            <div className="space-y-10 pb-20">
+                {/* Header Profile Photo */}
+                <div className="flex flex-col items-center gap-4 py-6 bg-indigo-600/5 rounded-[2.5rem] border border-indigo-500/10">
+                    <div className="h-28 w-28 rounded-3xl border-2 border-indigo-500/30 p-1 relative group cursor-pointer">
+                        <img
+                            src={formData.avatar_url || `https://api.dicebear.com/9.x/micah/svg?seed=${profile?.user_id}`}
+                            className="w-full h-full rounded-2xl bg-slate-900 object-cover"
+                            alt="avatar"
+                        />
+                        <div className="absolute inset-0 bg-black/60 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                            <span className="text-[10px] font-black uppercase text-white">Alterar</span>
                         </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase mb-2 block ml-1">Telefone / WhatsApp</label>
-                            <input
-                                type="text"
-                                value={formData.phone}
-                                onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                                className="w-full bg-slate-900 border border-white/10 rounded-xl p-4 text-white focus:border-indigo-500 transition-all outline-none"
-                            />
-                        </div>
-                        <Button
-                            onClick={handleSave}
-                            disabled={saving}
-                            className="w-full bg-indigo-600 hover:bg-indigo-500 h-14 rounded-xl font-bold uppercase tracking-widest text-xs gap-2"
-                        >
-                            {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                            Salvar Alterações
-                        </Button>
                     </div>
-                </section>
+                    <div className="text-center">
+                        <h3 className="text-xl font-black text-white italic">{formData.display_name || 'Profissional'}</h3>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{formData.specialty || 'Especialidade não definida'}</p>
+                    </div>
+                </div>
 
-                {/* Subscription Section */}
-                <section>
-                    <div className="flex items-center gap-2 mb-6 text-purple-400">
-                        <CreditCard size={20} />
-                        <h3 className="font-black uppercase tracking-widest text-sm">Plano & Assinatura</h3>
+                {/* Identity Section */}
+                <section className="space-y-6">
+                    <div className="flex items-center gap-2 text-indigo-400 ml-1">
+                        <BadgeCheck size={18} />
+                        <h4 className="font-black uppercase tracking-widest text-xs">Identidade Profissional</h4>
                     </div>
 
-                    <div className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 border border-indigo-500/20 p-8 rounded-[2rem] relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-6">
-                            <div className="bg-indigo-500/20 text-indigo-300 text-[10px] font-black px-3 py-1 rounded-full border border-indigo-500/30 uppercase tracking-widest">
-                                {profile?.current_plan || 'Nenhum'}
+                    <div className="grid grid-cols-1 gap-4">
+                        <div className="grid grid-cols-4 gap-4">
+                            <div className="col-span-1">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block ml-1">Tratamento</label>
+                                <input
+                                    value={formData.honorific}
+                                    onChange={e => setFormData({ ...formData, honorific: e.target.value })}
+                                    placeholder="Ex: Dra."
+                                    className="w-full bg-slate-900/50 border border-white/5 rounded-xl p-4 text-white focus:border-indigo-500 outline-none transition-all"
+                                />
+                            </div>
+                            <div className="col-span-3">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block ml-1">Nome de Exibição</label>
+                                <input
+                                    value={formData.display_name}
+                                    onChange={e => setFormData({ ...formData, display_name: e.target.value })}
+                                    className="w-full bg-slate-900/50 border border-white/5 rounded-xl p-4 text-white focus:border-indigo-500 outline-none transition-all"
+                                />
                             </div>
                         </div>
 
-                        <div className="relative z-10">
-                            <h4 className="text-2xl font-black text-white italic mb-2">Seu Plano Atual</h4>
-                            <p className="text-slate-400 text-sm mb-6">
-                                {profile?.plan_expires_at
-                                    ? `Ativo até ${new Date(profile.plan_expires_at).toLocaleDateString()}`
-                                    : 'Aproveite o acesso completo à plataforma.'}
-                            </p>
-
-                            <Button
-                                onClick={openBillingPortal}
-                                variant="outline"
-                                className="w-full h-14 border-white/10 text-white rounded-xl font-bold uppercase tracking-widest text-[10px] gap-2 hover:bg-white/5"
-                            >
-                                <ExternalLink size={14} /> Gerenciar no Stripe
-                            </Button>
+                        <div>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block ml-1">Especialidade Principal</label>
+                            <input
+                                value={formData.specialty}
+                                onChange={e => setFormData({ ...formData, specialty: e.target.value })}
+                                placeholder="Ex: Nutrição Esportiva e Funcional"
+                                className="w-full bg-slate-900/50 border border-white/5 rounded-xl p-4 text-white focus:border-indigo-500 outline-none transition-all"
+                            />
                         </div>
-
-                        {/* Decor */}
-                        <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-indigo-600/10 blur-3xl rounded-full" />
                     </div>
                 </section>
 
-                <div className="pt-10 border-t border-white/5">
-                    <button
-                        onClick={() => closeOverlay("account")}
-                        className="text-xs font-black uppercase tracking-widest text-slate-600 hover:text-white transition-all underline underline-offset-4"
-                    >
-                        Voltar para o sistema
-                    </button>
-                </div>
+                {/* License Section */}
+                <section className="space-y-6">
+                    <div className="flex items-center gap-2 text-purple-400 ml-1">
+                        <Award size={18} />
+                        <h4 className="font-black uppercase tracking-widest text-xs">Registro Profissional</h4>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
+                        <div>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block ml-1">Tipo</label>
+                            <select
+                                value={formData.license_type}
+                                onChange={e => setFormData({ ...formData, license_type: e.target.value })}
+                                className="w-full bg-slate-950 border border-white/10 rounded-xl p-4 text-white outline-none"
+                            >
+                                <option value="CRN">CRN</option>
+                                <option value="CRM">CRM</option>
+                                <option value="CREF">CREF</option>
+                            </select>
+                        </div>
+                        <div className="col-span-1">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block ml-1">Número</label>
+                            <input
+                                value={formData.license_number}
+                                onChange={e => setFormData({ ...formData, license_number: e.target.value })}
+                                className="w-full bg-slate-950 border border-white/10 rounded-xl p-4 text-white outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block ml-1">UF</label>
+                            <input
+                                value={formData.license_state}
+                                onChange={e => setFormData({ ...formData, license_state: e.target.value })}
+                                placeholder="SP"
+                                className="w-full bg-slate-950 border border-white/10 rounded-xl p-4 text-white outline-none"
+                            />
+                        </div>
+                    </div>
+                </section>
+
+                {/* Contact Section */}
+                <section className="space-y-6">
+                    <div className="flex items-center gap-2 text-emerald-400 ml-1">
+                        <Phone size={18} />
+                        <h4 className="font-black uppercase tracking-widest text-xs">Contato Direto</h4>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-4 bg-slate-900/50 border border-white/5 p-4 rounded-xl">
+                            <Mail size={20} className="text-slate-600" />
+                            <div className="flex-1">
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">E-mail (Login)</p>
+                                <p className="text-sm font-bold text-white/50">{profile?.email}</p>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block ml-1">WhatsApp Pessoal</label>
+                            <div className="relative">
+                                <Phone size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" />
+                                <input
+                                    value={formData.phone}
+                                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                                    className="w-full bg-slate-900/50 border border-white/5 rounded-xl p-4 pl-12 text-white focus:border-indigo-500 outline-none transition-all"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <Button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="w-full bg-white text-slate-950 hover:bg-slate-200 h-16 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-white/5 gap-3"
+                >
+                    {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                    Atualizar Meu Perfil
+                </Button>
+
+                <p className="text-center text-[10px] text-slate-600 font-bold uppercase tracking-[0.2em] pt-4">
+                    Suas alterações refletem em toda a plataforma.
+                </p>
             </div>
         </SlideOver>
     )

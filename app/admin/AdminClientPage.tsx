@@ -45,8 +45,14 @@ import { TeamView } from "./views/TeamView"
 import { ClubPlanView } from "./views/ClubPlanView"
 import { repairProfile } from "./actions/repairProfileAction"
 import AccountOverlay from "./components/AccountOverlay"
+import ClinicSettingsOverlay from "./components/ClinicSettingsOverlay"
+import VisualSettingsOverlay from "./components/VisualSettingsOverlay"
+import { signOutAction } from "./actions/authActions"
+import { ChevronDown, LogOut, User as UserIcon, Building2, Palette } from "lucide-react"
 
-type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'nutritionists' | 'team' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'library' | 'settings' | 'club-plan'
+import { SettingsLoginView } from "./views/SettingsLoginView"
+
+type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'nutritionists' | 'team' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'library' | 'settings' | 'settings-login' | 'club-plan'
 
 const navItems = [
     { id: 'dashboard' as ViewType, label: 'Painel Central', icon: LayoutDashboard },
@@ -106,8 +112,9 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
             case 'library': return <LibraryView setView={setActiveView} />
             case 'sales-page': return <SalesPageGenerator setView={setActiveView} tenantId={tenantId} />
             case 'ai-brain': return <AISettingsView setView={setActiveView} tenantId={tenantId} />
-            case 'settings': return <SettingsView setView={setActiveView} tenantId={tenantId} />
-            case 'club-plan': return <ClubPlanView setView={setActiveView} tenantId={tenantId} />
+            case 'settings': return <SettingsView {...props} />
+            case 'settings-login': return <SettingsLoginView />
+            case 'club-plan': return <ClubPlanView {...props} />
             default: return <DashboardView {...props} />
         }
     }
@@ -222,18 +229,13 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
                             </div>
                         </div>
                         <div className="h-10 w-px bg-white/5" />
-                        <div
-                            className="flex items-center gap-4 group cursor-pointer"
-                            onClick={() => openOverlay({ id: "account", content: <AccountOverlay index={0} />, title: "Minha Conta" })}
-                        >
-                            <div className="text-right">
-                                <p className="text-xs font-bold text-white tracking-tight group-hover:text-indigo-400 transition-colors uppercase tracking-widest">{userName}</p>
-                                <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{role === 'admin' ? 'Admin' : 'Nutricionista'}</p>
-                            </div>
-                            <div className="h-12 w-12 rounded-2xl border border-white/10 p-0.5 group-hover:border-indigo-500/40 transition-all">
-                                <img src="https://api.dicebear.com/9.x/micah/svg?seed=AdminBoss" className="w-full h-full rounded-xl bg-slate-900" alt="admin" />
-                            </div>
-                        </div>
+
+                        <UserDropdown
+                            userName={userName}
+                            role={role}
+                            openOverlay={openOverlay}
+                            router={router}
+                        />
                     </div>
                 </div>
 
@@ -252,6 +254,81 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
                     </AnimatePresence>
                 </div>
             </main>
+        </div>
+    )
+}
+
+function UserDropdown({ userName, role, openOverlay, router }: any) {
+    const [isOpen, setIsOpen] = useState(false)
+
+    const menuItems = [
+        { id: 'profile', label: 'Meu Perfil', icon: UserIcon, onClick: () => openOverlay({ id: "account", content: <AccountOverlay index={0} />, title: "Meu Perfil" }) },
+        { id: 'clinic', label: 'Minha Clínica', icon: Building2, onClick: () => openOverlay({ id: "clinic", content: <ClinicSettingsOverlay index={0} />, title: "Minha Clínica" }) },
+        { id: 'visual', label: 'Aparência', icon: Palette, onClick: () => openOverlay({ id: "visual", content: <VisualSettingsOverlay index={0} />, title: "Aparência" }) },
+    ]
+
+    const handleSignOut = async () => {
+        await signOutAction()
+        router.push('/login')
+    }
+
+    return (
+        <div className="relative">
+            <div
+                className="flex items-center gap-4 group cursor-pointer"
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <div className="text-right hidden sm:block">
+                    <p className="text-xs font-bold text-white tracking-tight group-hover:text-indigo-400 transition-colors uppercase tracking-widest">{userName}</p>
+                    <div className="flex items-center justify-end gap-1">
+                        <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{role === 'admin' ? 'Admin' : 'Nutricionista'}</p>
+                        <ChevronDown size={10} className={`text-slate-600 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                    </div>
+                </div>
+                <div className="h-12 w-12 rounded-2xl border border-white/10 p-0.5 group-hover:border-indigo-500/40 transition-all shadow-lg overflow-hidden">
+                    <img src={`https://api.dicebear.com/9.x/micah/svg?seed=${userName}`} className="w-full h-full rounded-xl bg-slate-900" alt="admin" />
+                </div>
+            </div>
+
+            <AnimatePresence>
+                {isOpen && (
+                    <>
+                        <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+                        <motion.div
+                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                            className="absolute right-0 mt-4 w-64 bg-slate-900/90 backdrop-blur-2xl border border-white/10 rounded-[2rem] shadow-2xl p-3 z-50 overflow-hidden"
+                        >
+                            <div className="space-y-1">
+                                {menuItems.map((item) => (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => {
+                                            item.onClick()
+                                            setIsOpen(false)
+                                        }}
+                                        className="w-full flex items-center gap-3 px-5 py-4 text-slate-400 hover:text-white hover:bg-white/[0.05] rounded-2xl transition-all group"
+                                    >
+                                        <item.icon size={18} className="group-hover:text-indigo-400 transition-colors" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">{item.label}</span>
+                                    </button>
+                                ))}
+
+                                <div className="h-px bg-white/5 my-2 mx-4" />
+
+                                <button
+                                    onClick={handleSignOut}
+                                    className="w-full flex items-center gap-3 px-5 py-4 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-2xl transition-all group"
+                                >
+                                    <LogOut size={18} />
+                                    <span className="text-[10px] font-black uppercase tracking-widest">Sair do Sistema</span>
+                                </button>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
         </div>
     )
 }

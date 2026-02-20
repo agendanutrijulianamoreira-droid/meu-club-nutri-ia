@@ -14,7 +14,7 @@ function sanitizeJSON(text: string) {
  * Server Action para gerar conteúdo clínico com Gemini.
  * Roda no servidor Next.js — sem CORS, sem timeout de Edge Function.
  */
-export async function generateClinicalContent(prompt: string, type: 'protocol' | 'challenge' | 'persona' | 'club_plan') {
+export async function generateClinicalContent(prompt: string, type: 'protocol' | 'challenge' | 'persona' | 'club_plan' | 'club_setup') {
     try {
         const apiKey = process.env.GEMINI_API_KEY
         if (!apiKey) {
@@ -93,6 +93,28 @@ export async function generateClinicalContent(prompt: string, type: 'protocol' |
                     "upgrade_cta": "Call to action para um serviço extra (consulta, exame, e-book)"
                 }
             ]
+            ` : type === 'club_setup' ? `
+            OBJETIVO: Criar o Setup Completo do Clube (Persona + Estratégia + Planejamento).
+            O usuário informará apenas o nicho/temática.
+            
+            FORMATO JSON ESPERADO:
+            {
+                "niche": "Nicho atrativo",
+                "targetAudience": "Quem é o cliente ideal?",
+                "biggestPain": "O que mais dói nelas?",
+                "mainGoal": "A promessa do clube",
+                "toneOfVoice": "Acolhedor, técnico ou motivacional",
+                "pillars": "3 pilares do seu método",
+                "format": "Mentoria em grupo, Desafios mensais ou Aulas gravadas?",
+                "plan_draft": [
+                    { "month": 1, "theme": "...", "challenge": "..." },
+                    { "month": 2, "theme": "...", "challenge": "..." },
+                    { "month": 3, "theme": "...", "challenge": "..." },
+                    { "month": 4, "theme": "...", "challenge": "..." },
+                    { "month": 5, "theme": "...", "challenge": "..." },
+                    { "month": 6, "theme": "...", "challenge": "..." }
+                ]
+            }
             ` : `
             FORMATO DO DESAFIO:
             {

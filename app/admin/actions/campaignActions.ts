@@ -48,28 +48,40 @@ export async function processCampaignAction(campaignId: string) {
 
         if (cError || !campaign) throw new Error("Campanha não encontrada ou acesso negado.")
 
-        // --- D. STATE MACHINE PROTECTION ---
-        if (campaign.status === 'sent') return { success: true, message: 'Campanha já foi enviada.' }
-        if (campaign.status === 'sending') return { success: false, error: 'Campanha já está em processamento.' }
+        // --- D. STATE MACHINE PROTECTION (ATOMIC UPDATE) ---
+        const { data: updatedCampaign, error: statusUpdateError } = await adminSupabase
+            .from('campaigns')
+            .update({ status: 'sending' })
+            .eq('id', campaignId)
+            .in('status', ['draft', 'scheduled'])
+            .select('id, tenant_id, title, body, cta_label, cta_url, segment')
+            .single()
+
+        if (statusUpdateError || !updatedCampaign) {
+            // Check if it was already sent or is already sending
+            const { data: current } = await adminSupabase.from('campaigns').select('status').eq('id', campaignId).single()
+            if (current?.status === 'sent') return { success: true, message: 'Campanha já foi enviada.' }
+            if (current?.status === 'sending') return { success: false, error: 'Campanha já está em processamento.' }
+            return { success: false, error: "Campanha não pode ser enviada neste estado." }
+        }
 
         try {
-            // --- E. UPDATE STATUS TO SENDING ---
-            await adminSupabase.from('campaigns').update({ status: 'sending' }).eq('id', campaignId)
-
-            // --- F. RESOLVE RECIPIENTS (STRICT PATIENT FILTERING) ---
+            // --- E. RESOLVE RECIPIENTS (STRICT PATIENT FILTERING) ---
             let userIds: string[] = []
-            if (campaign.segment?.type === 'all') {
+            const campaignData = updatedCampaign // Use snapshot from atomic update
+
+            if (campaignData.segment?.type === 'all') {
                 const { data: patients } = await adminSupabase
                     .from('profiles')
                     .select('user_id')
-                    .eq('tenant_id', campaign.tenant_id)
+                    .eq('tenant_id', campaignData.tenant_id)
                     .eq('role', 'patient')
                 userIds = patients?.map(d => d.user_id) || []
-            } else if (campaign.segment?.type === 'low_adherence') {
-                const days = campaign.segment?.days || 3
+            } else if (campaignData.segment?.type === 'low_adherence') {
+                const days = campaignData.segment?.days || 3
                 // RPC should return candidate IDs, then we re-verify roles and tenant
                 const { data: candidateIds } = await adminSupabase.rpc('get_inactive_users', {
-                    p_tenant_id: campaign.tenant_id,
+                    p_tenant_id: campaignData.tenant_id,
                     p_days: days
                 })
 
@@ -79,7 +91,7 @@ export async function processCampaignAction(campaignId: string) {
                         .from('profiles')
                         .select('user_id')
                         .in('user_id', rawIds)
-                        .eq('tenant_id', campaign.tenant_id)
+                        .eq('tenant_id', campaignData.tenant_id)
                         .eq('role', 'patient')
                     userIds = verifiedPatients?.map(d => d.user_id) || []
                 }
@@ -98,13 +110,13 @@ export async function processCampaignAction(campaignId: string) {
             }))
 
             const notificationRecords = userIds.map(uid => ({
-                tenant_id: campaign.tenant_id,
+                tenant_id: campaignData.tenant_id,
                 user_id: uid,
                 campaign_id: campaignId,
-                title: campaign.title,
-                body: campaign.body,
-                cta_label: campaign.cta_label,
-                cta_url: campaign.cta_url,
+                title: campaignData.title,
+                body: campaignData.body,
+                cta_label: campaignData.cta_label,
+                cta_url: campaignData.cta_url,
                 status: 'unread'
             }))
 
