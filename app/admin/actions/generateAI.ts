@@ -14,7 +14,7 @@ function sanitizeJSON(text: string) {
  * Server Action para gerar conteúdo clínico com Gemini.
  * Roda no servidor Next.js — sem CORS, sem timeout de Edge Function.
  */
-export async function generateClinicalContent(prompt: string, type: 'protocol' | 'challenge' | 'persona') {
+export async function generateClinicalContent(prompt: string, type: 'protocol' | 'challenge' | 'persona' | 'club_plan') {
     try {
         const apiKey = process.env.GEMINI_API_KEY
         if (!apiKey) {
@@ -73,6 +73,26 @@ export async function generateClinicalContent(prompt: string, type: 'protocol' |
                     }
                 ]
             }
+            ` : type === 'club_plan' ? `
+            OBJETIVO: Criar um Planejamento Semestral ou Anual para o Clube de Assinatura.
+            O usuário informará o nicho, público e duração (6 ou 12 meses).
+            
+            FORMATO JSON ESPERADO (Array de Meses):
+            [
+                {
+                    "month": 1,
+                    "monthName": "Janeiro",
+                    "theme": "Tema do mês (Ex: Detox Pós-Festas)",
+                    "protocol_title": "Nome do Protocolo Alimentar (Ex: Protocolo Reset)",
+                    "challenge_title": "Nome do Desafio (Ex: Desafio 7 Dias Sem Açúcar)",
+                    "inbox_templates": [
+                        "Mensagem de abertura do mês (com emoji e tom adequado)",
+                        "Mensagem de meio de mês (motivação)",
+                        "Mensagem de encerramento/preparação próx mês"
+                    ],
+                    "upgrade_cta": "Call to action para um serviço extra (consulta, exame, e-book)"
+                }
+            ]
             ` : `
             FORMATO DO DESAFIO:
             {

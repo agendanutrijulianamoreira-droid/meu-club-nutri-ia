@@ -32,11 +32,23 @@ export default function PatientHomePage() {
         toggleCheckin
     } = usePatientEngine()
     const [unreadCount, setUnreadCount] = useState(0)
+    const [firstName, setFirstName] = useState("Rainha")
 
     useEffect(() => {
         const init = async () => {
             const { data: { session } } = await supabase.auth.getSession()
             if (!session) return
+
+            // Load profile name
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('name')
+                .eq('user_id', session.user.id)
+                .single()
+
+            if (profile?.name) {
+                setFirstName(profile.name.split(' ')[0])
+            }
 
             // Load unread count
             const { count } = await supabase
@@ -67,7 +79,7 @@ export default function PatientHomePage() {
                 <div className="flex items-center justify-between mb-4">
                     <div>
                         <h1 className="text-2xl font-bold text-white">
-                            Olá, <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">Rainha</span>! 👋
+                            Olá, <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">{firstName}</span>! 👋
                         </h1>
                         <p className="text-slate-400 text-sm mt-1">
                             {activeProtocol ? `Dia ${stats.currentDay} de ${stats.totalDays}` : "Sua jornada de hoje"}
