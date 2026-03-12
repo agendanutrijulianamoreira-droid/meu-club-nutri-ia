@@ -13,6 +13,7 @@ interface LinkedPatient {
     plan_type: string
     amount_paid: number
     commission_generated: number
+    last_checkin_date: string | null
 }
 
 export function useLinkedPatients(professionalId: string | undefined) {
@@ -48,7 +49,8 @@ export function useLinkedPatients(professionalId: string | undefined) {
             name,
             email,
             avatar_url,
-            current_plan
+            current_plan,
+            last_checkin_date
           )
         `)
                 .eq('professional_id', professionalId)
@@ -75,7 +77,8 @@ export function useLinkedPatients(professionalId: string | undefined) {
                         signup_date: sale.created_at,
                         plan_type: sale.plan_type,
                         amount_paid: Number(sale.amount || 0),
-                        commission_generated: Number(sale.commission_amount || 0)
+                        commission_generated: Number(sale.commission_amount || 0),
+                        last_checkin_date: profile.last_checkin_date
                     })
                 } else {
                     // Agregar valores se tiver múltiplas compras

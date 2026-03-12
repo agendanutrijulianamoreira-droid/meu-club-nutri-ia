@@ -1,6 +1,6 @@
 'use client'
 
-import { DollarSign, TrendingUp, Users, Calendar, Copy, Share2, QrCode } from 'lucide-react'
+import { DollarSign, TrendingUp, Users, Calendar, Copy, Share2, QrCode, AlertCircle } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { Button } from '@/components/ui/button'
 import { useProfessionalProfile } from '@/lib/hooks/useProfessionalProfile'

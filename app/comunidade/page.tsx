@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
     MessageSquare,
     Heart,
@@ -14,51 +14,93 @@ import {
     Utensils,
     Sparkles
 } from "lucide-react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import Link from "next/link"
+import { supabase } from "@/lib/supabase-browser"
 
 export default function CommunityPage() {
-    const [posts, setPosts] = useState([
-        {
-            id: 1,
-            user: "Julia Silva",
-            level: 12,
-            isQueen: true,
-            avatar: "https://api.dicebear.com/9.x/micah/svg?seed=Julia",
-            content: "Meninas, completei os 7 dias do desafio sem açúcar! A diferença na disposição é surreal. Quem vem comigo na próxima semana? 🚀",
-            image: "https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&q=80&w=600",
-            likes: 42,
-            comments: 8,
-            time: "2h atrás",
-            isLiked: true
-        },
-        {
-            id: 2,
-            user: "Carla Dias",
-            level: 8,
-            isQueen: false,
-            avatar: "https://api.dicebear.com/9.x/micah/svg?seed=Carla",
-            content: "Dica de shot matinal: Limão + Cúrcuma + Gengibre. Acorda o corpo e desinflama de verdade! 🍵",
-            image: null,
-            likes: 24,
-            comments: 3,
-            time: "5h atrás",
-            isLiked: false
-        }
-    ])
+    const [posts, setPosts] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const [newPostContent, setNewPostContent] = useState("")
+    const [userProfile, setUserProfile] = useState<any>(null)
 
-    const toggleLike = (id: number) => {
+    useEffect(() => {
+        async function loadInitialData() {
+            // 1. Get User Profile
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single()
+                setUserProfile(profile)
+            }
+
+            // 2. Load Posts
+            const { data: postsData } = await supabase
+                .from('posts')
+                .select(`
+                    *,
+                    profiles:user_id (name, avatar_url, current_level)
+                `)
+                .order('created_at', { ascending: false })
+            
+            if (postsData) setPosts(postsData)
+            setLoading(false)
+        }
+        loadInitialData()
+    }, [supabase])
+
+    const toggleLike = async (postId: string) => {
+        const post = posts.find(p => p.id === postId)
+        if (!post) return
+
+        // Optimistic UI
         setPosts(prev => prev.map(p => {
-            if (p.id === id) {
-                return { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1 }
+            if (p.id === postId) {
+                return { 
+                    ...p, 
+                    isLiked: !p.isLiked, 
+                    likes_count: p.isLiked ? p.likes_count - 1 : p.likes_count + 1 
+                }
             }
             return p
         }))
+
+        // Database Update
+        if (post.isLiked) {
+            await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', userProfile.user_id)
+        } else {
+            await supabase.from('post_likes').insert({ post_id: postId, user_id: userProfile.user_id })
+        }
     }
 
-    const handlePost = () => {
-        alert('Postagem enviada para a Tribo! +10 XP 🚀')
+    const handlePost = async () => {
+        if (!newPostContent.trim()) return
+
+        const { data: newPost, error } = await supabase
+            .from('posts')
+            .insert({
+                user_id: userProfile.user_id,
+                tenant_id: userProfile.tenant_id,
+                content: newPostContent,
+                type: 'post'
+            })
+            .select(`
+                *,
+                profiles:user_id (name, avatar_url, current_level)
+            `)
+            .single()
+
+        if (newPost) {
+            setPosts([newPost, ...posts])
+            setNewPostContent("")
+            alert('Postagem enviada para a Tribo! +10 XP 🚀')
+        }
     }
+
+    if (loading) return <div className="min-h-screen bg-[#020617] flex items-center justify-center text-white">Carregando Tribo...</div>
 
     return (
         <div className="min-h-screen bg-[#020617] text-slate-200 pb-32 overflow-x-hidden">
@@ -74,25 +116,22 @@ export default function CommunityPage() {
                         </div>
                         <div>
                             <h1 className="text-xl font-bold text-white tracking-tight">Tribo Real</h1>
-                            <p className="text-[10px] text-indigo-400 font-black uppercase tracking-[0.2em]">128 Rainhas em Evolução</p>
+                            <p className="text-[10px] text-indigo-400 font-black uppercase tracking-[0.2em]">{posts.length}+ Rainhas em Evolução</p>
                         </div>
                     </div>
-                    <button className="bg-white/5 p-3 rounded-2xl hover:bg-white/10 border border-white/5 transition backdrop-blur-md">
-                        <MoreHorizontal size={20} className="text-slate-400" />
-                    </button>
                 </div>
             </header>
 
-            {/* Conteúdo do Feed */}
             <div className="max-w-md mx-auto pt-28 px-6 space-y-8">
-
-                {/* CRIAR POST (Destaque Clinical) */}
+                {/* CRIAR POST */}
                 <div className="glass-panel p-5 rounded-[2.5rem] border border-indigo-500/20 bg-indigo-500/5 flex items-center gap-4 shadow-2xl">
-                    <div className="h-14 w-14 rounded-2xl border border-indigo-500/30 p-0.5 bg-slate-900">
-                        <img src="https://api.dicebear.com/9.x/micah/svg?seed=JuliaQueen" className="w-full h-full rounded-xl object-cover" alt="Me" />
+                    <div className="h-14 w-14 rounded-2xl border border-indigo-500/30 p-0.5 bg-slate-900 overflow-hidden">
+                        <img src={userProfile?.avatar_url || "https://api.dicebear.com/9.x/micah/svg?seed=Queen"} className="w-full h-full object-cover" alt="Me" />
                     </div>
                     <input
                         type="text"
+                        value={newPostContent}
+                        onChange={(e) => setNewPostContent(e.target.value)}
                         placeholder="Compartilhe seu progresso, Rainha..."
                         className="bg-transparent flex-1 text-sm outline-none placeholder:text-slate-600 font-medium"
                     />
@@ -114,69 +153,61 @@ export default function CommunityPage() {
                             transition={{ delay: i * 0.1, ease: "easeOut" }}
                             className="rounded-[2.5rem] border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden shadow-2xl"
                         >
-                            {/* User Header */}
                             <div className="p-6 flex justify-between items-center">
                                 <div className="flex items-center gap-4">
                                     <div className="relative">
-                                        <div className="h-14 w-14 rounded-2xl bg-slate-800 p-0.5 border border-white/10">
-                                            <img src={post.avatar} className="w-full h-full rounded-xl bg-slate-900" alt={post.user} />
+                                        <div className="h-14 w-14 rounded-2xl bg-slate-800 p-0.5 border border-white/10 overflow-hidden">
+                                            <img src={post.profiles?.avatar_url || `https://api.dicebear.com/9.x/micah/svg?seed=${post.user_id}`} className="w-full h-full rounded-xl bg-slate-900" alt={post.profiles?.name} />
                                         </div>
                                         <div className="absolute -bottom-1 -right-1 bg-indigo-600 text-[10px] font-black px-2 py-1 rounded-lg border-2 border-slate-900 text-white">
-                                            L{post.level}
+                                            L{post.profiles?.current_level || 1}
                                         </div>
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <h3 className="text-base font-bold text-white">{post.user}</h3>
-                                            {post.isQueen && (
+                                            <h3 className="text-base font-bold text-white">{post.profiles?.name || 'Rainha'}</h3>
+                                            {post.type === 'achievement' && (
                                                 <div className="bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30 flex items-center gap-1">
                                                     <Sparkles size={10} className="text-amber-400" />
-                                                    <span className="text-[8px] font-black text-amber-400 uppercase tracking-tighter">Rainha</span>
+                                                    <span className="text-[8px] font-black text-amber-400 uppercase tracking-tighter">Conquista</span>
                                                 </div>
                                             )}
                                         </div>
-                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">{post.time}</p>
+                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+                                            {new Date(post.created_at).toLocaleDateString()}
+                                        </p>
                                     </div>
                                 </div>
-                                <button className="text-slate-600 hover:text-white transition-colors">
-                                    <MoreHorizontal size={20} />
-                                </button>
                             </div>
 
-                            {/* Content */}
                             <div className="px-6 pb-5">
                                 <p className="text-[15px] leading-relaxed text-slate-300 font-light">
                                     {post.content}
                                 </p>
                             </div>
 
-                            {/* Image */}
-                            {post.image && (
+                            {post.image_url && (
                                 <div className="px-4 pb-4">
                                     <div className="h-72 w-full rounded-[2rem] overflow-hidden border border-white/5 shadow-inner">
-                                        <img src={post.image} className="w-full h-full object-cover" alt="Post" />
+                                        <img src={post.image_url} className="w-full h-full object-cover" alt="Post" />
                                     </div>
                                 </div>
                             )}
 
-                            {/* Footer Actions */}
                             <div className="px-6 py-5 bg-white/[0.02] flex items-center justify-between border-t border-white/5">
                                 <div className="flex items-center gap-8">
                                     <button
                                         onClick={() => toggleLike(post.id)}
                                         className={`flex items-center gap-2.5 text-xs font-black transition-all ${post.isLiked ? 'text-indigo-400 scale-110' : 'text-slate-500 hover:text-indigo-400'}`}
                                     >
-                                        <Heart size={20} fill={post.isLiked ? "currentColor" : "none"} className={post.isLiked ? "drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""} />
-                                        {post.likes}
+                                        <Heart size={20} fill={post.isLiked ? "currentColor" : "none"} />
+                                        {post.likes_count}
                                     </button>
                                     <button className="flex items-center gap-2.5 text-xs text-slate-500 font-black hover:text-indigo-400 transition-all">
                                         <MessageSquare size={20} />
-                                        {post.comments}
+                                        {post.comments_count}
                                     </button>
                                 </div>
-                                <button className="text-slate-500 hover:text-indigo-400 transition-all">
-                                    <Share2 size={20} />
-                                </button>
                             </div>
                         </motion.div>
                     ))}
@@ -187,31 +218,16 @@ export default function CommunityPage() {
             <div className="fixed bottom-8 left-6 right-6 z-50">
                 <div className="max-w-md mx-auto glass-panel p-2.5 rounded-[2.5rem] border border-white/10 bg-slate-950/80 backdrop-blur-2xl shadow-2xl flex justify-around items-center">
                     <Link href="/" className="p-4 rounded-2xl text-slate-500 transition-all hover:text-indigo-400">
-                        <HomeIcon size={24} />
+                        <Home size={24} />
                     </Link>
                     <Link href="/protocolo" className="p-4 rounded-2xl text-slate-500 transition-all hover:text-indigo-400">
                         <Utensils size={24} />
                     </Link>
-
-                    <div className="relative -top-8">
-                        <div className="absolute -inset-6 bg-indigo-600/30 blur-3xl rounded-full" />
-                        <button className="relative bg-gradient-to-tr from-indigo-600 to-violet-600 w-16 h-16 rounded-[1.5rem] flex items-center justify-center shadow-xl shadow-indigo-900/50 border-4 border-slate-900 active:scale-90 transition-all rotate-45">
-                            <Plus className="text-white -rotate-45" size={32} />
-                        </button>
-                    </div>
-
                     <Link href="/comunidade" className="p-4 rounded-2xl bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 shadow-inner">
                         <MessageSquare size={24} fill="currentColor" />
                     </Link>
-                    <Link href="/perfil" className="p-4 rounded-2xl text-slate-500 transition-all hover:text-indigo-400">
-                        <UserIcon size={24} />
-                    </Link>
                 </div>
             </div>
-
         </div>
     )
 }
-
-function HomeIcon(props: any) { return <Home size={props.size || 24} {...props} /> }
-function UserIcon(props: any) { return <User size={props.size || 24} {...props} /> }
