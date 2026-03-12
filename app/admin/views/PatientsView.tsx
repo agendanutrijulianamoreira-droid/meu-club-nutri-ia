@@ -36,38 +36,35 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
-import { usePatients } from "@/lib/hooks/useDatabase"
-
 interface Patient {
-    id: number
+    id: string
     name: string
     email: string
     phone: string
     plan: string
     avatar: string
     status: 'risk' | 'active' | 'star'
-    engagement: number
+    riskLevel: 'low' | 'medium' | 'high'
+    adherenceRate: number
     lastLogin: string
     startDate: string
     aiSummary: string
-    badges: string[]
+    aiSuggestion: string | null
     xp: number
     level: number
     streak: number
-    phase: number
+    longestStreak: number
     weight: { current: number; goal: number; start: number }
-    birthday?: string
-    pushSettings: {
-        reminders: boolean
-        marketing: boolean
-        challenges: boolean
-    }
+    primaryGoal: string
+    hasActiveProtocol: boolean
+    hasCheckin: boolean
+    checkinScore: number | null
+    daysSinceActivity: number
 }
 
-// MOCK_PATIENTS removed in favor of usePatients hook
-
 export function PatientsView({ setView }: { setView: (v: any) => void }) {
-    const { patients: dbPatients, loading, refresh } = usePatients()
+    const [patients, setPatients] = useState<Patient[]>([])
+    const [loading, setLoading] = useState(true)
     const [selectedId, setSelectedId] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'history'>('overview')
     const [searchQuery, setSearchQuery] = useState("")
@@ -76,15 +73,28 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
     const [showAddModal, setShowAddModal] = useState(false)
     const [registering, setRegistering] = useState(false)
     const [newPatient, setNewPatient] = useState({
-        name: '',
-        email: '',
-        phone: '',
-        password: 'ChangeMe123!',
-        plan: 'tech_diet'
+        name: '', email: '', phone: '', password: 'ChangeMe123!', plan: 'tech_diet'
     })
     const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null)
 
-    // Clear notification after 5s
+    const refresh = async () => {
+        setLoading(true)
+        try {
+            const res = await fetch('/api/admin/patients')
+            if (res.ok) {
+                const data = await res.json()
+                setPatients(data.patients || [])
+                if (data.patients?.length > 0 && !selectedId) {
+                    setSelectedId(data.patients[0].id)
+                }
+            }
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => { refresh() }, [])
+
     useEffect(() => {
         if (notification) {
             const timer = setTimeout(() => setNotification(null), 5000)
@@ -92,34 +102,27 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
         }
     }, [notification])
 
-    // Map DB patients to the View's interface
-    const patients = dbPatients.map(p => ({
-        id: p.id,
-        name: p.full_name || p.name || 'Sem nome',
-        email: p.email || '',
-        phone: p.phone || '',
-        plan: p.current_plan || 'Nenhum',
-        avatar: (p.full_name || p.name || '?').substring(0, 2).toUpperCase(),
-        status: (p.current_streak > 3 ? 'star' : 'active') as any, // Simple logic for now
-        engagement: Math.min(100, Math.floor(Math.random() * 40 + 60)), // Mock engagement for now
-        lastLogin: p.last_checkin_date ? new Date(p.last_checkin_date).toLocaleDateString() : 'Nunca',
-        startDate: new Date(p.created_at).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }),
-        aiSummary: 'Análise automática indisponível no momento.',
-        badges: [],
-        xp: p.total_points || 0,
-        level: p.current_level || 1,
-        streak: p.current_streak || 0,
-        phase: 1,
-        weight: { current: 0, goal: 0, start: 0 }
-    }))
-
-    useEffect(() => {
-        if (patients.length > 0 && !selectedId) {
-            setSelectedId(patients[0].id)
+    const handleSendRescueMessage = async () => {
+        if (!activePatient) return
+        setSendingMessage(true)
+        try {
+            await fetch('/api/ai/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    task: 'marketing-suggestion',
+                    context: `Paciente ${activePatient.name} está inativa há ${activePatient.daysSinceActivity} dias.`,
+                    prompt: 'Gere uma mensagem de resgate carinhosa e motivacional para enviar via WhatsApp.'
+                })
+            })
+            setNotification({ type: 'success', message: 'Mensagem de resgate preparada com sucesso!' })
+        } catch {
+            setNotification({ type: 'error', message: 'Erro ao gerar mensagem.' })
+        } finally {
+            setSendingMessage(false)
         }
-    }, [patients])
+    }
 
-    // Sort patients: risk first, then stars, then active
     const sortedPatients = [...patients]
         .filter(p => {
             if (filterStatus !== 'all' && p.status !== filterStatus) return false
@@ -128,8 +131,8 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
             return true
         })
         .sort((a, b) => {
-            const order = { risk: 0, star: 1, active: 2 }
-            return order[a.status as keyof typeof order] - order[b.status as keyof typeof order]
+            const order: Record<string, number> = { risk: 0, star: 1, active: 2 }
+            return (order[a.status] ?? 3) - (order[b.status] ?? 3)
         })
 
     const activePatient = patients.find(p => p.id === selectedId)
@@ -399,12 +402,17 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                                         </div>
                                         <div className="flex-1">
                                             <h3 className="text-lg font-bold text-white mb-2">
-                                                Análise da Assistente IA
+                                                {activePatient.hasCheckin ? 'Análise IA (check-in desta semana)' : 'Score de Risco (comportamento)'}
                                             </h3>
                                             <p className="text-gray-300 leading-relaxed">
                                                 "{activePatient.aiSummary}"
                                             </p>
-
+                                            {activePatient.aiSuggestion && (
+                                                <div className="mt-3 bg-white/5 rounded-xl px-4 py-2 border border-white/10">
+                                                    <p className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-0.5">Sugestão para você</p>
+                                                    <p className="text-sm text-slate-300">{activePatient.aiSuggestion}</p>
+                                                </div>
+                                            )}
                                             <div className="mt-4 flex gap-3">
                                                 {activePatient.status === 'risk' && (
                                                     <>
@@ -420,21 +428,13 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                                                             )}
                                                             Enviar Mensagem de Resgate
                                                         </Button>
-                                                        <Button variant="ghost" className="border border-white/10">
-                                                            Ver Último Check-in
-                                                        </Button>
                                                     </>
                                                 )}
                                                 {activePatient.status === 'star' && (
-                                                    <>
-                                                        <Button className="bg-yellow-600/20 border border-yellow-500/50 text-yellow-300 hover:bg-yellow-600 hover:text-black">
-                                                            <Trophy size={16} className="mr-2" />
-                                                            Enviar Parabéns
-                                                        </Button>
-                                                        <Button variant="ghost" className="border border-white/10">
-                                                            Solicitar Depoimento
-                                                        </Button>
-                                                    </>
+                                                    <Button className="bg-yellow-600/20 border border-yellow-500/50 text-yellow-300 hover:bg-yellow-600 hover:text-black">
+                                                        <Trophy size={16} className="mr-2" />
+                                                        Enviar Parabéns
+                                                    </Button>
                                                 )}
                                             </div>
                                         </div>
@@ -445,17 +445,16 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                                 <div className="grid grid-cols-4 gap-4">
                                     <div className="glass-panel p-5 rounded-xl border border-white/5">
                                         <div className="flex justify-between items-start mb-2">
-                                            <span className="text-gray-500 text-xs font-bold uppercase">Aderência</span>
-                                            <Activity size={16} className={activePatient.engagement < 50 ? 'text-red-500' : 'text-green-500'} />
+                                            <span className="text-gray-500 text-xs font-bold uppercase">Adesão 7d</span>
+                                            <Activity size={16} className={activePatient.adherenceRate < 50 ? 'text-red-500' : 'text-green-500'} />
                                         </div>
-                                        <div className="text-3xl font-bold mb-2">{activePatient.engagement}%</div>
+                                        <div className="text-3xl font-bold mb-2">{activePatient.adherenceRate}%</div>
                                         <div className="w-full bg-white/5 h-1.5 rounded-full">
                                             <div
-                                                className={`h-full rounded-full transition-all ${activePatient.engagement < 50 ? 'bg-red-500' : 'bg-green-500'}`}
-                                                style={{ width: `${activePatient.engagement}%` }}
+                                                className={`h-full rounded-full transition-all ${activePatient.adherenceRate < 50 ? 'bg-red-500' : 'bg-green-500'}`}
+                                                style={{ width: `${activePatient.adherenceRate}%` }}
                                             />
                                         </div>
-                                        <p className="text-xs text-gray-500 mt-2">Média: 68%</p>
                                     </div>
 
                                     <div className="glass-panel p-5 rounded-xl border border-white/5">
@@ -476,37 +475,47 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                                             {activePatient.streak}
                                             <span className="text-lg text-gray-500 ml-1">dias</span>
                                         </div>
-                                        <p className="text-xs text-gray-500 mt-2">Recorde: 45 dias</p>
+                                        <p className="text-xs text-gray-500 mt-2">Recorde: {activePatient.longestStreak} dias</p>
                                     </div>
 
                                     <div className="glass-panel p-5 rounded-xl border border-white/5">
                                         <div className="flex justify-between items-start mb-2">
-                                            <span className="text-gray-500 text-xs font-bold uppercase">Fase</span>
-                                            <Lock size={16} className="text-yellow-500" />
+                                            <span className="text-gray-500 text-xs font-bold uppercase">Check-in</span>
+                                            <CheckCircle size={16} className={activePatient.hasCheckin ? 'text-green-400' : 'text-gray-600'} />
                                         </div>
-                                        <div className="text-3xl font-bold">{activePatient.phase}</div>
-                                        <p className="text-xs text-gray-500 mt-2">
-                                            Próxima: Fase {activePatient.phase + 1}
-                                        </p>
+                                        <div className={`text-3xl font-bold ${activePatient.checkinScore !== null ? (activePatient.checkinScore >= 7 ? 'text-green-400' : activePatient.checkinScore >= 5 ? 'text-amber-400' : 'text-red-400') : 'text-gray-600'}`}>
+                                            {activePatient.checkinScore !== null ? `${activePatient.checkinScore}/10` : '—'}
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-2">{activePatient.hasCheckin ? 'Esta semana' : 'Sem check-in'}</p>
                                     </div>
                                 </div>
 
                                 {/* Contact Info */}
                                 <div className="glass-panel p-6 rounded-xl border border-white/5">
                                     <h4 className="font-bold mb-4 text-gray-400 text-sm uppercase tracking-wider">Informações de Contato</h4>
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div className="flex items-center gap-3">
-                                            <Mail size={18} className="text-gray-500" />
-                                            <span className="text-sm">{activePatient.email}</span>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <Phone size={18} className="text-gray-500" />
-                                            <span className="text-sm">{activePatient.phone}</span>
-                                        </div>
-                                        {activePatient.birthday && (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {activePatient.email && (
                                             <div className="flex items-center gap-3">
-                                                <Gift size={18} className="text-pink-500" />
-                                                <span className="text-sm">Aniversário: {activePatient.birthday}</span>
+                                                <Mail size={18} className="text-gray-500" />
+                                                <span className="text-sm">{activePatient.email}</span>
+                                            </div>
+                                        )}
+                                        {activePatient.phone && (
+                                            <div className="flex items-center gap-3">
+                                                <Phone size={18} className="text-gray-500" />
+                                                <span className="text-sm">{activePatient.phone}</span>
+                                            </div>
+                                        )}
+                                        {activePatient.primaryGoal && (
+                                            <div className="flex items-center gap-3">
+                                                <Target size={18} className="text-indigo-400" />
+                                                <span className="text-sm">Objetivo: {activePatient.primaryGoal}</span>
+                                            </div>
+                                        )}
+                                        {activePatient.weight.current > 0 && (
+                                            <div className="flex items-center gap-3">
+                                                <TrendingUp size={18} className="text-green-400" />
+                                                <span className="text-sm">Peso atual: {activePatient.weight.current}kg</span>
                                             </div>
                                         )}
                                     </div>
@@ -517,8 +526,6 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                         {/* TAB 2: SETTINGS & PUSH */}
                         {activeTab === 'settings' && (
                             <div className="max-w-2xl space-y-8">
-
-                                {/* Push Notifications */}
                                 <div>
                                     <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                                         <Bell className="text-yellow-500" size={20} />
@@ -526,14 +533,11 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                                     </h3>
                                     <div className="glass-panel rounded-xl border border-white/5 overflow-hidden">
                                         {[
-                                            { key: 'reminders', title: 'Lembretes de Rotina', desc: 'Água, Check-in, Refeições', default: activePatient.pushSettings.reminders },
-                                            { key: 'marketing', title: 'Propagandas & Ofertas', desc: 'Upsell de consultas e novos produtos', default: activePatient.pushSettings.marketing },
-                                            { key: 'challenges', title: 'Desafios da Comunidade', desc: 'Avisos sobre rankings e missões', default: activePatient.pushSettings.challenges }
+                                            { key: 'reminders', title: 'Lembretes de Rotina', desc: 'Água, Check-in, Refeições', default: true },
+                                            { key: 'marketing', title: 'Propagandas & Ofertas', desc: 'Upsell de consultas e novos produtos', default: false },
+                                            { key: 'challenges', title: 'Desafios da Comunidade', desc: 'Avisos sobre rankings e missões', default: true }
                                         ].map((item, idx) => (
-                                            <div
-                                                key={item.key}
-                                                className={`p-4 flex justify-between items-center ${idx < 2 ? 'border-b border-white/5' : ''}`}
-                                            >
+                                            <div key={item.key} className={`p-4 flex justify-between items-center ${idx < 2 ? 'border-b border-white/5' : ''}`}>
                                                 <div>
                                                     <h4 className="font-bold">{item.title}</h4>
                                                     <p className="text-xs text-gray-500">{item.desc}</p>
@@ -546,8 +550,6 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                                         ))}
                                     </div>
                                 </div>
-
-                                {/* Celebration Automation */}
                                 <div>
                                     <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                                         <Gift className="text-pink-500" size={20} />
@@ -556,47 +558,20 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                                     <div className="glass-panel rounded-xl border border-white/5 p-6 space-y-4">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
-                                                <div className="bg-pink-900/30 p-2 rounded-lg text-pink-400">
-                                                    <Calendar size={18} />
-                                                </div>
-                                                <span className="font-bold">
-                                                    Aniversário ({activePatient.birthday || 'Não informado'})
-                                                </span>
+                                                <div className="bg-orange-900/30 p-2 rounded-lg text-orange-400"><Flame size={18} /></div>
+                                                <span className="font-bold">Streak de 7 Dias</span>
                                             </div>
-                                            <span className={`text-xs font-bold px-2 py-1 rounded ${activePatient.birthday
-                                                ? 'text-green-400 bg-green-900/20'
-                                                : 'text-gray-400 bg-white/5'
-                                                }`}>
-                                                {activePatient.birthday ? 'Agendado' : 'Sem data'}
-                                            </span>
+                                            <span className="text-xs font-bold text-purple-400 bg-purple-900/20 px-2 py-1 rounded">Automático (IA)</span>
                                         </div>
-
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
-                                                <div className="bg-yellow-900/30 p-2 rounded-lg text-yellow-400">
-                                                    <TrendingUp size={18} />
-                                                </div>
+                                                <div className="bg-yellow-900/30 p-2 rounded-lg text-yellow-400"><TrendingUp size={18} /></div>
                                                 <span className="font-bold">Bater Meta de Peso</span>
                                             </div>
-                                            <span className="text-xs font-bold text-purple-400 bg-purple-900/20 px-2 py-1 rounded">
-                                                Automático (IA)
-                                            </span>
+                                            <span className="text-xs font-bold text-purple-400 bg-purple-900/20 px-2 py-1 rounded">Automático (IA)</span>
                                         </div>
-
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-orange-900/30 p-2 rounded-lg text-orange-400">
-                                                    <Flame size={18} />
-                                                </div>
-                                                <span className="font-bold">Streak de 30 Dias</span>
-                                            </div>
-                                            <span className="text-xs font-bold text-purple-400 bg-purple-900/20 px-2 py-1 rounded">
-                                                Automático (IA)
-                                            </span>
-                                        </div>
-
                                         <p className="text-xs text-gray-500 pt-4 border-t border-white/5">
-                                            * O sistema enviará um cartão virtual e uma notificação push personalizada quando esses eventos ocorrerem.
+                                            * O sistema enviará notificação push personalizada quando esses eventos ocorrerem.
                                         </p>
                                     </div>
                                 </div>
@@ -606,76 +581,58 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                         {/* TAB 3: HISTORY & GOALS */}
                         {activeTab === 'history' && (
                             <div className="max-w-3xl space-y-6">
-
-                                {/* Weight Progress */}
-                                <div className="glass-panel p-6 rounded-xl border border-white/5">
-                                    <h3 className="font-bold mb-4 flex items-center gap-2">
-                                        <TrendingUp className="text-green-400" size={20} />
-                                        Progresso de Peso
-                                    </h3>
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="text-center">
-                                            <p className="text-xs text-gray-500 uppercase">Início</p>
-                                            <p className="text-2xl font-bold">{activePatient.weight.start}kg</p>
-                                        </div>
-                                        <div className="flex-1 mx-8">
-                                            <div className="relative h-2 bg-white/5 rounded-full">
-                                                <div
-                                                    className="absolute h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
-                                                    style={{
-                                                        width: `${Math.min(100, ((activePatient.weight.start - activePatient.weight.current) / (activePatient.weight.start - activePatient.weight.goal)) * 100)}%`
-                                                    }}
-                                                />
+                                {activePatient.weight.start > 0 && (
+                                    <div className="glass-panel p-6 rounded-xl border border-white/5">
+                                        <h3 className="font-bold mb-4 flex items-center gap-2">
+                                            <TrendingUp className="text-green-400" size={20} />
+                                            Progresso de Peso
+                                        </h3>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="text-center">
+                                                <p className="text-xs text-gray-500 uppercase">Início</p>
+                                                <p className="text-2xl font-bold">{activePatient.weight.start}kg</p>
                                             </div>
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-xs text-gray-500 uppercase">Meta</p>
-                                            <p className="text-2xl font-bold text-green-400">{activePatient.weight.goal}kg</p>
-                                        </div>
-                                    </div>
-                                    <div className="text-center">
-                                        <p className="text-sm text-gray-400">
-                                            Peso Atual: <span className="font-bold text-white">{activePatient.weight.current}kg</span>
-                                            {activePatient.weight.current <= activePatient.weight.goal && (
-                                                <span className="text-green-400 ml-2">🎉 Meta atingida!</span>
-                                            )}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Activity Timeline */}
-                                <div className="glass-panel p-6 rounded-xl border border-white/5">
-                                    <h3 className="font-bold mb-4 flex items-center gap-2">
-                                        <Clock className="text-blue-400" size={20} />
-                                        Atividade Recente
-                                    </h3>
-                                    <div className="space-y-4">
-                                        {[
-                                            { time: 'Hoje, 09:00', action: 'Check-in do café da manhã', type: 'checkin' },
-                                            { time: 'Ontem, 18:30', action: 'Completou missão "Beber 2L água"', type: 'mission' },
-                                            { time: 'Ontem, 12:15', action: 'Enviou foto do almoço', type: 'photo' },
-                                            { time: '2 dias atrás', action: 'Desbloqueou badge "Hidratação Master"', type: 'badge' },
-                                            { time: '3 dias atrás', action: 'Atingiu 1000 XP', type: 'xp' }
-                                        ].map((item, idx) => (
-                                            <div key={idx} className="flex items-center gap-4">
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${item.type === 'checkin' ? 'bg-green-900/30 text-green-400' :
-                                                    item.type === 'mission' ? 'bg-purple-900/30 text-purple-400' :
-                                                        item.type === 'photo' ? 'bg-blue-900/30 text-blue-400' :
-                                                            item.type === 'badge' ? 'bg-yellow-900/30 text-yellow-400' :
-                                                                'bg-pink-900/30 text-pink-400'
-                                                    }`}>
-                                                    {item.type === 'checkin' && <CheckCircle size={16} />}
-                                                    {item.type === 'mission' && <Target size={16} />}
-                                                    {item.type === 'photo' && <Smartphone size={16} />}
-                                                    {item.type === 'badge' && <Award size={16} />}
-                                                    {item.type === 'xp' && <Sparkles size={16} />}
-                                                </div>
-                                                <div className="flex-1">
-                                                    <p className="text-sm font-medium">{item.action}</p>
-                                                    <p className="text-xs text-gray-500">{item.time}</p>
+                                            <div className="flex-1 mx-8">
+                                                <div className="relative h-2 bg-white/5 rounded-full">
+                                                    <div className="absolute h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
+                                                        style={{ width: activePatient.weight.start > activePatient.weight.current ? `${Math.min(100, ((activePatient.weight.start - activePatient.weight.current) / activePatient.weight.start) * 200)}%` : '5%' }}
+                                                    />
                                                 </div>
                                             </div>
-                                        ))}
+                                            <div className="text-center">
+                                                <p className="text-xs text-gray-500 uppercase">Atual</p>
+                                                <p className="text-2xl font-bold text-green-400">{activePatient.weight.current}kg</p>
+                                            </div>
+                                        </div>
+                                        {activePatient.weight.start > activePatient.weight.current && (
+                                            <p className="text-center text-sm text-emerald-400 font-bold">🎉 -{(activePatient.weight.start - activePatient.weight.current).toFixed(1)}kg desde o início!</p>
+                                        )}
+                                    </div>
+                                )}
+                                <div className="glass-panel p-6 rounded-xl border border-white/5">
+                                    <h3 className="font-bold mb-4 flex items-center gap-2">
+                                        <Activity className="text-blue-400" size={20} />
+                                        Resumo de Desempenho
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-white/5 rounded-xl p-4">
+                                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Protocolo ativo</p>
+                                            <p className={`font-bold ${activePatient.hasActiveProtocol ? 'text-green-400' : 'text-gray-500'}`}>
+                                                {activePatient.hasActiveProtocol ? 'Sim' : 'Não atribuído'}
+                                            </p>
+                                        </div>
+                                        <div className="bg-white/5 rounded-xl p-4">
+                                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Objetivo</p>
+                                            <p className="font-bold text-white">{activePatient.primaryGoal || 'Não informado'}</p>
+                                        </div>
+                                        <div className="bg-white/5 rounded-xl p-4">
+                                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Maior streak</p>
+                                            <p className="font-bold text-orange-400">{activePatient.longestStreak} dias</p>
+                                        </div>
+                                        <div className="bg-white/5 rounded-xl p-4">
+                                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Última atividade</p>
+                                            <p className="font-bold text-white">{activePatient.lastLogin}</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
