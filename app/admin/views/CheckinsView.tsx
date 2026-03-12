@@ -1,12 +1,32 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
-    ClipboardList, Plus, AlertCircle, CheckCircle, BarChart2, Edit, Trash2, Search,
-    MessageSquare, Sparkles, TrendingDown, TrendingUp, Activity, X, Save, GripVertical, Loader2, Brain, ShieldCheck, ChevronRight
+    ClipboardList, AlertCircle, CheckCircle, BarChart2, Edit,
+    Search, Sparkles, Activity, X, Save, Loader2, Brain,
+    ShieldCheck, RefreshCw, Flame, Zap, TrendingDown
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
+import { supabase } from "@/lib/supabase"
+
+interface PatientRow {
+    id: string
+    userName: string
+    userAvatar: string
+    date: string
+    riskScore: number
+    riskLevel: 'low' | 'medium' | 'high'
+    summary: string
+    streak: number
+    xp: number
+    plan: string
+    adherenceRate: number
+    hasCheckin: boolean
+    checkinScore: number | null
+}
+
+interface Stats { total: number; low: number; medium: number; high: number }
 
 interface Question {
     id: string
@@ -16,44 +36,42 @@ interface Question {
     required: boolean
 }
 
-interface Response {
-    id: string
-    userName: string
-    userAvatar: string
-    date: string
-    riskScore: number
-    riskLevel: 'low' | 'medium' | 'high'
-    summary: string
-}
-
-const MOCK_QUESTIONS: Question[] = [
+const DEFAULT_QUESTIONS: Question[] = [
     { id: 'q1', type: 'scale', text: 'De 0 a 10, qual sua nota para a dieta esta semana?', required: true },
     { id: 'q2', type: 'text', text: 'Qual foi sua maior dificuldade?', required: true },
     { id: 'q3', type: 'select', text: 'Como está seu intestino?', options: ['Normal', 'Preso', 'Solto'], required: true },
     { id: 'q4', type: 'yesno', text: 'Sentiu compulsão alimentar?', required: true },
+    { id: 'q5', type: 'select', text: 'Como está seu humor?', options: ['Ótimo', 'Bom', 'Regular', 'Ruim'], required: false },
 ]
 
-const MOCK_RESPONSES: Response[] = [
-    { id: 'r1', userName: 'Maria Silva', userAvatar: 'MS', date: 'Hoje, 10:30', riskScore: 8, riskLevel: 'low', summary: 'Está amando a dieta. Emagreceu 2kg.' },
-    { id: 'r2', userName: 'Joana Dark', userAvatar: 'JD', date: 'Ontem, 18:00', riskScore: 3, riskLevel: 'high', summary: 'Relatou compulsão por doces.' },
-    { id: 'r3', userName: 'Fernanda Lima', userAvatar: 'FL', date: 'Ontem, 14:20', riskScore: 5, riskLevel: 'medium', summary: 'Dificuldade com horários.' },
-    { id: 'r4', userName: 'Ana Paula', userAvatar: 'AP', date: 'Ontem, 09:15', riskScore: 9, riskLevel: 'low', summary: 'Excelente adesão ao protocolo.' },
-]
-
-export function CheckinsView({ setView: setMainView }: { setView: (v: any) => void }) {
+export function CheckinsView({ setView: setMainView, tenantId }: { setView: (v: any) => void; tenantId?: string }) {
     const [view, setLocalView] = useState<'dashboard' | 'editor'>('dashboard')
-    const [questions, setQuestions] = useState(MOCK_QUESTIONS)
-    const [responses] = useState(MOCK_RESPONSES)
-    const [selectedResponse, setSelectedResponse] = useState<Response | null>(null)
+    const [responses, setResponses] = useState<PatientRow[]>([])
+    const [stats, setStats] = useState<Stats>({ total: 0, low: 0, medium: 0, high: 0 })
+    const [loading, setLoading] = useState(true)
+    const [selectedResponse, setSelectedResponse] = useState<PatientRow | null>(null)
     const [searchQuery, setSearchQuery] = useState("")
     const [filterRisk, setFilterRisk] = useState<'all' | 'high' | 'medium' | 'low'>('all')
+    const [questions, setQuestions] = useState(DEFAULT_QUESTIONS)
     const [saving, setSaving] = useState(false)
-    const [isAnalyzing, setIsAnalyzing] = useState(false)
 
-    const lowRiskCount = responses.filter(r => r.riskLevel === 'low').length
-    const mediumRiskCount = responses.filter(r => r.riskLevel === 'medium').length
-    const highRiskCount = responses.filter(r => r.riskLevel === 'high').length
-    const total = responses.length
+    const loadData = useCallback(async () => {
+        setLoading(true)
+        try {
+            const res = await fetch('/api/admin/checkins')
+            if (res.ok) {
+                const data = await res.json()
+                setResponses(data.responses || [])
+                setStats(data.stats || { total: 0, low: 0, medium: 0, high: 0 })
+            }
+        } catch (err) {
+            console.error('[CheckinsView] Load error:', err)
+        } finally {
+            setLoading(false)
+        }
+    }, [])
+
+    useEffect(() => { loadData() }, [loadData])
 
     const filteredResponses = responses.filter(r => {
         if (filterRisk !== 'all' && r.riskLevel !== filterRisk) return false
@@ -62,235 +80,334 @@ export function CheckinsView({ setView: setMainView }: { setView: (v: any) => vo
     })
 
     const getRiskBadge = (level: string) => {
-        if (level === 'high') return <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><AlertCircle size={12} /> CRÍTICO</span>
-        if (level === 'medium') return <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><Activity size={12} /> ATENÇÃO</span>
-        return <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><CheckCircle size={12} /> ESTÁVEL</span>
+        if (level === 'high') return (
+            <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                <AlertCircle size={12} /> CRÍTICO
+            </span>
+        )
+        if (level === 'medium') return (
+            <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                <Activity size={12} /> ATENÇÃO
+            </span>
+        )
+        return (
+            <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                <CheckCircle size={12} /> ESTÁVEL
+            </span>
+        )
     }
 
-    const addQuestion = () => setQuestions(prev => [...prev, { id: `q-${Date.now()}`, type: 'text', text: 'Nova pergunta...', required: false }])
-    const deleteQuestion = (id: string) => setQuestions(prev => prev.filter(q => q.id !== id))
-    const updateQuestion = (id: string, field: string, value: any) => setQuestions(prev => prev.map(q => q.id === id ? { ...q, [field]: value } : q))
-    const handleSave = async () => { setSaving(true); await new Promise(r => setTimeout(r, 1500)); setSaving(false) }
-
-    const analyzeWithAI = async (response: Response) => {
-        setIsAnalyzing(true)
-        try {
-            const res = await fetch('/api/ai/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    task: 'marketing-suggestion', // Using this for now, though we might want a specific 'checkin-analysis' later
-                    context: `Analisando check-in da paciente ${response.userName}. Resumo atual: ${response.summary}. Risco: ${response.riskLevel}.`,
-                    prompt: `Como uma IA de acompanhamento nutricional de elite, analise este check-in e forneça um insight interpretativo rápido e uma sugestão de ação para o nutricionista.`
-                })
-            })
-            const data = await res.json()
-            if (data.error) throw new Error(data.error)
-            
-            setSelectedResponse(prev => prev ? { ...prev, summary: data.message } : null)
-        } catch (err: any) {
-            console.error("Erro AI Checkin:", err)
-            alert("Erro ao gerar análise: " + err.message)
-        } finally {
-            setIsAnalyzing(false)
-        }
+    const getPlanBadge = (plan: string) => {
+        if (plan === 'vip') return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+        if (plan === 'tech_diet') return 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+        return 'bg-slate-500/10 text-slate-400 border-slate-500/20'
     }
+
+    const handleSaveQuestions = async () => {
+        setSaving(true)
+        await new Promise(r => setTimeout(r, 800))
+        setSaving(false)
+    }
+
+    const addQuestion = () => setQuestions(prev => [...prev, {
+        id: `q-${Date.now()}`, type: 'text', text: 'Nova pergunta...', required: false
+    }])
 
     return (
         <div className="space-y-8 pb-32">
-            {/* Header Clinical */}
+            {/* Header */}
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div className="space-y-1">
                     <div className="flex items-center gap-2 mb-2">
                         <div className="bg-indigo-600/20 p-2 rounded-xl border border-indigo-500/30">
                             <Brain size={20} className="text-indigo-400" />
                         </div>
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">Monitoramento Biométrico</span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">Monitoramento em Tempo Real</span>
                     </div>
-                    <h1 className="text-4xl font-light text-white tracking-tight">Check-ins <span className="font-bold">Inteligentes</span></h1>
-                    <p className="text-slate-400 font-medium font-medium">Análise qualitativa e detecção de riscos em tempo real.</p>
+                    <h1 className="text-4xl font-light text-white tracking-tight">
+                        Check-ins <span className="font-bold">Inteligentes</span>
+                    </h1>
+                    <p className="text-slate-400">
+                        {loading ? 'Carregando...' : `${stats.total} rainhas · dados reais`}
+                    </p>
                 </div>
-                <div className="flex bg-slate-950 p-1.5 rounded-[1.25rem] border border-white/10 shadow-xl">
-                    <button onClick={() => setLocalView('dashboard')} className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${view === 'dashboard' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'text-slate-500 hover:text-white'}`}>
-                        <BarChart2 size={16} className="inline mr-2" />Monitoramento
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={loadData}
+                        className="h-10 w-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all"
+                    >
+                        <RefreshCw size={16} className={`text-slate-400 ${loading ? 'animate-spin' : ''}`} />
                     </button>
-                    <button onClick={() => setLocalView('editor')} className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${view === 'editor' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'text-slate-500 hover:text-white'}`}>
-                        <Edit size={16} className="inline mr-2" />Configuração
-                    </button>
+                    <div className="flex bg-slate-950 p-1.5 rounded-[1.25rem] border border-white/10">
+                        <button
+                            onClick={() => setLocalView('dashboard')}
+                            className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${view === 'dashboard' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-white'}`}
+                        >
+                            <BarChart2 size={14} className="inline mr-2" />Monitoramento
+                        </button>
+                        <button
+                            onClick={() => setLocalView('editor')}
+                            className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${view === 'editor' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-white'}`}
+                        >
+                            <Edit size={14} className="inline mr-2" />Configuração
+                        </button>
+                    </div>
                 </div>
             </div>
 
+            {/* Dashboard view */}
             {view === 'dashboard' && (
-                <div className="space-y-10">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="glass-panel p-8 rounded-[2rem] border border-emerald-500/20 bg-emerald-500/5 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-3xl" />
-                            <h3 className="text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4"><CheckCircle size={16} /> Performance Alta</h3>
-                            <p className="text-5xl font-black text-white tracking-tighter">{Math.round((lowRiskCount / total) * 100)}<span className="text-2xl text-emerald-500/50">%</span></p>
-                            <p className="text-xs text-slate-500 mt-2 font-medium">{lowRiskCount} rainhas em adesão total</p>
-                        </div>
-                        <div className="glass-panel p-8 rounded-[2rem] border border-amber-500/20 bg-amber-500/5 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 blur-3xl" />
-                            <h3 className="text-amber-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4"><Activity size={16} /> Alerta de Estagnação</h3>
-                            <p className="text-5xl font-black text-white tracking-tighter">{Math.round((mediumRiskCount / total) * 100)}<span className="text-2xl text-amber-500/50">%</span></p>
-                            <p className="text-xs text-slate-500 mt-2 font-medium">{mediumRiskCount} precisam de ajuste leve</p>
-                        </div>
-                        <div className="glass-panel p-8 rounded-[2rem] border border-rose-500/20 bg-rose-500/5 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 blur-3xl" />
-                            <h3 className="text-rose-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4"><AlertCircle size={16} /> Risco de Evasão</h3>
-                            <p className="text-5xl font-black text-white tracking-tighter">{Math.round((highRiskCount / total) * 100)}<span className="text-2xl text-rose-500/50">%</span></p>
-                            <p className="text-xs text-slate-500 mt-2 font-medium">{highRiskCount} em situação crítica</p>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col md:flex-row items-center gap-6">
-                        <div className="relative flex-1 w-full group">
-                            <Search className="absolute left-4 top-4 text-slate-600 group-focus-within:text-indigo-400 transition-colors" size={20} />
-                            <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-950 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-white outline-none focus:border-indigo-500/50 transition-all font-medium" placeholder="Filtrar por nome da rainha..." />
-                        </div>
-                        <div className="flex gap-2 w-full md:w-auto overflow-x-auto no-scrollbar pb-2">
-                            {['all', 'high', 'medium', 'low'].map((r) => (
-                                <button key={r} onClick={() => setFilterRisk(r as any)} className={`px-5 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${filterRisk === r ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-900/40' : 'bg-slate-950 border-white/10 text-slate-500 hover:text-white'}`}>
-                                    {r === 'all' ? 'Ver Todos' : r === 'high' ? '⚠️ Crítico' : r === 'medium' ? '⚡ Atenção' : '✅ Estável'}
-                                </button>
+                <div className="space-y-8">
+                    {/* Stats cards */}
+                    {loading ? (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {[1,2,3].map(i => (
+                                <div key={i} className="glass-panel p-8 rounded-[2rem] border border-white/10 bg-white/5 animate-pulse h-32" />
                             ))}
                         </div>
-                    </div>
-
-                    <div className="rounded-[2.5rem] border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden shadow-2xl divide-y divide-white/5">
-                        <div className="bg-slate-900/50 p-6 grid grid-cols-4 items-center text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                            <span>Rainha</span>
-                            <span>Insights da IA</span>
-                            <span>Data do Registro</span>
-                            <span className="text-right">Status Bio</span>
-                        </div>
-                        {filteredResponses.map((r) => (
-                            <div key={r.id} onClick={() => setSelectedResponse(r)} className="p-6 grid grid-cols-4 items-center hover:bg-white/[0.04] cursor-pointer transition-all group">
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xs font-black shadow-inner border border-white/10 ${r.riskLevel === 'high' ? 'bg-rose-500/10 text-rose-400' : r.riskLevel === 'medium' ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'}`}>{r.userAvatar}</div>
-                                    <span className="font-bold text-white group-hover:text-indigo-400 transition-colors text-sm">{r.userName}</span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <Sparkles size={16} className="text-indigo-400 shrink-0" />
-                                    <span className="text-slate-400 text-sm italic truncate font-light">"{r.summary}"</span>
-                                </div>
-                                <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest">{r.date}</span>
-                                <div className="flex justify-end">{getRiskBadge(r.riskLevel)}</div>
+                    ) : stats.total === 0 ? (
+                        <div className="text-center py-20 bg-white/5 rounded-3xl border border-white/10">
+                            <div className="h-16 w-16 rounded-3xl bg-white/5 flex items-center justify-center mx-auto mb-4">
+                                <ClipboardList size={32} className="text-slate-600" />
                             </div>
-                        ))}
-                    </div>
+                            <h3 className="text-lg font-bold text-white mb-2">Nenhuma rainha cadastrada ainda</h3>
+                            <p className="text-slate-400 text-sm">Quando suas pacientes se cadastrarem, os dados de risco aparecerão aqui.</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="glass-panel p-8 rounded-[2rem] border border-emerald-500/20 bg-emerald-500/5">
+                                    <h3 className="text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4">
+                                        <CheckCircle size={16} /> Estável
+                                    </h3>
+                                    <p className="text-5xl font-black text-white tracking-tighter">
+                                        {stats.total > 0 ? Math.round((stats.low / stats.total) * 100) : 0}
+                                        <span className="text-2xl text-emerald-500/50">%</span>
+                                    </p>
+                                    <p className="text-xs text-slate-500 mt-2">{stats.low} rainhas em adesão total</p>
+                                </div>
+                                <div className="glass-panel p-8 rounded-[2rem] border border-amber-500/20 bg-amber-500/5">
+                                    <h3 className="text-amber-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4">
+                                        <Activity size={16} /> Atenção
+                                    </h3>
+                                    <p className="text-5xl font-black text-white tracking-tighter">
+                                        {stats.total > 0 ? Math.round((stats.medium / stats.total) * 100) : 0}
+                                        <span className="text-2xl text-amber-500/50">%</span>
+                                    </p>
+                                    <p className="text-xs text-slate-500 mt-2">{stats.medium} precisam de ajuste leve</p>
+                                </div>
+                                <div className="glass-panel p-8 rounded-[2rem] border border-rose-500/20 bg-rose-500/5">
+                                    <h3 className="text-rose-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4">
+                                        <AlertCircle size={16} /> Risco de Evasão
+                                    </h3>
+                                    <p className="text-5xl font-black text-white tracking-tighter">
+                                        {stats.total > 0 ? Math.round((stats.high / stats.total) * 100) : 0}
+                                        <span className="text-2xl text-rose-500/50">%</span>
+                                    </p>
+                                    <p className="text-xs text-slate-500 mt-2">{stats.high} em situação crítica</p>
+                                </div>
+                            </div>
+
+                            {/* Filters */}
+                            <div className="flex flex-col md:flex-row items-center gap-4">
+                                <div className="relative flex-1 w-full group">
+                                    <Search className="absolute left-4 top-4 text-slate-600 group-focus-within:text-indigo-400 transition-colors" size={18} />
+                                    <input
+                                        value={searchQuery}
+                                        onChange={e => setSearchQuery(e.target.value)}
+                                        className="w-full bg-slate-950 border border-white/10 rounded-2xl py-4 pl-11 pr-6 text-white outline-none focus:border-indigo-500/50 transition-all text-sm"
+                                        placeholder="Buscar por nome..."
+                                    />
+                                </div>
+                                <div className="flex gap-2 overflow-x-auto no-scrollbar w-full md:w-auto">
+                                    {(['all', 'high', 'medium', 'low'] as const).map(r => (
+                                        <button
+                                            key={r}
+                                            onClick={() => setFilterRisk(r)}
+                                            className={`px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${filterRisk === r ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-950 border-white/10 text-slate-500 hover:text-white'}`}
+                                        >
+                                            {r === 'all' ? 'Todas' : r === 'high' ? '⚠️ Crítico' : r === 'medium' ? '⚡ Atenção' : '✅ Estável'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Table */}
+                            <div className="rounded-[2rem] border border-white/10 bg-white/5 overflow-hidden divide-y divide-white/5">
+                                <div className="bg-slate-900/50 px-6 py-4 grid grid-cols-4 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                                    <span>Rainha</span>
+                                    <span>Situação</span>
+                                    <span>Engajamento</span>
+                                    <span className="text-right">Status</span>
+                                </div>
+
+                                {filteredResponses.length === 0 && (
+                                    <div className="p-8 text-center text-slate-500">Nenhuma rainha encontrada.</div>
+                                )}
+
+                                {filteredResponses.map(r => (
+                                    <div
+                                        key={r.id}
+                                        onClick={() => setSelectedResponse(r)}
+                                        className="px-6 py-4 grid grid-cols-4 items-center hover:bg-white/[0.04] cursor-pointer transition-all group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-xs font-black border ${r.riskLevel === 'high' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : r.riskLevel === 'medium' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
+                                                {r.userAvatar}
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-white text-sm group-hover:text-indigo-400 transition-colors">{r.userName}</p>
+                                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase ${getPlanBadge(r.plan)}`}>
+                                                    {r.plan === 'vip' ? 'VIP' : r.plan === 'tech_diet' ? 'Tech Diet' : 'Community'}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-start gap-2">
+                                            <Sparkles size={14} className="text-indigo-400 shrink-0 mt-0.5" />
+                                            <span className="text-slate-400 text-xs italic truncate">"{r.summary}"</span>
+                                        </div>
+
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-1">
+                                                <Flame size={12} className="text-orange-400" />
+                                                <span className="text-xs font-bold text-slate-300">{r.streak}d</span>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <Zap size={12} className="text-yellow-400" />
+                                                <span className="text-xs font-bold text-slate-300">{r.xp} XP</span>
+                                            </div>
+                                            <div className="hidden md:flex items-center gap-1">
+                                                <TrendingDown size={12} className={r.adherenceRate >= 60 ? "text-emerald-400" : "text-rose-400"} />
+                                                <span className="text-xs font-bold text-slate-300">{r.adherenceRate}%</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-end">{getRiskBadge(r.riskLevel)}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
 
+            {/* Editor view */}
             {view === 'editor' && (
-                <div className="max-w-3xl mx-auto space-y-8 mt-10">
-                    <div className="glass-panel p-8 rounded-[2.5rem] border border-indigo-500/20 bg-indigo-500/5 flex items-center gap-6 shadow-2xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-3xl" />
-                        <div className="bg-indigo-600/20 p-4 rounded-2xl border border-indigo-500/30 text-indigo-400 shadow-inner">
-                            <ShieldCheck size={32} />
+                <div className="max-w-3xl mx-auto space-y-6">
+                    <div className="glass-panel p-6 rounded-[2rem] border border-indigo-500/20 bg-indigo-500/5 flex items-center gap-4">
+                        <div className="bg-indigo-600/20 p-3 rounded-2xl border border-indigo-500/30 text-indigo-400">
+                            <ShieldCheck size={28} />
                         </div>
                         <div>
-                            <h3 className="font-bold text-white text-lg tracking-tight">Arquitetura de Check-in</h3>
-                            <p className="text-sm text-slate-400 font-medium">Cronograma: Envio automatizado a cada 15 dias para todo o reino.</p>
+                            <h3 className="font-bold text-white">Formulário de Check-in Semanal</h3>
+                            <p className="text-sm text-slate-400">A paciente acessa em /patient/checkin toda semana.</p>
                         </div>
                     </div>
 
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                         {questions.map((q, i) => (
-                            <div key={q.id} className="glass-panel p-6 rounded-[2rem] border border-white/10 bg-white/5 group flex items-start gap-6 hover:border-indigo-500/30 transition-all shadow-xl">
-                                <span className="text-slate-700 font-black text-2xl pt-2">{String(i + 1).padStart(2, '0')}</span>
-                                <div className="flex-1 space-y-4">
-                                    <input value={q.text} onChange={(e) => updateQuestion(q.id, 'text', e.target.value)} className="w-full bg-transparent font-bold text-white outline-none border-b border-transparent focus:border-indigo-500 pb-2 text-lg transition-all" />
-                                    <div className="flex items-center gap-4">
-                                        <div className="relative">
-                                            <select value={q.type} onChange={(e) => updateQuestion(q.id, 'type', e.target.value)} className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-400 appearance-none cursor-pointer focus:border-indigo-500 outline-none">
-                                                <option value="scale">Métrica 0-10</option>
-                                                <option value="text">Campo de Texto</option>
-                                                <option value="select">Múltipla Escolha</option>
-                                                <option value="yesno">Decisão Binária (S/N)</option>
-                                            </select>
-                                            <ChevronRight size={14} className="absolute right-3 top-3 text-slate-600 rotate-90" />
-                                        </div>
-                                        <label className="flex items-center gap-2 cursor-pointer group/check">
-                                            <input
-                                                type="checkbox"
-                                                checked={q.required}
-                                                onChange={(e) => updateQuestion(q.id, 'required', e.target.checked)}
-                                                className="w-4 h-4 rounded border-white/10 bg-white/5 checked:bg-indigo-600 transition-all cursor-pointer"
-                                            />
-                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 group-hover/check:text-indigo-400 transition-colors">Obrigatório</span>
-                                        </label>
-                                    </div>
+                            <div key={q.id} className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex items-start gap-4">
+                                <span className="text-slate-600 font-black text-sm mt-0.5">{i + 1}</span>
+                                <div className="flex-1">
+                                    <input
+                                        value={q.text}
+                                        onChange={e => setQuestions(prev => prev.map(x => x.id === q.id ? { ...x, text: e.target.value } : x))}
+                                        className="w-full bg-transparent text-white font-medium text-sm outline-none border-b border-white/10 pb-1 focus:border-indigo-500/50 transition-all"
+                                    />
+                                    <span className={`text-[9px] font-black uppercase tracking-widest mt-2 inline-block px-2 py-0.5 rounded border ${q.type === 'scale' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : q.type === 'yesno' ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>
+                                        {q.type}
+                                    </span>
                                 </div>
-                                <button onClick={() => deleteQuestion(q.id)} className="opacity-0 group-hover:opacity-100 text-rose-500 p-3 hover:bg-rose-500/10 rounded-xl transition-all"><Trash2 size={20} /></button>
                             </div>
                         ))}
                     </div>
 
-                    <div className="flex flex-col md:flex-row gap-4">
-                        <button onClick={addQuestion} className="flex-1 py-8 border-2 border-dashed border-white/10 rounded-[2rem] text-slate-600 hover:text-indigo-400 hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all flex items-center justify-center gap-3 font-black uppercase tracking-widest text-xs">
-                            <Plus size={24} /> Criar Novo Campo de Análise
-                        </button>
-                        <Button
-                            onClick={handleSave}
-                            disabled={saving}
-                            className="h-24 px-12 rounded-[2rem] bg-indigo-600 hover:bg-indigo-500 shadow-2xl shadow-indigo-900/40 font-black uppercase tracking-[0.2em] text-sm border-none gap-4"
+                    <div className="flex gap-3">
+                        <button
+                            onClick={addQuestion}
+                            className="flex-1 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-slate-400 text-sm font-bold"
                         >
-                            {saving ? <Loader2 className="animate-spin" size={24} /> : <Save size={24} />}
-                            {saving ? 'Validando...' : 'Propagar no Reino'}
-                        </Button>
+                            + Adicionar pergunta
+                        </button>
+                        <button
+                            onClick={handleSaveQuestions}
+                            disabled={saving}
+                            className="flex-1 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 transition-all text-white text-sm font-bold flex items-center justify-center gap-2"
+                        >
+                            {saving ? <><Loader2 size={14} className="animate-spin" /> Salvando</> : <><Save size={14} /> Salvar</>}
+                        </button>
                     </div>
                 </div>
             )}
 
+            {/* Patient detail panel */}
             <AnimatePresence>
                 {selectedResponse && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-[#020617]/95 backdrop-blur-2xl z-[100] flex items-center justify-center p-6" onClick={() => setSelectedResponse(null)}>
-                        <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} onClick={(e) => e.stopPropagation()} className="bg-slate-900 border border-white/10 w-full max-w-xl rounded-[3rem] overflow-hidden shadow-2xl">
-                            <div className="p-10 border-b border-white/5 flex justify-between items-start">
-                                <div className="flex items-center gap-6">
-                                    <div className={`w-16 h-16 rounded-[1.25rem] flex items-center justify-center text-xl font-black shadow-inner border border-white/10 ${selectedResponse.riskLevel === 'high' ? 'bg-rose-500/10 text-rose-400' : selectedResponse.riskLevel === 'medium' ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'}`}>{selectedResponse.userAvatar}</div>
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-4"
+                        onClick={() => setSelectedResponse(null)}
+                    >
+                        <motion.div
+                            initial={{ y: 40, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={{ y: 40, opacity: 0 }}
+                            onClick={e => e.stopPropagation()}
+                            className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-md"
+                        >
+                            <div className="flex items-center justify-between mb-5">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-black border ${selectedResponse.riskLevel === 'high' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : selectedResponse.riskLevel === 'medium' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
+                                        {selectedResponse.userAvatar}
+                                    </div>
                                     <div>
-                                        <h3 className="text-2xl font-bold text-white tracking-tight">{selectedResponse.userName}</h3>
-                                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">Registro Biomático: {selectedResponse.date}</p>
+                                        <p className="font-bold text-white">{selectedResponse.userName}</p>
+                                        <p className="text-xs text-slate-500">{selectedResponse.date}</p>
                                     </div>
                                 </div>
-                                <button onClick={() => setSelectedResponse(null)} className="h-10 w-10 rounded-xl bg-white/5 flex items-center justify-center text-slate-500 hover:text-white transition-all"><X size={20} /></button>
+                                <button onClick={() => setSelectedResponse(null)} className="text-slate-500 hover:text-white">
+                                    <X size={20} />
+                                </button>
                             </div>
-                            <div className="p-10 space-y-8">
-                                <div className="grid grid-cols-2 gap-8">
-                                    <div className="space-y-1">
-                                        <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Nível de Risco</span>
-                                        <div className="pt-2">{getRiskBadge(selectedResponse.riskLevel)}</div>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Score Qualitativo</span>
-                                        <div className="text-3xl font-black text-white pt-1">{selectedResponse.riskScore}<span className="text-slate-600 font-light">/10</span></div>
-                                    </div>
-                                </div>
 
-                                <div className="glass-panel p-8 rounded-[2rem] border border-indigo-500/20 bg-indigo-500/5 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 blur-3xl" />
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="flex items-center gap-3 text-indigo-400 text-[10px] font-black uppercase tracking-widest">
-                                            <Sparkles size={16} /> Análise Interpretativa Nutri.AI
-                                        </div>
-                                        <button 
-                                            onClick={() => analyzeWithAI(selectedResponse)}
-                                            disabled={isAnalyzing}
-                                            className="text-indigo-400 hover:text-white transition-colors"
-                                        >
-                                            {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
-                                        </button>
-                                    </div>
-                                    <p className="text-slate-300 text-base leading-relaxed font-light italic">
-                                        {isAnalyzing ? "Analisando biomarcadores em tempo real..." : `"${selectedResponse.summary}"`}
+                            <div className="grid grid-cols-3 gap-3 mb-5">
+                                <div className="bg-white/5 rounded-xl p-3 text-center">
+                                    <p className="text-orange-400 text-lg font-black">{selectedResponse.streak}</p>
+                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider">Streak</p>
+                                </div>
+                                <div className="bg-white/5 rounded-xl p-3 text-center">
+                                    <p className="text-yellow-400 text-lg font-black">{selectedResponse.xp}</p>
+                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider">XP Total</p>
+                                </div>
+                                <div className="bg-white/5 rounded-xl p-3 text-center">
+                                    <p className={`text-lg font-black ${selectedResponse.adherenceRate >= 60 ? 'text-emerald-400' : 'text-rose-400'}`}>{selectedResponse.adherenceRate}%</p>
+                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider">Adesão 7d</p>
+                                </div>
+                            </div>
+
+                            <div className="bg-white/5 rounded-2xl p-4 mb-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Sparkles size={14} className="text-indigo-400" />
+                                    <p className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
+                                        {selectedResponse.hasCheckin ? 'Análise IA (check-in)' : 'Score de Risco (dados de comportamento)'}
                                     </p>
                                 </div>
+                                <p className="text-sm text-slate-300 italic">"{selectedResponse.summary}"</p>
+                            </div>
 
-                                <Button className="w-full h-16 bg-white hover:bg-slate-200 text-slate-900 rounded-2xl font-black uppercase tracking-widest text-xs gap-3 shadow-2xl shadow-white/5 border-none">
-                                    <MessageSquare size={18} /> Iniciar Intervenção Direta
-                                </Button>
+                            <div className="flex justify-between items-center">
+                                {getRiskBadge(selectedResponse.riskLevel)}
+                                {selectedResponse.checkinScore !== null && (
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-xs text-slate-500">Nota dieta:</span>
+                                        <span className={`text-sm font-black ${selectedResponse.checkinScore >= 7 ? 'text-emerald-400' : selectedResponse.checkinScore >= 5 ? 'text-amber-400' : 'text-rose-400'}`}>
+                                            {selectedResponse.checkinScore}/10
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     </motion.div>
