@@ -40,8 +40,6 @@ import { SalesPageGenerator } from "./views/SalesPageGenerator"
 import { LibraryView } from "./views/LibraryView"
 import { AISettingsView } from "./views/AISettingsView"
 import { SettingsView } from "./views/SettingsView"
-import { NutritionistsView } from "./views/NutritionistsView"
-import { TeamView } from "./views/TeamView"
 import { ClubPlanView } from "./views/ClubPlanView"
 import { repairProfile } from "./actions/repairProfileAction"
 import AccountOverlay from "./components/AccountOverlay"
@@ -52,7 +50,7 @@ import { ChevronDown, LogOut, User as UserIcon, Building2, Palette } from "lucid
 
 import { SettingsLoginView } from "./views/SettingsLoginView"
 
-type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'nutritionists' | 'team' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'library' | 'settings' | 'settings-login' | 'club-plan'
+type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'library' | 'settings' | 'settings-login' | 'club-plan'
 
 const navItems = [
     { id: 'dashboard' as ViewType, label: 'Painel Central', icon: LayoutDashboard },
@@ -61,8 +59,6 @@ const navItems = [
     { id: 'protocols' as ViewType, label: 'Bio-Protocolos', icon: FileText },
     { id: 'challenges' as ViewType, label: 'Jornadas', icon: Trophy },
     { id: 'patients' as ViewType, label: 'Rainhas', icon: Users },
-    { id: 'nutritionists' as ViewType, label: 'Nutricionistas', icon: ShieldCheck },
-    { id: 'team' as ViewType, label: 'Equipe & Parceiros', icon: Users },
     { id: 'rewards' as ViewType, label: 'Recompensas', icon: Crown },
     { id: 'checkins' as ViewType, label: 'Check-ins IA', icon: MessageCircle },
     { id: 'library' as ViewType, label: 'Cérebro Técnico', icon: BookOpen },
@@ -105,8 +101,6 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
             case 'protocols': return <ProtocolsView setView={setActiveView} />
             case 'challenges': return <ChallengesView setView={setActiveView} />
             case 'patients': return <PatientsView setView={setActiveView} />
-            case 'nutritionists': return <NutritionistsView setView={setActiveView} />
-            case 'team': return <TeamView />
             case 'rewards': return <RewardsView setView={setActiveView} />
             case 'checkins': return <CheckinsView setView={setActiveView} />
             case 'library': return <LibraryView setView={setActiveView} />

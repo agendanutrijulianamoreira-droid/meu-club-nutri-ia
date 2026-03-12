@@ -48,6 +48,7 @@ export function CheckinsView({ setView: setMainView }: { setView: (v: any) => vo
     const [searchQuery, setSearchQuery] = useState("")
     const [filterRisk, setFilterRisk] = useState<'all' | 'high' | 'medium' | 'low'>('all')
     const [saving, setSaving] = useState(false)
+    const [isAnalyzing, setIsAnalyzing] = useState(false)
 
     const lowRiskCount = responses.filter(r => r.riskLevel === 'low').length
     const mediumRiskCount = responses.filter(r => r.riskLevel === 'medium').length
@@ -70,6 +71,30 @@ export function CheckinsView({ setView: setMainView }: { setView: (v: any) => vo
     const deleteQuestion = (id: string) => setQuestions(prev => prev.filter(q => q.id !== id))
     const updateQuestion = (id: string, field: string, value: any) => setQuestions(prev => prev.map(q => q.id === id ? { ...q, [field]: value } : q))
     const handleSave = async () => { setSaving(true); await new Promise(r => setTimeout(r, 1500)); setSaving(false) }
+
+    const analyzeWithAI = async (response: Response) => {
+        setIsAnalyzing(true)
+        try {
+            const res = await fetch('/api/ai/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    task: 'marketing-suggestion', // Using this for now, though we might want a specific 'checkin-analysis' later
+                    context: `Analisando check-in da paciente ${response.userName}. Resumo atual: ${response.summary}. Risco: ${response.riskLevel}.`,
+                    prompt: `Como uma IA de acompanhamento nutricional de elite, analise este check-in e forneça um insight interpretativo rápido e uma sugestão de ação para o nutricionista.`
+                })
+            })
+            const data = await res.json()
+            if (data.error) throw new Error(data.error)
+            
+            setSelectedResponse(prev => prev ? { ...prev, summary: data.message } : null)
+        } catch (err: any) {
+            console.error("Erro AI Checkin:", err)
+            alert("Erro ao gerar análise: " + err.message)
+        } finally {
+            setIsAnalyzing(false)
+        }
+    }
 
     return (
         <div className="space-y-8 pb-32">
@@ -246,10 +271,21 @@ export function CheckinsView({ setView: setMainView }: { setView: (v: any) => vo
 
                                 <div className="glass-panel p-8 rounded-[2rem] border border-indigo-500/20 bg-indigo-500/5 relative overflow-hidden">
                                     <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 blur-3xl" />
-                                    <div className="flex items-center gap-3 mb-4 text-indigo-400 text-[10px] font-black uppercase tracking-widest">
-                                        <Sparkles size={16} /> Análise Interpretativa Nutri.AI
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-3 text-indigo-400 text-[10px] font-black uppercase tracking-widest">
+                                            <Sparkles size={16} /> Análise Interpretativa Nutri.AI
+                                        </div>
+                                        <button 
+                                            onClick={() => analyzeWithAI(selectedResponse)}
+                                            disabled={isAnalyzing}
+                                            className="text-indigo-400 hover:text-white transition-colors"
+                                        >
+                                            {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
+                                        </button>
                                     </div>
-                                    <p className="text-slate-300 text-base leading-relaxed font-light italic">"{selectedResponse.summary}"</p>
+                                    <p className="text-slate-300 text-base leading-relaxed font-light italic">
+                                        {isAnalyzing ? "Analisando biomarcadores em tempo real..." : `"${selectedResponse.summary}"`}
+                                    </p>
                                 </div>
 
                                 <Button className="w-full h-16 bg-white hover:bg-slate-200 text-slate-900 rounded-2xl font-black uppercase tracking-widest text-xs gap-3 shadow-2xl shadow-white/5 border-none">

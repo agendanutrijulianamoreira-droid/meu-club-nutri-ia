@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getStripe } from '@/lib/stripe'
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
+import { OnboardingService } from '@/lib/services/onboarding'
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -136,6 +137,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     }
 
     console.log(`[Webhook] Subscription activated: ${userId} → ${plan}`)
+
+    // 4. Enviar boas-vindas (Email/WhatsApp)
+    await OnboardingService.sendWelcomeMessages(userId, tenantId)
 }
 
 /**

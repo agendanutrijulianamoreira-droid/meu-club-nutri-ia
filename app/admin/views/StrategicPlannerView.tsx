@@ -63,10 +63,37 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
 
     // Strategy context from setup
     const [strategy, setStrategy] = useState({
-        name: "Protoc olo Folia: Energia & Hidratação",
+        name: "Protocolo Folia: Energia & Hidratação",
         description: "Foco total em retenção de líquidos e energia rápida para o pré-carnaval.",
         suggestedPush: "Faltam 5 dias para a folia! Já garantiu seu shot de imunidade hoje? 💉"
     })
+    const [isGeneratingPush, setIsGeneratingPush] = useState(false)
+
+    const refreshAISuggestion = async () => {
+        setIsGeneratingPush(true)
+        try {
+            const res = await fetch('/api/ai/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    task: 'marketing-suggestion',
+                    context: `Estratégia: ${strategy.name}. Objetivo: ${strategy.description}`,
+                    prompt: `Gere uma notificação push curta e impactante para as pacientes seguirem a estratégia do mês.`
+                })
+            })
+            const data = await res.json()
+            if (data.error) throw new Error(data.error)
+            
+            setStrategy(prev => ({ 
+                ...prev, 
+                suggestedPush: data.message 
+            }))
+        } catch (err: any) {
+            console.error("Erro AI Push:", err)
+        } finally {
+            setIsGeneratingPush(false)
+        }
+    }
 
     const monthNames = [
         "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -496,12 +523,21 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
 
                 {/* AI Push Suggestion */}
                 <div className="glass-panel p-4 rounded-xl border border-yellow-500/20 mb-6">
-                    <div className="flex items-center gap-2 mb-2 text-yellow-400 font-bold text-sm">
-                        <Sparkles size={16} />
-                        Sugestão de Push (IA)
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 text-yellow-400 font-bold text-sm">
+                            <Sparkles size={16} />
+                            Sugestão de Push (IA)
+                        </div>
+                        <button 
+                            onClick={refreshAISuggestion}
+                            disabled={isGeneratingPush}
+                            className="text-gray-500 hover:text-white transition-colors"
+                        >
+                            <Repeat size={12} className={isGeneratingPush ? 'animate-spin' : ''} />
+                        </button>
                     </div>
                     <p className="text-sm italic text-gray-300 leading-relaxed">
-                        "{strategy.suggestedPush}"
+                        {isGeneratingPush ? "Gerando estratégia..." : `"${strategy.suggestedPush}"`}
                     </p>
                     <Button
                         onClick={useSuggestedPush}
@@ -702,7 +738,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                             </button>
 
                                             {/* Delete Options for Recurring Events */}
-                                            {selectedEvent.recurrence_id ? (
+                                            {selectedEvent?.recurrence_id ? (
                                                 <div className="flex bg-white/5 rounded-lg overflow-hidden border border-white/10 ring-1 ring-red-500/20">
                                                     <button
                                                         onClick={() => handleDeleteEvent(false)}

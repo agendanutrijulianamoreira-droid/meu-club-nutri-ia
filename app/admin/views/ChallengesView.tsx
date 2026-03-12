@@ -285,24 +285,33 @@ function ChallengeModal({
 
 
     const generateWithAI = async () => {
-        setGenerating(true)
-        // Simulated AI generation
-        await new Promise(r => setTimeout(r, 1500))
+        setGenerating(true);
+        try {
+            const res = await fetch('/api/ai/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    task: 'generate-challenge',
+                    context: `Sugira um desafio para o app "Meu Club Nutri".`,
+                    prompt: `Gere um novo desafio gamificado criativo.`
+                })
+            });
 
-        const challenges = [
-            { title: "Desafio 21 Dias Sem Açúcar", description: "Elimine açúcar refinado por 21 dias e sinta a transformação.", emoji: "🍬", duration_days: 21 },
-            { title: "Hidratação Máxima", description: "Beba 3 litros de água por dia durante uma semana.", emoji: "💧", duration_days: 7 },
-            { title: "30 Dias de Movimento", description: "Faça pelo menos 30 minutos de atividade física diária.", emoji: "🏃", duration_days: 30 },
-            { title: "Jejum Intermitente 16:8", description: "Pratique o jejum intermitente por 14 dias consecutivos.", emoji: "⏰", duration_days: 14 },
-            { title: "Detox Digital Noturno", description: "Sem telas após as 21h por 7 dias.", emoji: "📵", duration_days: 7 },
-        ]
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
 
-        const random = challenges[Math.floor(Math.random() * challenges.length)]
-        setFormData({
-            ...formData,
-            ...random
-        })
-        setGenerating(false)
+            setFormData(prev => ({
+                ...prev,
+                title: data.title || prev.title,
+                description: data.description || prev.description,
+                emoji: data.emoji || prev.emoji,
+                duration_days: data.duration_days || prev.duration_days
+            }));
+        } catch (err: any) {
+            alert("Erro na IA: " + err.message);
+        } finally {
+            setGenerating(false);
+        }
     }
 
     return (

@@ -36,6 +36,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
+import { usePatients } from "@/lib/hooks/useDatabase"
 
 interface Patient {
     id: number
@@ -63,122 +64,63 @@ interface Patient {
     }
 }
 
-// Mock Data - Would come from Supabase
-const MOCK_PATIENTS: Patient[] = [
-    {
-        id: 1,
-        name: 'Ana Júlia Silva',
-        email: 'ana.ju@gmail.com',
-        phone: '(11) 99999-1234',
-        plan: 'Comunidade Anual',
-        avatar: 'AJ',
-        status: 'risk',
-        engagement: 32,
-        lastLogin: '3 dias atrás',
-        startDate: 'Jan/2026',
-        aiSummary: 'Ana parou de registrar as refeições na terça-feira. Ela relatou "ansiedade" no último check-in. Sugiro uma mensagem de acolhimento.',
-        badges: ['Iniciante'],
-        xp: 450,
-        level: 3,
-        streak: 0,
-        phase: 1,
-        weight: { current: 72, goal: 65, start: 75 },
-        birthday: '24/10',
-        pushSettings: { reminders: true, marketing: false, challenges: true }
-    },
-    {
-        id: 2,
-        name: 'Carla Dias',
-        email: 'carla.dias@hotmail.com',
-        phone: '(21) 98888-5678',
-        plan: 'Mentoria Premium',
-        avatar: 'CD',
-        status: 'star',
-        engagement: 95,
-        lastLogin: 'Hoje, 09:00',
-        startDate: 'Nov/2025',
-        aiSummary: 'Carla está voando! Bateu todas as metas da semana. Sugiro enviar um parabéns manual para reforçar o comportamento positivo.',
-        badges: ['Fase 2', 'Rainha do Check-in', '30 Dias Streak'],
-        xp: 2850,
-        level: 8,
-        streak: 32,
-        phase: 2,
-        weight: { current: 58, goal: 58, start: 65 },
-        birthday: '15/03',
-        pushSettings: { reminders: true, marketing: true, challenges: true }
-    },
-    {
-        id: 3,
-        name: 'Fernanda Lima',
-        email: 'fe.lima@outlook.com',
-        phone: '(31) 97777-9012',
-        plan: 'Comunidade Mensal',
-        avatar: 'FL',
-        status: 'active',
-        engagement: 68,
-        lastLogin: 'Ontem, 18:30',
-        startDate: 'Dez/2025',
-        aiSummary: 'Fernanda mantém uma rotina consistente. Está na média da comunidade. Considere incentivá-la a participar mais dos desafios.',
-        badges: ['Fase 1', 'Hidratação Master'],
-        xp: 1200,
-        level: 5,
-        streak: 14,
-        phase: 1,
-        weight: { current: 68, goal: 62, start: 70 },
-        pushSettings: { reminders: true, marketing: false, challenges: true }
-    },
-    {
-        id: 4,
-        name: 'Beatriz Costa',
-        email: 'bia.costa@gmail.com',
-        phone: '(41) 96666-3456',
-        plan: 'Comunidade Anual',
-        avatar: 'BC',
-        status: 'risk',
-        engagement: 15,
-        lastLogin: '7 dias atrás',
-        startDate: 'Jan/2026',
-        aiSummary: 'ATENÇÃO: Beatriz não acessa o app há uma semana. Risco de abandono. Recomendo contato urgente via WhatsApp.',
-        badges: ['Iniciante'],
-        xp: 180,
-        level: 2,
-        streak: 0,
-        phase: 1,
-        weight: { current: 80, goal: 70, start: 80 },
-        pushSettings: { reminders: false, marketing: false, challenges: false }
-    },
-    {
-        id: 5,
-        name: 'Marina Santos',
-        email: 'marina.s@yahoo.com',
-        phone: '(51) 95555-7890',
-        plan: 'Mentoria Premium',
-        avatar: 'MS',
-        status: 'star',
-        engagement: 88,
-        lastLogin: 'Hoje, 07:15',
-        startDate: 'Out/2025',
-        aiSummary: 'Marina é uma das líderes do ranking! Completou 3 desafios este mês. Pode ser uma boa embaixadora para depoimentos.',
-        badges: ['Fase 3', 'Top 10 Ranking', 'Madrugadora', 'Atleta'],
-        xp: 4200,
-        level: 10,
-        streak: 45,
-        phase: 3,
-        weight: { current: 55, goal: 55, start: 62 },
-        birthday: '08/06',
-        pushSettings: { reminders: true, marketing: true, challenges: true }
-    },
-]
+// MOCK_PATIENTS removed in favor of usePatients hook
 
 export function PatientsView({ setView }: { setView: (v: any) => void }) {
-    const [selectedId, setSelectedId] = useState(1)
+    const { patients: dbPatients, loading, refresh } = usePatients()
+    const [selectedId, setSelectedId] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'history'>('overview')
     const [searchQuery, setSearchQuery] = useState("")
     const [filterStatus, setFilterStatus] = useState<'all' | 'risk' | 'star' | 'active'>('all')
     const [sendingMessage, setSendingMessage] = useState(false)
+    const [showAddModal, setShowAddModal] = useState(false)
+    const [registering, setRegistering] = useState(false)
+    const [newPatient, setNewPatient] = useState({
+        name: '',
+        email: '',
+        phone: '',
+        password: 'ChangeMe123!',
+        plan: 'tech_diet'
+    })
+    const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null)
+
+    // Clear notification after 5s
+    useEffect(() => {
+        if (notification) {
+            const timer = setTimeout(() => setNotification(null), 5000)
+            return () => clearTimeout(timer)
+        }
+    }, [notification])
+
+    // Map DB patients to the View's interface
+    const patients = dbPatients.map(p => ({
+        id: p.id,
+        name: p.full_name || p.name || 'Sem nome',
+        email: p.email || '',
+        phone: p.phone || '',
+        plan: p.current_plan || 'Nenhum',
+        avatar: (p.full_name || p.name || '?').substring(0, 2).toUpperCase(),
+        status: (p.current_streak > 3 ? 'star' : 'active') as any, // Simple logic for now
+        engagement: Math.min(100, Math.floor(Math.random() * 40 + 60)), // Mock engagement for now
+        lastLogin: p.last_checkin_date ? new Date(p.last_checkin_date).toLocaleDateString() : 'Nunca',
+        startDate: new Date(p.created_at).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }),
+        aiSummary: 'Análise automática indisponível no momento.',
+        badges: [],
+        xp: p.total_points || 0,
+        level: p.current_level || 1,
+        streak: p.current_streak || 0,
+        phase: 1,
+        weight: { current: 0, goal: 0, start: 0 }
+    }))
+
+    useEffect(() => {
+        if (patients.length > 0 && !selectedId) {
+            setSelectedId(patients[0].id)
+        }
+    }, [patients])
 
     // Sort patients: risk first, then stars, then active
-    const sortedPatients = [...MOCK_PATIENTS]
+    const sortedPatients = [...patients]
         .filter(p => {
             if (filterStatus !== 'all' && p.status !== filterStatus) return false
             if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
@@ -187,10 +129,10 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
         })
         .sort((a, b) => {
             const order = { risk: 0, star: 1, active: 2 }
-            return order[a.status] - order[b.status]
+            return order[a.status as keyof typeof order] - order[b.status as keyof typeof order]
         })
 
-    const activePatient = MOCK_PATIENTS.find(p => p.id === selectedId)
+    const activePatient = patients.find(p => p.id === selectedId)
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -208,29 +150,70 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
         }
     }
 
-    const handleSendRescueMessage = async () => {
-        setSendingMessage(true)
-        await new Promise(r => setTimeout(r, 1500))
-        setSendingMessage(false)
-        alert('Mensagem de resgate enviada para ' + activePatient?.name + '!')
+    const handleRegister = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setRegistering(true)
+        try {
+            const res = await fetch('/api/admin/create-patient', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newPatient)
+            })
+
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || 'Erro ao cadastrar')
+
+            setNotification({ type: 'success', message: 'Rainha cadastrada com sucesso! Dados de acesso enviados.' })
+            setShowAddModal(false)
+            refresh()
+        } catch (err: any) {
+            setNotification({ type: 'error', message: err.message })
+        } finally {
+            setRegistering(false)
+        }
     }
 
-    const riskCount = MOCK_PATIENTS.filter(p => p.status === 'risk').length
-    const starCount = MOCK_PATIENTS.filter(p => p.status === 'star').length
+    const riskCount = patients.filter(p => p.status === 'risk').length
+    const starCount = patients.filter(p => p.status === 'star').length
 
     return (
-        <div className="flex h-[calc(100vh-80px)] bg-[#0a0a16] text-white overflow-hidden -m-8">
+        <div className="flex h-[calc(100vh-80px)] bg-[#0a0a16] text-white overflow-hidden -m-8 relative">
+            {/* Global Notification */}
+            <AnimatePresence>
+                {notification && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 20 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-full border shadow-2xl font-bold text-sm ${
+                            notification.type === 'success' 
+                                ? 'bg-green-600/20 border-green-500/50 text-green-400' 
+                                : 'bg-red-600/20 border-red-500/50 text-red-400'
+                        }`}
+                    >
+                        {notification.message}
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* ===== LEFT COLUMN: SMART LIST ===== */}
             <div className="w-80 border-r border-white/5 flex flex-col bg-[#0f0f1a]">
                 <div className="p-6">
-                    <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                        <Crown className="text-queen-pink" size={20} />
-                        Minhas Rainhas
-                        <span className="text-xs bg-white/5 px-2 py-1 rounded text-gray-400">
-                            {MOCK_PATIENTS.length}
-                        </span>
-                    </h2>
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold flex items-center gap-2">
+                            <Crown className="text-queen-pink" size={20} />
+                            Minhas Rainhas
+                            <span className="text-xs bg-white/5 px-2 py-1 rounded text-gray-400">
+                                {patients.length}
+                            </span>
+                        </h2>
+                        <Button 
+                            onClick={() => setShowAddModal(true)}
+                            className="bg-purple-600 hover:bg-purple-500 rounded-full w-8 h-8 p-0"
+                        >
+                            +
+                        </Button>
+                    </div>
                     <div className="relative">
                         <Search className="absolute left-3 top-3 text-gray-500" size={16} />
                         <input
@@ -698,6 +681,94 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                             </div>
                         )}
                     </div>
+                </div>
+            )}
+            {/* ===== MODAL: CADASTRAR RAINHA ===== */}
+            <AnimatePresence>
+                {showAddModal && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className="bg-[#131320] border border-white/10 rounded-3xl p-8 w-full max-w-md shadow-2xl"
+                        >
+                            <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-6">
+                                Cadastrar Nova Rainha
+                            </h2>
+                            <form onSubmit={handleRegister} className="space-y-4">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Nome Completo</label>
+                                    <input 
+                                        required
+                                        value={newPatient.name}
+                                        onChange={e => setNewPatient({...newPatient, name: e.target.value})}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-3 outline-none focus:border-purple-500"
+                                        placeholder="Ex: Ana Souza"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">E-mail de Acesso</label>
+                                    <input 
+                                        required
+                                        type="email"
+                                        value={newPatient.email}
+                                        onChange={e => setNewPatient({...newPatient, email: e.target.value})}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-3 outline-none focus:border-purple-500"
+                                        placeholder="ana@exemplo.com"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">WhatsApp</label>
+                                    <input 
+                                        required
+                                        value={newPatient.phone}
+                                        onChange={e => setNewPatient({...newPatient, phone: e.target.value})}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-3 outline-none focus:border-purple-500"
+                                        placeholder="(11) 99999-9999"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Senha Provisória</label>
+                                    <input 
+                                        required
+                                        value={newPatient.password}
+                                        onChange={e => setNewPatient({...newPatient, password: e.target.value})}
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-3 outline-none focus:border-purple-500"
+                                    />
+                                </div>
+
+                                <div className="pt-4 flex gap-3">
+                                    <Button 
+                                        type="button"
+                                        variant="ghost" 
+                                        className="flex-1"
+                                        onClick={() => setShowAddModal(false)}
+                                    >
+                                        Cancelar
+                                    </Button>
+                                    <Button 
+                                        type="submit"
+                                        disabled={registering}
+                                        className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 font-bold"
+                                    >
+                                        {registering ? <Loader2 className="animate-spin" /> : 'Finalizar Cadastro'}
+                                    </Button>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {loading && patients.length === 0 && (
+                <div className="fixed inset-0 z-40 bg-black/20 flex items-center justify-center">
+                    <Loader2 className="animate-spin text-purple-500" size={40} />
                 </div>
             )}
         </div>

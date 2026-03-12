@@ -32,19 +32,43 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    // Buscar tenant_id do solicitante
+    // Buscar perfil do solicitante
     const { data: requesterProfile } = await supabase
         .from('profiles')
         .select('tenant_id, role')
         .eq('user_id', currentUser.id)
         .single()
 
-    const isAuthorized = requesterProfile?.role === 'admin' || requesterProfile?.role === 'nutritionist'
-    if (!requesterProfile?.tenant_id || !isAuthorized) {
-        return NextResponse.json({ error: 'Permissão negada ou tenant não encontrado' }, { status: 403 })
+    const roleLower = (requesterProfile?.role || '').toLowerCase()
+    const metadataRole = (currentUser.user_metadata?.user_type || currentUser.user_metadata?.role || '').toLowerCase()
+    
+    // Check if authorized by DB role or metadata
+    let isAuthorized = ['admin', 'nutritionist', 'nutri'].includes(roleLower) || ['admin', 'nutritionist', 'nutri'].includes(metadataRole)
+    let tenantId = requesterProfile?.tenant_id
+
+    // Fallback: If not found in profile, check if user owns a tenant
+    if (!tenantId || !isAuthorized) {
+        const { data: ownedTenants } = await supabaseAdmin
+            .from('tenants')
+            .select('id')
+            .eq('owner_id', currentUser.id)
+            .limit(1)
+        
+        if (ownedTenants && ownedTenants.length > 0) {
+            tenantId = ownedTenants[0].id
+            isAuthorized = true 
+        }
     }
 
-    const tenantId = requesterProfile.tenant_id
+    if (!tenantId || !isAuthorized) {
+        console.error('[API create-professional] Denied:', { 
+            userId: currentUser.id, 
+            dbRole: requesterProfile?.role, 
+            metadataRole, 
+            tenantId 
+        })
+        return NextResponse.json({ error: 'Acesso negado ou clínica não encontrada.' }, { status: 403 })
+    }
 
     try {
         const body = await request.json()

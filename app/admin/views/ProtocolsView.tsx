@@ -359,23 +359,35 @@ function CreateProtocolForm({ onClose, onSave, onUpdate, editingData }: {
     const [isGenerating, setIsGenerating] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
 
-    const generateWithAI = () => {
-        setIsGenerating(true)
-        setTimeout(() => {
-            const daysCount = parseInt(formData.duration)
-            const newDays = Array.from({ length: daysCount }).map((_, i) => ({
-                day: i + 1,
-                title: `Dia ${i + 1}: Meta Sugerida`,
-                tasks: [
-                    { title: "Beber 2L de água", type: "water", points: 10 },
-                    { title: "Café da manhã proteico", type: "meal", points: 20 },
-                    { title: "Foto do prato", type: "photo", points: 30 },
-                ]
-            }))
-            setFormData(prev => ({ ...prev, days: newDays }))
-            setStep(2)
-            setIsGenerating(false)
-        }, 2000)
+    const generateWithAI = async () => {
+        if (!formData.title) return;
+        setIsGenerating(true);
+        try {
+            const res = await fetch('/api/ai/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    task: 'generate-protocol',
+                    context: `Crie um protocolo de ${formData.duration} dias focado em: ${formData.title}. Descrição base: ${formData.description}`,
+                    prompt: `Gere a estrutura de tarefas diárias para o protocolo "${formData.title}" de ${formData.duration} dias.`
+                })
+            });
+
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+
+            setFormData(prev => ({ 
+                ...prev, 
+                title: data.title || prev.title,
+                description: data.description || prev.description,
+                days: data.days || [] 
+            }));
+            setStep(2);
+        } catch (err: any) {
+            alert("Erro na IA: " + err.message);
+        } finally {
+            setIsGenerating(false);
+        }
     }
 
     const saveProtocol = async () => {

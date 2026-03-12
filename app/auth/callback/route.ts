@@ -11,9 +11,27 @@ export async function GET(request: NextRequest) {
         const supabase = createSupabaseServerClient(cookies())
 
         // Exchange code for session
-        await supabase.auth.exchangeCodeForSession(code)
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+
+        if (!error && data.user) {
+            const userMetadata = data.user.user_metadata;
+            let role = userMetadata?.user_type || userMetadata?.role;
+
+            if (!role) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('role')
+                    .eq('user_id', data.user.id)
+                    .single();
+                if (profile) role = profile.role;
+            }
+
+            // Standard redirection logic
+            const isAdmin = ['nutri', 'nutritionist', 'admin'].includes(role || '');
+            return NextResponse.redirect(new URL(isAdmin ? '/admin' : '/patient/home', request.url))
+        }
     }
 
-    // URL to redirect to after sign in process completes
+    // Fallback URL
     return NextResponse.redirect(new URL('/dashboard', request.url))
 }

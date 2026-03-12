@@ -9,6 +9,7 @@ import { loginBanners } from './loginBanners';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Loader2, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { GoogleButton } from '@/components/auth/GoogleButton';
 
 export default function LoginPage() {
     const router = useRouter();
@@ -208,6 +209,18 @@ export default function LoginPage() {
                         >
                             {loading ? <Loader2 className="animate-spin" size={20} /> : <>{isSignUp ? "Finalizar Cadastro" : "Entrar no Sistema"} <ArrowRight size={18} /></>}
                         </Button>
+
+                        {!isSignUp && (
+                            <>
+                                <div className="flex items-center gap-4 my-6">
+                                    <div className="h-[1px] flex-1 bg-white/5" />
+                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">ou</span>
+                                    <div className="h-[1px] flex-1 bg-white/5" />
+                                </div>
+
+                                <GoogleButton />
+                            </>
+                        )}
                     </form>
 
                     <div className="mt-10 text-center">

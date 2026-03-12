@@ -39,7 +39,13 @@ export function SalesPageGenerator({ setView, tenantId }: { setView: (v: any) =>
         headline: "Emagreça 5kg em 21 dias sem passar fome",
         subheadline: "Descubra o método que já ajudou mais de 120 rainhas a recuperarem a autoestima e o corpo dos sonhos.",
         checkoutLink: "https://hotmart.com/exemplo",
-        benefits: ["Cardápio Fácil", "App Exclusivo", "Suporte Diário", "Comunidade VIP"]
+        benefits: ["Cardápio Fácil", "App Exclusivo", "Suporte Diário", "Comunidade VIP"],
+        countdownEnabled: true,
+        faqs: [
+            { question: "Como funciona o acesso?", answer: "Você receberá os dados de acesso por e-mail e WhatsApp imediatamente após o pagamento." },
+            { question: "Tem garantia?", answer: "Sim! Oferecemos 7 dias de garantia incondicional." }
+        ],
+        useInternalCheckout: true
     })
 
     // Carregar dados salvos
@@ -50,7 +56,10 @@ export function SalesPageGenerator({ setView, tenantId }: { setView: (v: any) =>
                 headline: saved.headline || formData.headline,
                 subheadline: saved.subheadline || formData.subheadline,
                 checkoutLink: saved.checkoutLink || formData.checkoutLink,
-                benefits: saved.benefits || formData.benefits
+                benefits: saved.benefits || formData.benefits,
+                countdownEnabled: saved.countdownEnabled ?? formData.countdownEnabled,
+                faqs: saved.faqs || formData.faqs,
+                useInternalCheckout: saved.useInternalCheckout ?? formData.useInternalCheckout
             })
             setSocialProofUrls(saved.socialProofUrls || [])
             setIsGenerated(true)
@@ -181,18 +190,32 @@ export function SalesPageGenerator({ setView, tenantId }: { setView: (v: any) =>
                     </div>
 
                     <div className="glass-panel p-5 rounded-xl border border-white/5 bg-white/[0.02]">
-                        <label className="block text-sm font-bold text-gray-400 mb-2">Link do Checkout (Pagamento)</label>
-                        <div className="flex items-center bg-black/40 border border-white/10 rounded-lg px-3 group focus-within:border-purple-500 transition">
-                            <DollarSign size={16} className="text-gray-500" />
-                            <input
-                                value={formData.checkoutLink}
-                                onChange={(e) => setFormData({ ...formData, checkoutLink: e.target.value })}
-                                className="w-full bg-transparent p-3 text-white outline-none"
-                                placeholder="Link do Stripe/Hotmart/Eduzz"
-                            />
+                        <div className="flex items-center justify-between mb-4">
+                            <label className="text-sm font-bold text-gray-400">Checkout Próprio (Recomendado)</label>
+                            <button
+                                onClick={() => setFormData(prev => ({ ...prev, useInternalCheckout: !prev.useInternalCheckout }))}
+                                className={`w-12 h-6 rounded-full p-1 transition-colors ${formData.useInternalCheckout ? 'bg-purple-600' : 'bg-white/10'}`}
+                            >
+                                <div className={`w-4 h-4 bg-white rounded-full transition-transform ${formData.useInternalCheckout ? 'translate-x-6' : 'translate-x-0'}`} />
+                            </button>
                         </div>
+                        
+                        {!formData.useInternalCheckout ? (
+                            <div className="flex items-center bg-black/40 border border-white/10 rounded-lg px-3 group focus-within:border-purple-500 transition">
+                                <DollarSign size={16} className="text-gray-500" />
+                                <input
+                                    value={formData.checkoutLink}
+                                    onChange={(e) => setFormData({ ...formData, checkoutLink: e.target.value })}
+                                    className="w-full bg-transparent p-3 text-white outline-none"
+                                    placeholder="Link do Stripe/Hotmart/Eduzz"
+                                />
+                            </div>
+                        ) : (
+                            <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+                                <p className="text-[10px] text-purple-300 font-medium">O sistema usará automaticamente o checkout de alta conversão do seu Reino.</p>
+                            </div>
+                        )}
                     </div>
-
                     <div className="glass-panel p-5 rounded-xl border border-white/5 bg-white/[0.02]">
                         <label className="block text-sm font-bold text-gray-400 mb-2">Prova Social (Prints)</label>
                         <input
@@ -239,6 +262,61 @@ export function SalesPageGenerator({ setView, tenantId }: { setView: (v: any) =>
                                 ))}
                             </div>
                         )}
+                    </div>
+
+                    <div className="glass-panel p-5 rounded-xl border border-white/5 bg-white/[0.02] space-y-4">
+                        <div className="flex items-center justify-between">
+                            <label className="block text-sm font-bold text-gray-400">Perguntas Frequentes (FAQ)</label>
+                            <Button
+                                onClick={() => setFormData(prev => ({ ...prev, faqs: [...prev.faqs, { question: "", answer: "" }] }))}
+                                variant="ghost" size="sm" className="text-purple-400 text-[10px] font-black uppercase"
+                            >
+                                + Adicionar FAQ
+                            </Button>
+                        </div>
+                        {formData.faqs.map((faq, idx) => (
+                            <div key={idx} className="space-y-2 p-4 bg-black/20 rounded-lg border border-white/5 relative group">
+                                <input
+                                    value={faq.question}
+                                    onChange={(e) => {
+                                        const newFaqs = [...formData.faqs];
+                                        newFaqs[idx].question = e.target.value;
+                                        setFormData({ ...formData, faqs: newFaqs });
+                                    }}
+                                    placeholder="Pergunta"
+                                    className="w-full bg-transparent border-b border-white/10 p-2 text-sm text-white focus:border-purple-500 outline-none"
+                                />
+                                <textarea
+                                    value={faq.answer}
+                                    onChange={(e) => {
+                                        const newFaqs = [...formData.faqs];
+                                        newFaqs[idx].answer = e.target.value;
+                                        setFormData({ ...formData, faqs: newFaqs });
+                                    }}
+                                    placeholder="Resposta"
+                                    className="w-full bg-transparent p-2 text-xs text-slate-400 focus:border-purple-500 outline-none min-h-[40px]"
+                                />
+                                <button
+                                    onClick={() => setFormData(prev => ({ ...prev, faqs: prev.faqs.filter((_, i) => i !== idx) }))}
+                                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-red-500"
+                                >
+                                    <Check size={14} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="glass-panel p-5 rounded-xl border border-white/5 bg-white/[0.02] flex items-center justify-between">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-400">Contagem Regressiva</label>
+                            <p className="text-[10px] text-slate-500">Ativa sensor de urgência (FOMO) no rodapé</p>
+                        </div>
+                        <button
+                            onClick={() => setFormData(prev => ({ ...prev, countdownEnabled: !prev.countdownEnabled }))}
+                            className={`w-12 h-6 rounded-full p-1 transition-colors ${formData.countdownEnabled ? 'bg-purple-600' : 'bg-white/10'}`}
+                        >
+                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${formData.countdownEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                        </button>
                     </div>
 
                     <Button
