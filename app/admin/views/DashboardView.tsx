@@ -1,449 +1,700 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
-    TrendingUp,
-    Users,
-    AlertCircle,
-    MessageCircle,
-    CheckCircle,
-    ChevronRight,
-    Lock,
-    Crown,
-    DollarSign,
-    ArrowUpRight,
-    Zap,
-    Calendar,
-    Mic,
-    Trophy,
-    Send,
-    Instagram,
-    Sparkles,
-    Brain,
-    Activity
+    TrendingUp, Users, AlertCircle, MessageCircle, CheckCircle,
+    ChevronRight, Crown, DollarSign, ArrowUpRight, Zap, Calendar,
+    Trophy, Sparkles, Brain, Activity, Target, Flame, Clock,
+    Bell, Send, BarChart2, ChevronUp, RefreshCw, Star, Award,
+    Droplets, Check, X as XIcon, AlertTriangle, Heart,
+    TrendingDown, Layers, Lightbulb, ChevronDown
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 interface InboxItem {
     id: number
     name: string
-    status: 'risk' | 'question' | 'win'
+    initials: string
+    status: 'risk' | 'question' | 'win' | 'warning'
     msg: string
     time: string
-    initials: string
+    aiAction?: string
 }
 
-interface TopQueen {
+interface Queen {
     id: number
     name: string
     initials: string
     xp: number
     progress: number
+    streak: number
     rank: 1 | 2 | 3
 }
 
-export function DashboardView({ setView, userName = '', tenantName = '', tenantId = '' }: { setView: (v: any) => void, userName?: string, tenantName?: string, tenantId?: string }) {
-    const [methodName, setMethodName] = useState<string>("")
-    const [activeProtocol, setActiveProtocol] = useState<any>(null)
-    const [loading, setLoading] = useState(true)
+interface AgendaItem {
+    id: number
+    time: string
+    title: string
+    type: 'protocol' | 'check' | 'campaign' | 'consult'
+    done: boolean
+}
+
+interface AIInsight {
+    id: number
+    icon: React.ReactNode
+    title: string
+    body: string
+    action: string
+    view: string
+    urgency: 'high' | 'medium' | 'low'
+}
+
+// ─── Sparkline SVG ────────────────────────────────────────────────────────────
+
+function Sparkline({ data, color = "#818cf8" }: { data: number[]; color?: string }) {
+    const max = Math.max(...data)
+    const min = Math.min(...data)
+    const range = max - min || 1
+    const w = 100
+    const h = 36
+    const pts = data.map((v, i) => {
+        const x = (i / (data.length - 1)) * w
+        const y = h - ((v - min) / range) * (h - 4) - 2
+        return `${x},${y}`
+    })
+    const path = `M${pts.join(" L")}`
+    const fill = `M${pts[0]} ${pts.map(p => `L${p}`).join(" ")} L${w},${h} L0,${h} Z`
+
+    return (
+        <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-9" preserveAspectRatio="none">
+            <defs>
+                <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+                    <stop offset="100%" stopColor={color} stopOpacity="0" />
+                </linearGradient>
+            </defs>
+            <path d={fill} fill="url(#sg)" />
+            <path d={path} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    )
+}
+
+// ─── Progress Ring ────────────────────────────────────────────────────────────
+
+function ProgressRing({ pct, size = 52, color = "#818cf8", rank }: { pct: number; size?: number; color?: string; rank: number }) {
+    const r = (size - 6) / 2
+    const circ = 2 * Math.PI * r
+    const dash = (pct / 100) * circ
+    const medals = ['🥇', '🥈', '🥉']
+    return (
+        <div className="relative" style={{ width: size, height: size }}>
+            <svg width={size} height={size} className="-rotate-90">
+                <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="3" />
+                <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="3"
+                    strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center text-sm">
+                {medals[rank - 1]}
+            </div>
+        </div>
+    )
+}
+
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
+
+function KPICard({
+    label, value, sub, icon, trend, color = "indigo", sparkData, delay = 0
+}: {
+    label: string; value: string; sub: string; icon: React.ReactNode
+    trend?: number; color?: string; sparkData?: number[]; delay?: number
+}) {
+    const colors: Record<string, { bg: string; border: string; text: string; spark: string }> = {
+        indigo: { bg: "bg-indigo-500/10", border: "border-indigo-500/20", text: "text-indigo-400", spark: "#818cf8" },
+        emerald: { bg: "bg-emerald-500/10", border: "border-emerald-500/20", text: "text-emerald-400", spark: "#34d399" },
+        rose: { bg: "bg-rose-500/10", border: "border-rose-500/20", text: "text-rose-400", spark: "#fb7185" },
+        amber: { bg: "bg-amber-500/10", border: "border-amber-500/20", text: "text-amber-400", spark: "#fbbf24" },
+        violet: { bg: "bg-violet-500/10", border: "border-violet-500/20", text: "text-violet-400", spark: "#a78bfa" },
+    }
+    const c = colors[color] || colors.indigo
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay, duration: 0.4, ease: "easeOut" }}
+            className={`rounded-2xl p-5 ${c.bg} border ${c.border} flex flex-col gap-3 relative overflow-hidden`}
+        >
+            <div className="flex items-start justify-between">
+                <div className={`${c.bg} border ${c.border} p-2 rounded-xl`}>
+                    <div className={c.text}>{icon}</div>
+                </div>
+                {trend !== undefined && (
+                    <span className={`text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-lg
+                        ${trend >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
+                        {trend >= 0 ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                        {Math.abs(trend)}%
+                    </span>
+                )}
+            </div>
+            <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 mb-1">{label}</p>
+                <p className="text-2xl font-bold text-white tracking-tight">{value}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">{sub}</p>
+            </div>
+            {sparkData && (
+                <div className="mt-1 opacity-70">
+                    <Sparkline data={sparkData} color={c.spark} />
+                </div>
+            )}
+        </motion.div>
+    )
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export function DashboardView({
+    setView, userName = '', tenantName = '', tenantId = ''
+}: {
+    setView: (v: any) => void; userName?: string; tenantName?: string; tenantId?: string
+}) {
     const [greeting, setGreeting] = useState("")
+    const [loading, setLoading] = useState(true)
+    const [activeProtocol, setActiveProtocol] = useState<any>(null)
+    const [methodName, setMethodName] = useState("")
+    const [expandedInsight, setExpandedInsight] = useState<number | null>(null)
+    const [agendaDone, setAgendaDone] = useState<number[]>([])
     const [stats, setStats] = useState({
-        revenue: "0,00",
-        activeQueens: 0,
+        revenue: "4.250,00",
+        revenueRaw: 4250,
+        activeQueens: 127,
+        adherence: 82,
+        criticalAlerts: 3,
+        totalXP: 18340,
+        protocolDay: 7,
+        protocolTotal: 21,
         upsellReady: 12,
-        protocolAdhesion: 82,
-        protocolDay: 3,
-        protocolTotal: 21
     })
 
-    // Mock Data - Inbox (convert to real data later)
-    const [inboxItems] = useState<InboxItem[]>([
-        { id: 1, name: 'Maria Silva', initials: 'MS', status: 'risk', msg: 'Não fez check-in há 3 dias', time: '2h' },
-        { id: 2, name: 'Ana Souza', initials: 'AS', status: 'question', msg: 'Dúvida sobre suplemento', time: '5h' },
-        { id: 3, name: 'Carla Dias', initials: 'CD', status: 'win', msg: 'Bateu a meta de água!', time: '10m' },
-    ])
+    // Mock Data
+    const inboxItems: InboxItem[] = [
+        { id: 1, name: 'Maria Silva', initials: 'MS', status: 'risk', msg: 'Sem check-in há 3 dias. Risco de desengajamento alto.', time: '2h', aiAction: 'Enviar mensagem de incentivo personalizada' },
+        { id: 2, name: 'Ana Souza', initials: 'AS', status: 'question', msg: 'Pergunta sobre dosagem do suplemento Ômega 3.', time: '5h', aiAction: 'Responder com protocolo padrão ômega' },
+        { id: 3, name: 'Carla Dias', initials: 'CD', status: 'win', msg: 'Meta de hidratação batida pelo 7º dia consecutivo! 💧', time: '10m', aiAction: 'Postar conquista no ranking' },
+        { id: 4, name: 'Patricia Rocha', initials: 'PR', status: 'warning', msg: 'Peso estagnado há 2 semanas. Revisar protocolo.', time: '1d', aiAction: 'Agendar revisão de protocolo' },
+    ]
 
-    // Mock Data - Top Rainhas
-    const [topQueens] = useState<TopQueen[]>([
-        { id: 1, name: 'Júlia Dias', initials: 'JD', xp: 980, progress: 98, rank: 1 },
-        { id: 2, name: 'Ana Maria', initials: 'AM', xp: 850, progress: 85, rank: 2 },
-        { id: 3, name: 'Beatriz Lopes', initials: 'BL', xp: 720, progress: 72, rank: 3 },
-    ])
+    const topQueens: Queen[] = [
+        { id: 1, name: 'Júlia Dias', initials: 'JD', xp: 980, progress: 98, streak: 14, rank: 1 },
+        { id: 2, name: 'Ana Maria', initials: 'AM', xp: 850, progress: 85, streak: 9, rank: 2 },
+        { id: 3, name: 'Beatriz Lopes', initials: 'BL', xp: 720, progress: 72, streak: 6, rank: 3 },
+    ]
+
+    const agenda: AgendaItem[] = [
+        { id: 1, time: '08:00', title: 'Disparo da campanha matinal de hidratação', type: 'campaign', done: true },
+        { id: 2, time: '10:00', title: 'Check-in automático: Semana 2 do protocolo', type: 'check', done: true },
+        { id: 3, time: '14:00', title: 'Consulta – Patricia Rocha (revisão de plano)', type: 'consult', done: false },
+        { id: 4, time: '18:00', title: 'Post de engajamento para as Rainhas VIP', type: 'campaign', done: false },
+        { id: 5, time: '20:00', title: 'Relatório diário gerado pela IA', type: 'check', done: false },
+    ]
+
+    const insights: AIInsight[] = [
+        {
+            id: 1, urgency: 'high',
+            icon: <AlertTriangle size={18} className="text-rose-400" />,
+            title: '3 Rainhas em risco de evasão',
+            body: 'Maria Silva, Fernanda Costa e Luisa Torres estão com baixo engajamento há +72h. Probabilidade de cancelamento: 64%.',
+            action: 'Ver Alertas',
+            view: 'checkins'
+        },
+        {
+            id: 2, urgency: 'medium',
+            icon: <TrendingUp size={18} className="text-amber-400" />,
+            title: 'Adesão subindo +8% esta semana',
+            body: 'O protocolo atual está performando 8% acima da média histórica. Fator principal: o lembrete de shots matinais.',
+            action: 'Ver Relatório',
+            view: 'protocols'
+        },
+        {
+            id: 3, urgency: 'low',
+            icon: <Lightbulb size={18} className="text-indigo-400" />,
+            title: 'Momento ideal para upsell',
+            body: `${stats.upsellReady} pacientes completaram o protocolo básico e estão qualificadas para o Teste Genético NutriGen. Tíquete médio: +R$ 890.`,
+            action: 'Ver Oportunidade',
+            view: 'patients'
+        },
+    ]
+
+    const revenueHistory = [3100, 3400, 3200, 3800, 4100, 3900, 4250]
+    const adherenceHistory = [68, 72, 75, 74, 78, 80, 82]
+    const queensHistory = [98, 105, 110, 112, 118, 124, 127]
 
     useEffect(() => {
-        loadData()
-        updateGreeting()
-    }, [])
-
-    const updateGreeting = () => {
-        const hour = new Date().getHours()
-        if (hour < 12) setGreeting("Bom dia")
-        else if (hour < 18) setGreeting("Boa tarde")
+        const h = new Date().getHours()
+        if (h < 12) setGreeting("Bom dia")
+        else if (h < 18) setGreeting("Boa tarde")
         else setGreeting("Boa noite")
-    }
+        loadData()
+    }, [])
 
     const loadData = async () => {
         try {
-            // Load Tenant Method (uses tenantId from props — no limit(1)!)
             if (tenantId) {
                 const { data: tenant } = await supabase
-                    .from('tenants')
-                    .select('method_name')
-                    .eq('id', tenantId)
-                    .single()
+                    .from('tenants').select('method_name').eq('id', tenantId).single()
                 if (tenant?.method_name) setMethodName(tenant.method_name)
             }
-
-            // Load Active Protocol
-            const today = new Date().toISOString().split('T')[0]
             const { data: protocol } = await supabase
-                .from('protocols')
-                .select('*')
-                .eq('scheduled_status', 'active')
-                .limit(1)
-                .single()
-
-            if (protocol) {
-                setActiveProtocol(protocol)
-            }
-
-            // Load Annual Plan (Next 3 protocols)
-            const { data: annualPlan } = await supabase
-                .from('protocols')
-                .select('title, start_date')
-                .eq('scheduled_status', 'scheduled')
-                .order('start_date', { ascending: true })
-                .limit(3)
-
-            // Stats (Mock for now but could be calculated)
-            setStats(prev => ({
-                ...prev,
-                revenue: "4.250,00", // Using mock numbers for visual pop
-                activeQueens: 127
-            }))
-
-        } catch (error) {
-            console.error("Erro ao carregar dados:", error)
-        } finally {
-            setLoading(false)
-        }
+                .from('protocols').select('*').eq('scheduled_status', 'active').limit(1).single()
+            if (protocol) setActiveProtocol(protocol)
+        } catch { }
+        finally { setLoading(false) }
     }
 
-    const getRankColor = (rank: number) => {
-        switch (rank) {
-            case 1: return 'border-yellow-400 text-yellow-400'
-            case 2: return 'border-gray-400 text-gray-400'
-            case 3: return 'border-amber-600 text-amber-600'
-            default: return 'border-gray-600 text-gray-600'
-        }
+    const toggleAgenda = (id: number) => {
+        setAgendaDone(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
     }
 
-    const getRankBg = (rank: number) => {
-        switch (rank) {
-            case 1: return 'bg-yellow-400'
-            case 2: return 'bg-gray-400'
-            case 3: return 'bg-amber-600'
-            default: return 'bg-gray-600'
-        }
+    const agendaTypeStyle: Record<string, { dot: string; label: string }> = {
+        protocol: { dot: 'bg-indigo-400', label: 'Protocolo' },
+        check: { dot: 'bg-violet-400', label: 'Check-in' },
+        campaign: { dot: 'bg-amber-400', label: 'Campanha' },
+        consult: { dot: 'bg-emerald-400', label: 'Consulta' },
+    }
+
+    const statusColors: Record<string, string> = {
+        risk: 'bg-rose-500',
+        question: 'bg-amber-500',
+        win: 'bg-emerald-500',
+        warning: 'bg-orange-500',
+    }
+    const StatusIcon = ({ status }: { status: string }) => {
+        if (status === 'risk') return <AlertCircle size={12} className="text-white" />
+        if (status === 'question') return <MessageCircle size={12} className="text-white" />
+        if (status === 'win') return <CheckCircle size={12} className="text-white" />
+        return <AlertTriangle size={12} className="text-white" />
+    }
+
+    const protocolDays = Array.from({ length: stats.protocolTotal }, (_, i) => i + 1)
+
+    const urgencyBorder: Record<string, string> = {
+        high: 'border-rose-500/30 bg-rose-500/5',
+        medium: 'border-amber-500/30 bg-amber-500/5',
+        low: 'border-indigo-500/20 bg-indigo-500/5',
     }
 
     return (
-        <div className="min-h-screen pt-4 pb-20">
-            {/* --- HEADER PREMIUM --- */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 border-b border-white/10 pb-6 gap-4">
+        <div className="min-h-screen pt-4 pb-20 space-y-8">
+
+            {/* ── HEADER ─────────────────────────────────────────────────── */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div className="space-y-1">
-                    <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="flex items-center gap-2 mb-2"
-                    >
-                        <div className="bg-indigo-600/20 p-2 rounded-lg border border-indigo-500/30">
-                            <Brain className="text-indigo-400" size={20} />
+                    <motion.div initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
+                        className="flex items-center gap-2 mb-1">
+                        <div className="bg-indigo-600/20 p-1.5 rounded-lg border border-indigo-500/30">
+                            <Brain className="text-indigo-400" size={16} />
                         </div>
-                        <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">
-                            Meu Club Nutri.AI
-                        </h2>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">
+                            Centro de Comando
+                        </span>
                     </motion.div>
-                    <motion.h1
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="text-4xl font-light text-white"
-                    >
+                    <motion.h1 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                        className="text-3xl font-light text-white">
                         {greeting}, <span className="font-bold">{userName?.split(' ')[0]}</span>
                     </motion.h1>
-                    <p className="text-slate-400 text-sm font-medium">{tenantName}{methodName ? ` • Método ${methodName}` : ''} • Centro de Comando Inteligente</p>
+                    <p className="text-slate-500 text-xs font-medium">
+                        {tenantName}{methodName ? ` • Método ${methodName}` : ''} • {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
+                    </p>
                 </div>
                 <div className="flex gap-3">
-                    <Button
-                        onClick={() => setView('club-plan')}
-                        variant="outline"
-                        className="h-12 border-white/5 bg-white/5 hover:bg-white/10 text-slate-300 backdrop-blur-md rounded-xl"
-                    >
-                        <Calendar size={18} className="mr-2" />
-                        Ver Plano do Clube
+                    <Button onClick={() => setView('club-plan')} variant="outline"
+                        className="h-10 border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl text-xs">
+                        <Calendar size={15} className="mr-2" /> Plano do Clube
                     </Button>
-                    <Button
-                        onClick={() => alert('Entrando na Central de Ação IA... ⚡')}
-                        className="h-12 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold shadow-lg shadow-indigo-900/30"
-                    >
-                        <Zap size={18} className="mr-2" />
-                        Central de Ação
+                    <Button onClick={() => setView('communication')}
+                        className="h-10 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-indigo-900/30">
+                        <Zap size={15} className="mr-2" /> Central de Ação
                     </Button>
                 </div>
             </div>
 
-            {/* --- CTA: PLANO DO CLUBE --- */}
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="mb-8 rounded-[2rem] p-6 bg-gradient-to-r from-violet-600/10 to-indigo-600/10 border border-violet-500/20 hover:border-violet-500/40 transition-all cursor-pointer group"
-                onClick={() => setView('club-plan')}
-            >
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-violet-500/20 p-3 rounded-2xl border border-violet-500/30">
-                            <Sparkles size={24} className="text-violet-400" />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-white">Gerar Plano do Clube com IA</h3>
-                            <p className="text-sm text-slate-400">Crie um plano semestral ou anual em 1 clique</p>
-                        </div>
-                    </div>
-                    <ChevronRight size={24} className="text-violet-400 group-hover:translate-x-1 transition-transform" />
-                </div>
-            </motion.div>
+            {/* ── KPI GRID (5 cards) ─────────────────────────────────────── */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                <KPICard label="Faturamento" value={`R$ ${stats.revenue}`} sub="Mês atual"
+                    icon={<DollarSign size={18} />} color="indigo" trend={12}
+                    sparkData={revenueHistory} delay={0} />
+                <KPICard label="Rainhas Ativas" value={String(stats.activeQueens)} sub="Em protocolo"
+                    icon={<Users size={18} />} color="violet" trend={5}
+                    sparkData={queensHistory} delay={0.06} />
+                <KPICard label="Adesão Média" value={`${stats.adherence}%`} sub="Esta semana"
+                    icon={<Activity size={18} />} color="emerald" trend={8}
+                    sparkData={adherenceHistory} delay={0.12} />
+                <KPICard label="Alertas Críticos" value={String(stats.criticalAlerts)} sub="Requerem ação"
+                    icon={<AlertCircle size={18} />} color="rose" delay={0.18} />
+                <KPICard label="Total de XP" value={stats.totalXP.toLocaleString('pt-BR')} sub="Engajamento do clube"
+                    icon={<Trophy size={18} />} color="amber" trend={3} delay={0.24} />
+            </div>
 
-            {/* --- GRID PRINCIPAL --- */}
+            {/* ── AI INSIGHTS ───────────────────────────────────────────── */}
+            <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                    <Sparkles size={14} className="text-indigo-400" />
+                    <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">
+                        Insights da IA
+                    </h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {insights.map((ins, i) => (
+                        <motion.div key={ins.id}
+                            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 + i * 0.08 }}
+                            className={`rounded-2xl border p-4 cursor-pointer transition-all ${urgencyBorder[ins.urgency]} hover:brightness-110`}
+                            onClick={() => setExpandedInsight(expandedInsight === ins.id ? null : ins.id)}
+                        >
+                            <div className="flex items-start gap-3">
+                                <div className="mt-0.5 shrink-0">{ins.icon}</div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-white leading-snug">{ins.title}</p>
+                                    <AnimatePresence>
+                                        {expandedInsight === ins.id && (
+                                            <motion.div initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                transition={{ duration: 0.2 }}>
+                                                <p className="text-xs text-slate-400 mt-2 leading-relaxed">{ins.body}</p>
+                                                <button onClick={(e) => { e.stopPropagation(); setView(ins.view) }}
+                                                    className="mt-3 text-[11px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 transition flex items-center gap-1">
+                                                    {ins.action} <ChevronRight size={12} />
+                                                </button>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                                <ChevronDown size={14} className={`text-slate-600 shrink-0 transition-transform ${expandedInsight === ins.id ? 'rotate-180' : ''}`} />
+                            </div>
+                        </motion.div>
+                    ))}
+                </div>
+            </div>
+
+            {/* ── MAIN GRID ──────────────────────────────────────────────── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-                {/* COLUNA ESQUERDA (60%) */}
+                {/* LEFT COLUMN (60%) */}
                 <div className="lg:col-span-2 space-y-8">
 
-                    {/* HERO CARD: Protocolo Ativo */}
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.98 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="relative overflow-hidden rounded-[2.5rem] p-8 md:p-10 bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl group"
-                    >
-                        {/* Background Effect */}
-                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent opacity-50" />
-                        <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-600/10 blur-[100px] rounded-full" />
+                    {/* ── PROTOCOLO ATIVO ───────────────────────────────── */}
+                    <motion.div initial={{ opacity: 0, scale: 0.99 }} animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.2 }}
+                        className="relative overflow-hidden rounded-3xl p-7 bg-white/5 backdrop-blur-xl border border-white/10 shadow-xl">
+                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/8 to-transparent" />
+                        <div className="absolute -top-20 -right-20 w-56 h-56 bg-indigo-600/8 blur-[80px] rounded-full" />
 
                         <div className="relative z-10">
-                            <div className="flex flex-wrap justify-between items-start mb-8 gap-4">
+                            {/* Protocol header */}
+                            <div className="flex items-start justify-between mb-5 gap-4 flex-wrap">
                                 <div className="flex items-center gap-3">
-                                    <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-widest border border-indigo-500/30 flex items-center gap-2">
-                                        <Sparkles size={14} /> Protocolo Ativo
+                                    <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest border border-indigo-500/30 flex items-center gap-1.5">
+                                        <Sparkles size={12} /> Protocolo Ativo
                                     </span>
-                                    <span className="text-slate-400 text-sm font-medium">Dia {stats.protocolDay} de {stats.protocolTotal}</span>
+                                    <span className="text-slate-500 text-xs font-semibold">
+                                        Dia {stats.protocolDay} de {stats.protocolTotal}
+                                    </span>
                                 </div>
-                                <span className="text-emerald-400 flex items-center gap-1.5 text-xs font-bold bg-emerald-950/30 px-4 py-2 rounded-full border border-emerald-800/50 backdrop-blur-md">
-                                    <ArrowUpRight size={16} /> Alta Adesão no Reino
+                                <span className="text-emerald-400 flex items-center gap-1.5 text-[11px] font-bold bg-emerald-950/30 px-3 py-1.5 rounded-full border border-emerald-800/50">
+                                    <ArrowUpRight size={14} /> Alta Adesão
                                 </span>
                             </div>
 
-                            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4 italic tracking-tight">
+                            <h2 className="text-3xl md:text-4xl font-bold text-white mb-2 italic tracking-tight">
                                 {activeProtocol?.title || "Folia & Hidratação 💧"}
                             </h2>
-                            <p className="text-slate-300 mb-10 max-w-xl text-lg font-light leading-relaxed">
-                                {activeProtocol?.description || "A estratégia de pré-carnaval está rodando. O foco atual é adesão aos shots matinais e registro de água."}
+                            <p className="text-slate-400 mb-6 text-sm leading-relaxed max-w-xl">
+                                {activeProtocol?.description || "Foco atual: adesão aos shots matinais e registro diário de água. Semana 2 rodando com alta performance."}
                             </p>
 
-                            {/* Barra de Progresso Clinical Style */}
-                            <div className="mb-10 bg-black/20 p-6 rounded-3xl border border-white/5 backdrop-blur-md">
-                                <div className="flex justify-between items-end mb-4">
-                                    <div>
-                                        <span className="text-slate-500 uppercase tracking-[0.2em] text-[10px] font-black block mb-1">Status Clinical</span>
-                                        <span className="text-white text-3xl font-bold">{stats.protocolAdhesion}%</span>
-                                    </div>
-                                    <div className="text-right">
-                                        <span className="text-indigo-400 text-xs font-bold block">127 Pacientes</span>
-                                        <span className="text-slate-500 text-[10px]">Monitoramento em tempo real</span>
-                                    </div>
+                            {/* Progress + Stats row */}
+                            <div className="grid grid-cols-3 gap-4 mb-6">
+                                <div className="bg-black/20 rounded-2xl p-4 border border-white/5 text-center">
+                                    <p className="text-[10px] text-slate-600 uppercase tracking-widest font-black mb-1">Adesão</p>
+                                    <p className="text-2xl font-bold text-white">{stats.adherence}<span className="text-base text-slate-500">%</span></p>
                                 </div>
-                                <div className="w-full bg-slate-800/50 h-3 rounded-full overflow-hidden p-[2px]">
-                                    <motion.div
-                                        initial={{ width: 0 }}
-                                        animate={{ width: `${stats.protocolAdhesion}%` }}
+                                <div className="bg-black/20 rounded-2xl p-4 border border-white/5 text-center">
+                                    <p className="text-[10px] text-slate-600 uppercase tracking-widest font-black mb-1">Rainhas</p>
+                                    <p className="text-2xl font-bold text-white">{stats.activeQueens}</p>
+                                </div>
+                                <div className="bg-black/20 rounded-2xl p-4 border border-white/5 text-center">
+                                    <p className="text-[10px] text-slate-600 uppercase tracking-widest font-black mb-1">Check-ins Hoje</p>
+                                    <p className="text-2xl font-bold text-white">89</p>
+                                </div>
+                            </div>
+
+                            {/* Day pills */}
+                            <div className="mb-6">
+                                <p className="text-[10px] text-slate-600 uppercase tracking-widest font-black mb-2">Progresso do Protocolo</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {protocolDays.map(d => (
+                                        <div key={d}
+                                            className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black border transition-all
+                                            ${d < stats.protocolDay
+                                                ? 'bg-indigo-500/30 border-indigo-500/50 text-indigo-300'
+                                                : d === stats.protocolDay
+                                                    ? 'bg-indigo-500 border-indigo-400 text-white shadow-lg shadow-indigo-500/30 scale-110'
+                                                    : 'bg-white/3 border-white/5 text-slate-700'}`}
+                                        >
+                                            {d}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Progress bar */}
+                            <div className="mb-6 bg-black/20 p-4 rounded-2xl border border-white/5">
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-[10px] text-slate-600 font-black uppercase tracking-widest">Adesão Clínica Geral</span>
+                                    <span className="text-white text-sm font-bold">{stats.adherence}%</span>
+                                </div>
+                                <div className="w-full bg-slate-800/50 h-2 rounded-full overflow-hidden">
+                                    <motion.div initial={{ width: 0 }} animate={{ width: `${stats.adherence}%` }}
                                         transition={{ duration: 1.5, ease: "easeOut" }}
-                                        className="bg-gradient-to-r from-indigo-400 via-indigo-500 to-violet-500 h-full rounded-full shadow-[0_0_20px_rgba(99,102,241,0.4)] relative"
-                                    >
-                                        <div className="absolute right-0 top-0 h-full w-1 bg-white/40 blur-[2px]" />
+                                        className="bg-gradient-to-r from-indigo-400 to-violet-500 h-full rounded-full relative">
+                                        <div className="absolute right-0 top-0 h-full w-0.5 bg-white/40" />
                                     </motion.div>
                                 </div>
                             </div>
 
-                            <div className="flex flex-wrap gap-4">
-                                <Button
-                                    onClick={() => setView('checkins')}
-                                    className="h-14 bg-white text-indigo-950 font-black px-10 rounded-2xl hover:bg-slate-100 transition shadow-2xl"
-                                >
-                                    <MessageCircle size={20} className="mr-2" /> Incentivar Tribo
+                            <div className="flex flex-wrap gap-3">
+                                <Button onClick={() => setView('checkins')}
+                                    className="h-11 bg-white text-indigo-950 font-black px-8 rounded-xl hover:bg-slate-100 shadow-xl text-sm">
+                                    <MessageCircle size={16} className="mr-2" /> Incentivar Tribo
                                 </Button>
-                                <Button
-                                    onClick={() => alert('Gerando Relatórios de Genética NutriGen... 🧬')}
-                                    variant="outline"
-                                    className="h-14 border-white/20 text-slate-200 px-10 rounded-2xl hover:bg-white/5 transition backdrop-blur-md"
-                                >
-                                    Relatório de Genética
+                                <Button onClick={() => setView('protocols')} variant="outline"
+                                    className="h-11 border-white/15 text-slate-300 px-8 rounded-xl hover:bg-white/5 text-sm">
+                                    Ver Protocolo Completo
                                 </Button>
                             </div>
                         </div>
                     </motion.div>
 
-                    {/* PRIORIDADES CLÍNICAS (Inbox) */}
-                    <div className="rounded-[2.5rem] p-8 bg-white/5 backdrop-blur-md border border-white/10">
-                        <div className="flex justify-between items-center mb-8">
-                            <h3 className="text-xl font-bold text-white flex items-center gap-3">
-                                Prioridades Clínicas
-                                <span className="text-slate-500 text-sm font-normal tracking-wide">/ Inbox Realtime</span>
+                    {/* ── AGENDA DO DIA ─────────────────────────────────── */}
+                    <div className="rounded-3xl p-6 bg-white/5 border border-white/10 backdrop-blur-md">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                                <Clock size={16} className="text-indigo-400" />
+                                Agenda de Hoje
                             </h3>
-                            <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] px-4 py-1.5 rounded-full font-black uppercase tracking-widest flex items-center gap-2">
-                                <AlertCircle size={14} /> {inboxItems.length} Alertas
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                                {agendaDone.length + agenda.filter(a => a.done).length}/{agenda.length} concluídos
+                            </span>
+                        </div>
+                        <div className="space-y-2">
+                            {agenda.map((item, i) => {
+                                const isDone = item.done || agendaDone.includes(item.id)
+                                const ts = agendaTypeStyle[item.type]
+                                return (
+                                    <motion.div key={item.id}
+                                        initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: 0.1 + i * 0.06 }}
+                                        className={`flex items-center gap-4 px-4 py-3 rounded-2xl border transition-all
+                                            ${isDone ? 'bg-white/2 border-white/5 opacity-50' : 'bg-white/[0.03] border-white/8 hover:bg-white/[0.05]'}`}>
+                                        <span className="text-[11px] font-bold text-slate-600 w-12 shrink-0">{item.time}</span>
+                                        <div className={`w-2 h-2 rounded-full ${ts.dot} shrink-0`} />
+                                        <p className={`flex-1 text-sm ${isDone ? 'line-through text-slate-600' : 'text-slate-300'}`}>
+                                            {item.title}
+                                        </p>
+                                        <span className="text-[10px] text-slate-700 font-black uppercase tracking-widest hidden md:block">{ts.label}</span>
+                                        <button onClick={() => toggleAgenda(item.id)}
+                                            className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all shrink-0
+                                                ${isDone ? 'bg-emerald-500/20 border-emerald-500/40' : 'border-white/10 hover:border-emerald-500/40'}`}>
+                                            <Check size={13} className={isDone ? 'text-emerald-400' : 'text-slate-700'} />
+                                        </button>
+                                    </motion.div>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    {/* ── PRIORIDADES CLÍNICAS ───────────────────────────── */}
+                    <div className="rounded-3xl p-6 bg-white/5 backdrop-blur-md border border-white/10">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                                <Bell size={16} className="text-rose-400" />
+                                Prioridades Clínicas
+                                <span className="text-slate-600 text-xs font-normal">/ Inbox</span>
+                            </h3>
+                            <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-widest flex items-center gap-1.5">
+                                <AlertCircle size={12} /> {inboxItems.filter(i => i.status === 'risk').length} críticos
                             </span>
                         </div>
 
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                             {inboxItems.map((item, index) => (
-                                <motion.div
-                                    key={item.id}
-                                    initial={{ opacity: 0, x: -20 }}
+                                <motion.div key={item.id}
+                                    initial={{ opacity: 0, x: -16 }}
                                     animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: index * 0.1 }}
-                                    className="flex items-center justify-between p-5 rounded-3xl bg-white/[0.02] hover:bg-white/[0.06] transition-all border border-white/5 hover:border-white/10 group cursor-pointer"
+                                    transition={{ delay: index * 0.08 }}
+                                    className="group rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-white/10 transition-all overflow-hidden"
                                 >
-                                    <div className="flex items-center gap-5">
-                                        <div className="relative">
-                                            <div className="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center font-bold text-slate-400 border border-white/10 group-hover:border-indigo-500/50 transition-colors">
+                                    <div className="flex items-center gap-4 p-4">
+                                        <div className="relative shrink-0">
+                                            <div className="w-11 h-11 rounded-xl bg-slate-800 flex items-center justify-center font-bold text-slate-400 text-sm border border-white/10 group-hover:border-indigo-500/40 transition-colors">
                                                 {item.initials}
                                             </div>
-                                            <div className={`absolute -bottom-1 -right-1 p-2 rounded-xl border-2 border-[#0f172a] ${item.status === 'risk' ? 'bg-rose-500' :
-                                                item.status === 'question' ? 'bg-amber-500' : 'bg-emerald-500'
-                                                }`}>
-                                                {item.status === 'risk' ? <AlertCircle size={12} className="text-white" /> :
-                                                    item.status === 'question' ? <MessageCircle size={12} className="text-white" /> :
-                                                        <CheckCircle size={12} className="text-white" />}
+                                            <div className={`absolute -bottom-1 -right-1 p-1.5 rounded-lg border-2 border-[#0f172a] ${statusColors[item.status]}`}>
+                                                <StatusIcon status={item.status} />
                                             </div>
                                         </div>
 
-                                        <div>
-                                            <h4 className="font-bold text-white text-lg">{item.name}</h4>
-                                            <p className={`text-sm tracking-tight ${item.status === 'risk' ? 'text-rose-300 font-semibold' : 'text-slate-400'}`}>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-bold text-white text-sm">{item.name}</h4>
+                                            <p className={`text-xs mt-0.5 truncate ${item.status === 'risk' ? 'text-rose-300 font-semibold' : item.status === 'win' ? 'text-emerald-300' : 'text-slate-400'}`}>
                                                 {item.msg}
                                             </p>
                                         </div>
+
+                                        <div className="flex items-center gap-3 shrink-0">
+                                            <span className="text-[11px] text-slate-600 font-bold uppercase hidden sm:block">{item.time}</span>
+                                            <button onClick={() => setView('checkins')}
+                                                className="bg-white/5 hover:bg-indigo-600 text-white p-2 rounded-xl transition-all border border-white/5 group-hover:scale-105">
+                                                <ChevronRight size={16} />
+                                            </button>
+                                        </div>
                                     </div>
 
-                                    <div className="flex items-center gap-5">
-                                        <span className="text-xs text-slate-500 font-bold uppercase">{item.time}</span>
-                                        <button
-                                            onClick={() => setView('checkins')}
-                                            className="bg-white/5 hover:bg-indigo-600 text-white p-3 rounded-2xl transition-all border border-white/5 group-hover:scale-110"
-                                        >
-                                            <ChevronRight size={20} />
-                                        </button>
-                                    </div>
+                                    {/* AI action suggestion */}
+                                    {item.aiAction && (
+                                        <div className="px-4 pb-3 flex items-center gap-2">
+                                            <Sparkles size={11} className="text-indigo-500 shrink-0" />
+                                            <p className="text-[11px] text-slate-600 flex-1 truncate">IA sugere: {item.aiAction}</p>
+                                            <button onClick={() => setView('checkins')}
+                                                className="text-[11px] font-black text-indigo-500 hover:text-indigo-400 uppercase tracking-widest transition shrink-0">
+                                                Executar →
+                                            </button>
+                                        </div>
+                                    )}
                                 </motion.div>
                             ))}
                         </div>
+
+                        <button onClick={() => setView('checkins')}
+                            className="w-full mt-4 py-3 text-[11px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/5 rounded-2xl border border-transparent hover:border-indigo-500/10 transition-all flex items-center justify-center gap-2">
+                            Ver todos os pacientes <ChevronRight size={14} />
+                        </button>
                     </div>
                 </div>
 
-                {/* COLUNA DIREITA (40%) */}
-                <div className="space-y-8">
+                {/* RIGHT COLUMN (40%) */}
+                <div className="space-y-6">
 
-                    {/* COFRE REAL (Financeiro) */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="rounded-[2.5rem] p-8 bg-gradient-to-br from-indigo-900/20 to-teal-900/10 backdrop-blur-xl border border-indigo-500/20 relative overflow-hidden group shadow-2xl"
-                    >
-                        <div className="absolute -right-10 -top-10 text-indigo-500/5 rotate-12 transition-transform group-hover:rotate-0 duration-700">
-                            <DollarSign size={160} />
+                    {/* ── FINANCEIRO ────────────────────────────────────── */}
+                    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.25 }}
+                        className="rounded-3xl p-6 bg-gradient-to-br from-indigo-900/20 to-teal-900/10 backdrop-blur-xl border border-indigo-500/20 relative overflow-hidden shadow-xl">
+                        <div className="absolute -right-8 -top-8 text-indigo-500/5 rotate-12">
+                            <DollarSign size={120} />
                         </div>
 
-                        <h3 className="text-[10px] text-indigo-300 uppercase tracking-[0.2em] font-black mb-3 flex items-center gap-2">
-                            <Activity size={16} /> Faturamento Mensal
-                        </h3>
-                        <div className="flex items-end gap-3 mb-10 relative z-10">
-                            <span className="text-5xl font-light text-white tracking-tighter">R$ {stats.revenue}</span>
-                            <span className="bg-emerald-500/20 text-emerald-400 text-xs px-3 py-1.5 rounded-xl font-black border border-emerald-500/30 mb-2">+12%</span>
+                        <p className="text-[10px] text-indigo-300 uppercase tracking-[0.2em] font-black mb-2 flex items-center gap-2 relative z-10">
+                            <Activity size={14} /> Faturamento Mensal
+                        </p>
+
+                        <div className="flex items-end gap-2 mb-1 relative z-10">
+                            <span className="text-4xl font-light text-white tracking-tight">R$ {stats.revenue}</span>
+                            <span className="bg-emerald-500/20 text-emerald-400 text-[11px] px-2.5 py-1 rounded-lg font-black border border-emerald-500/30 mb-1">+12%</span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 mb-4 relative z-10">vs. mês anterior</p>
+
+                        <div className="relative z-10 mb-5">
+                            <Sparkline data={revenueHistory} color="#818cf8" />
+                            <div className="flex justify-between text-[10px] text-slate-700 font-bold mt-1">
+                                <span>6 meses atrás</span><span>Hoje</span>
+                            </div>
                         </div>
 
-                        {/* Upsell Opportunity */}
-                        <div className="bg-gradient-to-r from-amber-900/40 to-orange-900/20 border border-amber-500/20 rounded-3xl p-6 relative z-10 backdrop-blur-md">
-                            <div className="flex items-start gap-4">
-                                <div className="bg-amber-500/20 p-3.5 rounded-2xl border border-amber-500/30">
-                                    <Crown size={24} className="text-amber-400" />
+                        {/* Upsell opportunity */}
+                        <div className="bg-gradient-to-r from-amber-900/40 to-orange-900/20 border border-amber-500/20 rounded-2xl p-4 relative z-10">
+                            <div className="flex items-start gap-3">
+                                <div className="bg-amber-500/20 p-2.5 rounded-xl border border-amber-500/30 shrink-0">
+                                    <Crown size={18} className="text-amber-400" />
                                 </div>
                                 <div>
-                                    <h4 className="font-bold text-amber-100 text-lg mb-1">Oportunidade Premium</h4>
-                                    <p className="text-sm text-amber-100/70 leading-relaxed font-medium">
-                                        <strong className="text-white">{stats.upsellReady} Rainhas</strong> prontas para o upgrade de tiquete. Oferte o <strong className="text-amber-400">Teste Genético NutriGen ✨</strong>
+                                    <h4 className="font-bold text-amber-100 text-sm mb-1">Oportunidade Upsell</h4>
+                                    <p className="text-xs text-amber-100/60 leading-relaxed">
+                                        <strong className="text-white">{stats.upsellReady} Rainhas</strong> prontas para NutriGen.
+                                        Potencial: <strong className="text-amber-400">+R$ 10.680</strong>
                                     </p>
-                                    <Button
-                                        onClick={() => alert('Convite VIP Vitalício disparado para as Rainhas qualificadas! 🚀')}
-                                        className="mt-5 w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-sm py-4 rounded-2xl transition shadow-xl shadow-amber-900/40"
-                                    >
-                                        Disparar Convite VIP
+                                    <Button onClick={() => setView('patients')}
+                                        className="mt-3 w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-black text-xs py-2.5 rounded-xl shadow-lg shadow-amber-900/30 h-auto">
+                                        Disparar Convite VIP →
                                     </Button>
                                 </div>
                             </div>
                         </div>
                     </motion.div>
 
-                    {/* DESTAQUES & GAMIFICAÇÃO */}
-                    <div className="rounded-[2.5rem] p-8 bg-white/5 backdrop-blur-md border border-white/10 shadow-xl">
-                        <h3 className="text-[10px] text-slate-500 uppercase tracking-[0.2em] font-black mb-8 flex items-center justify-between">
-                            Ranking de Engajamento
-                            <Trophy size={16} className="text-indigo-400" />
-                        </h3>
+                    {/* ── RANKING ───────────────────────────────────────── */}
+                    <div className="rounded-3xl p-6 bg-white/5 backdrop-blur-md border border-white/10 shadow-xl">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-[10px] text-slate-500 uppercase tracking-[0.2em] font-black flex items-center gap-2">
+                                <Trophy size={14} className="text-amber-400" /> Ranking
+                            </h3>
+                            <button onClick={() => setView('rewards')}
+                                className="text-[11px] font-black text-indigo-500 hover:text-indigo-400 uppercase tracking-widest transition">
+                                Ver tudo →
+                            </button>
+                        </div>
 
-                        <div className="space-y-6">
-                            {topQueens.slice(0, 3).map((queen) => (
-                                <div key={queen.id} className={`flex items-center gap-4 p-4 rounded-3xl transition-all ${queen.rank === 1 ? 'bg-indigo-500/10 border border-indigo-500/20' : ''}`}>
-                                    <div className="relative">
-                                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-sm border ${queen.rank === 1 ? 'bg-gradient-to-tr from-indigo-400 to-violet-600 border-indigo-500 text-white' :
-                                            'bg-slate-800 border-white/5 text-slate-400'
-                                            }`}>
-                                            {queen.initials}
-                                        </div>
-                                        {queen.rank === 1 && (
-                                            <div className="absolute -top-3 -right-3 bg-gradient-to-tr from-yellow-400 to-amber-600 text-white w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shadow-lg border-2 border-[#131320]">
-                                                #1
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex-1">
-                                        <h4 className="text-base font-bold text-white">{queen.name}</h4>
-                                        <div className="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
-                                            <motion.div
-                                                initial={{ width: 0 }}
-                                                animate={{ width: `${queen.progress}%` }}
-                                                className={`h-full rounded-full ${queen.rank === 1 ? 'bg-indigo-400' : 'bg-slate-600'}`}
-                                            />
+                        <div className="space-y-4">
+                            {topQueens.map((queen) => (
+                                <div key={queen.id}
+                                    className={`flex items-center gap-3 p-3 rounded-2xl transition-all
+                                        ${queen.rank === 1 ? 'bg-indigo-500/10 border border-indigo-500/20' : 'bg-white/[0.02] border border-white/5'}`}>
+                                    <ProgressRing pct={queen.progress} rank={queen.rank}
+                                        color={queen.rank === 1 ? '#818cf8' : queen.rank === 2 ? '#94a3b8' : '#d97706'} />
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="text-sm font-bold text-white truncate">{queen.name}</h4>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <Flame size={11} className="text-orange-400" />
+                                            <span className="text-[11px] text-slate-600">{queen.streak} dias</span>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <span className={`text-lg font-black block ${queen.rank === 1 ? 'text-indigo-300' : 'text-slate-500'}`}>
-                                            {queen.xp}
+                                    <div className="text-right shrink-0">
+                                        <span className={`text-base font-black block ${queen.rank === 1 ? 'text-indigo-300' : 'text-slate-500'}`}>
+                                            {queen.xp.toLocaleString('pt-BR')}
                                         </span>
-                                        <span className="text-[10px] font-black text-slate-600 uppercase">XP</span>
+                                        <span className="text-[10px] font-black text-slate-700 uppercase">XP</span>
                                     </div>
                                 </div>
                             ))}
                         </div>
 
-                        <Button
-                            onClick={() => alert('Card de Ranking gerado ✨')}
-                            variant="outline"
-                            className="w-full mt-8 py-4 border-white/10 text-indigo-400 hover:bg-indigo-500/5 rounded-2xl font-bold flex items-center justify-center gap-2"
-                        >
+                        <Button onClick={() => setView('rewards')} variant="outline"
+                            className="w-full mt-5 h-10 border-white/10 text-indigo-400 hover:bg-indigo-500/5 rounded-2xl font-bold text-xs flex items-center justify-center gap-2">
                             Postar Ranking no Stories 📸
                         </Button>
+                    </div>
+
+                    {/* ── AÇÕES RÁPIDAS ─────────────────────────────────── */}
+                    <div className="rounded-3xl p-6 bg-white/5 border border-white/10 backdrop-blur-md">
+                        <p className="text-[10px] text-slate-600 uppercase tracking-[0.2em] font-black mb-4 flex items-center gap-2">
+                            <Zap size={13} className="text-indigo-400" /> Ações Rápidas
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                            {[
+                                { label: 'Novo Check-in', icon: <MessageCircle size={16} />, view: 'checkins' },
+                                { label: 'Ver Rainhas', icon: <Users size={16} />, view: 'patients' },
+                                { label: 'Comunicação', icon: <Send size={16} />, view: 'communication' },
+                                { label: 'Protocolos', icon: <Layers size={16} />, view: 'protocols' },
+                            ].map((a) => (
+                                <button key={a.label} onClick={() => setView(a.view)}
+                                    className="flex flex-col items-center gap-2 p-3 rounded-2xl border border-white/8 hover:border-indigo-500/30 hover:bg-indigo-500/5 text-slate-500 hover:text-indigo-400 transition-all group">
+                                    <div className="group-hover:scale-110 transition-transform">{a.icon}</div>
+                                    <span className="text-[11px] font-black uppercase tracking-widest text-center leading-tight">{a.label}</span>
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
