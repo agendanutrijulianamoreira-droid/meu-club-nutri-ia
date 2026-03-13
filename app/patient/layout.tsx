@@ -3,7 +3,7 @@
 import { ReactNode, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Home, Utensils, Trophy, User, MessageCircle } from "lucide-react"
+import { Home, Utensils, Users, User, MessageCircle } from "lucide-react"
 import { supabase } from "@/lib/supabase-browser"
 import { useFCMToken } from "@/lib/hooks/useFCMToken"
 
@@ -48,9 +48,9 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
 
     const navItems = [
         { href: "/patient/home", label: "Início", icon: Home },
+        { href: "/patient/diet", label: "Plano", icon: Utensils },
+        { href: "/patient/feed", label: "Comunidade", icon: Users },
         { href: "/chat", label: "IA Chat", icon: MessageCircle },
-        { href: "/patient/diet", label: "Meu Plano", icon: Utensils },
-        { href: "/patient/ranking", label: "Ranking", icon: Trophy },
         { href: "/patient/profile", label: "Perfil", icon: User },
     ]
 

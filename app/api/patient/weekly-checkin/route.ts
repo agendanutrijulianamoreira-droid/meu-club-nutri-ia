@@ -94,6 +94,44 @@ Retorne APENAS JSON válido:
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // Auto-post to community feed if good check-in (score >= 8 or low risk)
+    if (diet_score >= 8 || aiRiskLevel === 'low') {
+        try {
+            const { data: profileData } = await supabase
+                .from('profiles')
+                .select('name, current_streak')
+                .eq('user_id', user.id)
+                .single()
+
+            const firstName = (profileData?.name || 'Rainha').split(' ')[0]
+            const streak = profileData?.current_streak || 0
+            const moodEmoji = mood === 'otimo' ? '🤩' : mood === 'bem' ? '😊' : mood === 'neutro' ? '😐' : '💪'
+
+            let body = ''
+            if (diet_score >= 9) {
+                body = `${moodEmoji} Nota ${diet_score}/10 no check-in semanal! Semana incrível! ${streak > 0 ? `🔥 ${streak} dias de streak!` : ''}`
+            } else if (diet_score >= 8) {
+                body = `${moodEmoji} Check-in da semana: nota ${diet_score}/10. Mantendo o foco! ${streak > 0 ? `🔥 ${streak}d de streak` : ''}`
+            } else {
+                body = `${moodEmoji} Semana positiva no check-in! Seguindo com o protocolo. ${streak > 0 ? `🔥 ${streak}d de streak` : ''}`
+            }
+
+            await supabase.from('community_posts').insert({
+                tenant_id: profile.tenant_id,
+                user_id: user.id,
+                type: 'checkin',
+                body,
+                meta: {
+                    diet_score,
+                    streak_days: streak || undefined,
+                    mood,
+                },
+            })
+        } catch (err) {
+            console.error('[Checkin] Auto-post error (non-fatal):', err)
+        }
+    }
+
     return NextResponse.json({ success: true, data, ai_summary: aiSummary, ai_suggestion: aiSuggestion })
 }
 
