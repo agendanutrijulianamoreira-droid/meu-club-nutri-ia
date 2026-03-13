@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import {
     TrendingUp, Users, AlertCircle, MessageCircle, CheckCircle,
     ChevronRight, Crown, DollarSign, ArrowUpRight, Zap, Calendar,
-    Trophy, Sparkles, Brain, Activity, Target, Flame, Clock,
+    Trophy, Sparkles, Brain, Activity, Target, Flame, Clock, FileText,
     Bell, Send, BarChart2, ChevronUp, RefreshCw, Star, Award,
     Droplets, Check, X as XIcon, AlertTriangle, Heart,
     TrendingDown, Layers, Lightbulb, ChevronDown
@@ -45,12 +45,20 @@ interface AgendaItem {
 
 interface AIInsight {
     id: number
-    icon: React.ReactNode
+    icon?: React.ReactNode
+    iconType?: string
     title: string
     body: string
     action: string
     view: string
     urgency: 'high' | 'medium' | 'low'
+}
+
+function InsightIcon({ iconType }: { iconType?: string }) {
+    if (iconType === 'alert') return <AlertTriangle size={18} className="text-rose-400" />
+    if (iconType === 'trend') return <TrendingUp size={18} className="text-amber-400" />
+    if (iconType === 'trophy') return <Trophy size={18} className="text-yellow-400" />
+    return <Lightbulb size={18} className="text-indigo-400" />
 }
 
 // ─── Sparkline SVG ────────────────────────────────────────────────────────────
@@ -110,7 +118,7 @@ function KPICard({
     label, value, sub, icon, trend, color = "indigo", sparkData, delay = 0
 }: {
     label: string; value: string; sub: string; icon: React.ReactNode
-    trend?: number; color?: string; sparkData?: number[]; delay?: number
+    trend?: number | null; color?: string; sparkData?: number[]; delay?: number
 }) {
     const colors: Record<string, { bg: string; border: string; text: string; spark: string }> = {
         indigo: { bg: "bg-indigo-500/10", border: "border-indigo-500/20", text: "text-indigo-400", spark: "#818cf8" },
@@ -167,69 +175,27 @@ export function DashboardView({
     const [expandedInsight, setExpandedInsight] = useState<number | null>(null)
     const [agendaDone, setAgendaDone] = useState<number[]>([])
     const [stats, setStats] = useState({
-        revenue: "4.250,00",
-        revenueRaw: 4250,
-        activeQueens: 127,
-        adherence: 82,
-        criticalAlerts: 3,
-        totalXP: 18340,
-        protocolDay: 7,
-        protocolTotal: 21,
-        upsellReady: 12,
+        activeQueens: 0,
+        totalPatients: 0,
+        adherence: 0,
+        criticalAlerts: 0,
+        totalXP: 0,
+        activeProtocols: 0,
     })
-
-    // Mock Data
-    const inboxItems: InboxItem[] = [
-        { id: 1, name: 'Maria Silva', initials: 'MS', status: 'risk', msg: 'Sem check-in há 3 dias. Risco de desengajamento alto.', time: '2h', aiAction: 'Enviar mensagem de incentivo personalizada' },
-        { id: 2, name: 'Ana Souza', initials: 'AS', status: 'question', msg: 'Pergunta sobre dosagem do suplemento Ômega 3.', time: '5h', aiAction: 'Responder com protocolo padrão ômega' },
-        { id: 3, name: 'Carla Dias', initials: 'CD', status: 'win', msg: 'Meta de hidratação batida pelo 7º dia consecutivo! 💧', time: '10m', aiAction: 'Postar conquista no ranking' },
-        { id: 4, name: 'Patricia Rocha', initials: 'PR', status: 'warning', msg: 'Peso estagnado há 2 semanas. Revisar protocolo.', time: '1d', aiAction: 'Agendar revisão de protocolo' },
-    ]
-
-    const topQueens: Queen[] = [
-        { id: 1, name: 'Júlia Dias', initials: 'JD', xp: 980, progress: 98, streak: 14, rank: 1 },
-        { id: 2, name: 'Ana Maria', initials: 'AM', xp: 850, progress: 85, streak: 9, rank: 2 },
-        { id: 3, name: 'Beatriz Lopes', initials: 'BL', xp: 720, progress: 72, streak: 6, rank: 3 },
-    ]
+    const [inboxItems, setInboxItems] = useState<InboxItem[]>([])
+    const [topQueens, setTopQueens] = useState<Queen[]>([])
+    const [insights, setInsights] = useState<AIInsight[]>([])
 
     const agenda: AgendaItem[] = [
-        { id: 1, time: '08:00', title: 'Disparo da campanha matinal de hidratação', type: 'campaign', done: true },
-        { id: 2, time: '10:00', title: 'Check-in automático: Semana 2 do protocolo', type: 'check', done: true },
-        { id: 3, time: '14:00', title: 'Consulta – Patricia Rocha (revisão de plano)', type: 'consult', done: false },
-        { id: 4, time: '18:00', title: 'Post de engajamento para as Rainhas VIP', type: 'campaign', done: false },
-        { id: 5, time: '20:00', title: 'Relatório diário gerado pela IA', type: 'check', done: false },
+        { id: 1, time: '09:00', title: 'IA de engajamento — análise diária das pacientes', type: 'check', done: new Date().getHours() >= 9 },
+        { id: 2, time: '12:00', title: 'Janela de check-in disponível para pacientes', type: 'check', done: new Date().getHours() >= 12 },
+        { id: 3, time: '18:00', title: 'Disparo automático de lembretes para inativas', type: 'campaign', done: new Date().getHours() >= 18 },
+        { id: 4, time: '20:00', title: 'Consolidação de XP e atualização de rankings', type: 'check', done: new Date().getHours() >= 20 },
     ]
 
-    const insights: AIInsight[] = [
-        {
-            id: 1, urgency: 'high',
-            icon: <AlertTriangle size={18} className="text-rose-400" />,
-            title: '3 Rainhas em risco de evasão',
-            body: 'Maria Silva, Fernanda Costa e Luisa Torres estão com baixo engajamento há +72h. Probabilidade de cancelamento: 64%.',
-            action: 'Ver Alertas',
-            view: 'checkins'
-        },
-        {
-            id: 2, urgency: 'medium',
-            icon: <TrendingUp size={18} className="text-amber-400" />,
-            title: 'Adesão subindo +8% esta semana',
-            body: 'O protocolo atual está performando 8% acima da média histórica. Fator principal: o lembrete de shots matinais.',
-            action: 'Ver Relatório',
-            view: 'protocols'
-        },
-        {
-            id: 3, urgency: 'low',
-            icon: <Lightbulb size={18} className="text-indigo-400" />,
-            title: 'Momento ideal para upsell',
-            body: `${stats.upsellReady} pacientes completaram o protocolo básico e estão qualificadas para o Teste Genético NutriGen. Tíquete médio: +R$ 890.`,
-            action: 'Ver Oportunidade',
-            view: 'patients'
-        },
-    ]
-
-    const revenueHistory = [3100, 3400, 3200, 3800, 4100, 3900, 4250]
-    const adherenceHistory = [68, 72, 75, 74, 78, 80, 82]
-    const queensHistory = [98, 105, 110, 112, 118, 124, 127]
+    const revenueHistory = [0, 0, 0, 0, 0, 0, 0]
+    const adherenceHistory = [0, 0, 0, 0, 0, 0, stats.adherence]
+    const queensHistory = [0, 0, 0, 0, 0, 0, stats.activeQueens]
 
     useEffect(() => {
         const h = new Date().getHours()
@@ -241,16 +207,33 @@ export function DashboardView({
 
     const loadData = async () => {
         try {
-            if (tenantId) {
-                const { data: tenant } = await supabase
-                    .from('tenants').select('method_name').eq('id', tenantId).single()
-                if (tenant?.method_name) setMethodName(tenant.method_name)
+            const res = await fetch('/api/admin/dashboard')
+            if (res.ok) {
+                const data = await res.json()
+                setStats(data.stats)
+                setMethodName(data.methodName || '')
+                setActiveProtocol(data.activeProtocol)
+                const inbox = (data.atRisk || []).map((p: any) => ({
+                    id: p.id,
+                    name: p.name,
+                    initials: p.initials,
+                    status: p.riskLevel === 'high' ? 'risk' : 'warning',
+                    msg: p.summary,
+                    time: p.daysSince === 0 ? 'hoje' : p.daysSince === 1 ? '1d' : String(p.daysSince) + 'd',
+                    aiAction: p.riskLevel === 'high' ? 'Enviar mensagem de resgate' : 'Enviar dica motivacional',
+                }))
+                setInboxItems(inbox)
+                setTopQueens(data.topQueens || [])
+                const iconMap: Record<string, string> = {
+                    alert: 'alert', trend: 'trend', trophy: 'trophy', star: 'star',
+                }
+                setInsights((data.insights || []).map((ins: any) => ({ ...ins, iconType: ins.iconType })))
             }
-            const { data: protocol } = await supabase
-                .from('protocols').select('*').eq('scheduled_status', 'active').limit(1).single()
-            if (protocol) setActiveProtocol(protocol)
-        } catch { }
-        finally { setLoading(false) }
+        } catch (err) {
+            console.error('[Dashboard] loadData error:', err)
+        } finally {
+            setLoading(false)
+        }
     }
 
     const toggleAgenda = (id: number) => {
@@ -277,7 +260,9 @@ export function DashboardView({
         return <AlertTriangle size={12} className="text-white" />
     }
 
-    const protocolDays = Array.from({ length: stats.protocolTotal }, (_, i) => i + 1)
+    const protocolDays = Array.from({ length: activeProtocol?.duration_days || 21 }, (_, i) => i + 1)
+    const protocolDay = 1
+    const protocolTotal = activeProtocol?.duration_days || 21
 
     const urgencyBorder: Record<string, string> = {
         high: 'border-rose-500/30 bg-rose-500/5',
@@ -322,9 +307,9 @@ export function DashboardView({
 
             {/* ── KPI GRID (5 cards) ─────────────────────────────────────── */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                <KPICard label="Faturamento" value={`R$ ${stats.revenue}`} sub="Mês atual"
-                    icon={<DollarSign size={18} />} color="indigo" trend={12}
-                    sparkData={revenueHistory} delay={0} />
+                <KPICard label="Protocolo Ativo" value={String(stats.activeProtocols || 0)} sub="Atribuídos agora"
+                    icon={<FileText size={18} />} color="indigo"
+                    delay={0} />
                 <KPICard label="Rainhas Ativas" value={String(stats.activeQueens)} sub="Em protocolo"
                     icon={<Users size={18} />} color="violet" trend={5}
                     sparkData={queensHistory} delay={0.06} />
@@ -354,7 +339,7 @@ export function DashboardView({
                             onClick={() => setExpandedInsight(expandedInsight === ins.id ? null : ins.id)}
                         >
                             <div className="flex items-start gap-3">
-                                <div className="mt-0.5 shrink-0">{ins.icon}</div>
+                                <div className="mt-0.5 shrink-0">{ins.icon || <InsightIcon iconType={ins.iconType} />}</div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-sm font-bold text-white leading-snug">{ins.title}</p>
                                     <AnimatePresence>
@@ -400,7 +385,7 @@ export function DashboardView({
                                         <Sparkles size={12} /> Protocolo Ativo
                                     </span>
                                     <span className="text-slate-500 text-xs font-semibold">
-                                        Dia {stats.protocolDay} de {stats.protocolTotal}
+                                        Protocolo ativo
                                     </span>
                                 </div>
                                 <span className="text-emerald-400 flex items-center gap-1.5 text-[11px] font-bold bg-emerald-950/30 px-3 py-1.5 rounded-full border border-emerald-800/50">
@@ -438,9 +423,9 @@ export function DashboardView({
                                     {protocolDays.map(d => (
                                         <div key={d}
                                             className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black border transition-all
-                                            ${d < stats.protocolDay
+                                            ${d < protocolDay
                                                 ? 'bg-indigo-500/30 border-indigo-500/50 text-indigo-300'
-                                                : d === stats.protocolDay
+                                                : d === protocolDay
                                                     ? 'bg-indigo-500 border-indigo-400 text-white shadow-lg shadow-indigo-500/30 scale-110'
                                                     : 'bg-white/3 border-white/5 text-slate-700'}`}
                                         >
@@ -597,17 +582,17 @@ export function DashboardView({
                         </div>
 
                         <p className="text-[10px] text-indigo-300 uppercase tracking-[0.2em] font-black mb-2 flex items-center gap-2 relative z-10">
-                            <Activity size={14} /> Faturamento Mensal
+                            <Users size={14} /> Visão Geral do Clube
                         </p>
 
                         <div className="flex items-end gap-2 mb-1 relative z-10">
-                            <span className="text-4xl font-light text-white tracking-tight">R$ {stats.revenue}</span>
-                            <span className="bg-emerald-500/20 text-emerald-400 text-[11px] px-2.5 py-1 rounded-lg font-black border border-emerald-500/30 mb-1">+12%</span>
+                            <span className="text-4xl font-light text-white tracking-tight">{stats.activeQueens}</span>
+                            <span className="text-sm text-slate-500 mb-1">ativas</span>
                         </div>
-                        <p className="text-[11px] text-slate-600 mb-4 relative z-10">vs. mês anterior</p>
+                        <p className="text-[11px] text-slate-600 mb-4 relative z-10">de {stats.totalPatients} total</p>
 
                         <div className="relative z-10 mb-5">
-                            <Sparkline data={revenueHistory} color="#818cf8" />
+                            <Sparkline data={queensHistory} color="#818cf8" />
                             <div className="flex justify-between text-[10px] text-slate-700 font-bold mt-1">
                                 <span>6 meses atrás</span><span>Hoje</span>
                             </div>
@@ -622,7 +607,7 @@ export function DashboardView({
                                 <div>
                                     <h4 className="font-bold text-amber-100 text-sm mb-1">Oportunidade Upsell</h4>
                                     <p className="text-xs text-amber-100/60 leading-relaxed">
-                                        <strong className="text-white">{stats.upsellReady} Rainhas</strong> prontas para NutriGen.
+                                        <strong className="text-white">{stats.activeQueens} Rainhas</strong> com protocolo ativo.
                                         Potencial: <strong className="text-amber-400">+R$ 10.680</strong>
                                     </p>
                                     <Button onClick={() => setView('patients')}
