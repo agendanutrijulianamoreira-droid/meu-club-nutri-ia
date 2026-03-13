@@ -1,9 +1,10 @@
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     Brain, Save, MessageCircle, Lock, Unlock,
-    Zap, ChevronRight, Sliders, Smartphone, Check, Loader2
+    Zap, ChevronRight, Sliders, Smartphone, Check, Loader2,
+    Bot, Play, Clock, CheckCircle, XCircle, RefreshCw, Bell
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
@@ -325,6 +326,200 @@ export function AISettingsView({ setView, tenantId }: { setView: (v: any) => voi
             </div>
         </div>
     );
+}
+
+
+// ─── Cron Engagement Panel ────────────────────────────────────────────────────
+export function CronEngagementPanel() {
+    const [logs, setLogs] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const [running, setRunning] = useState(false)
+    const [lastResult, setLastResult] = useState<any>(null)
+
+    const loadLogs = useCallback(async () => {
+        setLoading(true)
+        try {
+            const res = await fetch('/api/admin/cron/trigger')
+            if (res.ok) {
+                const data = await res.json()
+                setLogs(data.logs || [])
+            }
+        } finally {
+            setLoading(false)
+        }
+    }, [])
+
+    useEffect(() => { loadLogs() }, [loadLogs])
+
+    const handleRun = async () => {
+        setRunning(true)
+        setLastResult(null)
+        try {
+            const res = await fetch('/api/admin/cron/trigger', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tenant_only: true }),
+            })
+            const data = await res.json()
+            setLastResult(data)
+            await loadLogs()
+        } catch (err: any) {
+            setLastResult({ error: err.message })
+        } finally {
+            setRunning(false)
+        }
+    }
+
+    const statusBadge = (status: string) => {
+        if (status === 'success') return (
+            <span className="flex items-center gap-1 text-emerald-400 text-[10px] font-black uppercase">
+                <CheckCircle size={11} /> OK
+            </span>
+        )
+        if (status === 'error') return (
+            <span className="flex items-center gap-1 text-rose-400 text-[10px] font-black uppercase">
+                <XCircle size={11} /> ERRO
+            </span>
+        )
+        return (
+            <span className="flex items-center gap-1 text-amber-400 text-[10px] font-black uppercase">
+                <Loader2 size={11} className="animate-spin" /> RODANDO
+            </span>
+        )
+    }
+
+    return (
+        <div className="space-y-6">
+            {/* Header card */}
+            <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-3xl p-6 flex items-start gap-5">
+                <div className="h-12 w-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center flex-shrink-0">
+                    <Bot size={24} className="text-indigo-400" />
+                </div>
+                <div className="flex-1">
+                    <h3 className="font-bold text-white text-lg mb-1">IA de Engajamento 24h</h3>
+                    <p className="text-slate-400 text-sm">
+                        Todo dia às <span className="text-white font-bold">09:00</span>, a IA analisa cada paciente
+                        e envia uma mensagem personalizada no inbox — resgate para inativas, 
+                        celebração para marcos de streak, dica para quem está com adesão média.
+                    </p>
+                    <div className="flex items-center gap-4 mt-3">
+                        <div className="flex items-center gap-1.5">
+                            <Clock size={12} className="text-indigo-400" />
+                            <span className="text-xs text-slate-400">Cron: 09:00 BRT (todo dia)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <Bell size={12} className="text-indigo-400" />
+                            <span className="text-xs text-slate-400">Inbox + Push (se configurado)</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                    <button
+                        onClick={handleRun}
+                        disabled={running}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 transition-all rounded-xl text-white text-xs font-bold"
+                    >
+                        {running ? (
+                            <><Loader2 size={14} className="animate-spin" /> Rodando...</>
+                        ) : (
+                            <><Play size={14} /> Executar agora</>
+                        )}
+                    </button>
+                    <button onClick={loadLogs} className="text-slate-500 hover:text-slate-300 transition-colors">
+                        <RefreshCw size={14} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Last run result */}
+            {lastResult && !lastResult.error && (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 flex items-center gap-4">
+                    <CheckCircle size={20} className="text-emerald-400 flex-shrink-0" />
+                    <div>
+                        <p className="font-bold text-white text-sm">Execução concluída</p>
+                        <p className="text-xs text-slate-400">
+                            {lastResult.notifications_sent || 0} notificações enviadas
+                            · {lastResult.data?.elapsed_ms || 0}ms
+                        </p>
+                    </div>
+                </div>
+            )}
+            {lastResult?.error && (
+                <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex items-center gap-4">
+                    <XCircle size={20} className="text-rose-400 flex-shrink-0" />
+                    <div>
+                        <p className="font-bold text-white text-sm">Erro na execução</p>
+                        <p className="text-xs text-rose-400">{lastResult.error}</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Logic explanation */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">Lógica de disparo</p>
+                <div className="space-y-3">
+                    {[
+                        { icon: "⚠️", label: "Risco ALTO", desc: "Inativa > 7 dias → mensagem de resgate", color: "text-rose-400" },
+                        { icon: "⚡", label: "Risco MÉDIO", desc: "Adesão < 60% nos últimos 7 dias → dica motivacional", color: "text-amber-400" },
+                        { icon: "🔥", label: "Marco de streak", desc: "7, 14, 21, 30, 60 ou 100 dias → celebração personalizada", color: "text-orange-400" },
+                        { icon: "✅", label: "Risco BAIXO", desc: "Sem marco → nenhuma notificação (sem spam)", color: "text-emerald-400" },
+                    ].map(item => (
+                        <div key={item.label} className="flex items-start gap-3">
+                            <span className="text-base">{item.icon}</span>
+                            <div>
+                                <span className={`text-xs font-bold ${item.color}`}>{item.label}</span>
+                                <span className="text-xs text-slate-400"> — {item.desc}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Execution log */}
+            <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Histórico de execuções</p>
+                {loading ? (
+                    <div className="text-center py-8"><Loader2 className="animate-spin text-slate-600 mx-auto" size={24} /></div>
+                ) : logs.length === 0 ? (
+                    <div className="text-center py-8 text-slate-600 text-sm">Nenhuma execução registrada ainda.</div>
+                ) : (
+                    <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden divide-y divide-white/5">
+                        {logs.map(log => (
+                            <div key={log.id} className="px-5 py-3 flex items-center gap-4">
+                                <div className="w-24 flex-shrink-0">{statusBadge(log.status)}</div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs text-slate-400">
+                                        {new Date(log.created_at).toLocaleString('pt-BR', {
+                                            day: '2-digit', month: '2-digit',
+                                            hour: '2-digit', minute: '2-digit'
+                                        })}
+                                        {log.triggered_by === 'manual' && (
+                                            <span className="ml-2 text-[9px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase">Manual</span>
+                                        )}
+                                    </p>
+                                    {log.error_message && (
+                                        <p className="text-xs text-rose-400 truncate mt-0.5">{log.error_message}</p>
+                                    )}
+                                </div>
+                                {log.status === 'success' && (
+                                    <div className="flex gap-4 text-right flex-shrink-0">
+                                        <div>
+                                            <p className="text-xs font-bold text-white">{log.notifications_sent || 0}</p>
+                                            <p className="text-[9px] text-slate-600 uppercase">notifs</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-slate-400">{log.elapsed_ms || 0}ms</p>
+                                            <p className="text-[9px] text-slate-600 uppercase">tempo</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    )
 }
 
 function PlusIcon({ size, className }: { size?: number, className?: string }) {

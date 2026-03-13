@@ -24,7 +24,8 @@ import {
     Globe,
     Brain,
     BookOpen,
-    ShieldCheck
+    ShieldCheck,
+    Bot
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -38,7 +39,7 @@ import { RewardsView } from "./views/RewardsView"
 import { CheckinsView } from "./views/CheckinsView"
 import { SalesPageGenerator } from "./views/SalesPageGenerator"
 import { LibraryView } from "./views/LibraryView"
-import { AISettingsView } from "./views/AISettingsView"
+import { AISettingsView, CronEngagementPanel } from "./views/AISettingsView"
 import { SettingsView } from "./views/SettingsView"
 import { ClubPlanView } from "./views/ClubPlanView"
 import { repairProfile } from "./actions/repairProfileAction"
@@ -50,7 +51,7 @@ import { ChevronDown, LogOut, User as UserIcon, Building2, Palette } from "lucid
 
 import { SettingsLoginView } from "./views/SettingsLoginView"
 
-type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'library' | 'settings' | 'settings-login' | 'club-plan'
+type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-cron' | 'library' | 'settings' | 'settings-login' | 'club-plan'
 
 const navItems = [
     { id: 'dashboard' as ViewType, label: 'Painel Central', icon: LayoutDashboard },
@@ -64,6 +65,7 @@ const navItems = [
     { id: 'library' as ViewType, label: 'Cérebro Técnico', icon: BookOpen },
     { id: 'sales-page' as ViewType, label: 'Bio-Page', icon: Globe },
     { id: 'ai-brain' as ViewType, label: 'Config. IA', icon: Brain },
+    { id: 'ai-cron' as ViewType, label: 'IA 24h', icon: Bot },
     { id: 'settings' as ViewType, label: 'Sistema', icon: Settings },
 ]
 
@@ -106,6 +108,15 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
             case 'library': return <LibraryView setView={setActiveView} />
             case 'sales-page': return <SalesPageGenerator setView={setActiveView} tenantId={tenantId} />
             case 'ai-brain': return <AISettingsView setView={setActiveView} tenantId={tenantId} />
+            case 'ai-cron': return (
+                <div className="space-y-4">
+                    <div>
+                        <h1 className="text-3xl font-light text-white tracking-tight">IA de <span className="font-bold">Engajamento 24h</span></h1>
+                        <p className="text-slate-400 mt-1">Automação que trabalha enquanto você dorme.</p>
+                    </div>
+                    <CronEngagementPanel />
+                </div>
+            )
             case 'settings': return <SettingsView {...props} />
             case 'settings-login': return <SettingsLoginView />
             case 'club-plan': return <ClubPlanView {...props} />
