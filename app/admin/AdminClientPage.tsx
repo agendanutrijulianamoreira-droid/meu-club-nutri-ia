@@ -40,6 +40,7 @@ import { CheckinsView } from "./views/CheckinsView"
 import { SalesPageGenerator } from "./views/SalesPageGenerator"
 import { LibraryView } from "./views/LibraryView"
 import { AISettingsView, CronEngagementPanel } from "./views/AISettingsView"
+import { CommunityView } from "./views/CommunityView"
 import { SettingsView } from "./views/SettingsView"
 import { ClubPlanView } from "./views/ClubPlanView"
 import { repairProfile } from "./actions/repairProfileAction"
@@ -51,7 +52,7 @@ import { ChevronDown, LogOut, User as UserIcon, Building2, Palette } from "lucid
 
 import { SettingsLoginView } from "./views/SettingsLoginView"
 
-type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-cron' | 'library' | 'settings' | 'settings-login' | 'club-plan'
+type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-cron' | 'community' | 'library' | 'settings' | 'settings-login' | 'club-plan'
 
 const navItems = [
     { id: 'dashboard' as ViewType, label: 'Painel Central', icon: LayoutDashboard },
@@ -66,6 +67,7 @@ const navItems = [
     { id: 'sales-page' as ViewType, label: 'Bio-Page', icon: Globe },
     { id: 'ai-brain' as ViewType, label: 'Config. IA', icon: Brain },
     { id: 'ai-cron' as ViewType, label: 'IA 24h', icon: Bot },
+    { id: 'community' as ViewType, label: 'Comunidade', icon: Users },
     { id: 'settings' as ViewType, label: 'Sistema', icon: Settings },
 ]
 
@@ -108,6 +110,15 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
             case 'library': return <LibraryView setView={setActiveView} />
             case 'sales-page': return <SalesPageGenerator setView={setActiveView} tenantId={tenantId} />
             case 'ai-brain': return <AISettingsView setView={setActiveView} tenantId={tenantId} />
+            case 'community': return (
+                <div className="space-y-4">
+                    <div>
+                        <h1 className="text-3xl font-light text-white tracking-tight">Feed da <span className="font-bold">Comunidade</span></h1>
+                        <p className="text-slate-400 mt-1">Modere posts, publique anúncios e acompanhe o engajamento do clube.</p>
+                    </div>
+                    <CommunityView />
+                </div>
+            )
             case 'ai-cron': return (
                 <div className="space-y-4">
                     <div>
