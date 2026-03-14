@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { motion } from "framer-motion"
 import {
     TrendingUp, Users, Flame, Star, RefreshCw, Loader2,
@@ -280,15 +280,17 @@ export function AnalyticsView({ setView }: { setView: (v: any) => void }) {
                     </p>
                     {funnel.map((step: any, i: number) => {
                         const colors = ['#818cf8', '#a78bfa', '#34d399', '#f59e0b', '#f472b6']
+                        const funnelProps: { label: string; value: number; pct: number; color: string; delay: number } = {
+                            label: String(step.label),
+                            value: Number(step.value),
+                            pct: Number(step.pct),
+                            color: colors[i],
+                            delay: 0.2 + i * 0.08,
+                        }
                         return (
-                            <FunnelBar
-                                key={step.label}
-                                label={step.label}
-                                value={step.value}
-                                pct={step.pct}
-                                color={colors[i]}
-                                delay={0.2 + i * 0.08}
-                            />
+                            <div key={step.label}>
+                                <FunnelBar {...funnelProps} />
+                            </div>
                         )
                     })}
                 </motion.div>
@@ -342,7 +344,7 @@ export function AnalyticsView({ setView }: { setView: (v: any) => void }) {
                         <Star size={12} className="text-amber-400" /> Notas de dieta (check-ins)
                     </p>
                     {Object.entries(scoreDistrib).map(([range, count], i) => {
-                        const total2 = Object.values(scoreDistrib).reduce((a, b) => a + (b as number), 0) || 1
+                        const total2 = (Object.values(scoreDistrib) as number[]).reduce((a: number, b: number) => a + b, 0) || 1
                         const pct = Math.round(((count as number) / total2) * 100)
                         const colors = ['#f43f5e', '#f97316', '#f59e0b', '#22c55e', '#10b981']
                         return (

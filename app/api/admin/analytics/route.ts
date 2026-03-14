@@ -72,7 +72,7 @@ export async function GET() {
         const label = `${weekStart.getDate()}/${weekStart.getMonth() + 1}`
 
         const weekLogs = (logs56 || []).filter(l => l.log_date >= ws && l.log_date <= we)
-        const activeUsers = [...new Set(weekLogs.map(l => l.user_id))].length
+        const activeUsers = Array.from(new Set(weekLogs.map(l => l.user_id as string))).length
         const mealChecks = weekLogs.filter(l => l.meal_plan_check).length
         const adherence = weekLogs.length > 0 ? Math.round((mealChecks / weekLogs.length) * 100) : 0
 
@@ -101,10 +101,10 @@ export async function GET() {
     // ────────────────────────────────────────────────────────────────────────
     const last30 = daysAgo(30)
     const logs30 = (logs56 || []).filter(l => l.log_date >= last30)
-    const activeUserIds30 = [...new Set(logs30.map(l => l.user_id))]
-    const checkinUsers30 = [...new Set((weeklyCheckins || []).filter(c => c.week_start >= last30).map(c => c.user_id))]
-    const postUsers30 = [...new Set((posts30 || []).map(p => p.user_id))]
-    const redeemUsers = [...new Set((redemptions || []).filter(r => new Date(r.created_at) >= new Date(last30)).map(r => r.user_id))]
+    const activeUserIds30 = Array.from(new Set(logs30.map(l => l.user_id as string)))
+    const checkinUsers30 = Array.from(new Set((weeklyCheckins || []).filter(c => c.week_start >= last30).map(c => c.user_id as string)))
+    const postUsers30 = Array.from(new Set((posts30 || []).map(p => p.user_id as string)))
+    const redeemUsers = Array.from(new Set((redemptions || []).filter(r => new Date(r.created_at) >= new Date(last30)).map(r => r.user_id as string)))
 
     const funnel = [
         { label: 'Cadastradas', value: total, pct: 100 },

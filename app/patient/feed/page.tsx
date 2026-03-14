@@ -93,7 +93,7 @@ function Avatar({ initials, streak }: { initials: string; streak: number }) {
     )
 }
 
-function PostCard({ post, onReact }: { post: Post; onReact: (postId: string, emoji: string) => void }) {
+function PostCard({ post, onReact }: { post: Post; onReact: (postId: string, emoji: string) => unknown; key?: string }) {
     const [showEmojis, setShowEmojis] = useState(false)
     const style = TYPE_STYLES[post.type] || TYPE_STYLES.text
 
@@ -432,9 +432,9 @@ export default function FeedPage() {
                                 </div>
                             ) : (
                                 <div className="space-y-3">
-                                    {posts.map(post => (
-                                        <PostCard key={post.id} post={post} onReact={handleReact} />
-                                    ))}
+                                    {posts.map((post: Post) => {
+                                        return <PostCard key={post.id} post={post} onReact={handleReact} />
+                                    })}
                                     <div ref={loaderRef} className="py-4 flex justify-center">
                                         {loadingMore && <Loader2 className="animate-spin text-slate-700" size={20} />}
                                         {!hasMore && posts.length > 0 && (

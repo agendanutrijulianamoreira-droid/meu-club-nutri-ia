@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     }
 
     const postIds = posts.map(p => p.id)
-    const authorIds = [...new Set(posts.map(p => p.user_id))]
+    const authorIds = Array.from(new Set(posts.map(p => p.user_id as string)))
 
     // Fetch authors
     const { data: authors } = await supabase

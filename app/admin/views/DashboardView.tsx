@@ -54,7 +54,7 @@ interface AIInsight {
     urgency: 'high' | 'medium' | 'low'
 }
 
-function InsightIcon({ iconType }: { iconType?: string }) {
+function InsightIcon({ iconType }: { iconType?: string }): React.ReactElement {
     if (iconType === 'alert') return <AlertTriangle size={18} className="text-rose-400" />
     if (iconType === 'trend') return <TrendingUp size={18} className="text-amber-400" />
     if (iconType === 'trophy') return <Trophy size={18} className="text-yellow-400" />
@@ -139,7 +139,7 @@ function KPICard({
                 <div className={`${c.bg} border ${c.border} p-2 rounded-xl`}>
                     <div className={c.text}>{icon}</div>
                 </div>
-                {trend !== undefined && (
+                {trend !== undefined && trend !== null && (
                     <span className={`text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-lg
                         ${trend >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
                         {trend >= 0 ? <ChevronUp size={12} /> : <ChevronDown size={12} />}

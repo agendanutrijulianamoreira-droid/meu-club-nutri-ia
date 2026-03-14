@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
 
     // Sort: high risk first, then medium, then low
     responses.sort((a, b) => {
-        const order = { high: 0, medium: 1, low: 2 }
+        const order: Record<string, number> = { high: 0, medium: 1, low: 2 }
         return order[a.riskLevel] - order[b.riskLevel]
     })
 

@@ -225,7 +225,7 @@ export default function PatientStorePage() {
         ? items.filter(i => i.type === filterType)
         : items
 
-    const types = [...new Set(items.map(i => i.type))]
+    const types: string[] = Array.from(new Set(items.map(i => i.type as string)))
 
     return (
         <div className="min-h-screen pb-28">

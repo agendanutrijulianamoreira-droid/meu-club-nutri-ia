@@ -1,4 +1,5 @@
 "use client"
+import React from "react"
 
 import { useState, useEffect, useCallback } from "react"
 import {
@@ -23,7 +24,7 @@ interface Redemption {
     created_at: string; admin_notes?: string
 }
 
-const TYPE_META: Record<string, { label: string; icon: JSX.Element; color: string; bg: string }> = {
+const TYPE_META: Record<string, { label: string; icon: React.ReactElement; color: string; bg: string }> = {
     digital:     { label: "Digital",     icon: <Download size={13}/>,  color: "text-sky-400",     bg: "bg-sky-500/15 border-sky-500/25" },
     fisico:      { label: "Físico",      icon: <Package size={13}/>,   color: "text-orange-400",  bg: "bg-orange-500/15 border-orange-500/25" },
     cupom:       { label: "Cupom",       icon: <Percent size={13}/>,   color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/25" },

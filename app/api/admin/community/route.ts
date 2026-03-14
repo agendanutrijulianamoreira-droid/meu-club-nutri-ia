@@ -23,7 +23,7 @@ export async function GET() {
         .limit(50)
 
     // Enrich with author names
-    const authorIds = [...new Set((posts || []).map(p => p.user_id))]
+    const authorIds = Array.from(new Set((posts || []).map(p => p.user_id as string)))
     const { data: authors } = await supabase
         .from('profiles').select('user_id, name, role').in('user_id', authorIds)
     const authorMap: Record<string, any> = {}
