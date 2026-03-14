@@ -36,6 +36,7 @@ export function ClubPlanView({ setView, tenantId = '' }: { setView: (v: any) => 
     const [editingMonth, setEditingMonth] = useState<number | null>(null)
     const [hasLoaded, setHasLoaded] = useState(false)
     const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+    const [hasUnsaved, setHasUnsaved] = useState(false)
     const [showWizard, setShowWizard] = useState(false)
     const [setupDone, setSetupDone] = useState<boolean | null>(null)
 
@@ -80,7 +81,13 @@ export function ClubPlanView({ setView, tenantId = '' }: { setView: (v: any) => 
         }
     }
 
-    const handleGenerate = async (type: 'semestral' | 'anual') => {
+    const handleGenerate = async (type: 'semestral' | 'anual', skipConfirm = false) => {
+        if (!skipConfirm && months.length > 0) {
+            const ok = window.confirm(
+                'Isso vai substituir o plano atual, incluindo edições manuais. Continuar?'
+            )
+            if (!ok) return
+        }
         setPlanType(type)
         setLoading(true)
         try {
@@ -101,6 +108,7 @@ export function ClubPlanView({ setView, tenantId = '' }: { setView: (v: any) => 
         try {
             await saveClubPlan(planType, months)
             setLastUpdated(new Date().toISOString())
+            setHasUnsaved(false)
         } catch (err) {
             console.error("Erro ao salvar:", err)
         } finally {
@@ -110,6 +118,7 @@ export function ClubPlanView({ setView, tenantId = '' }: { setView: (v: any) => 
 
     const updateMonth = (index: number, field: keyof MonthPlan, value: any) => {
         setMonths(prev => prev.map((m, i) => i === index ? { ...m, [field]: value } : m))
+        setHasUnsaved(true)
     }
 
     // Wizard modal
@@ -229,10 +238,10 @@ export function ClubPlanView({ setView, tenantId = '' }: { setView: (v: any) => 
                     <Button
                         onClick={handleSave}
                         disabled={saving}
-                        className="h-12 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-bold gap-2"
+                        className={`h-12 text-white rounded-xl font-bold gap-2 ${hasUnsaved ? 'bg-amber-600 hover:bg-amber-500 ring-2 ring-amber-400/40' : 'bg-violet-600 hover:bg-violet-500'}`}
                     >
                         {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                        Salvar Plano
+                        {hasUnsaved ? 'Salvar Alterações ●' : 'Salvar Plano'}
                     </Button>
                 </div>
             </div>
@@ -340,21 +349,58 @@ export function ClubPlanView({ setView, tenantId = '' }: { setView: (v: any) => 
                                 )}
                             </div>
 
-                            {/* Inbox Templates (collapsed) */}
+                            {/* Inbox Templates */}
                             <div className="mb-4">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">
-                                    Templates de Inbox ({month.inbox_templates?.length || 0})
+                                    Mensagens do Mês ({month.inbox_templates?.length || 0})
                                 </span>
-                                <div className="space-y-1">
-                                    {month.inbox_templates?.map((t, ti) => (
-                                        <p key={ti} className="text-slate-400 text-xs truncate">{t}</p>
-                                    ))}
-                                </div>
+                                {editingMonth === index ? (
+                                    <div className="space-y-1.5">
+                                        {(month.inbox_templates || []).map((t, ti) => (
+                                            <div key={ti} className="flex gap-1">
+                                                <input
+                                                    className="flex-1 bg-white/5 border border-white/10 rounded-xl py-1.5 px-2 text-slate-300 text-xs focus:outline-none focus:border-violet-500"
+                                                    value={t}
+                                                    onChange={e => {
+                                                        const updated = [...(month.inbox_templates || [])]
+                                                        updated[ti] = e.target.value
+                                                        updateMonth(index, 'inbox_templates', updated)
+                                                    }}
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        const updated = (month.inbox_templates || []).filter((_, i) => i !== ti)
+                                                        updateMonth(index, 'inbox_templates', updated)
+                                                    }}
+                                                    className="text-slate-600 hover:text-rose-400 px-1 text-xs"
+                                                >✕</button>
+                                            </div>
+                                        ))}
+                                        <button
+                                            onClick={() => updateMonth(index, 'inbox_templates', [...(month.inbox_templates || []), ''])}
+                                            className="text-[10px] text-violet-400 hover:text-violet-300 font-bold mt-1"
+                                        >+ Adicionar mensagem</button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1">
+                                        {month.inbox_templates?.map((t, ti) => (
+                                            <p key={ti} className="text-slate-400 text-xs truncate">· {t}</p>
+                                        ))}
+                                        {(!month.inbox_templates || month.inbox_templates.length === 0) && (
+                                            <p className="text-slate-700 text-xs italic">Nenhuma mensagem — clique em editar</p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Generate Protocol CTA */}
                             <Button
                                 onClick={() => {
+                                    sessionStorage.setItem('protocol_prefill', JSON.stringify({
+                                        title: month.protocol_title,
+                                        description: `Tema: ${month.theme}. ${month.upgrade_cta || ''}`.trim(),
+                                        duration_days: 30,
+                                    }))
                                     setView('protocols')
                                 }}
                                 variant="outline"

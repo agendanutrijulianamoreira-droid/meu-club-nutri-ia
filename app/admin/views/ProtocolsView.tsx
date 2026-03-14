@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Plus, Sparkles, FileText, Clock, MoreVertical, Edit, Trash2, Copy, Loader2, X, Save, Calendar, List } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
@@ -18,6 +18,19 @@ export function ProtocolsView({ setView }: { setView: (v: any) => void }) {
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+
+    // Read prefill from ClubPlanView (sessionStorage)
+    useEffect(() => {
+        const raw = sessionStorage.getItem('protocol_prefill')
+        if (raw) {
+            try {
+                const prefill = JSON.parse(raw)
+                setEditingProtocol(prefill)  // use editingData slot (title+description pre-filled)
+                setShowCreate(true)
+                sessionStorage.removeItem('protocol_prefill')
+            } catch { sessionStorage.removeItem('protocol_prefill') }
+        }
+    }, [])
 
     const toggleSelect = (id: string) => {
         setSelectedIds(prev =>
@@ -236,7 +249,8 @@ function ProtocolCard({ protocol, isSelected, onSelect, onDelete, onEdit, onDupl
     onSelect: () => void,
     onDelete: (id: string) => Promise<any>,
     onEdit: (protocol: any) => void,
-    onDuplicate: (protocol: any) => Promise<any>
+    onDuplicate: (protocol: any) => Promise<any>,
+    key?: any,
 }) {
     const [showMenu, setShowMenu] = useState(false)
     const [deleting, setDeleting] = useState(false)
@@ -347,8 +361,8 @@ function CreateProtocolForm({ onClose, onSave, onUpdate, editingData }: {
     onUpdate?: (id: string, data: any) => Promise<any>,
     editingData?: any
 }) {
-    const isEditing = !!editingData
-    const [step, setStep] = useState(isEditing ? 2 : 1)
+    const isEditing = !!editingData && !!editingData.id  // prefill has no id
+    const [step, setStep] = useState(isEditing && editingData?.id ? 2 : 1)
     const [formData, setFormData] = useState({
         title: editingData?.title || "",
         duration: editingData?.duration_days?.toString() || "7",
