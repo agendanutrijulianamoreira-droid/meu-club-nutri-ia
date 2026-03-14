@@ -1,733 +1,665 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import {
-    Search,
-    Bell,
-    Gift,
-    Zap,
-    TrendingUp,
-    AlertTriangle,
-    MessageCircle,
-    Shield,
-    MoreVertical,
-    Smartphone,
-    Lock,
-    Activity,
-    Calendar,
-    Star,
-    Crown,
-    Trophy,
-    Flame,
-    CheckCircle,
-    XCircle,
-    ExternalLink,
-    Mail,
-    Phone,
-    MapPin,
-    Clock,
-    Target,
-    Award,
-    ChevronRight,
-    Loader2,
-    Sparkles,
-    Send,
-    Heart
+    Search, Bell, Zap, TrendingUp, AlertTriangle, MessageCircle,
+    Activity, Star, Crown, Trophy, Flame, CheckCircle, Mail,
+    Phone, Clock, Target, ChevronRight, Loader2, Sparkles,
+    Heart, Plus, X, RefreshCw, Send, Shield, Users, FileText,
+    ToggleLeft, ToggleRight, Gift, Coins
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
+
 interface Patient {
-    id: string
-    name: string
-    email: string
-    phone: string
-    plan: string
-    avatar: string
-    status: 'risk' | 'active' | 'star'
-    riskLevel: 'low' | 'medium' | 'high'
-    adherenceRate: number
-    lastLogin: string
-    startDate: string
-    aiSummary: string
-    aiSuggestion: string | null
-    xp: number
-    level: number
-    streak: number
-    longestStreak: number
+    id: string; name: string; email: string; phone: string; plan: string
+    avatar: string; status: 'risk' | 'active' | 'star'
+    riskLevel: 'low' | 'medium' | 'high'; riskScore: number
+    adherenceRate: number; lastLogin: string; startDate: string
+    aiSummary: string; aiSuggestion: string | null
+    xp: number; coins: number; level: number; streak: number; longestStreak: number
     weight: { current: number; goal: number; start: number }
-    primaryGoal: string
-    hasActiveProtocol: boolean
-    hasCheckin: boolean
-    checkinScore: number | null
-    daysSinceActivity: number
+    primaryGoal: string; onboardingCompleted: boolean
+    hasActiveProtocol: boolean; hasCheckin: boolean
+    checkinScore: number | null; daysSinceActivity: number
 }
 
+const PLAN_LABELS: Record<string, string> = {
+    community: 'Community', tech_diet: 'Tech Diet', vip: 'VIP', manual: 'Manual'
+}
+
+const RISK_META: Record<string, { color: string; bg: string; label: string }> = {
+    high:   { color: 'text-rose-400',    bg: 'bg-rose-500/15 border-rose-500/25',    label: 'Alto risco' },
+    medium: { color: 'text-amber-400',   bg: 'bg-amber-500/15 border-amber-500/25',  label: 'Médio risco' },
+    low:    { color: 'text-emerald-400', bg: 'bg-emerald-500/15 border-emerald-500/25', label: 'Saudável' },
+}
+
+// ─── Register Modal ────────────────────────────────────────────────────────────
+function RegisterModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+    const [form, setForm] = useState({ name: '', email: '', phone: '', password: 'ChangeMe123!', plan: 'tech_diet' })
+    const [saving, setSaving] = useState(false)
+    const [error, setError] = useState('')
+
+    const handleSubmit = async () => {
+        if (!form.name || !form.email) { setError('Nome e email são obrigatórios'); return }
+        setSaving(true); setError('')
+        try {
+            const res = await fetch('/api/admin/create-patient', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(form)
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || 'Erro ao cadastrar')
+            onSuccess()
+        } catch (err: any) {
+            setError(err.message)
+        } finally { setSaving(false) }
+    }
+
+    return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={onClose}>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                onClick={e => e.stopPropagation()}
+                className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-bold text-white">Cadastrar Nova Rainha</h2>
+                    <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl"><X size={16} className="text-slate-400"/></button>
+                </div>
+
+                {[
+                    { label: 'Nome completo *', key: 'name', type: 'text', placeholder: 'Ana Souza' },
+                    { label: 'E-mail de acesso *', key: 'email', type: 'email', placeholder: 'ana@email.com' },
+                    { label: 'WhatsApp', key: 'phone', type: 'tel', placeholder: '(11) 99999-9999' },
+                    { label: 'Senha provisória', key: 'password', type: 'text', placeholder: '' },
+                ].map(f => (
+                    <div key={f.key}>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">{f.label}</label>
+                        <input type={f.type} value={(form as any)[f.key]} placeholder={f.placeholder}
+                            onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50"/>
+                    </div>
+                ))}
+
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Plano</label>
+                    <select value={form.plan} onChange={e => setForm(f => ({ ...f, plan: e.target.value }))}
+                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none">
+                        {Object.entries(PLAN_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                </div>
+
+                {error && <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">{error}</p>}
+
+                <div className="flex gap-3 pt-1">
+                    <button onClick={onClose} className="flex-1 py-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400 text-sm font-bold">Cancelar</button>
+                    <button onClick={handleSubmit} disabled={saving}
+                        className="flex-1 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-bold flex items-center justify-center gap-2 transition-all">
+                        {saving ? <Loader2 size={14} className="animate-spin"/> : <Plus size={14}/>}
+                        Cadastrar
+                    </button>
+                </div>
+            </motion.div>
+        </motion.div>
+    )
+}
+
+// ─── Protocol Assign Modal ────────────────────────────────────────────────────
+function AssignProtocolModal({ patientId, patientName, currentProtocol, onClose, onSuccess }: {
+    patientId: string; patientName: string; currentProtocol: string | null
+    onClose: () => void; onSuccess: () => void
+}) {
+    const [protocols, setProtocols] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const [assigning, setAssigning] = useState<string | null>(null)
+
+    useEffect(() => {
+        fetch('/api/admin/protocols-list')
+            .then(r => r.ok ? r.json() : { protocols: [] })
+            .then(d => { setProtocols(d.protocols || []); setLoading(false) })
+            .catch(() => setLoading(false))
+    }, [])
+
+    const handleAssign = async (protocolId: string | null) => {
+        setAssigning(protocolId || 'remove')
+        try {
+            await fetch(`/api/admin/patients/${patientId}/action`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: protocolId ? 'assign-protocol' : 'remove-protocol', protocol_id: protocolId })
+            })
+            onSuccess()
+        } finally { setAssigning(null) }
+    }
+
+    return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={onClose}>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                onClick={e => e.stopPropagation()}
+                className="bg-slate-900 border border-white/10 rounded-3xl p-5 w-full max-w-sm shadow-2xl">
+                <div className="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 className="text-sm font-bold text-white">Atribuir Protocolo</h2>
+                        <p className="text-[11px] text-slate-500 mt-0.5">{patientName}</p>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl"><X size={15} className="text-slate-400"/></button>
+                </div>
+
+                {loading ? (
+                    <div className="py-8 flex justify-center"><Loader2 size={20} className="animate-spin text-slate-600"/></div>
+                ) : (
+                    <div className="space-y-2 max-h-80 overflow-y-auto">
+                        {currentProtocol && (
+                            <button onClick={() => handleAssign(null)} disabled={!!assigning}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-bold hover:bg-rose-500/20 transition-all">
+                                {assigning === 'remove' ? <Loader2 size={12} className="animate-spin"/> : <X size={12}/>}
+                                Remover protocolo atual
+                            </button>
+                        )}
+                        {protocols.map((p: any) => (
+                            <button key={p.id} onClick={() => handleAssign(p.id)} disabled={!!assigning}
+                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all text-left
+                                    ${p.id === currentProtocol ? 'bg-indigo-500/20 border-indigo-500/30' : 'bg-white/5 border-white/10 hover:border-indigo-500/30'}`}>
+                                <span className="text-lg">{p.emoji || '📋'}</span>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold text-white truncate">{p.title}</p>
+                                    <p className="text-[10px] text-slate-500">{p.duration_days} dias</p>
+                                </div>
+                                {assigning === p.id && <Loader2 size={13} className="animate-spin text-indigo-400 flex-shrink-0"/>}
+                                {p.id === currentProtocol && !assigning && <CheckCircle size={13} className="text-indigo-400 flex-shrink-0"/>}
+                            </button>
+                        ))}
+                        {protocols.length === 0 && (
+                            <p className="text-center text-xs text-slate-600 py-4">Nenhum protocolo ativo. Crie um em Bio-Protocolos.</p>
+                        )}
+                    </div>
+                )}
+            </motion.div>
+        </motion.div>
+    )
+}
+
+// ─── Send Message Modal ───────────────────────────────────────────────────────
+function SendMessageModal({ patientId, patientName, onClose, onSuccess }: {
+    patientId: string; patientName: string; onClose: () => void; onSuccess: () => void
+}) {
+    const [title, setTitle] = useState('')
+    const [body, setBody] = useState('')
+    const [sending, setSending] = useState(false)
+
+    const send = async () => {
+        if (!title || !body) return
+        setSending(true)
+        await fetch(`/api/admin/patients/${patientId}/action`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'send-message', title, body })
+        })
+        setSending(false)
+        onSuccess()
+    }
+
+    return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={onClose}>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                onClick={e => e.stopPropagation()}
+                className="bg-slate-900 border border-white/10 rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-bold text-white">Mensagem para {patientName.split(' ')[0]}</h2>
+                    <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl"><X size={15} className="text-slate-400"/></button>
+                </div>
+                <input value={title} onChange={e => setTitle(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                    placeholder="Título da notificação"/>
+                <textarea value={body} onChange={e => setBody(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/50 resize-none h-24"
+                    placeholder="Mensagem que ela receberá no inbox..."/>
+                <div className="flex gap-3">
+                    <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-white/5 text-slate-400 text-xs font-bold">Cancelar</button>
+                    <button onClick={send} disabled={sending || !title || !body}
+                        className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs font-bold flex items-center justify-center gap-1.5">
+                        {sending ? <Loader2 size={12} className="animate-spin"/> : <Send size={12}/>} Enviar
+                    </button>
+                </div>
+            </motion.div>
+        </motion.div>
+    )
+}
+
+// ─── Patient detail panel ─────────────────────────────────────────────────────
+function PatientDetail({ patient, onAction, onRefresh }: {
+    patient: Patient
+    onAction: (type: string) => void
+    onRefresh: () => void
+}) {
+    const [actionLoading, setActionLoading] = useState<string | null>(null)
+    const [showProtocolModal, setShowProtocolModal] = useState(false)
+    const [showMessageModal, setShowMessageModal] = useState(false)
+    const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview')
+
+    const rm = RISK_META[patient.riskLevel]
+
+    const quickAction = async (action: string, label: string) => {
+        setActionLoading(action)
+        try {
+            await fetch(`/api/admin/patients/${patient.id}/action`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action })
+            })
+            onAction(label + ' enviado!')
+        } finally { setActionLoading(null) }
+    }
+
+    return (
+        <div className="flex-1 flex flex-col h-full overflow-hidden">
+            {/* Header */}
+            <div className="p-6 border-b border-white/5 bg-slate-900/50 flex-shrink-0">
+                <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold text-white flex-shrink-0
+                            ${patient.riskLevel === 'high' ? 'bg-gradient-to-br from-rose-600 to-rose-800'
+                            : patient.status === 'star' ? 'bg-gradient-to-br from-amber-500 to-yellow-600'
+                            : 'bg-gradient-to-br from-indigo-600 to-violet-700'}`}>
+                            {patient.avatar}
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h2 className="text-xl font-bold text-white">{patient.name}</h2>
+                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${rm.bg} ${rm.color}`}>
+                                    {rm.label}
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                                {PLAN_LABELS[patient.plan] || patient.plan} · desde {patient.startDate}
+                            </p>
+                            <div className="flex items-center gap-3 mt-2">
+                                {patient.streak > 0 && (
+                                    <span className="flex items-center gap-1 text-xs text-orange-400">
+                                        <Flame size={12}/> {patient.streak}d streak
+                                    </span>
+                                )}
+                                <span className="flex items-center gap-1 text-xs text-indigo-400">
+                                    <Zap size={12}/> {patient.xp.toLocaleString('pt-BR')} XP
+                                </span>
+                                <span className="flex items-center gap-1 text-xs text-amber-400">
+                                    🪙 {patient.coins.toLocaleString('pt-BR')}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Quick actions */}
+                    <div className="flex flex-col gap-2 flex-shrink-0">
+                        {patient.phone && (
+                            <a href={`https://wa.me/55${patient.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener"
+                                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-bold transition-all">
+                                <MessageCircle size={12}/> WhatsApp
+                            </a>
+                        )}
+                        <button onClick={() => setShowMessageModal(true)}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-500/30 text-indigo-400 rounded-xl text-xs font-bold transition-all">
+                            <Bell size={12}/> Inbox
+                        </button>
+                    </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex gap-1 mt-4 bg-white/5 rounded-xl p-1 w-fit">
+                    {[['overview', 'Visão Geral'], ['history', 'Histórico']] .map(([id, label]) => (
+                        <button key={id} onClick={() => setActiveTab(id as any)}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all
+                                ${activeTab === id ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                            {label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+
+                {activeTab === 'overview' && (
+                    <>
+                        {/* AI summary */}
+                        <div className={`rounded-2xl p-4 border
+                            ${patient.riskLevel === 'high' ? 'bg-rose-500/10 border-rose-500/25'
+                            : patient.status === 'star' ? 'bg-amber-500/10 border-amber-500/25'
+                            : 'bg-indigo-500/10 border-indigo-500/25'}`}>
+                            <div className="flex items-start gap-3">
+                                <div className={`p-2 rounded-xl flex-shrink-0
+                                    ${patient.riskLevel === 'high' ? 'bg-rose-600/30' : patient.status === 'star' ? 'bg-amber-600/30' : 'bg-indigo-600/30'}`}>
+                                    <Sparkles size={16} className={patient.riskLevel === 'high' ? 'text-rose-400' : patient.status === 'star' ? 'text-amber-400' : 'text-indigo-400'}/>
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-xs font-bold text-slate-400 mb-1">
+                                        {patient.hasCheckin ? 'Análise IA — check-in desta semana' : 'Score de engajamento'}
+                                    </p>
+                                    <p className="text-sm text-white leading-relaxed">"{patient.aiSummary}"</p>
+                                    {patient.aiSuggestion && (
+                                        <div className="mt-2 bg-white/5 rounded-xl px-3 py-2">
+                                            <p className="text-[10px] font-bold text-indigo-400 uppercase mb-0.5">Sugestão</p>
+                                            <p className="text-xs text-slate-300">{patient.aiSuggestion}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Action buttons based on status */}
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                {patient.riskLevel === 'high' && (
+                                    <button onClick={() => quickAction('send-rescue', 'Mensagem de resgate')}
+                                        disabled={actionLoading === 'send-rescue'}
+                                        className="flex items-center gap-1.5 px-3 py-2 bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-300 rounded-xl text-xs font-bold transition-all disabled:opacity-50">
+                                        {actionLoading === 'send-rescue' ? <Loader2 size={11} className="animate-spin"/> : <Heart size={11}/>}
+                                        Enviar resgate
+                                    </button>
+                                )}
+                                {patient.status === 'star' && (
+                                    <button onClick={() => quickAction('send-congrats', 'Parabéns')}
+                                        disabled={actionLoading === 'send-congrats'}
+                                        className="flex items-center gap-1.5 px-3 py-2 bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/30 text-amber-300 rounded-xl text-xs font-bold transition-all disabled:opacity-50">
+                                        {actionLoading === 'send-congrats' ? <Loader2 size={11} className="animate-spin"/> : <Trophy size={11}/>}
+                                        Enviar parabéns
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Metrics grid */}
+                        <div className="grid grid-cols-2 gap-3">
+                            {[
+                                { label: 'Adesão 7d', value: `${patient.adherenceRate}%`, sub: 'últimos 7 dias', color: patient.adherenceRate < 50 ? 'text-rose-400' : 'text-emerald-400', icon: <Activity size={14}/> },
+                                { label: 'Check-in', value: patient.checkinScore !== null ? `${patient.checkinScore}/10` : '—', sub: patient.hasCheckin ? 'esta semana' : 'sem check-in', color: patient.checkinScore !== null ? (patient.checkinScore >= 7 ? 'text-emerald-400' : patient.checkinScore >= 5 ? 'text-amber-400' : 'text-rose-400') : 'text-slate-600', icon: <CheckCircle size={14}/> },
+                                { label: 'Streak', value: `${patient.streak}d`, sub: `recorde ${patient.longestStreak}d`, color: patient.streak > 0 ? 'text-orange-400' : 'text-slate-600', icon: <Flame size={14}/> },
+                                { label: 'Última atividade', value: patient.lastLogin, sub: patient.onboardingCompleted ? 'onboarding ✓' : 'onboarding pendente', color: 'text-white', icon: <Clock size={14}/> },
+                            ].map(m => (
+                                <div key={m.label} className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">{m.label}</span>
+                                        <span className="text-slate-600">{m.icon}</span>
+                                    </div>
+                                    <p className={`text-2xl font-bold ${m.color}`}>{m.value}</p>
+                                    <p className="text-[10px] text-slate-600 mt-1">{m.sub}</p>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Protocol assignment */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-xs font-bold text-slate-400 flex items-center gap-1.5"><FileText size={13}/> Protocolo</p>
+                                <button onClick={() => setShowProtocolModal(true)}
+                                    className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors">
+                                    Alterar <ChevronRight size={11}/>
+                                </button>
+                            </div>
+                            {patient.hasActiveProtocol ? (
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle size={14} className="text-emerald-400 flex-shrink-0"/>
+                                    <span className="text-sm text-white font-bold">Protocolo ativo atribuído</span>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <AlertTriangle size={14} className="text-amber-400 flex-shrink-0"/>
+                                    <span className="text-sm text-amber-300">Nenhum protocolo atribuído</span>
+                                    <button onClick={() => setShowProtocolModal(true)}
+                                        className="ml-auto text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-1 rounded-lg hover:bg-indigo-500/20 transition-all">
+                                        Atribuir
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Contact */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Contato</p>
+                            {patient.email && (
+                                <div className="flex items-center gap-2 text-sm text-slate-300">
+                                    <Mail size={13} className="text-slate-500 flex-shrink-0"/> {patient.email}
+                                </div>
+                            )}
+                            {patient.phone && (
+                                <div className="flex items-center gap-2 text-sm text-slate-300">
+                                    <Phone size={13} className="text-slate-500 flex-shrink-0"/> {patient.phone}
+                                </div>
+                            )}
+                            {patient.primaryGoal && (
+                                <div className="flex items-center gap-2 text-sm text-slate-300">
+                                    <Target size={13} className="text-indigo-400 flex-shrink-0"/> {patient.primaryGoal}
+                                </div>
+                            )}
+                        </div>
+                    </>
+                )}
+
+                {activeTab === 'history' && (
+                    <>
+                        {/* Weight progress */}
+                        {patient.weight.start > 0 && (
+                            <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                                <p className="text-xs font-bold text-slate-400 mb-3 flex items-center gap-1.5"><TrendingUp size={13}/> Progresso de peso</p>
+                                <div className="flex items-center gap-4">
+                                    <div className="text-center">
+                                        <p className="text-[10px] text-slate-600 uppercase">Início</p>
+                                        <p className="text-xl font-bold text-white">{patient.weight.start}kg</p>
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                                            <div className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full"
+                                                style={{ width: patient.weight.start > patient.weight.current ? `${Math.min(100, Math.round(((patient.weight.start - patient.weight.current) / patient.weight.start) * 300))}%` : '5%' }}/>
+                                        </div>
+                                        {patient.weight.start > patient.weight.current && (
+                                            <p className="text-[10px] text-emerald-400 font-bold text-center mt-1">
+                                                -{(patient.weight.start - patient.weight.current).toFixed(1)}kg 🎉
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-[10px] text-slate-600 uppercase">Atual</p>
+                                        <p className="text-xl font-bold text-emerald-400">{patient.weight.current}kg</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Stats summary */}
+                        <div className="grid grid-cols-2 gap-3">
+                            {[
+                                { label: 'Protocolo', value: patient.hasActiveProtocol ? 'Ativo' : 'Não atribuído', color: patient.hasActiveProtocol ? 'text-emerald-400' : 'text-slate-500' },
+                                { label: 'Objetivo', value: patient.primaryGoal || 'Não informado', color: 'text-white' },
+                                { label: 'Maior streak', value: `${patient.longestStreak} dias`, color: 'text-orange-400' },
+                                { label: 'Nível atual', value: `Nível ${patient.level}`, color: 'text-indigo-400' },
+                            ].map(s => (
+                                <div key={s.label} className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-1">{s.label}</p>
+                                    <p className={`font-bold text-sm ${s.color}`}>{s.value}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                )}
+            </div>
+
+            {/* Modals */}
+            <AnimatePresence>
+                {showProtocolModal && (
+                    <AssignProtocolModal
+                        patientId={patient.id}
+                        patientName={patient.name}
+                        currentProtocol={null}
+                        onClose={() => setShowProtocolModal(false)}
+                        onSuccess={() => { setShowProtocolModal(false); onRefresh(); onAction('Protocolo atribuído!') }}
+                    />
+                )}
+                {showMessageModal && (
+                    <SendMessageModal
+                        patientId={patient.id}
+                        patientName={patient.name}
+                        onClose={() => setShowMessageModal(false)}
+                        onSuccess={() => { setShowMessageModal(false); onAction('Mensagem enviada!') }}
+                    />
+                )}
+            </AnimatePresence>
+        </div>
+    )
+}
+
+// ─── Main ──────────────────────────────────────────────────────────────────────
 export function PatientsView({ setView }: { setView: (v: any) => void }) {
     const [patients, setPatients] = useState<Patient[]>([])
     const [loading, setLoading] = useState(true)
     const [selectedId, setSelectedId] = useState<string | null>(null)
-    const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'history'>('overview')
-    const [searchQuery, setSearchQuery] = useState("")
-    const [filterStatus, setFilterStatus] = useState<'all' | 'risk' | 'star' | 'active'>('all')
-    const [sendingMessage, setSendingMessage] = useState(false)
-    const [showAddModal, setShowAddModal] = useState(false)
-    const [registering, setRegistering] = useState(false)
-    const [newPatient, setNewPatient] = useState({
-        name: '', email: '', phone: '', password: 'ChangeMe123!', plan: 'tech_diet'
-    })
-    const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null)
+    const [search, setSearch] = useState('')
+    const [filter, setFilter] = useState<'all' | 'risk' | 'star' | 'active'>('all')
+    const [showRegister, setShowRegister] = useState(false)
+    const [toast, setToast] = useState<string | null>(null)
 
-    const refresh = async () => {
+    const refresh = useCallback(async () => {
         setLoading(true)
         try {
             const res = await fetch('/api/admin/patients')
             if (res.ok) {
                 const data = await res.json()
-                setPatients(data.patients || [])
-                if (data.patients?.length > 0 && !selectedId) {
-                    setSelectedId(data.patients[0].id)
-                }
+                const list = data.patients || []
+                setPatients(list)
+                if (list.length > 0 && !selectedId) setSelectedId(list[0].id)
             }
-        } finally {
-            setLoading(false)
-        }
-    }
+        } finally { setLoading(false) }
+    }, [selectedId])
 
     useEffect(() => { refresh() }, [])
 
-    useEffect(() => {
-        if (notification) {
-            const timer = setTimeout(() => setNotification(null), 5000)
-            return () => clearTimeout(timer)
-        }
-    }, [notification])
-
-    const handleSendRescueMessage = async () => {
-        if (!activePatient) return
-        setSendingMessage(true)
-        try {
-            await fetch('/api/ai/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    task: 'marketing-suggestion',
-                    context: `Paciente ${activePatient.name} está inativa há ${activePatient.daysSinceActivity} dias.`,
-                    prompt: 'Gere uma mensagem de resgate carinhosa e motivacional para enviar via WhatsApp.'
-                })
-            })
-            setNotification({ type: 'success', message: 'Mensagem de resgate preparada com sucesso!' })
-        } catch {
-            setNotification({ type: 'error', message: 'Erro ao gerar mensagem.' })
-        } finally {
-            setSendingMessage(false)
-        }
+    const showToast = (msg: string) => {
+        setToast(msg)
+        setTimeout(() => setToast(null), 3500)
     }
 
-    const sortedPatients = [...patients]
-        .filter(p => {
-            if (filterStatus !== 'all' && p.status !== filterStatus) return false
-            if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-                !p.email.toLowerCase().includes(searchQuery.toLowerCase())) return false
-            return true
-        })
-        .sort((a, b) => {
-            const order: Record<string, number> = { risk: 0, star: 1, active: 2 }
-            return (order[a.status] ?? 3) - (order[b.status] ?? 3)
-        })
+    const filtered = patients.filter(p => {
+        const ms = p.name.toLowerCase().includes(search.toLowerCase()) || p.email.toLowerCase().includes(search.toLowerCase())
+        const mf = filter === 'all' || p.status === filter
+        return ms && mf
+    }).sort((a, b) => {
+        const order: Record<string, number> = { risk: 0, star: 1, active: 2 }
+        return (order[a.status] ?? 3) - (order[b.status] ?? 3)
+    })
 
     const activePatient = patients.find(p => p.id === selectedId)
-
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'risk': return 'bg-red-900/50 text-red-400 border-red-900'
-            case 'star': return 'bg-yellow-900/50 text-yellow-400 border-yellow-900'
-            default: return 'bg-gray-700 text-gray-300 border-gray-600'
-        }
-    }
-
-    const getStatusIcon = (status: string) => {
-        switch (status) {
-            case 'risk': return <AlertTriangle size={14} className="text-red-500" />
-            case 'star': return <Star size={14} className="text-yellow-500 fill-yellow-500" />
-            default: return null
-        }
-    }
-
-    const handleRegister = async (e: React.FormEvent) => {
-        e.preventDefault()
-        setRegistering(true)
-        try {
-            const res = await fetch('/api/admin/create-patient', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newPatient)
-            })
-
-            const data = await res.json()
-            if (!res.ok) throw new Error(data.error || 'Erro ao cadastrar')
-
-            setNotification({ type: 'success', message: 'Rainha cadastrada com sucesso! Dados de acesso enviados.' })
-            setShowAddModal(false)
-            refresh()
-        } catch (err: any) {
-            setNotification({ type: 'error', message: err.message })
-        } finally {
-            setRegistering(false)
-        }
-    }
-
     const riskCount = patients.filter(p => p.status === 'risk').length
     const starCount = patients.filter(p => p.status === 'star').length
 
     return (
-        <div className="flex h-[calc(100vh-80px)] bg-[#0a0a16] text-white overflow-hidden -m-8 relative">
-            {/* Global Notification */}
+        <div className="flex h-[calc(100vh-88px)] -m-8 overflow-hidden">
+            {/* Toast */}
             <AnimatePresence>
-                {notification && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 20 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-full border shadow-2xl font-bold text-sm ${
-                            notification.type === 'success' 
-                                ? 'bg-green-600/20 border-green-500/50 text-green-400' 
-                                : 'bg-red-600/20 border-red-500/50 text-red-400'
-                        }`}
-                    >
-                        {notification.message}
+                {toast && (
+                    <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 20 }} exit={{ opacity: 0, y: -20 }}
+                        className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-5 py-2.5 rounded-full bg-emerald-600/20 border border-emerald-500/40 text-emerald-400 text-xs font-bold shadow-2xl">
+                        ✓ {toast}
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* ===== LEFT COLUMN: SMART LIST ===== */}
-            <div className="w-80 border-r border-white/5 flex flex-col bg-[#0f0f1a]">
-                <div className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-xl font-bold flex items-center gap-2">
-                            <Crown className="text-queen-pink" size={20} />
-                            Minhas Rainhas
-                            <span className="text-xs bg-white/5 px-2 py-1 rounded text-gray-400">
-                                {patients.length}
-                            </span>
+            {/* ── LEFT: patient list ─────────────────────────────────────────── */}
+            <div className="w-72 flex flex-col flex-shrink-0 border-r border-white/5 bg-slate-950/60">
+                <div className="p-4 border-b border-white/5 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                            <Crown size={16} className="text-indigo-400"/>
+                            Rainhas
+                            <span className="text-[10px] bg-white/10 text-slate-400 px-1.5 py-0.5 rounded-md font-bold">{patients.length}</span>
                         </h2>
-                        <Button 
-                            onClick={() => setShowAddModal(true)}
-                            className="bg-purple-600 hover:bg-purple-500 rounded-full w-8 h-8 p-0"
-                        >
-                            +
-                        </Button>
+                        <div className="flex gap-1">
+                            <button onClick={refresh} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-600 hover:text-slate-400 transition-colors">
+                                <RefreshCw size={13}/>
+                            </button>
+                            <button onClick={() => setShowRegister(true)}
+                                className="p-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white transition-colors">
+                                <Plus size={13}/>
+                            </button>
+                        </div>
                     </div>
+
                     <div className="relative">
-                        <Search className="absolute left-3 top-3 text-gray-500" size={16} />
-                        <input
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 pl-10 text-sm focus:border-purple-500 outline-none transition"
-                            placeholder="Buscar por nome ou email..."
-                        />
+                        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600"/>
+                        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..."
+                            className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-8 pr-3 text-xs text-white focus:outline-none focus:border-indigo-500/50"/>
+                    </div>
+
+                    {/* filters */}
+                    <div className="flex gap-1 overflow-x-auto pb-0.5">
+                        {[['all','Todas'],['risk',`⚠️ ${riskCount}`],['star',`⭐ ${starCount}`]] .map(([v,l]) => (
+                            <button key={v} onClick={() => setFilter(v as any)}
+                                className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border
+                                    ${filter === v
+                                        ? v === 'risk' ? 'bg-rose-600/20 border-rose-500/30 text-rose-400'
+                                            : v === 'star' ? 'bg-amber-600/20 border-amber-500/30 text-amber-400'
+                                            : 'bg-indigo-600/20 border-indigo-500/30 text-indigo-400'
+                                        : 'bg-white/5 border-white/10 text-slate-600 hover:text-slate-400'}`}>
+                                {l}
+                            </button>
+                        ))}
                     </div>
                 </div>
 
-                {/* Quick Filters */}
-                <div className="flex gap-2 px-6 mb-4 overflow-x-auto no-scrollbar">
-                    <button
-                        onClick={() => setFilterStatus('all')}
-                        className={`whitespace-nowrap px-3 py-1.5 text-xs font-bold rounded-full border transition ${filterStatus === 'all'
-                            ? 'bg-purple-600/20 text-purple-400 border-purple-600/30'
-                            : 'bg-white/5 text-gray-400 border-white/10 hover:border-white/20'
-                            }`}
-                    >
-                        Todas
-                    </button>
-                    <button
-                        onClick={() => setFilterStatus('risk')}
-                        className={`whitespace-nowrap px-3 py-1.5 text-xs font-bold rounded-full border transition flex items-center gap-1 ${filterStatus === 'risk'
-                            ? 'bg-red-600/20 text-red-400 border-red-600/30'
-                            : 'bg-white/5 text-gray-400 border-white/10 hover:border-white/20'
-                            }`}
-                    >
-                        <AlertTriangle size={12} />
-                        Atenção ({riskCount})
-                    </button>
-                    <button
-                        onClick={() => setFilterStatus('star')}
-                        className={`whitespace-nowrap px-3 py-1.5 text-xs font-bold rounded-full border transition flex items-center gap-1 ${filterStatus === 'star'
-                            ? 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30'
-                            : 'bg-white/5 text-gray-400 border-white/10 hover:border-white/20'
-                            }`}
-                    >
-                        <Star size={12} />
-                        Exemplares ({starCount})
-                    </button>
-                </div>
-
-                {/* Patient List */}
+                {/* list */}
                 <div className="flex-1 overflow-y-auto">
-                    {sortedPatients.map((patient) => (
-                        <motion.div
-                            key={patient.id}
-                            onClick={() => setSelectedId(patient.id)}
-                            whileHover={{ x: 4 }}
-                            className={`p-4 border-b border-white/5 cursor-pointer transition flex items-center gap-3 ${selectedId === patient.id
-                                ? 'bg-purple-500/10 border-l-4 border-l-purple-500'
-                                : 'hover:bg-white/5'
-                                }`}
-                        >
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border ${getStatusColor(patient.status)}`}>
-                                {patient.avatar}
+                    {loading && patients.length === 0 ? (
+                        <div className="flex justify-center py-12"><Loader2 size={20} className="animate-spin text-slate-700"/></div>
+                    ) : filtered.length === 0 ? (
+                        <div className="text-center py-10 text-slate-700 text-xs">Nenhuma rainha encontrada</div>
+                    ) : filtered.map(p => (
+                        <button key={p.id} onClick={() => setSelectedId(p.id)}
+                            className={`w-full flex items-center gap-3 px-4 py-3 border-b border-white/[0.03] transition-all text-left
+                                ${selectedId === p.id ? 'bg-indigo-500/10 border-l-2 border-l-indigo-500' : 'hover:bg-white/[0.03]'}`}>
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold text-white flex-shrink-0
+                                ${p.riskLevel === 'high' ? 'bg-gradient-to-br from-rose-600 to-rose-800'
+                                : p.status === 'star' ? 'bg-gradient-to-br from-amber-500 to-yellow-600'
+                                : 'bg-gradient-to-br from-indigo-600 to-violet-700'}`}>
+                                {p.avatar}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <div className="flex justify-between items-center">
-                                    <h4 className="font-bold text-sm truncate">{patient.name}</h4>
-                                    {getStatusIcon(patient.status)}
-                                </div>
-                                <p className="text-xs text-gray-500 truncate">{patient.plan}</p>
+                                <p className="text-xs font-bold text-white truncate">{p.name}</p>
+                                <p className="text-[10px] text-slate-600 truncate">{PLAN_LABELS[p.plan] || p.plan}</p>
                             </div>
-                            {patient.streak > 0 && (
-                                <div className="text-xs text-orange-400 flex items-center gap-1">
-                                    <Flame size={12} />
-                                    {patient.streak}
-                                </div>
-                            )}
-                        </motion.div>
+                            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                {p.riskLevel === 'high' && <AlertTriangle size={11} className="text-rose-500"/>}
+                                {p.status === 'star' && <Star size={11} className="text-amber-400 fill-amber-400"/>}
+                                {p.streak > 0 && <span className="text-[9px] text-orange-400 flex items-center gap-0.5"><Flame size={9}/>{p.streak}</span>}
+                            </div>
+                        </button>
                     ))}
                 </div>
             </div>
 
-            {/* ===== RIGHT COLUMN: PATIENT DOSSIER ===== */}
-            {activePatient && (
-                <div className="flex-1 flex flex-col h-full overflow-hidden">
-
-                    {/* Profile Header */}
-                    <div className="p-8 border-b border-white/5 bg-[#131320]">
-                        <div className="flex justify-between items-start">
-                            <div className="flex items-center gap-5">
-                                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 p-[2px]">
-                                    <div className="w-full h-full bg-gray-900 rounded-full flex items-center justify-center text-2xl font-bold">
-                                        {activePatient.avatar}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="flex items-center gap-3">
-                                        <h1 className="text-2xl font-bold">{activePatient.name}</h1>
-                                        {activePatient.status === 'star' && (
-                                            <span className="bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
-                                                <Star size={12} className="fill-yellow-400" /> Exemplar
-                                            </span>
-                                        )}
-                                        {activePatient.status === 'risk' && (
-                                            <span className="bg-red-500/20 text-red-400 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
-                                                <AlertTriangle size={12} /> Atenção
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-4 text-gray-400 mt-2 text-sm">
-                                        <span className="flex items-center gap-1">
-                                            <Shield size={14} /> {activePatient.plan}
-                                        </span>
-                                        <span>• Desde {activePatient.startDate}</span>
-                                    </div>
-                                    <div className="flex gap-2 mt-3 flex-wrap">
-                                        {activePatient.badges.map(b => (
-                                            <span key={b} className="text-[10px] uppercase font-bold bg-white/5 px-2 py-1 rounded text-gray-300 border border-white/10">
-                                                {b}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3">
-                                <Button
-                                    className="bg-green-600 hover:bg-green-500 font-bold"
-                                    onClick={() => window.open(`https://wa.me/55${activePatient.phone.replace(/\D/g, '')}`, '_blank')}
-                                >
-                                    <MessageCircle size={18} className="mr-2" />
-                                    WhatsApp
-                                </Button>
-                                <Button variant="ghost" className="border border-white/10">
-                                    <MoreVertical size={20} />
-                                </Button>
-                            </div>
-                        </div>
-
-                        {/* Internal Navigation */}
-                        <div className="flex gap-8 mt-8">
-                            {[
-                                { id: 'overview', label: 'Visão Geral & IA', icon: Sparkles },
-                                { id: 'settings', label: 'Permissões & Push', icon: Bell },
-                                { id: 'history', label: 'Histórico & Metas', icon: Target }
-                            ].map(tab => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id as any)}
-                                    className={`pb-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${activeTab === tab.id
-                                        ? 'text-white border-purple-500'
-                                        : 'text-gray-500 border-transparent hover:text-gray-300'
-                                        }`}
-                                >
-                                    <tab.icon size={16} />
-                                    {tab.label}
-                                </button>
-                            ))}
+            {/* ── RIGHT: patient detail ──────────────────────────────────────── */}
+            <div className="flex-1 overflow-hidden">
+                {activePatient ? (
+                    <PatientDetail
+                        patient={activePatient}
+                        onAction={showToast}
+                        onRefresh={refresh}
+                    />
+                ) : (
+                    <div className="flex items-center justify-center h-full text-slate-700">
+                        <div className="text-center">
+                            <Users size={40} className="mx-auto mb-3 opacity-30"/>
+                            <p className="text-sm">Selecione uma rainha</p>
                         </div>
                     </div>
+                )}
+            </div>
 
-                    {/* Tab Content */}
-                    <div className="flex-1 overflow-y-auto p-8 bg-[#0a0a16]">
-
-                        {/* TAB 1: OVERVIEW & AI */}
-                        {activeTab === 'overview' && (
-                            <div className="max-w-4xl space-y-6">
-
-                                {/* AI Assistant Card */}
-                                <motion.div
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className={`rounded-2xl p-6 border ${activePatient.status === 'risk'
-                                        ? 'bg-gradient-to-r from-red-900/20 to-orange-900/10 border-red-500/30'
-                                        : activePatient.status === 'star'
-                                            ? 'bg-gradient-to-r from-yellow-900/20 to-amber-900/10 border-yellow-500/30'
-                                            : 'bg-gradient-to-r from-purple-900/20 to-blue-900/10 border-purple-500/30'
-                                        }`}
-                                >
-                                    <div className="flex items-start gap-4">
-                                        <div className={`p-3 rounded-xl shadow-lg ${activePatient.status === 'risk'
-                                            ? 'bg-red-600 shadow-red-900/50'
-                                            : activePatient.status === 'star'
-                                                ? 'bg-yellow-600 shadow-yellow-900/50'
-                                                : 'bg-purple-600 shadow-purple-900/50'
-                                            }`}>
-                                            <Zap className="text-white" size={24} />
-                                        </div>
-                                        <div className="flex-1">
-                                            <h3 className="text-lg font-bold text-white mb-2">
-                                                {activePatient.hasCheckin ? 'Análise IA (check-in desta semana)' : 'Score de Risco (comportamento)'}
-                                            </h3>
-                                            <p className="text-gray-300 leading-relaxed">
-                                                "{activePatient.aiSummary}"
-                                            </p>
-                                            {activePatient.aiSuggestion && (
-                                                <div className="mt-3 bg-white/5 rounded-xl px-4 py-2 border border-white/10">
-                                                    <p className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-0.5">Sugestão para você</p>
-                                                    <p className="text-sm text-slate-300">{activePatient.aiSuggestion}</p>
-                                                </div>
-                                            )}
-                                            <div className="mt-4 flex gap-3">
-                                                {activePatient.status === 'risk' && (
-                                                    <>
-                                                        <Button
-                                                            onClick={handleSendRescueMessage}
-                                                            disabled={sendingMessage}
-                                                            className="bg-red-600/20 border border-red-500/50 text-red-300 hover:bg-red-600 hover:text-white"
-                                                        >
-                                                            {sendingMessage ? (
-                                                                <Loader2 size={16} className="animate-spin mr-2" />
-                                                            ) : (
-                                                                <Heart size={16} className="mr-2" />
-                                                            )}
-                                                            Enviar Mensagem de Resgate
-                                                        </Button>
-                                                    </>
-                                                )}
-                                                {activePatient.status === 'star' && (
-                                                    <Button className="bg-yellow-600/20 border border-yellow-500/50 text-yellow-300 hover:bg-yellow-600 hover:text-black">
-                                                        <Trophy size={16} className="mr-2" />
-                                                        Enviar Parabéns
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </motion.div>
-
-                                {/* Metrics Grid */}
-                                <div className="grid grid-cols-4 gap-4">
-                                    <div className="glass-panel p-5 rounded-xl border border-white/5">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <span className="text-gray-500 text-xs font-bold uppercase">Adesão 7d</span>
-                                            <Activity size={16} className={activePatient.adherenceRate < 50 ? 'text-red-500' : 'text-green-500'} />
-                                        </div>
-                                        <div className="text-3xl font-bold mb-2">{activePatient.adherenceRate}%</div>
-                                        <div className="w-full bg-white/5 h-1.5 rounded-full">
-                                            <div
-                                                className={`h-full rounded-full transition-all ${activePatient.adherenceRate < 50 ? 'bg-red-500' : 'bg-green-500'}`}
-                                                style={{ width: `${activePatient.adherenceRate}%` }}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="glass-panel p-5 rounded-xl border border-white/5">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <span className="text-gray-500 text-xs font-bold uppercase">XP Total</span>
-                                            <Sparkles size={16} className="text-purple-400" />
-                                        </div>
-                                        <div className="text-3xl font-bold text-purple-400">{activePatient.xp.toLocaleString()}</div>
-                                        <p className="text-xs text-gray-500 mt-2">Nível {activePatient.level}</p>
-                                    </div>
-
-                                    <div className="glass-panel p-5 rounded-xl border border-white/5">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <span className="text-gray-500 text-xs font-bold uppercase">Streak</span>
-                                            <Flame size={16} className={activePatient.streak > 0 ? 'text-orange-400' : 'text-gray-600'} />
-                                        </div>
-                                        <div className="text-3xl font-bold text-orange-400">
-                                            {activePatient.streak}
-                                            <span className="text-lg text-gray-500 ml-1">dias</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-2">Recorde: {activePatient.longestStreak} dias</p>
-                                    </div>
-
-                                    <div className="glass-panel p-5 rounded-xl border border-white/5">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <span className="text-gray-500 text-xs font-bold uppercase">Check-in</span>
-                                            <CheckCircle size={16} className={activePatient.hasCheckin ? 'text-green-400' : 'text-gray-600'} />
-                                        </div>
-                                        <div className={`text-3xl font-bold ${activePatient.checkinScore !== null ? (activePatient.checkinScore >= 7 ? 'text-green-400' : activePatient.checkinScore >= 5 ? 'text-amber-400' : 'text-red-400') : 'text-gray-600'}`}>
-                                            {activePatient.checkinScore !== null ? `${activePatient.checkinScore}/10` : '—'}
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-2">{activePatient.hasCheckin ? 'Esta semana' : 'Sem check-in'}</p>
-                                    </div>
-                                </div>
-
-                                {/* Contact Info */}
-                                <div className="glass-panel p-6 rounded-xl border border-white/5">
-                                    <h4 className="font-bold mb-4 text-gray-400 text-sm uppercase tracking-wider">Informações de Contato</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        {activePatient.email && (
-                                            <div className="flex items-center gap-3">
-                                                <Mail size={18} className="text-gray-500" />
-                                                <span className="text-sm">{activePatient.email}</span>
-                                            </div>
-                                        )}
-                                        {activePatient.phone && (
-                                            <div className="flex items-center gap-3">
-                                                <Phone size={18} className="text-gray-500" />
-                                                <span className="text-sm">{activePatient.phone}</span>
-                                            </div>
-                                        )}
-                                        {activePatient.primaryGoal && (
-                                            <div className="flex items-center gap-3">
-                                                <Target size={18} className="text-indigo-400" />
-                                                <span className="text-sm">Objetivo: {activePatient.primaryGoal}</span>
-                                            </div>
-                                        )}
-                                        {activePatient.weight.current > 0 && (
-                                            <div className="flex items-center gap-3">
-                                                <TrendingUp size={18} className="text-green-400" />
-                                                <span className="text-sm">Peso atual: {activePatient.weight.current}kg</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* TAB 2: SETTINGS & PUSH */}
-                        {activeTab === 'settings' && (
-                            <div className="max-w-2xl space-y-8">
-                                <div>
-                                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                                        <Bell className="text-yellow-500" size={20} />
-                                        Controle de Notificações (Push)
-                                    </h3>
-                                    <div className="glass-panel rounded-xl border border-white/5 overflow-hidden">
-                                        {[
-                                            { key: 'reminders', title: 'Lembretes de Rotina', desc: 'Água, Check-in, Refeições', default: true },
-                                            { key: 'marketing', title: 'Propagandas & Ofertas', desc: 'Upsell de consultas e novos produtos', default: false },
-                                            { key: 'challenges', title: 'Desafios da Comunidade', desc: 'Avisos sobre rankings e missões', default: true }
-                                        ].map((item, idx) => (
-                                            <div key={item.key} className={`p-4 flex justify-between items-center ${idx < 2 ? 'border-b border-white/5' : ''}`}>
-                                                <div>
-                                                    <h4 className="font-bold">{item.title}</h4>
-                                                    <p className="text-xs text-gray-500">{item.desc}</p>
-                                                </div>
-                                                <label className="relative inline-flex items-center cursor-pointer">
-                                                    <input type="checkbox" className="sr-only peer" defaultChecked={item.default} />
-                                                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600" />
-                                                </label>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                                        <Gift className="text-pink-500" size={20} />
-                                        Automação de Celebração
-                                    </h3>
-                                    <div className="glass-panel rounded-xl border border-white/5 p-6 space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-orange-900/30 p-2 rounded-lg text-orange-400"><Flame size={18} /></div>
-                                                <span className="font-bold">Streak de 7 Dias</span>
-                                            </div>
-                                            <span className="text-xs font-bold text-purple-400 bg-purple-900/20 px-2 py-1 rounded">Automático (IA)</span>
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-yellow-900/30 p-2 rounded-lg text-yellow-400"><TrendingUp size={18} /></div>
-                                                <span className="font-bold">Bater Meta de Peso</span>
-                                            </div>
-                                            <span className="text-xs font-bold text-purple-400 bg-purple-900/20 px-2 py-1 rounded">Automático (IA)</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 pt-4 border-t border-white/5">
-                                            * O sistema enviará notificação push personalizada quando esses eventos ocorrerem.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* TAB 3: HISTORY & GOALS */}
-                        {activeTab === 'history' && (
-                            <div className="max-w-3xl space-y-6">
-                                {activePatient.weight.start > 0 && (
-                                    <div className="glass-panel p-6 rounded-xl border border-white/5">
-                                        <h3 className="font-bold mb-4 flex items-center gap-2">
-                                            <TrendingUp className="text-green-400" size={20} />
-                                            Progresso de Peso
-                                        </h3>
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div className="text-center">
-                                                <p className="text-xs text-gray-500 uppercase">Início</p>
-                                                <p className="text-2xl font-bold">{activePatient.weight.start}kg</p>
-                                            </div>
-                                            <div className="flex-1 mx-8">
-                                                <div className="relative h-2 bg-white/5 rounded-full">
-                                                    <div className="absolute h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
-                                                        style={{ width: activePatient.weight.start > activePatient.weight.current ? `${Math.min(100, ((activePatient.weight.start - activePatient.weight.current) / activePatient.weight.start) * 200)}%` : '5%' }}
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="text-center">
-                                                <p className="text-xs text-gray-500 uppercase">Atual</p>
-                                                <p className="text-2xl font-bold text-green-400">{activePatient.weight.current}kg</p>
-                                            </div>
-                                        </div>
-                                        {activePatient.weight.start > activePatient.weight.current && (
-                                            <p className="text-center text-sm text-emerald-400 font-bold">🎉 -{(activePatient.weight.start - activePatient.weight.current).toFixed(1)}kg desde o início!</p>
-                                        )}
-                                    </div>
-                                )}
-                                <div className="glass-panel p-6 rounded-xl border border-white/5">
-                                    <h3 className="font-bold mb-4 flex items-center gap-2">
-                                        <Activity className="text-blue-400" size={20} />
-                                        Resumo de Desempenho
-                                    </h3>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-white/5 rounded-xl p-4">
-                                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Protocolo ativo</p>
-                                            <p className={`font-bold ${activePatient.hasActiveProtocol ? 'text-green-400' : 'text-gray-500'}`}>
-                                                {activePatient.hasActiveProtocol ? 'Sim' : 'Não atribuído'}
-                                            </p>
-                                        </div>
-                                        <div className="bg-white/5 rounded-xl p-4">
-                                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Objetivo</p>
-                                            <p className="font-bold text-white">{activePatient.primaryGoal || 'Não informado'}</p>
-                                        </div>
-                                        <div className="bg-white/5 rounded-xl p-4">
-                                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Maior streak</p>
-                                            <p className="font-bold text-orange-400">{activePatient.longestStreak} dias</p>
-                                        </div>
-                                        <div className="bg-white/5 rounded-xl p-4">
-                                            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Última atividade</p>
-                                            <p className="font-bold text-white">{activePatient.lastLogin}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-            {/* ===== MODAL: CADASTRAR RAINHA ===== */}
+            {/* Register modal */}
             <AnimatePresence>
-                {showAddModal && (
-                    <motion.div 
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-                    >
-                        <motion.div 
-                            initial={{ scale: 0.95, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.95, opacity: 0 }}
-                            className="bg-[#131320] border border-white/10 rounded-3xl p-8 w-full max-w-md shadow-2xl"
-                        >
-                            <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-6">
-                                Cadastrar Nova Rainha
-                            </h2>
-                            <form onSubmit={handleRegister} className="space-y-4">
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Nome Completo</label>
-                                    <input 
-                                        required
-                                        value={newPatient.name}
-                                        onChange={e => setNewPatient({...newPatient, name: e.target.value})}
-                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-3 outline-none focus:border-purple-500"
-                                        placeholder="Ex: Ana Souza"
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">E-mail de Acesso</label>
-                                    <input 
-                                        required
-                                        type="email"
-                                        value={newPatient.email}
-                                        onChange={e => setNewPatient({...newPatient, email: e.target.value})}
-                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-3 outline-none focus:border-purple-500"
-                                        placeholder="ana@exemplo.com"
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">WhatsApp</label>
-                                    <input 
-                                        required
-                                        value={newPatient.phone}
-                                        onChange={e => setNewPatient({...newPatient, phone: e.target.value})}
-                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-3 outline-none focus:border-purple-500"
-                                        placeholder="(11) 99999-9999"
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Senha Provisória</label>
-                                    <input 
-                                        required
-                                        value={newPatient.password}
-                                        onChange={e => setNewPatient({...newPatient, password: e.target.value})}
-                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-3 outline-none focus:border-purple-500"
-                                    />
-                                </div>
-
-                                <div className="pt-4 flex gap-3">
-                                    <Button 
-                                        type="button"
-                                        variant="ghost" 
-                                        className="flex-1"
-                                        onClick={() => setShowAddModal(false)}
-                                    >
-                                        Cancelar
-                                    </Button>
-                                    <Button 
-                                        type="submit"
-                                        disabled={registering}
-                                        className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 font-bold"
-                                    >
-                                        {registering ? <Loader2 className="animate-spin" /> : 'Finalizar Cadastro'}
-                                    </Button>
-                                </div>
-                            </form>
-                        </motion.div>
-                    </motion.div>
+                {showRegister && (
+                    <RegisterModal
+                        onClose={() => setShowRegister(false)}
+                        onSuccess={() => { setShowRegister(false); refresh(); showToast('Rainha cadastrada com sucesso!') }}
+                    />
                 )}
             </AnimatePresence>
-
-            {loading && patients.length === 0 && (
-                <div className="fixed inset-0 z-40 bg-black/20 flex items-center justify-center">
-                    <Loader2 className="animate-spin text-purple-500" size={40} />
-                </div>
-            )}
         </div>
     )
 }
