@@ -41,6 +41,7 @@ import { SalesPageGenerator } from "./views/SalesPageGenerator"
 import { LibraryView } from "./views/LibraryView"
 import { AISettingsView, CronEngagementPanel } from "./views/AISettingsView"
 import { CommunityView } from "./views/CommunityView"
+import { AnalyticsView } from "./views/AnalyticsView"
 import { SettingsView } from "./views/SettingsView"
 import { ClubPlanView } from "./views/ClubPlanView"
 import { repairProfile } from "./actions/repairProfileAction"
@@ -52,7 +53,7 @@ import { ChevronDown, LogOut, User as UserIcon, Building2, Palette } from "lucid
 
 import { SettingsLoginView } from "./views/SettingsLoginView"
 
-type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-cron' | 'community' | 'library' | 'settings' | 'settings-login' | 'club-plan'
+type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-cron' | 'community' | 'analytics' | 'library' | 'settings' | 'settings-login' | 'club-plan'
 
 const navItems = [
     { id: 'dashboard' as ViewType, label: 'Painel Central', icon: LayoutDashboard },
@@ -68,6 +69,7 @@ const navItems = [
     { id: 'ai-brain' as ViewType, label: 'Config. IA', icon: Brain },
     { id: 'ai-cron' as ViewType, label: 'IA 24h', icon: Bot },
     { id: 'community' as ViewType, label: 'Comunidade', icon: Users },
+    { id: 'analytics' as ViewType, label: 'Analytics', icon: BarChart3 },
     { id: 'settings' as ViewType, label: 'Sistema', icon: Settings },
 ]
 
@@ -110,6 +112,7 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
             case 'library': return <LibraryView setView={setActiveView} />
             case 'sales-page': return <SalesPageGenerator setView={setActiveView} tenantId={tenantId} />
             case 'ai-brain': return <AISettingsView setView={setActiveView} tenantId={tenantId} />
+            case 'analytics': return <AnalyticsView setView={setActiveView} />
             case 'community': return (
                 <div className="space-y-4">
                     <div>
