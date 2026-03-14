@@ -1,462 +1,354 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
-    Gift,
-    Clock,
-    CheckCircle,
-    Plus,
-    Trash2,
-    Edit3,
-    Search,
-    Package,
-    Tag,
-    Sparkles,
-    Loader2,
-    X,
-    Diamond,
-    Crown,
-    Star,
-    ShoppingBag,
-    Truck,
-    Download,
-    Percent,
-    Award
+    Gift, Clock, CheckCircle, Plus, Trash2, Edit3,
+    Package, Percent, Star, Loader2, X, Crown,
+    ShoppingBag, Truck, Download, Award, RefreshCw,
+    Sparkles, AlertCircle, ChevronDown, ChevronUp
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
 
-interface Reward {
-    id: string
-    name: string
-    description: string
-    cost: number
+interface RewardItem {
+    id: string; name: string; description: string; cost: number
     type: 'digital' | 'fisico' | 'cupom' | 'experiencia'
-    image: string
-    stock?: number
-    active: boolean
+    emoji: string; stock?: number | null; active: boolean
+    delivery_info?: string | null; redemption_count?: number
 }
 
-interface Order {
-    id: string
-    userId: string
-    userName: string
-    userAvatar: string
-    rewardId: string
-    rewardName: string
-    rewardCost: number
-    date: string
+interface Redemption {
+    id: string; user_name: string; user_initials: string
+    item_name: string; item_cost: number; item_id: string
     status: 'pending' | 'processing' | 'completed' | 'cancelled'
-    notes?: string
+    created_at: string; admin_notes?: string
 }
 
-// Mock Data
-const MOCK_REWARDS: Reward[] = [
-    { id: '1', name: 'E-book Receitas Secretas', description: '50 receitas fit exclusivas', cost: 500, type: 'digital', image: '📘', active: true },
-    { id: '2', name: 'Desconto 10% Renovação', description: 'Cupom para próxima assinatura', cost: 1000, type: 'cupom', image: '🏷️', active: true },
-    { id: '3', name: 'Caneca Exclusiva', description: 'Caneca personalizada Reino', cost: 2500, type: 'fisico', image: '☕', stock: 50, active: true },
-    { id: '4', name: 'Mentoria Express 30min', description: 'Sessão individual com a Nutri', cost: 5000, type: 'experiencia', image: '👑', active: true },
-    { id: '5', name: 'Kit Suplementos', description: 'Whey + Creatina + Colágeno', cost: 8000, type: 'fisico', image: '💪', stock: 20, active: true },
-]
+const TYPE_META: Record<string, { label: string; icon: JSX.Element; color: string; bg: string }> = {
+    digital:     { label: "Digital",     icon: <Download size={13}/>,  color: "text-sky-400",     bg: "bg-sky-500/15 border-sky-500/25" },
+    fisico:      { label: "Físico",      icon: <Package size={13}/>,   color: "text-orange-400",  bg: "bg-orange-500/15 border-orange-500/25" },
+    cupom:       { label: "Cupom",       icon: <Percent size={13}/>,   color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/25" },
+    experiencia: { label: "Experiência", icon: <Crown size={13}/>,     color: "text-violet-400",  bg: "bg-violet-500/15 border-violet-500/25" },
+}
 
-const MOCK_ORDERS: Order[] = [
-    { id: 'o1', userId: 'u1', userName: 'Ana Júlia Silva', userAvatar: 'AJ', rewardId: '3', rewardName: 'Caneca Exclusiva', rewardCost: 2500, date: 'Hoje, 09:00', status: 'pending' },
-    { id: 'o2', userId: 'u2', userName: 'Carla Dias', userAvatar: 'CD', rewardId: '1', rewardName: 'E-book Receitas', rewardCost: 500, date: 'Ontem, 15:30', status: 'completed' },
-    { id: 'o3', userId: 'u3', userName: 'Fernanda Lima', userAvatar: 'FL', rewardId: '4', rewardName: 'Mentoria Express', rewardCost: 5000, date: 'Ontem, 10:00', status: 'processing' },
-    { id: 'o4', userId: 'u4', userName: 'Marina Santos', userAvatar: 'MS', rewardId: '2', rewardName: 'Desconto 10%', rewardCost: 1000, date: '2 dias atrás', status: 'completed' },
-]
+const STATUS_META: Record<string, { label: string; next?: string; nextLabel?: string; color: string }> = {
+    pending:    { label: "Pendente",    next: "processing", nextLabel: "Iniciar",   color: "text-amber-400 bg-amber-500/10 border-amber-500/20" },
+    processing: { label: "Processando", next: "completed",  nextLabel: "Entregar",  color: "text-sky-400 bg-sky-500/10 border-sky-500/20" },
+    completed:  { label: "Entregue",    color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
+    cancelled:  { label: "Cancelado",   color: "text-rose-400 bg-rose-500/10 border-rose-500/20" },
+}
 
-export function RewardsView({ setView }: { setView: (v: any) => void }) {
-    const [activeTab, setActiveTab] = useState<'catalog' | 'orders'>('catalog')
-    const [rewards, setRewards] = useState(MOCK_REWARDS)
-    const [orders, setOrders] = useState(MOCK_ORDERS)
-    const [searchQuery, setSearchQuery] = useState("")
-    const [showCreateModal, setShowCreateModal] = useState(false)
-    const [editingReward, setEditingReward] = useState<Reward | null>(null)
+const EMOJIS = ['🎁','📘','🏷️','☕','💪','👑','🎯','🌟','💎','🎉','🍎','💌','🧴','🏆','✨']
 
-    const pendingOrders = orders.filter(o => o.status === 'pending' || o.status === 'processing')
-    const totalCrystalsRedeemed = orders.filter(o => o.status === 'completed').reduce((acc, o) => acc + o.rewardCost, 0)
+function ItemForm({ item, tenantId, onSave, onCancel }: {
+    item?: RewardItem | null; tenantId?: string; onSave: () => void; onCancel: () => void
+}) {
+    const [form, setForm] = useState({
+        name: item?.name || '',
+        description: item?.description || '',
+        cost: item?.cost || 500,
+        type: item?.type || 'digital',
+        emoji: item?.emoji || '🎁',
+        stock: item?.stock ?? '',
+        delivery_info: item?.delivery_info || '',
+    })
+    const [saving, setSaving] = useState(false)
+    const [error, setError] = useState('')
 
-    const getTypeIcon = (type: string) => {
-        switch (type) {
-            case 'digital': return <Download size={14} />
-            case 'fisico': return <Package size={14} />
-            case 'cupom': return <Percent size={14} />
-            case 'experiencia': return <Star size={14} />
-            default: return <Gift size={14} />
-        }
+    const handleSave = async () => {
+        if (!form.name.trim() || !form.cost) { setError('Nome e custo são obrigatórios'); return }
+        setSaving(true)
+        try {
+            const body = { ...form, cost: Number(form.cost), stock: form.stock !== '' ? Number(form.stock) : null }
+            const res = await fetch('/api/admin/rewards', {
+                method: item ? 'PATCH' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(item ? { id: item.id, ...body } : body),
+            })
+            if (res.ok) { onSave() } else {
+                const d = await res.json(); setError(d.error || 'Erro ao salvar')
+            }
+        } finally { setSaving(false) }
     }
-
-    const getTypeColor = (type: string) => {
-        switch (type) {
-            case 'digital': return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
-            case 'fisico': return 'bg-orange-500/20 text-orange-400 border-orange-500/30'
-            case 'cupom': return 'bg-green-500/20 text-green-400 border-green-500/30'
-            case 'experiencia': return 'bg-purple-500/20 text-purple-400 border-purple-500/30'
-            default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
-        }
-    }
-
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case 'pending':
-                return (
-                    <span className="bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded text-xs font-bold flex items-center gap-1 w-fit">
-                        <Clock size={12} /> Pendente
-                    </span>
-                )
-            case 'processing':
-                return (
-                    <span className="bg-blue-500/20 text-blue-400 px-2 py-1 rounded text-xs font-bold flex items-center gap-1 w-fit">
-                        <Truck size={12} /> Enviando
-                    </span>
-                )
-            case 'completed':
-                return (
-                    <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs font-bold flex items-center gap-1 w-fit">
-                        <CheckCircle size={12} /> Entregue
-                    </span>
-                )
-            case 'cancelled':
-                return (
-                    <span className="bg-red-500/20 text-red-400 px-2 py-1 rounded text-xs font-bold flex items-center gap-1 w-fit">
-                        <X size={12} /> Cancelado
-                    </span>
-                )
-            default:
-                return null
-        }
-    }
-
-    const markAsDelivered = (orderId: string) => {
-        setOrders(prev => prev.map(o =>
-            o.id === orderId ? { ...o, status: 'completed' as const } : o
-        ))
-    }
-
-    const deleteReward = (rewardId: string) => {
-        if (confirm('Tem certeza que deseja excluir este prêmio?')) {
-            setRewards(prev => prev.filter(r => r.id !== rewardId))
-        }
-    }
-
-    const filteredRewards = rewards.filter(r =>
-        r.name.toLowerCase().includes(searchQuery.toLowerCase())
-    )
 
     return (
-        <div className="space-y-6 pb-20">
-            {/* Header */}
-            <div className="flex items-center justify-between">
+        <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 space-y-4">
+            <h3 className="font-bold text-white flex items-center gap-2">
+                <Sparkles size={16} className="text-indigo-400" />
+                {item ? 'Editar recompensa' : 'Nova recompensa'}
+            </h3>
+
+            {/* Emoji picker */}
+            <div className="flex flex-wrap gap-2">
+                {EMOJIS.map(e => (
+                    <button key={e} onClick={() => setForm(f => ({...f, emoji: e}))}
+                        className={`w-9 h-9 rounded-xl text-lg transition-all ${form.emoji === e ? 'bg-indigo-600 scale-110' : 'bg-white/5 hover:bg-white/10'}`}>
+                        {e}
+                    </button>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1 block">Nome *</label>
+                    <input value={form.name} onChange={e => setForm(f=>({...f,name:e.target.value}))}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                        placeholder="Ex: E-book Receitas Fit" />
+                </div>
+                <div className="col-span-2">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1 block">Descrição</label>
+                    <input value={form.description} onChange={e => setForm(f=>({...f,description:e.target.value}))}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                        placeholder="Breve descrição da recompensa" />
+                </div>
                 <div>
-                    <h1 className="text-3xl font-bold flex items-center gap-2">
-                        <Diamond className="text-purple-400" />
-                        Loja de Prêmios
-                    </h1>
-                    <p className="text-gray-400 mt-1">Gerencie o que suas Rainhas podem resgatar com cristais.</p>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1 block">NutriCoins *</label>
+                    <input type="number" value={form.cost} onChange={e => setForm(f=>({...f,cost:Number(e.target.value)}))}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/50" min="1" />
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="flex bg-white/5 p-1 rounded-xl">
-                        <button
-                            onClick={() => setActiveTab('catalog')}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'catalog'
-                                ? 'bg-purple-600 text-white'
-                                : 'text-gray-400 hover:text-white'
-                                }`}
-                        >
-                            <Package size={16} className="inline mr-2" />
-                            Catálogo
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('orders')}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 ${activeTab === 'orders'
-                                ? 'bg-purple-600 text-white'
-                                : 'text-gray-400 hover:text-white'
-                                }`}
-                        >
-                            <ShoppingBag size={16} />
-                            Pedidos
-                            {pendingOrders.length > 0 && (
-                                <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
-                                    {pendingOrders.length}
-                                </span>
-                            )}
-                        </button>
-                    </div>
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1 block">Tipo</label>
+                    <select value={form.type} onChange={e => setForm(f=>({...f,type:e.target.value as any}))}
+                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none">
+                        {Object.entries(TYPE_META).map(([v, m]) => <option key={v} value={v}>{m.label}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1 block">Estoque (vazio = ilimitado)</label>
+                    <input type="number" value={form.stock} onChange={e => setForm(f=>({...f,stock:e.target.value}))}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                        placeholder="∞" min="0" />
+                </div>
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1 block">Instruções de entrega</label>
+                    <input value={form.delivery_info} onChange={e => setForm(f=>({...f,delivery_info:e.target.value}))}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                        placeholder="Link por e-mail em 24h" />
                 </div>
             </div>
 
+            {error && <p className="text-xs text-rose-400">{error}</p>}
+
+            <div className="flex gap-3 pt-2">
+                <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 text-sm font-bold">Cancelar</button>
+                <button onClick={handleSave} disabled={saving}
+                    className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                    {saving ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                    {item ? 'Salvar' : 'Criar'}
+                </button>
+            </div>
+        </div>
+    )
+}
+
+export function RewardsView({ setView }: { setView: (v: any) => void }) {
+    const [items, setItems] = useState<RewardItem[]>([])
+    const [redemptions, setRedemptions] = useState<Redemption[]>([])
+    const [loading, setLoading] = useState(true)
+    const [activeTab, setActiveTab] = useState<'catalogo' | 'pedidos'>('catalogo')
+    const [showForm, setShowForm] = useState(false)
+    const [editingItem, setEditingItem] = useState<RewardItem | null>(null)
+    const [updatingId, setUpdatingId] = useState<string | null>(null)
+    const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
+
+    const loadData = useCallback(async () => {
+        setLoading(true)
+        try {
+            const res = await fetch('/api/admin/rewards')
+            if (res.ok) {
+                const data = await res.json()
+                setItems(data.items || [])
+                setRedemptions(data.redemptions || [])
+            }
+        } finally { setLoading(false) }
+    }, [])
+
+    useEffect(() => { loadData() }, [loadData])
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('Desativar esta recompensa?')) return
+        await fetch('/api/admin/rewards', {
+            method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id }),
+        })
+        await loadData()
+    }
+
+    const handleStatusChange = async (redemptionId: string, newStatus: string) => {
+        setUpdatingId(redemptionId)
+        try {
+            await fetch(`/api/admin/rewards/${redemptionId}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus }),
+            })
+            await loadData()
+        } finally { setUpdatingId(null) }
+    }
+
+    const pendingCount = redemptions.filter(r => r.status === 'pending').length
+    const processingCount = redemptions.filter(r => r.status === 'processing').length
+    const completedTotal = redemptions.filter(r => r.status === 'completed').reduce((acc, r) => acc + r.item_cost, 0)
+
+    return (
+        <div className="space-y-6">
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="glass-panel p-4 rounded-xl border border-white/5 flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                        <Gift size={24} className="text-purple-400" />
+            <div className="grid grid-cols-4 gap-3">
+                {[
+                    { label: "Itens ativos", value: items.filter(i => i.active).length, icon: <Gift size={16} className="text-indigo-400" /> },
+                    { label: "Pendentes", value: pendingCount, icon: <Clock size={16} className="text-amber-400" /> },
+                    { label: "Processando", value: processingCount, icon: <Truck size={16} className="text-sky-400" /> },
+                    { label: "Coins resgatados", value: completedTotal.toLocaleString('pt-BR'), icon: <Award size={16} className="text-emerald-400" /> },
+                ].map(s => (
+                    <div key={s.label} className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                        <div className="mb-2">{s.icon}</div>
+                        <p className="text-xl font-bold text-white">{s.value}</p>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mt-0.5">{s.label}</p>
                     </div>
-                    <div>
-                        <p className="text-2xl font-bold">{rewards.length}</p>
-                        <p className="text-xs text-gray-500">Prêmios Ativos</p>
-                    </div>
-                </div>
-                <div className="glass-panel p-4 rounded-xl border border-white/5 flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-yellow-500/20 flex items-center justify-center">
-                        <Clock size={24} className="text-yellow-400" />
-                    </div>
-                    <div>
-                        <p className="text-2xl font-bold">{pendingOrders.length}</p>
-                        <p className="text-xs text-gray-500">Pedidos Pendentes</p>
-                    </div>
-                </div>
-                <div className="glass-panel p-4 rounded-xl border border-white/5 flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-green-500/20 flex items-center justify-center">
-                        <CheckCircle size={24} className="text-green-400" />
-                    </div>
-                    <div>
-                        <p className="text-2xl font-bold">{orders.filter(o => o.status === 'completed').length}</p>
-                        <p className="text-xs text-gray-500">Entregas Concluídas</p>
-                    </div>
-                </div>
-                <div className="glass-panel p-4 rounded-xl border border-white/5 flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-pink-500/20 flex items-center justify-center">
-                        <Diamond size={24} className="text-pink-400" />
-                    </div>
-                    <div>
-                        <p className="text-2xl font-bold">{totalCrystalsRedeemed.toLocaleString()}</p>
-                        <p className="text-xs text-gray-500">Cristais Resgatados</p>
-                    </div>
-                </div>
+                ))}
             </div>
 
-            {/* Tab Content */}
-            {activeTab === 'catalog' && (
-                <div className="space-y-6">
-                    {/* Search */}
-                    <div className="flex items-center gap-4">
-                        <div className="relative flex-1 max-w-md">
-                            <Search className="absolute left-3 top-3 text-gray-500" size={18} />
-                            <input
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white focus:border-purple-500 outline-none"
-                                placeholder="Buscar prêmio..."
-                            />
-                        </div>
-                        <Button
-                            onClick={() => setShowCreateModal(true)}
-                            className="bg-gradient-to-r from-purple-600 to-pink-600"
-                        >
-                            <Plus size={18} className="mr-2" />
-                            Novo Prêmio
-                        </Button>
-                    </div>
+            {/* Tabs */}
+            <div className="flex gap-1 bg-white/5 rounded-2xl p-1 w-fit">
+                {(['catalogo', 'pedidos'] as const).map(tab => (
+                    <button key={tab} onClick={() => setActiveTab(tab)}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all
+                            ${activeTab === tab ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                        {tab === 'catalogo' ? '🏪 Catálogo' : `📦 Pedidos${pendingCount > 0 ? ` (${pendingCount})` : ''}`}
+                    </button>
+                ))}
+                <button onClick={loadData} className="px-3 py-2 text-slate-600 hover:text-slate-400 transition-colors">
+                    <RefreshCw size={14} />
+                </button>
+            </div>
 
-                    {/* Rewards Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredRewards.map((reward) => (
-                            <motion.div
-                                key={reward.id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="glass-panel rounded-2xl border border-white/5 p-6 relative group hover:border-purple-500/30 transition-all"
-                            >
-                                {/* Image/Emoji */}
-                                <div className="text-5xl mb-4">{reward.image}</div>
-
-                                {/* Content */}
-                                <h3 className="font-bold text-lg">{reward.name}</h3>
-                                <p className="text-sm text-gray-500 mt-1">{reward.description}</p>
-
-                                {/* Price */}
-                                <div className="flex items-center gap-2 mt-4">
-                                    <Diamond size={16} className="text-purple-400" />
-                                    <span className="text-xl font-bold text-purple-400">{reward.cost.toLocaleString()}</span>
-                                    <span className="text-sm text-gray-500">cristais</span>
-                                </div>
-
-                                {/* Type Badge */}
-                                <div className={`inline-flex items-center gap-1 mt-3 px-2 py-1 rounded text-xs font-bold uppercase border ${getTypeColor(reward.type)}`}>
-                                    {getTypeIcon(reward.type)}
-                                    {reward.type}
-                                </div>
-
-                                {/* Stock */}
-                                {reward.stock !== undefined && (
-                                    <p className="text-xs text-gray-500 mt-2">
-                                        Estoque: <span className="text-white">{reward.stock}</span> unidades
-                                    </p>
-                                )}
-
-                                {/* Hover Actions */}
-                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition flex gap-2">
-                                    <button
-                                        onClick={() => setEditingReward(reward)}
-                                        className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition"
-                                    >
-                                        <Edit3 size={16} />
-                                    </button>
-                                    <button
-                                        onClick={() => deleteReward(reward.id)}
-                                        className="p-2 bg-red-500/10 hover:bg-red-500/20 rounded-lg text-red-400 hover:text-red-300 transition"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-                            </motion.div>
-                        ))}
-
-                        {/* Add New Card */}
-                        <button
-                            onClick={() => setShowCreateModal(true)}
-                            className="border-2 border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center text-gray-500 hover:text-purple-400 hover:border-purple-500/50 transition min-h-[250px]"
-                        >
-                            <Plus size={40} className="mb-3" />
-                            <span className="font-bold">Criar Novo Prêmio</span>
+            {/* CATÁLOGO */}
+            <AnimatePresence mode="wait">
+            {activeTab === 'catalogo' && (
+                <motion.div key="cat" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="space-y-4">
+                    {!showForm && !editingItem && (
+                        <button onClick={() => setShowForm(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all">
+                            <Plus size={14} /> Nova Recompensa
                         </button>
-                    </div>
-                </div>
-            )}
-
-            {activeTab === 'orders' && (
-                <div className="glass-panel rounded-2xl border border-white/5 overflow-hidden">
-                    <table className="w-full text-left">
-                        <thead className="bg-white/[0.02] text-xs uppercase text-gray-500 font-bold border-b border-white/5">
-                            <tr>
-                                <th className="p-4">Rainha</th>
-                                <th className="p-4">Prêmio Resgatado</th>
-                                <th className="p-4">Cristais</th>
-                                <th className="p-4">Data</th>
-                                <th className="p-4">Status</th>
-                                <th className="p-4 text-right">Ação</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {orders.map((order) => (
-                                <tr key={order.id} className="hover:bg-white/[0.02] transition">
-                                    <td className="p-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-sm font-bold text-purple-400">
-                                                {order.userAvatar}
-                                            </div>
-                                            <span className="font-bold">{order.userName}</span>
-                                        </div>
-                                    </td>
-                                    <td className="p-4 text-purple-300">{order.rewardName}</td>
-                                    <td className="p-4">
-                                        <span className="flex items-center gap-1 text-yellow-400">
-                                            <Diamond size={14} />
-                                            {order.rewardCost.toLocaleString()}
-                                        </span>
-                                    </td>
-                                    <td className="p-4 text-gray-400 text-sm">{order.date}</td>
-                                    <td className="p-4">{getStatusBadge(order.status)}</td>
-                                    <td className="p-4 text-right">
-                                        {(order.status === 'pending' || order.status === 'processing') && (
-                                            <Button
-                                                onClick={() => markAsDelivered(order.id)}
-                                                size="sm"
-                                                className="bg-green-600 hover:bg-green-500 text-xs"
-                                            >
-                                                <CheckCircle size={14} className="mr-1" />
-                                                Marcar Entregue
-                                            </Button>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-
-            {/* Create/Edit Modal */}
-            <AnimatePresence>
-                {(showCreateModal || editingReward) && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-                    >
-                        <motion.div
-                            initial={{ scale: 0.95, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            exit={{ scale: 0.95, y: 20 }}
-                            className="bg-[#1a1a2e] border border-white/10 w-full max-w-lg rounded-2xl overflow-hidden"
-                        >
-                            <div className="p-6 border-b border-white/5 flex justify-between items-center">
-                                <h3 className="text-xl font-bold">
-                                    {editingReward ? 'Editar Prêmio' : 'Novo Prêmio'}
-                                </h3>
-                                <button
-                                    onClick={() => { setShowCreateModal(false); setEditingReward(null) }}
-                                    className="text-gray-500 hover:text-white"
-                                >
-                                    <X size={20} />
-                                </button>
-                            </div>
-
-                            <div className="p-6 space-y-4">
-                                <div>
-                                    <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Emoji</label>
-                                    <input
-                                        defaultValue={editingReward?.image || '🎁'}
-                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-3xl text-center"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Nome do Prêmio</label>
-                                    <input
-                                        defaultValue={editingReward?.name || ''}
-                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4"
-                                        placeholder="Ex: Caneca Exclusiva"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Descrição</label>
-                                    <textarea
-                                        defaultValue={editingReward?.description || ''}
-                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 h-20 resize-none"
-                                        placeholder="Breve descrição do prêmio"
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Custo (Cristais)</label>
-                                        <input
-                                            type="number"
-                                            defaultValue={editingReward?.cost || 500}
-                                            className="w-full bg-black/40 border border-white/10 rounded-xl p-4"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Tipo</label>
-                                        <select
-                                            defaultValue={editingReward?.type || 'digital'}
-                                            className="w-full bg-black/40 border border-white/10 rounded-xl p-4"
-                                        >
-                                            <option value="digital">Digital</option>
-                                            <option value="fisico">Físico</option>
-                                            <option value="cupom">Cupom</option>
-                                            <option value="experiencia">Experiência</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="p-6 border-t border-white/5 flex justify-end gap-3">
-                                <Button
-                                    variant="ghost"
-                                    onClick={() => { setShowCreateModal(false); setEditingReward(null) }}
-                                >
-                                    Cancelar
-                                </Button>
-                                <Button className="bg-gradient-to-r from-purple-600 to-pink-600">
-                                    <CheckCircle size={16} className="mr-2" />
-                                    {editingReward ? 'Salvar Alterações' : 'Criar Prêmio'}
-                                </Button>
-                            </div>
+                    )}
+                    <AnimatePresence>
+                    {(showForm || editingItem) && (
+                        <motion.div initial={{opacity:0,y:-10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-10}}>
+                            <ItemForm
+                                item={editingItem}
+                                onSave={() => { setShowForm(false); setEditingItem(null); loadData() }}
+                                onCancel={() => { setShowForm(false); setEditingItem(null) }}
+                            />
                         </motion.div>
-                    </motion.div>
-                )}
+                    )}
+                    </AnimatePresence>
+
+                    {loading ? (
+                        <div className="flex justify-center py-12"><Loader2 className="animate-spin text-slate-600" size={24} /></div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {items.map(item => {
+                                const meta = TYPE_META[item.type] || TYPE_META.digital
+                                return (
+                                    <div key={item.id} className="bg-white/5 border border-white/10 rounded-3xl p-5 group relative">
+                                        <div className="flex items-start gap-3 mb-3">
+                                            <div className="text-3xl w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center flex-shrink-0">{item.emoji}</div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-bold text-white text-sm truncate">{item.name}</p>
+                                                <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md border inline-flex items-center gap-1 mt-1 ${meta.bg} ${meta.color}`}>
+                                                    {meta.icon} {meta.label}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {item.description && <p className="text-xs text-slate-500 mb-3 leading-relaxed">{item.description}</p>}
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm font-black text-amber-400">🪙 {item.cost.toLocaleString('pt-BR')}</span>
+                                            <div className="flex items-center gap-1 text-[10px] text-slate-600">
+                                                {item.stock != null ? <span>{item.stock} unid.</span> : <span>∞</span>}
+                                                {(item.redemption_count || 0) > 0 && <span>· {item.redemption_count} resgates</span>}
+                                            </div>
+                                        </div>
+                                        {/* Hover actions */}
+                                        <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => { setEditingItem(item); setShowForm(false) }}
+                                                className="w-7 h-7 rounded-lg bg-white/10 text-slate-400 hover:text-white flex items-center justify-center">
+                                                <Edit3 size={11} />
+                                            </button>
+                                            <button onClick={() => handleDelete(item.id)}
+                                                className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 flex items-center justify-center">
+                                                <Trash2 size={11} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
+                </motion.div>
+            )}
+
+            {/* PEDIDOS */}
+            {activeTab === 'pedidos' && (
+                <motion.div key="ped" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="space-y-2">
+                    {loading ? (
+                        <div className="flex justify-center py-12"><Loader2 className="animate-spin text-slate-600" size={24} /></div>
+                    ) : redemptions.length === 0 ? (
+                        <div className="text-center py-12 text-slate-600">
+                            <ShoppingBag size={32} className="mx-auto mb-3 opacity-30" />
+                            <p className="text-sm">Nenhum pedido ainda.</p>
+                        </div>
+                    ) : (
+                        redemptions.map(r => {
+                            const sm = STATUS_META[r.status] || STATUS_META.pending
+                            const isExpanded = expandedOrder === r.id
+                            return (
+                                <div key={r.id} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                                    <button
+                                        onClick={() => setExpandedOrder(isExpanded ? null : r.id)}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                                            {r.user_initials}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-bold text-white truncate">{r.user_name.split(' ')[0]} · {r.item_name}</p>
+                                            <p className="text-[10px] text-slate-600">
+                                                {new Date(r.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                {' · '}🪙 {r.item_cost.toLocaleString('pt-BR')}
+                                            </p>
+                                        </div>
+                                        <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg border ${sm.color}`}>{sm.label}</span>
+                                        {isExpanded ? <ChevronUp size={14} className="text-slate-600" /> : <ChevronDown size={14} className="text-slate-600" />}
+                                    </button>
+
+                                    <AnimatePresence>
+                                    {isExpanded && (
+                                        <motion.div initial={{height:0,opacity:0}} animate={{height:'auto',opacity:1}} exit={{height:0,opacity:0}}
+                                            className="border-t border-white/10 px-4 py-3 flex gap-2 flex-wrap">
+                                            {sm.next && (
+                                                <button
+                                                    onClick={() => handleStatusChange(r.id, sm.next!)}
+                                                    disabled={updatingId === r.id}
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-50">
+                                                    {updatingId === r.id ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle size={11} />}
+                                                    {sm.nextLabel}
+                                                </button>
+                                            )}
+                                            {r.status !== 'completed' && r.status !== 'cancelled' && (
+                                                <button
+                                                    onClick={() => handleStatusChange(r.id, 'cancelled')}
+                                                    disabled={updatingId === r.id}
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 text-xs font-bold rounded-xl transition-all">
+                                                    <X size={11} /> Cancelar
+                                                </button>
+                                            )}
+                                        </motion.div>
+                                    )}
+                                    </AnimatePresence>
+                                </div>
+                            )
+                        })
+                    )}
+                </motion.div>
+            )}
             </AnimatePresence>
         </div>
     )
