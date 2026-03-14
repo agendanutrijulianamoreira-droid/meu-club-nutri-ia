@@ -93,6 +93,17 @@ Esquema de Retorno:
   "emoji": "🏆",
   "duration_days": 7
 }`
+        } else if (task === 'sales-copy') {
+            systemInstruction += `
+Tarefa: Gerar textos de alta conversão para uma página de vendas de nutrição.
+Contexto: ${context || 'clube de nutrição para mulheres'}
+Retorne APENAS JSON válido:
+{
+  "headline": "Grande promessa (máx 12 palavras, sem aspas)",
+  "subheadline": "Texto de apoio explicando como a promessa é cumprida (máx 20 palavras)",
+  "benefits": ["benefício 1", "benefício 2", "benefício 3", "benefício 4"],
+  "cta": "texto do botão de compra (máx 5 palavras, em maiúsculas)"
+}`
         } else if (task === 'marketing-suggestion') {
             systemInstruction += `
 Tarefa: Sugerir uma notificação push de marketing.
