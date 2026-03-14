@@ -304,6 +304,7 @@ export interface Tenant {
     slug: string
     brand_color: string
     method_name?: string
+    gpt_system_prompt?: string | null
     logo_url: string | null
     settings: any
     created_at: string
