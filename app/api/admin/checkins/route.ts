@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     // 3. Load latest weekly checkin responses
     const { data: checkinResponses } = await supabase
         .from('weekly_checkin_responses')
-        .select('user_id, diet_score, main_difficulty, ai_summary, ai_risk_level, created_at')
+        .select('user_id, diet_score, main_difficulty, bowel, had_binge, mood, extra_notes, ai_summary, ai_risk_level, ai_suggestion, week_start, created_at')
         .in('user_id', userIds)
         .order('created_at', { ascending: false })
 
@@ -147,8 +147,20 @@ export async function GET(request: NextRequest) {
             xp: patient.total_xp || 0,
             plan: patient.current_plan || 'community',
             adherenceRate: Math.round(adherenceRate * 100),
+            daysSinceActivity,
             hasCheckin: !!checkin,
             checkinScore: checkin?.diet_score ?? null,
+            checkinDetails: checkin ? {
+                diet_score: checkin.diet_score,
+                main_difficulty: checkin.main_difficulty,
+                bowel: checkin.bowel,
+                had_binge: checkin.had_binge,
+                mood: checkin.mood,
+                extra_notes: checkin.extra_notes,
+                ai_suggestion: checkin.ai_suggestion,
+                week_start: checkin.week_start,
+                created_at: checkin.created_at,
+            } : null,
         }
     })
 
