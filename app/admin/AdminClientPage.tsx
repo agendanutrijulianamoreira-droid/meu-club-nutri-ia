@@ -105,7 +105,7 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
             case 'dashboard': return <DashboardView {...props} />
             case 'communication': return <CommunicationCenterView setView={setActiveView} />
             case 'protocols': return <ProtocolsView setView={setActiveView} tenantId={tenantId} />
-            case 'challenges': return <ChallengesView setView={setActiveView} />
+            case 'challenges': return <ChallengesView setView={setActiveView} tenantId={tenantId} />
             case 'patients': return <PatientsView setView={setActiveView} />
             case 'rewards': return <RewardsView setView={setActiveView} />
             case 'checkins': return <CheckinsView setView={setActiveView} />
