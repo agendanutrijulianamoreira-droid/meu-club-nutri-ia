@@ -306,6 +306,7 @@ export interface Tenant {
     method_name?: string
     gpt_system_prompt?: string | null
     logo_url: string | null
+    plan_tier?: string | null
     settings: any
     created_at: string
 }

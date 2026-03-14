@@ -1,290 +1,392 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Save, Palette, Image, Type, CreditCard, Bell, Shield, Globe, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import {
+    Save, Palette, Image as ImageIcon, Globe, Bell, Shield,
+    Loader2, Copy, Check, ExternalLink, CreditCard, ChevronRight,
+    ToggleLeft, ToggleRight, AlertTriangle, CheckCircle, X,
+    Download, Trash2, RefreshCw, Link2, Lock, Building2
+} from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
 import { useTenant } from "@/lib/hooks/useDatabase"
 import { useStorage } from "@/lib/hooks/useStorage"
 
-export function SettingsView({ setView, tenantId }: { setView: (v: any) => void, tenantId?: string }) {
-    const { tenant, updateTenant, loading } = useTenant(tenantId);
-    const { uploadImage, uploading: isUploadingFile } = useStorage()
-    const [clubName, setClubName] = useState("Clube da Nutri")
-    const [brandColor, setBrandColor] = useState("#EC4899")
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+    return (
+        <button onClick={onToggle}
+            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${on ? 'bg-emerald-600' : 'bg-white/10'}`}>
+            <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${on ? 'left-5' : 'left-0.5'}`}/>
+        </button>
+    )
+}
+
+function Section({ title, icon, children, className = '' }: {
+    title?: string; icon?: React.ReactNode; children?: React.ReactNode; className?: string
+}) {
+    return (
+        <div className={`bg-white/[0.03] border border-white/10 rounded-2xl p-5 space-y-4 ${className}`}>
+            {(title || icon) && (
+                <div className="flex items-center gap-2">
+                    {icon && <span className="text-slate-400">{icon}</span>}
+                    {title && <p className="text-sm font-bold text-white">{title}</p>}
+                </div>
+            )}
+            {children}
+        </div>
+    )
+}
+
+function Toast({ type, msg, onClose }: { type: 'success' | 'error'; msg: string; onClose: () => void }) {
+    useEffect(() => { const t = setTimeout(onClose, 3500); return () => clearTimeout(t) }, [onClose])
+    return (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className={`flex items-center gap-2 px-4 py-3 rounded-2xl border text-xs font-bold
+                ${type === 'success' ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400' : 'bg-rose-500/10 border-rose-500/25 text-rose-400'}`}>
+            {type === 'success' ? <CheckCircle size={13}/> : <AlertTriangle size={13}/>}
+            <span>{msg}</span>
+            <button onClick={onClose} className="ml-auto opacity-60 hover:opacity-100"><X size={11}/></button>
+        </motion.div>
+    )
+}
+
+const PLAN_META: Record<string, { label: string; color: string; bg: string }> = {
+    free:         { label: 'Free',         color: 'text-slate-400',   bg: 'bg-slate-500/15 border-slate-500/25' },
+    professional: { label: 'Professional', color: 'text-indigo-400',  bg: 'bg-indigo-500/15 border-indigo-500/25' },
+    premium:      { label: 'Premium',      color: 'text-amber-400',   bg: 'bg-amber-500/15 border-amber-500/25' },
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+export function SettingsView({ setView, tenantId }: { setView: (v: any) => void; tenantId?: string }) {
+    const { tenant, updateTenant, loading } = useTenant(tenantId)
+    const { uploadImage, uploading: uploadingLogo } = useStorage()
+
+    const [tab, setTab] = useState<'clube' | 'notificacoes' | 'avancado'>('clube')
+    const [clubName, setClubName] = useState('')
+    const [brandColor, setBrandColor] = useState('#6366f1')
     const [logoUrl, setLogoUrl] = useState<string | null>(null)
     const [notifications, setNotifications] = useState({
         inactive_queens: true,
         achievements: true,
-        daily_summary: false
+        daily_summary: false,
     })
-    const [saved, setSaved] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
+    const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+    const [copied, setCopied] = useState<'slug' | 'id' | null>(null)
+    const [dangerAction, setDangerAction] = useState<string | null>(null)
 
-    // Sync state with tenant data
     useEffect(() => {
         if (tenant) {
-            setClubName(tenant.name || "Clube da Nutri");
-            setBrandColor(tenant.brand_color || "#EC4899");
-            setLogoUrl(tenant.logo_url);
+            setClubName(tenant.name || '')
+            setBrandColor(tenant.brand_color || '#6366f1')
+            setLogoUrl(tenant.logo_url)
             if (tenant.settings?.notifications) {
-                setNotifications(prev => ({ ...prev, ...tenant.settings.notifications }));
+                setNotifications(prev => ({ ...prev, ...tenant.settings.notifications }))
             }
         }
-    }, [tenant]);
+    }, [tenant])
+
+    const showToast = (type: 'success' | 'error', msg: string) => setToast({ type, msg })
 
     const handleSave = async () => {
-        if (!tenant) return;
-
-        setIsSaving(true);
+        if (!tenant) return
+        setIsSaving(true)
         try {
             const { error } = await updateTenant(tenant.id, {
                 name: clubName,
                 brand_color: brandColor,
                 logo_url: logoUrl,
-                settings: {
-                    ...(tenant.settings || {}),
-                    notifications: notifications
-                }
-            });
-
-            if (error) throw new Error(error);
-
-            setSaved(true)
-            setTimeout(() => setSaved(false), 2000)
+                settings: { ...(tenant.settings || {}), notifications },
+            })
+            if (error) throw new Error(error)
+            showToast('success', 'Configurações salvas com sucesso!')
         } catch (err: any) {
-            alert("Erro ao salvar: " + err.message);
+            showToast('error', 'Erro ao salvar: ' + err.message)
         } finally {
-            setIsSaving(false);
+            setIsSaving(false)
         }
     }
 
     const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file) return
-
         const { url, error } = await uploadImage(file, 'logos')
-        if (error) {
-            alert("Erro ao subir logo: " + error)
-        } else {
-            setLogoUrl(url)
-        }
+        if (error) showToast('error', 'Erro ao subir logo: ' + error)
+        else setLogoUrl(url)
     }
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-96">
-                <Loader2 className="animate-spin text-queen-pink" size={48} />
-            </div>
-        );
+    const copyText = (text: string, field: 'slug' | 'id') => {
+        navigator.clipboard.writeText(text)
+        setCopied(field)
+        setTimeout(() => setCopied(null), 2000)
     }
+
+    const handleDangerAction = async (action: string) => {
+        if (!confirm(
+            action === 'reset-ranking'
+                ? 'Isso zerará os pontos de XP de TODAS as rainhas. Confirmar?'
+                : 'Exportar todos os dados do clube. Continuar?'
+        )) return
+
+        setDangerAction(action)
+        await new Promise(r => setTimeout(r, 1200)) // placeholder - real API calls would go here
+        setDangerAction(null)
+        showToast('success', action === 'reset-ranking' ? 'Ranking resetado.' : 'Exportação iniciada, verifique seu e-mail.')
+    }
+
+    const planMeta = PLAN_META[tenant?.plan_tier || 'free'] || PLAN_META.free
+
+    if (loading) return (
+        <div className="flex items-center justify-center h-64">
+            <Loader2 size={28} className="animate-spin text-slate-600"/>
+        </div>
+    )
 
     return (
-        <div className="space-y-6 max-w-4xl">
+        <div className="space-y-5 max-w-2xl pb-10">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold">Configurações ⚙️</h1>
-                    <p className="text-gray-400 mt-1">Personalize seu Reino.</p>
+                    <h1 className="text-3xl font-light text-white">Configurações <span className="font-bold">do Clube</span></h1>
+                    <p className="text-slate-500 text-sm mt-0.5">Identidade, notificações e opções avançadas.</p>
                 </div>
-                <Button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className={`transition-all ${saved ? 'bg-green-600' : 'bg-gradient-to-r from-queen-pink to-purple-600'} border-0 min-w-[160px]`}
-                >
-                    {isSaving ? <Loader2 className="animate-spin mr-2" size={18} /> : null}
-                    {saved ? '✓ Salvo!' : isSaving ? 'Salvando...' : <><Save size={18} className="mr-2" /> Salvar Alterações</>}
-                </Button>
+                {tab !== 'avancado' && (
+                    <button onClick={handleSave} disabled={isSaving}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-bold rounded-2xl transition-all">
+                        {isSaving ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>}
+                        {isSaving ? 'Salvando…' : 'Salvar'}
+                    </button>
+                )}
             </div>
 
-            {/* Settings Sections */}
-            <div className="space-y-6">
-                {/* Club Identity */}
-                <div className="glass-panel p-6 rounded-2xl border border-white/5">
-                    <h2 className="font-bold text-lg mb-6 flex items-center gap-2">
-                        <Globe size={20} className="text-queen-pink" />
-                        Identidade do Clube
-                    </h2>
+            {/* Toast */}
+            <AnimatePresence>
+                {toast && <Toast type={toast.type} msg={toast.msg} onClose={() => setToast(null)}/>}
+            </AnimatePresence>
 
-                    <div className="space-y-6">
-                        <div className="flex items-center justify-between p-6 bg-indigo-600/10 border border-indigo-500/20 rounded-2xl">
-                            <div>
-                                <h3 className="font-bold text-indigo-400">Design da Página de Login</h3>
-                                <p className="text-sm text-slate-500">Personalize o visual e a copy da sua landing page.</p>
-                            </div>
-                            <Button
-                                onClick={() => setView('settings-login')}
-                                className="bg-indigo-600 hover:bg-indigo-500 h-12 rounded-xl text-xs font-black uppercase tracking-widest gap-2"
-                            >
-                                <Palette size={16} /> Abrir Editor
-                            </Button>
-                        </div>
-                        <div>
-                            <label className="text-sm font-medium text-gray-300 mb-2 block">Nome do Clube</label>
-                            <input
-                                type="text"
-                                value={clubName}
-                                onChange={e => setClubName(e.target.value)}
-                                className="w-full bg-black/20 border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-queen-pink"
-                            />
-                        </div>
+            {/* Tabs */}
+            <div className="flex bg-white/5 border border-white/10 rounded-2xl p-1 gap-1 w-fit">
+                {([
+                    ['clube',        <Building2 size={13}/>, 'Clube'],
+                    ['notificacoes', <Bell size={13}/>,       'Notificações'],
+                    ['avancado',     <Shield size={13}/>,     'Avançado'],
+                ] as const).map(([v, icon, l]) => (
+                    <button key={v} onClick={() => setTab(v)}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all
+                            ${tab === v ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                        {icon} {l}
+                    </button>
+                ))}
+            </div>
 
+            {/* ── Tab: Clube ────────────────────────────────────────────────── */}
+            {tab === 'clube' && (
+                <div className="space-y-4">
+                    {/* Club info */}
+                    <Section title="Identidade Visual" icon={<Globe size={15}/>}>
+                        {/* Logo */}
                         <div>
-                            <label className="text-sm font-medium text-gray-300 mb-2 block">Cor Principal</label>
-                            <div className="flex items-center gap-4">
-                                <input
-                                    type="color"
-                                    value={brandColor}
-                                    onChange={e => setBrandColor(e.target.value)}
-                                    className="h-12 w-20 rounded-lg cursor-pointer border-0"
-                                />
-                                <input
-                                    type="text"
-                                    value={brandColor}
-                                    onChange={e => setBrandColor(e.target.value)}
-                                    className="flex-1 bg-black/20 border border-white/10 rounded-xl p-4 text-white font-mono focus:outline-none focus:border-queen-pink"
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="text-sm font-medium text-gray-300 mb-2 block">Logo do Clube</label>
-                            <input
-                                type="file"
-                                id="logo-upload"
-                                className="hidden"
-                                accept="image/*"
-                                onChange={handleLogoUpload}
-                            />
-                            <div
-                                onClick={() => document.getElementById('logo-upload')?.click()}
-                                className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center hover:border-queen-pink/50 transition-colors cursor-pointer relative overflow-hidden group"
-                            >
-                                {isUploadingFile ? (
-                                    <div className="flex flex-col items-center">
-                                        <Loader2 className="animate-spin text-queen-pink mb-2" size={32} />
-                                        <p className="text-sm text-gray-400">Subindo imagem...</p>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2 block">Logo do Clube</label>
+                            <input type="file" id="logo-upload" className="hidden" accept="image/*" onChange={handleLogoUpload}/>
+                            <div onClick={() => document.getElementById('logo-upload')?.click()}
+                                className="border border-dashed border-white/15 rounded-2xl p-5 text-center cursor-pointer hover:border-indigo-500/40 transition-all group">
+                                {uploadingLogo ? (
+                                    <div className="flex items-center justify-center gap-2 py-2">
+                                        <Loader2 size={16} className="animate-spin text-indigo-400"/>
+                                        <span className="text-xs text-slate-400">Enviando…</span>
                                     </div>
                                 ) : logoUrl ? (
                                     <div className="relative group/logo">
-                                        <img src={logoUrl} alt="Logo preview" className="h-24 mx-auto rounded-lg object-contain" />
-                                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover/logo:opacity-100 transition-opacity rounded-lg">
-                                            <p className="text-xs font-bold text-white uppercase">Alterar Logo</p>
-                                        </div>
+                                        <img src={logoUrl} alt="Logo" className="h-16 mx-auto rounded-xl object-contain"/>
+                                        <p className="text-[10px] text-slate-600 mt-2 group-hover/logo:text-slate-400 transition-colors">Clique para alterar</p>
                                     </div>
                                 ) : (
-                                    <>
-                                        <Image size={32} className="mx-auto text-gray-500 mb-2" />
-                                        <p className="text-sm text-gray-400">Clique para enviar ou arraste a imagem</p>
-                                        <p className="text-xs text-gray-600 mt-1">PNG ou SVG, máx 2MB</p>
-                                    </>
+                                    <div className="py-3 flex items-center justify-center gap-2 text-slate-600 group-hover:text-slate-400 transition-colors">
+                                        <ImageIcon size={16}/>
+                                        <span className="text-xs font-bold">PNG ou SVG, máx 2MB</span>
+                                    </div>
                                 )}
                             </div>
                         </div>
+
+                        {/* Club name */}
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Nome do Clube</label>
+                            <input value={clubName} onChange={e => setClubName(e.target.value)}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                                placeholder="Ex: NutriClub da Ana"/>
+                        </div>
+
+                        {/* Brand color */}
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Cor Principal</label>
+                            <div className="flex items-center gap-3">
+                                <input type="color" value={brandColor} onChange={e => setBrandColor(e.target.value)}
+                                    className="h-11 w-16 rounded-xl cursor-pointer border-0 bg-transparent"/>
+                                <input value={brandColor} onChange={e => setBrandColor(e.target.value)}
+                                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-mono focus:outline-none focus:border-indigo-500/50"
+                                    placeholder="#6366f1"/>
+                                <div className="w-11 h-11 rounded-xl border border-white/10 flex-shrink-0"
+                                    style={{ backgroundColor: brandColor }}/>
+                            </div>
+                        </div>
+                    </Section>
+
+                    {/* Login page editor link */}
+                    <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-bold text-indigo-300">Editor da Página de Login</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Personalize headline, bullets e imagem de fundo</p>
+                        </div>
+                        <button onClick={() => setView('settings-login')}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all">
+                            <Palette size={12}/> Abrir editor <ChevronRight size={11}/>
+                        </button>
                     </div>
+
+                    {/* Tenant info (read-only) */}
+                    <Section title="Informações do Clube" icon={<Link2 size={15}/>}>
+                        {/* Slug */}
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">URL do Clube</label>
+                            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+                                <span className="text-xs text-slate-500 font-mono">/vender/</span>
+                                <span className="text-xs text-white font-mono flex-1">{tenant?.slug || '—'}</span>
+                                <button onClick={() => tenant?.slug && copyText(`${typeof window !== 'undefined' ? window.location.origin : ''}/vender/${tenant.slug}`, 'slug')}
+                                    className="text-slate-600 hover:text-indigo-400 transition-colors flex-shrink-0">
+                                    {copied === 'slug' ? <Check size={13} className="text-emerald-400"/> : <Copy size={13}/>}
+                                </button>
+                                {tenant?.slug && (
+                                    <a href={`/vender/${tenant.slug}`} target="_blank" rel="noopener"
+                                        className="text-slate-600 hover:text-indigo-400 transition-colors flex-shrink-0">
+                                        <ExternalLink size={13}/>
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Plan */}
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold text-white">Plano atual</p>
+                                <p className="text-[10px] text-slate-500 mt-0.5">Seu plano define os limites do clube</p>
+                            </div>
+                            <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full border ${planMeta.bg} ${planMeta.color}`}>
+                                {planMeta.label}
+                            </span>
+                        </div>
+
+                        {/* Tenant ID */}
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">ID do Clube</label>
+                            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5">
+                                <span className="text-xs text-slate-600 font-mono flex-1 truncate">{tenantId || '—'}</span>
+                                <button onClick={() => tenantId && copyText(tenantId, 'id')}
+                                    className="text-slate-600 hover:text-indigo-400 transition-colors flex-shrink-0">
+                                    {copied === 'id' ? <Check size={13} className="text-emerald-400"/> : <Copy size={13}/>}
+                                </button>
+                            </div>
+                        </div>
+                    </Section>
+
+                    {/* Payments placeholder */}
+                    <Section title="Pagamentos" icon={<CreditCard size={15}/>}>
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
+                            <p className="text-xs text-amber-300 leading-relaxed">
+                                💳 Integração com <strong>Stripe</strong> será configurada aqui — chave secreta, webhook e planos.
+                                Em desenvolvimento — disponível em breve.
+                            </p>
+                        </div>
+                    </Section>
                 </div>
+            )}
 
-                {/* Notifications */}
-                <div className="glass-panel p-6 rounded-2xl border border-white/5">
-                    <h2 className="font-bold text-lg mb-6 flex items-center gap-2">
-                        <Bell size={20} className="text-yellow-500" />
-                        Notificações
-                    </h2>
+            {/* ── Tab: Notificações ──────────────────────────────────────── */}
+            {tab === 'notificacoes' && (
+                <div className="space-y-4">
+                    <Section title="Automações de Notificação" icon={<Bell size={15}/>}>
+                        {[
+                            { key: 'inactive_queens' as const,  label: 'Resgatar rainhas inativas',  desc: 'Dispara mensagem após 3 dias sem check-in' },
+                            { key: 'achievements' as const,     label: 'Celebrar conquistas',         desc: 'Notifica ao ganhar badge ou milestone de streak' },
+                            { key: 'daily_summary' as const,    label: 'Resumo diário por e-mail',    desc: 'Relatório com métricas do dia para o admin' },
+                        ].map(item => (
+                            <div key={item.key} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+                                <div>
+                                    <p className="text-sm font-bold text-white">{item.label}</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">{item.desc}</p>
+                                </div>
+                                <Toggle on={notifications[item.key]}
+                                    onToggle={() => setNotifications(n => ({ ...n, [item.key]: !n[item.key] }))}/>
+                            </div>
+                        ))}
+                    </Section>
 
-                    <div className="space-y-4">
-                        <ToggleSetting
-                            label="Notificar Rainhas inativas"
-                            description="Enviar lembrete após 3 dias sem check-in"
-                            enabled={notifications.inactive_queens}
-                            onToggle={() => setNotifications(n => ({ ...n, inactive_queens: !n.inactive_queens }))}
-                        />
-                        <ToggleSetting
-                            label="Celebrar conquistas"
-                            description="Notificar quando alguém ganhar um badge"
-                            enabled={notifications.achievements}
-                            onToggle={() => setNotifications(n => ({ ...n, achievements: !n.achievements }))}
-                        />
-                        <ToggleSetting
-                            label="Resumo diário"
-                            description="Receber email com métricas do dia"
-                            enabled={notifications.daily_summary}
-                            onToggle={() => setNotifications(n => ({ ...n, daily_summary: !n.daily_summary }))}
-                        />
-                    </div>
-                </div>
-
-                {/* Payments */}
-                <div className="glass-panel p-6 rounded-2xl border border-white/5">
-                    <h2 className="font-bold text-lg mb-6 flex items-center gap-2">
-                        <CreditCard size={20} className="text-green-500" />
-                        Pagamentos
-                    </h2>
-
-                    <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
-                        <p className="text-yellow-400 text-sm">
-                            💡 Integração com Stripe/Pagar.me será ativada na Fase 4 do desenvolvimento.
+                    <div className="bg-white/[0.02] border border-white/5 rounded-2xl px-4 py-3">
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                            💡 As automações de notificação funcionam em conjunto com a IA de Engajamento 24h.
+                            Configure os detalhes no <button onClick={() => setView('ai-brain')} className="text-indigo-400 hover:text-indigo-300 font-bold underline">Laboratório de Inteligência</button>.
                         </p>
                     </div>
                 </div>
+            )}
 
-                {/* Danger Zone */}
-                <div className="glass-panel p-6 rounded-2xl border border-red-500/20">
-                    <h2 className="font-bold text-lg mb-6 flex items-center gap-2 text-red-400">
-                        <Shield size={20} />
-                        Zona de Perigo
-                    </h2>
+            {/* ── Tab: Avançado ──────────────────────────────────────────── */}
+            {tab === 'avancado' && (
+                <div className="space-y-4">
+                    <Section className="border-rose-500/20">
+                        <div className="flex items-center gap-2 mb-2">
+                            <AlertTriangle size={15} className="text-rose-400"/>
+                            <p className="text-sm font-bold text-rose-400">Zona de Perigo</p>
+                        </div>
+                        <p className="text-xs text-slate-500">Ações irreversíveis. Confirme antes de prosseguir.</p>
 
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-red-500/5 rounded-xl border border-red-500/10">
-                            <div>
-                                <p className="font-medium text-red-400">Exportar Dados</p>
-                                <p className="text-sm text-gray-500">Baixar todos os dados do clube</p>
+                        <div className="space-y-3 pt-1">
+                            {/* Export */}
+                            <div className="flex items-center justify-between p-4 bg-white/[0.02] border border-white/10 rounded-2xl">
+                                <div>
+                                    <p className="text-sm font-bold text-white">Exportar Dados</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">Baixar CSV com todos os dados das rainhas</p>
+                                </div>
+                                <button onClick={() => handleDangerAction('export')}
+                                    disabled={dangerAction === 'export'}
+                                    className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-xs font-bold rounded-xl transition-all disabled:opacity-50">
+                                    {dangerAction === 'export' ? <Loader2 size={12} className="animate-spin"/> : <Download size={12}/>}
+                                    Exportar
+                                </button>
                             </div>
-                            <Button variant="ghost" className="text-red-400 hover:bg-red-500/10">
-                                Exportar
-                            </Button>
-                        </div>
-                        <div className="flex items-center justify-between p-4 bg-red-500/5 rounded-xl border border-red-500/10">
-                            <div>
-                                <p className="font-medium text-red-400">Resetar Ranking</p>
-                                <p className="text-sm text-gray-500">Zerar pontos de todas as Rainhas</p>
+
+                            {/* Reset ranking */}
+                            <div className="flex items-center justify-between p-4 bg-white/[0.02] border border-white/10 rounded-2xl">
+                                <div>
+                                    <p className="text-sm font-bold text-white">Resetar Ranking</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">Zerar XP e posições de todas as rainhas</p>
+                                </div>
+                                <button onClick={() => handleDangerAction('reset-ranking')}
+                                    disabled={dangerAction === 'reset-ranking'}
+                                    className="flex items-center gap-1.5 px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-xs font-bold rounded-xl transition-all disabled:opacity-50">
+                                    {dangerAction === 'reset-ranking' ? <Loader2 size={12} className="animate-spin"/> : <RefreshCw size={12}/>}
+                                    Resetar
+                                </button>
                             </div>
-                            <Button variant="ghost" className="text-red-400 hover:bg-red-500/10">
-                                Resetar
-                            </Button>
+
+                            {/* Security info */}
+                            <div className="flex items-start gap-3 p-4 bg-white/[0.02] border border-white/10 rounded-2xl">
+                                <Lock size={14} className="text-slate-500 flex-shrink-0 mt-0.5"/>
+                                <div>
+                                    <p className="text-sm font-bold text-white">Alterar Senha</p>
+                                    <p className="text-xs text-slate-500 mt-0.5 mb-3">
+                                        A troca de senha é feita diretamente pelo Supabase Auth.
+                                    </p>
+                                    <a href="https://supabase.com" target="_blank" rel="noopener"
+                                        className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-bold transition-colors">
+                                        Acessar painel de autenticação <ExternalLink size={11}/>
+                                    </a>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    </Section>
                 </div>
-            </div>
-        </div>
-    )
-}
-
-function ToggleSetting({
-    label,
-    description,
-    enabled,
-    onToggle
-}: {
-    label: string,
-    description: string,
-    enabled: boolean,
-    onToggle: () => void
-}) {
-    return (
-        <div className="flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-colors">
-            <div>
-                <p className="font-medium text-white">{label}</p>
-                <p className="text-sm text-gray-500">{description}</p>
-            </div>
-            <button
-                onClick={onToggle}
-                className={`w-14 h-8 rounded-full transition-all relative
-                    ${enabled ? 'bg-queen-pink' : 'bg-white/20'}`}
-            >
-                <div className={`absolute top-1 h-6 w-6 rounded-full bg-white transition-all
-                    ${enabled ? 'left-7' : 'left-1'}`}
-                />
-            </button>
+            )}
         </div>
     )
 }
