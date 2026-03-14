@@ -109,7 +109,7 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
             case 'patients': return <PatientsView setView={setActiveView} />
             case 'rewards': return <RewardsView setView={setActiveView} />
             case 'checkins': return <CheckinsView setView={setActiveView} />
-            case 'library': return <LibraryView setView={setActiveView} />
+            case 'library': return <LibraryView setView={setActiveView} tenantId={tenantId} />
             case 'sales-page': return <SalesPageGenerator setView={setActiveView} tenantId={tenantId} />
             case 'ai-brain': return <AISettingsView setView={setActiveView} tenantId={tenantId} />
             case 'analytics': return <AnalyticsView setView={setActiveView} />

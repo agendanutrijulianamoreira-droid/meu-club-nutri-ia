@@ -1,633 +1,549 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState, useCallback } from "react"
 import {
-    Plus,
-    Search,
-    Flame,
-    Clock,
-    Filter,
-    MoreVertical,
-    Edit,
-    Trash2,
-    Utensils,
-    Zap,
-    Coffee,
-    Apple,
-    ChevronRight,
-    Image as ImageIcon,
-    Save,
-    X,
-    Loader2,
-    Brain,
-    Sparkles,
-    ShieldCheck,
-    FileUp,
-    Wand2,
-    Activity,
-    Scale,
-    Droplets
+    Plus, Search, Flame, Clock, Edit3, Trash2,
+    Utensils, Zap, X, Loader2, Brain, Sparkles,
+    ShieldCheck, FileUp, Wand2, Save, RefreshCw,
+    ToggleLeft, ToggleRight, ChevronRight, Image as ImageIcon,
+    BookOpen, Tag
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
 import { useProtocols, Protocol } from "@/lib/hooks/useDatabase"
 import { useStorage } from "@/lib/hooks/useStorage"
 
-export function LibraryView({ setView }: { setView: (v: any) => void }) {
-    const { protocols, loading, createProtocol, deleteProtocol, updateProtocol, refresh } = useProtocols()
-    const [activeTab, setActiveTab] = useState<'recipes' | 'shots' | 'diets'>('recipes')
-    const [showCreate, setShowCreate] = useState(false)
-    const [search, setSearch] = useState("")
-    const [selectedTag, setSelectedTag] = useState<string | null>(null)
-    const [viewingItem, setViewingItem] = useState<Protocol | null>(null)
+// ─── Constants ────────────────────────────────────────────────────────────────
+const TABS = [
+    { id: 'recipes', label: 'Receitas',  icon: Utensils,   category: 'recipe'   },
+    { id: 'shots',   label: 'Shots Bio', icon: Zap,         category: 'shot'     },
+    { id: 'diets',   label: 'Protocolos',icon: ShieldCheck, category: 'protocol' },
+] as const
 
-    const tabToCategory = {
-        recipes: 'recipe',
-        shots: 'shot',
-        diets: 'protocol'
-    }
+const DIETARY_TAGS = ["Low Carb","Vegetariana","Zero Açúcar","Sem Glúten","Zero Lactose","Detox","Cetogênica"]
 
-    const filteredItems = protocols.filter(p => {
-        const isCorrectType = p.category === tabToCategory[activeTab]
-        const matchesSearch = p.title.toLowerCase().includes(search.toLowerCase())
+const MEAL_TYPES = [
+    "Café da manhã","Almoço","Jantar","Lanche","Pré-treino","Pós-treino","Shot / Elixir"
+]
 
-        let matchesTag = true
-        if (selectedTag) {
-            const tags = p.content_json?.find((c: any) => c.type === 'tags')?.content || []
-            matchesTag = tags.includes(selectedTag)
-        }
-
-        return isCorrectType && matchesSearch && matchesTag
-    })
-
-    const DIETARY_TAGS = ["Low Carb", "Vegetariana", "Zero Açúcar", "Sem Glúten", "Zero Lactose"]
+// ─── Detail Modal ─────────────────────────────────────────────────────────────
+function ItemDetailModal({ item, onClose, onEdit }: {
+    item: Protocol; onClose: () => void; onEdit: () => void
+}) {
+    const ingredients = item.content_json?.find((c: any) => c.type === 'ingredients')?.content || ''
+    const instructions = item.content_json?.find((c: any) => c.type === 'instructions')?.content || ''
+    const tags: string[] = item.content_json?.find((c: any) => c.type === 'tags')?.content || []
+    const calories = tags.find(t => t.includes('kcal')) || null
+    const tab = TABS.find(t => t.category === item.category)
 
     return (
-        <div className="space-y-8 pb-32">
-            {/* Header Clinical */}
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                <div className="space-y-1">
-                    <div className="flex items-center gap-2 mb-2">
-                        <div className="bg-indigo-600/20 p-2 rounded-xl border border-indigo-500/30">
-                            <Brain size={20} className="text-indigo-400" />
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xl"
+            onClick={onClose}>
+            <motion.div initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }}
+                onClick={e => e.stopPropagation()}
+                className="bg-slate-900 border border-white/10 w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl max-h-[88vh] flex flex-col">
+
+                {/* Header */}
+                <div className="flex items-start justify-between p-5 border-b border-white/5">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                            {tab && <tab.icon size={18}/>}
                         </div>
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">Repositório de Inteligência</span>
-                    </div>
-                    <h1 className="text-4xl font-light text-white tracking-tight">Biblioteca do <span className="font-bold">Reino</span></h1>
-                    <p className="text-slate-400 font-medium">Gestão centralizada de ativos nutricionais e protocolos de performance.</p>
-                </div>
-                <Button
-                    onClick={() => setShowCreate(true)}
-                    className="h-16 px-8 rounded-2xl bg-indigo-600 hover:bg-indigo-500 border-none shadow-xl shadow-indigo-900/20 font-black text-sm uppercase tracking-widest gap-3 transition-all"
-                >
-                    <Plus size={22} />
-                    Cadastrar Ativo
-                </Button>
-            </div>
-
-            {/* Tabs & Filter Refined */}
-            <div className="flex flex-col lg:flex-row gap-6 justify-between items-center bg-white/5 p-4 rounded-3xl border border-white/10 backdrop-blur-2xl">
-                <div className="flex bg-slate-950 p-1.5 rounded-2xl w-full lg:w-auto border border-white/5">
-                    {[
-                        { id: 'recipes', label: 'Receitas', icon: Utensils },
-                        { id: 'shots', label: 'Shots Bio', icon: Zap },
-                        { id: 'diets', label: 'Protocolos', icon: ShieldCheck }
-                    ].map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={`flex-1 lg:flex-none px-8 py-3.5 rounded-xl flex items-center justify-center gap-3 transition-all font-black text-[11px] uppercase tracking-widest ${activeTab === tab.id
-                                ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-900/40'
-                                : 'text-slate-500 hover:text-white'
-                                }`}
-                        >
-                            <tab.icon size={18} />
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="relative w-full lg:w-80 group">
-                    <Search className="absolute left-4 top-4 text-slate-600 group-focus-within:text-indigo-400 transition-colors" size={20} />
-                    <input
-                        type="text"
-                        placeholder="Pesquisar por nome ou nutriente..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full bg-slate-950 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm focus:outline-none focus:border-indigo-500/50 transition-all text-white placeholder:text-slate-600"
-                    />
-                </div>
-            </div>
-
-            {/* Dietary Filter Bar */}
-            {activeTab === 'recipes' && (
-                <div className="flex flex-wrap gap-2">
-                    <button
-                        onClick={() => setSelectedTag(null)}
-                        className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${!selectedTag ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-slate-500 hover:text-white'}`}
-                    >
-                        Todos
-                    </button>
-                    {DIETARY_TAGS.map(tag => (
-                        <button
-                            key={tag}
-                            onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
-                            className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${selectedTag === tag ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-slate-500 hover:text-white'}`}
-                        >
-                            {tag}
-                        </button>
-                    ))}
-                </div>
-            )}
-
-            <AnimatePresence mode="wait">
-                {showCreate ? (
-                    <CreateItemForm
-                        onClose={() => { setShowCreate(false); refresh(); }}
-                        type={activeTab}
-                        category={tabToCategory[activeTab]}
-                        createItem={createProtocol}
-                    />
-                ) : (
-                    <motion.div
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8"
-                    >
-                        {loading ? (
-                            <div className="col-span-full py-20 flex justify-center">
-                                <Loader2 className="animate-spin text-indigo-500" size={48} />
-                            </div>
-                        ) : filteredItems.length > 0 ? filteredItems.map(item => (
-                            <div key={item.id} className="relative overflow-hidden rounded-[2.5rem] bg-white/5 border border-white/10 p-8 hover:border-indigo-500/30 transition-all group backdrop-blur-xl shadow-2xl">
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/5 blur-3xl -z-10" />
-
-                                <div className="flex justify-between items-start mb-6">
-                                    <div className="h-14 w-14 rounded-2xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-inner">
-                                        {activeTab === 'recipes' ? <Utensils size={28} /> : activeTab === 'shots' ? <Zap size={28} /> : <ShieldCheck size={28} />}
-                                    </div>
-                                    <div className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest backdrop-blur-md ${item.status === 'published' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
-                                        }`}>
-                                        {item.status === 'published' ? 'Publicado' : 'Rascunho'}
-                                    </div>
-                                </div>
-
-                                <h3 className="text-xl font-bold text-white mb-2 leading-tight">{item.title}</h3>
-
-                                {item.category === 'recipe' && (
-                                    <div className="flex flex-wrap gap-1.5 mb-4">
-                                        {item.content_json?.find((c: any) => c.type === 'tags')?.content?.map((tag: string, i: number) => (
-                                            <span key={i} className="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-[8px] font-black uppercase text-indigo-400 tracking-tighter">
-                                                {tag}
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
-
-                                <div className="flex items-center gap-4 text-[11px] text-slate-500 font-black uppercase tracking-widest mb-8">
-                                    <span className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded-lg border border-white/5"><Clock size={14} className="text-indigo-400" /> {item.duration_days > 0 ? `${item.duration_days}d` : 'Bio-Shot'}</span>
-                                    {item.category === 'recipe' && (
-                                        <span className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded-lg border border-white/5"><Flame size={14} className="text-amber-500" /> {item.content_json?.find((c: any) => c.type === 'tags')?.content?.find((t: string) => t.includes('kcal')) || 'Calibrando'}</span>
-                                    )}
-                                </div>
-
-                                <div className="flex gap-4">
-                                    <Button
-                                        onClick={() => setViewingItem(item)}
-                                        className="flex-1 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-black uppercase tracking-widest border-none shadow-lg shadow-indigo-900/20"
-                                    >
-                                        Ver Ficha
-                                    </Button>
-                                    <Button
-                                        onClick={async () => {
-                                            if (confirm(`Deseja excluir "${item.title}"?`)) {
-                                                await deleteProtocol(item.id)
-                                            }
-                                        }}
-                                        variant="ghost"
-                                        className="h-12 w-12 p-0 rounded-xl text-rose-500 hover:bg-rose-500/10 transition-colors border border-transparent hover:border-rose-500/20"
-                                    >
-                                        <Trash2 size={18} />
-                                    </Button>
-                                </div>
-                            </div>
-                        )) : (
-                            <div className="col-span-full py-32 rounded-[3rem] border border-dashed border-white/10 bg-white/5 text-center px-10">
-                                <div className="h-24 w-24 rounded-[2rem] bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center mx-auto mb-6 text-indigo-400 shadow-2xl">
-                                    {activeTab === 'recipes' ? <Utensils size={44} /> : activeTab === 'shots' ? <Zap size={44} /> : <ShieldCheck size={44} />}
-                                </div>
-                                <h3 className="text-2xl font-bold text-white mb-2">Iniciando Sequenciamento...</h3>
-                                <p className="text-slate-500 text-sm max-w-sm mx-auto font-medium">Sua biblioteca de {activeTab === 'recipes' ? 'receitas' : activeTab === 'shots' ? 'shots bio-ativos' : 'protocolos clínicos'} está vazia. Comece a criar seu ecossistema agora.</p>
-                                <Button
-                                    onClick={() => setShowCreate(true)}
-                                    className="mt-10 bg-indigo-600/10 border border-indigo-500/30 text-indigo-400 hover:bg-indigo-600 hover:text-white transition-all h-14 px-10 rounded-2xl font-black uppercase tracking-widest text-xs"
-                                >
-                                    + Adicionar Primeiro Ativo
-                                </Button>
-                            </div>
-                        )}
-                    </motion.div>
-                )}
-            </AnimatePresence>
-            <AnimatePresence>
-                {viewingItem && (
-                    <ItemDetailsModal
-                        item={viewingItem}
-                        onClose={() => setViewingItem(null)}
-                    />
-                )}
-            </AnimatePresence>
-        </div>
-    )
-}
-
-function ItemDetailsModal({ item, onClose }: { item: Protocol, onClose: () => void }) {
-    const ingredients = item.content_json?.find((c: any) => c.type === 'ingredients')?.content || ""
-    const instructions = item.content_json?.find((c: any) => c.type === 'instructions')?.content || ""
-    const tags = item.content_json?.find((c: any) => c.type === 'tags')?.content || []
-    const calories = tags.find((t: string) => t.includes('kcal')) || 'Calibrando...'
-
-    return (
-        <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-xl"
-        >
-            <motion.div
-                initial={{ scale: 0.9, y: 20 }}
-                animate={{ scale: 1, y: 0 }}
-                className="bg-slate-900 border border-white/10 w-full max-w-5xl rounded-[3rem] overflow-hidden shadow-2xl flex flex-col md:flex-row h-[90vh]"
-            >
-                {/* Left: Content */}
-                <div className="flex-1 overflow-y-auto p-12 space-y-10 custom-scrollbar">
-                    <div className="flex justify-between items-start">
                         <div>
-                            <span className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.3em] mb-2 block">Protocolo Clinical</span>
-                            <h2 className="text-4xl font-bold text-white tracking-tight">{item.title}</h2>
+                            <h2 className="font-bold text-white text-lg leading-snug">{item.title}</h2>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] text-slate-500">{tab?.label}</span>
+                                {item.duration_days > 0 && <>
+                                    <span className="text-slate-700">·</span>
+                                    <span className="text-[10px] text-slate-500 flex items-center gap-1"><Clock size={9}/> {item.duration_days}d</span>
+                                </>}
+                                {calories && <>
+                                    <span className="text-slate-700">·</span>
+                                    <span className="text-[10px] text-amber-400 flex items-center gap-1"><Flame size={9}/> {calories}</span>
+                                </>}
+                            </div>
                         </div>
-                        <Button onClick={onClose} variant="ghost" className="rounded-2xl h-12 w-12 p-0 bg-white/5 border border-white/5">
-                            <X size={20} />
-                        </Button>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                        <section className="space-y-4">
-                            <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
-                                <Activity size={14} className="text-indigo-400" /> Bio-Ingredientes
-                            </h4>
-                            <div className="bg-white/5 border border-white/5 rounded-3xl p-6 text-sm text-slate-300 leading-relaxed whitespace-pre-line">
-                                {ingredients || "Nenhum ingrediente catalogado."}
-                            </div>
-                        </section>
-
-                        <section className="space-y-4">
-                            <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
-                                <Sparkles size={14} className="text-amber-500" /> Preparação Clinical
-                            </h4>
-                            <div className="bg-white/5 border border-white/5 rounded-3xl p-6 text-sm text-slate-300 leading-relaxed whitespace-pre-line font-medium italic">
-                                "{instructions || "Aguardando sequenciamento de instruções..."}"
-                            </div>
-                        </section>
+                    <div className="flex gap-2">
+                        <button onClick={onEdit}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-500/30 text-indigo-400 rounded-xl text-xs font-bold transition-all">
+                            <Edit3 size={12}/> Editar
+                        </button>
+                        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl text-slate-500 hover:text-white transition-colors">
+                            <X size={16}/>
+                        </button>
                     </div>
                 </div>
 
-                {/* Right: Technical Sheet */}
-                <div className="w-full md:w-96 bg-slate-950 border-l border-white/10 p-10 flex flex-col gap-8">
-                    <div className="space-y-6">
-                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-indigo-400 border-b border-indigo-500/20 pb-4">Ficha Técnica Premium</h3>
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                    {item.description && (
+                        <p className="text-sm text-slate-400 leading-relaxed">{item.description}</p>
+                    )}
 
-                        {/* Calories Box */}
-                        <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-3xl p-8 text-center relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-500/10 blur-2xl group-hover:bg-indigo-500/20 transition-all" />
-                            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Densidade Energética</p>
-                            <p className="text-5xl font-light text-white tracking-tighter">{calories.replace(' kcal', '')}<span className="text-lg font-bold ml-1 text-indigo-500">kcal</span></p>
-                        </div>
-
-                        {/* Macros Graph (Mock/Visual only for weight-less system) */}
-                        <div className="space-y-5">
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                                    <span className="text-slate-500">Proteínas</span>
-                                    <span className="text-white">24g</span>
-                                </div>
-                                <div className="h-2 bg-white/5 rounded-full overflow-hidden border border-white/5">
-                                    <motion.div initial={{ width: 0 }} animate={{ width: '40%' }} className="h-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]" />
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                                    <span className="text-slate-500">Carboidratos</span>
-                                    <span className="text-white">12g</span>
-                                </div>
-                                <div className="h-2 bg-white/5 rounded-full overflow-hidden border border-white/5">
-                                    <motion.div initial={{ width: 0 }} animate={{ width: '20%' }} className="h-full bg-emerald-500" />
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                                    <span className="text-slate-500">Gorduras</span>
-                                    <span className="text-white">18g</span>
-                                </div>
-                                <div className="h-2 bg-white/5 rounded-full overflow-hidden border border-white/5">
-                                    <motion.div initial={{ width: 0 }} animate={{ width: '35%' }} className="h-full bg-amber-500" />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Technical Badges */}
-                        <div className="flex flex-wrap gap-2 pt-6">
-                            {tags.map((tag: string, i: number) => (
-                                <span key={i} className="px-3 py-1.5 rounded-xl bg-slate-900 border border-white/10 text-[9px] font-bold text-slate-400 uppercase">
+                    {tags.filter(t => !t.includes('kcal')).length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                            {tags.filter(t => !t.includes('kcal')).map((tag, i) => (
+                                <span key={i} className="text-[10px] font-bold px-2.5 py-1 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300">
                                     {tag}
                                 </span>
                             ))}
                         </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {ingredients && (
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Ingredientes</p>
+                                <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-sm text-slate-300 leading-relaxed whitespace-pre-line">
+                                    {ingredients}
+                                </div>
+                            </div>
+                        )}
+                        {instructions && (
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Modo de preparo</p>
+                                <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-sm text-slate-300 leading-relaxed whitespace-pre-line">
+                                    {instructions}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    <div className="mt-auto pt-8 border-t border-white/5">
-                        <Button className="w-full h-14 rounded-2xl bg-white text-black hover:bg-slate-200 font-black uppercase tracking-widest text-[10px] shadow-xl">
-                            Imprimir Guia Client
-                        </Button>
-                    </div>
+                    {!ingredients && !instructions && (
+                        <p className="text-sm text-slate-600 text-center py-8 italic">Nenhum conteúdo detalhado cadastrado.</p>
+                    )}
                 </div>
             </motion.div>
         </motion.div>
     )
 }
 
-function CreateItemForm({ onClose, type, category, createItem }: { onClose: () => void, type: string, category: string, createItem: any }) {
-    const [isSaving, setIsSaving] = useState(false)
-    const [title, setTitle] = useState("")
-    const [description, setDescription] = useState("")
-    const [ingredients, setIngredients] = useState("")
-    const [instructions, setInstructions] = useState("")
-    const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
-    const [isParsing, setIsParsing] = useState(false)
-    const [tags, setTags] = useState<string[]>([])
-    const { uploadImage, uploading: isUploadingFile } = useStorage()
+// ─── Create / Edit Form ───────────────────────────────────────────────────────
+function ItemForm({ item, tenantId, category, type, onClose, createItem, updateItem }: {
+    item?: Protocol | null; tenantId: string; category: string; type: string
+    onClose: () => void; createItem: (d: any) => Promise<any>; updateItem: (id: string, d: any) => Promise<any>
+}) {
+    const isEditing = !!item
+    const existingTags: string[] = item?.content_json?.find((c: any) => c.type === 'tags')?.content || []
+
+    const [title, setTitle] = useState(item?.title || '')
+    const [description, setDescription] = useState(item?.description || '')
+    const [ingredients, setIngredients] = useState(item?.content_json?.find((c: any) => c.type === 'ingredients')?.content || '')
+    const [instructions, setInstructions] = useState(item?.content_json?.find((c: any) => c.type === 'instructions')?.content || '')
+    const [tags, setTags] = useState<string[]>(existingTags)
+    const [calories, setCalories] = useState(existingTags.find(t => t.includes('kcal'))?.replace(' kcal','') || '')
+    const [mealType, setMealType] = useState(item?.content_json?.find((c: any) => c.type === 'meal_type')?.content || '')
+    const [isActive, setIsActive] = useState(item?.is_active ?? true)
+    const [saving, setSaving] = useState(false)
+    const [parsing, setParsing] = useState(false)
+    const [coverUrl, setCoverUrl] = useState<string | null>(item?.cover_image_url || null)
+    const { uploadImage, uploading } = useStorage()
+
+    const toggleTag = (tag: string) => setTags(prev =>
+        prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    )
+
+    const buildContentJson = () => {
+        const allTags = [...tags.filter(t => !t.includes('kcal')), ...(calories ? [`${calories} kcal`] : [])]
+        return [
+            { type: 'tags', content: allTags },
+            { type: 'ingredients', content: ingredients },
+            { type: 'instructions', content: instructions },
+            { type: 'meal_type', content: mealType },
+        ]
+    }
 
     const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file || file.type !== 'application/pdf') return
-
-        setIsParsing(true)
+        setParsing(true)
         try {
-            const formData = new FormData()
-            formData.append('file', file)
-
-            const response = await fetch('/api/extract-pdf', {
-                method: 'POST',
-                body: formData
-            })
-
-            if (!response.ok) {
-                const errorData = await response.json()
-                throw new Error(errorData.error || 'Falha na resposta do servidor')
-            }
-
-            const { text } = await response.json()
-
-            // Heurística de extração baseada no texto real
-            const findTags = () => {
-                const found = []
-                if (text.toLowerCase().includes('low carb') || text.toLowerCase().includes('baixo carbo')) found.push('Low Carb')
-                if (text.toLowerCase().includes('vegetariana') || text.toLowerCase().includes('sem carne')) found.push('Vegetariana')
-                if (text.toLowerCase().includes('zero açúcar') || text.toLowerCase().includes('sem açúcar')) found.push('Zero Açúcar')
-                if (text.toLowerCase().includes('sem glúten') || text.toLowerCase().includes('gluten free')) found.push('Sem Glúten')
-                if (text.toLowerCase().includes('lactose') || text.toLowerCase().includes('sem leite')) found.push('Zero Lactose')
-
-                const kcalMatch = text.match(/(\d+)\s*kcal/i)
-                if (kcalMatch) found.push(`${kcalMatch[1]} kcal`)
-                else found.push('320 kcal') // Default clinical
-
-                return found
-            }
-
+            const formData = new FormData(); formData.append('file', file)
+            const res = await fetch('/api/extract-pdf', { method: 'POST', body: formData })
+            if (!res.ok) throw new Error((await res.json()).error || 'Erro no PDF')
+            const { text } = await res.json()
             const lines = text.split('\n').filter((l: string) => l.trim().length > 3)
-            const detectedTitle = lines[0]?.substring(0, 40) || "Nova Receita PDF"
-            const detectedIngredients = lines.slice(1, 10).join('\n')
-
-            setTitle(detectedTitle)
-            setIngredients(detectedIngredients)
-            setInstructions(text.substring(0, 500) + "...")
-            setTags(findTags())
-
-            alert("IA: Analisei seu PDF e preenchi os dados baseados no conteúdo! Revise antes de salvar. ✨")
-        } catch (error: any) {
-            console.error('Erro ao processar PDF:', error)
-            alert("Erro ao processar PDF: " + (error.message || "Erro desconhecido"))
-        } finally {
-            setIsParsing(false)
-        }
+            setTitle(lines[0]?.substring(0, 60) || 'Nova Receita')
+            setIngredients(lines.slice(1, 12).join('\n'))
+            setInstructions(text.substring(0, 600))
+            const kcalMatch = text.match(/(\d+)\s*kcal/i)
+            if (kcalMatch) setCalories(kcalMatch[1])
+        } catch (err: any) {
+            alert('Erro ao processar PDF: ' + err.message)
+        } finally { setParsing(false) }
     }
-    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
 
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]; if (!file) return
         const { url, error } = await uploadImage(file, 'library')
-        if (error) {
-            alert("Erro ao subir imagem: " + error)
-        } else {
-            setCoverImageUrl(url)
-        }
+        if (error) alert('Erro ao subir imagem: ' + error)
+        else setCoverUrl(url)
     }
 
     const handleSave = async () => {
-        if (!title) return alert("Por favor, dê um nome ao ativo.")
-
-        setIsSaving(true)
+        if (!title.trim()) { alert('Nome é obrigatório'); return }
+        setSaving(true)
         try {
-            const { error: saveError } = await createItem({
-                title,
-                description: description || null,
-                cover_image_url: coverImageUrl,
+            const payload = {
+                title: title.trim(),
+                description: description.trim() || null,
+                cover_image_url: coverUrl,
                 duration_days: category === 'protocol' ? 7 : 0,
-                content_json: [
-                    { type: 'tags', content: tags },
-                    { type: 'ingredients', content: ingredients },
-                    { type: 'instructions', content: instructions }
-                ],
-                category: category,
+                content_json: buildContentJson(),
+                category,
                 status: 'published',
-                is_active: true,
+                is_active: isActive,
                 is_template: true,
-                tenant_id: null
-            })
-
-            if (saveError) throw new Error(saveError)
-
-            alert("Ativo persistido no Reino com sucesso! 💎")
+                tenant_id: tenantId || null,
+            }
+            const result = isEditing ? await updateItem(item!.id, payload) : await createItem(payload)
+            if (result.error) throw new Error(result.error)
             onClose()
         } catch (err: any) {
-            alert("Erro ao salvar: " + err.message)
-        } finally {
-            setIsSaving(false)
-        }
+            alert('Erro ao salvar: ' + err.message)
+        } finally { setSaving(false) }
     }
 
-    return (
-        <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="rounded-[3rem] bg-slate-950 border border-white/10 p-10 max-w-3xl mx-auto shadow-2xl relative overflow-hidden"
-        >
-            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/5 blur-[100px] -z-10" />
+    const typeLabel = type === 'recipes' ? 'Receita' : type === 'shots' ? 'Shot Bio' : 'Protocolo'
 
-            <div className="flex items-center justify-between mb-12">
-                <div className="flex items-center gap-4">
-                    <div className="h-14 w-14 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center">
-                        <Plus className="text-indigo-400" size={32} />
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-bold text-white tracking-tight leading-none mb-1">
-                            Novo Ativo Clínico
-                        </h2>
-                        <p className="text-[10px] text-indigo-400 font-black uppercase tracking-[0.2em]">{type === 'recipes' ? 'Receita Gastronômica' : type === 'shots' ? 'Bio-Shot' : 'Protocolo Estruturado'}</p>
-                    </div>
-                </div>
-                <div onClick={onClose} className="bg-white/5 p-3 rounded-xl text-slate-500 hover:text-white transition-all border border-white/5 cursor-pointer">
-                    <X size={24} />
+    return (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-5">
+
+            <div className="flex items-center justify-between">
+                <h2 className="font-bold text-white text-base">{isEditing ? 'Editar' : 'Novo'} {typeLabel}</h2>
+                <div className="flex items-center gap-3">
+                    <button onClick={() => setIsActive(v => !v)} className="flex items-center gap-1.5 text-xs font-bold transition-all">
+                        {isActive ? <ToggleRight size={18} className="text-emerald-400"/> : <ToggleLeft size={18} className="text-slate-600"/>}
+                        <span className={isActive ? 'text-emerald-400' : 'text-slate-600'}>{isActive ? 'Ativo' : 'Inativo'}</span>
+                    </button>
+                    <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl text-slate-500 hover:text-white">
+                        <X size={16}/>
+                    </button>
                 </div>
             </div>
 
+            {/* PDF Import */}
             {type === 'recipes' && (
-                <div className="mb-10 bg-indigo-600/5 border border-indigo-500/20 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-6">
-                    <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-2xl bg-indigo-600/20 flex items-center justify-center text-indigo-400">
-                            <FileUp size={24} />
-                        </div>
-                        <div>
-                            <p className="text-sm font-bold text-white">Upload de PDF Inteligente</p>
-                            <p className="text-xs text-slate-500">Suba seu livro de receitas e a IA preenche tudo.</p>
-                        </div>
+                <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                        <Wand2 size={14} className="text-indigo-400"/>
+                        <span className="text-xs text-indigo-200">Importar de PDF com IA</span>
                     </div>
-                    <input
-                        type="file"
-                        id="pdf-upload"
-                        className="hidden"
-                        accept=".pdf"
-                        onChange={handlePdfUpload}
-                    />
-                    <Button
-                        onClick={() => document.getElementById('pdf-upload')?.click()}
-                        disabled={isParsing}
-                        className="bg-white text-black hover:bg-slate-200 h-12 px-6 rounded-xl font-black uppercase text-[10px] tracking-widest gap-2"
-                    >
-                        {isParsing ? <Loader2 className="animate-spin" /> : <Wand2 size={16} />}
-                        {isParsing ? "Lendo PDF..." : "Selecionar PDF"}
-                    </Button>
+                    <input type="file" id="pdf-upload" className="hidden" accept=".pdf" onChange={handlePdfUpload}/>
+                    <button onClick={() => document.getElementById('pdf-upload')?.click()} disabled={parsing}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
+                        {parsing ? <Loader2 size={11} className="animate-spin"/> : <FileUp size={11}/>}
+                        {parsing ? 'Lendo...' : 'Selecionar PDF'}
+                    </button>
                 </div>
             )}
 
-            <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Identificação do Prato/Asset</label>
-                        <input
-                            value={title}
-                            onChange={e => setTitle(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-white outline-none focus:border-indigo-500/50 transition-all font-medium placeholder:text-slate-700"
-                            placeholder="Ex: Shot Termogênico Matinal"
-                        />
-                    </div>
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Classificação do Protocolo</label>
-                        <div className="relative">
-                            <select className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-white outline-none focus:border-indigo-500/50 appearance-none font-medium cursor-pointer">
-                                <option>Desjejum Estratégico</option>
-                                <option>Almoço Metabólico</option>
-                                <option>Jantar Clinical</option>
-                                <option>Snack Performance</option>
-                                <option>Bio-Shot / Elixir</option>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Nome *</label>
+                    <input value={title} onChange={e => setTitle(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                        placeholder={type === 'recipes' ? 'Ex: Omelete de Espinafre' : type === 'shots' ? 'Ex: Shot Termogênico Matinal' : 'Ex: Protocolo Low Carb 14 dias'}/>
+                </div>
+                <div className="md:col-span-2">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Descrição</label>
+                    <input value={description} onChange={e => setDescription(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                        placeholder="Breve descrição e benefícios"/>
+                </div>
+                {type !== 'diets' && (
+                    <>
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Tipo de refeição</label>
+                            <select value={mealType} onChange={e => setMealType(e.target.value)}
+                                className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none">
+                                <option value="">Selecionar...</option>
+                                {MEAL_TYPES.map(m => <option key={m} value={m}>{m}</option>)}
                             </select>
-                            <ChevronRight size={18} className="absolute right-5 top-5.5 text-slate-600 rotate-90" />
                         </div>
-                    </div>
-                </div>
-
-                <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            Bio-Ingredientes <Sparkles size={12} className="text-indigo-400" />
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Calorias (kcal)</label>
+                            <input type="number" min="0" value={calories} onChange={e => setCalories(e.target.value)}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                                placeholder="Ex: 320"/>
                         </div>
-                        {tags.length > 0 && (
-                            <div className="flex gap-1">
-                                {tags.map((t, i) => (
-                                    <span key={i} className="px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-[8px] font-black text-indigo-400">{t}</span>
-                                ))}
-                            </div>
-                        )}
-                    </label>
-                    <textarea
-                        value={ingredients}
-                        onChange={e => setIngredients(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 text-white outline-none focus:border-indigo-500/50 h-48 font-medium placeholder:text-slate-700 resize-none"
-                        placeholder="Dica: Liste um ingrediente por linha para melhor legibilidade..."
-                    />
-                </div>
+                    </>
+                )}
+            </div>
 
-                <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Processo de Preparação Clinical</label>
-                    <textarea
-                        value={instructions}
-                        onChange={e => setInstructions(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-6 text-white outline-none focus:border-indigo-500/50 h-32 font-medium placeholder:text-slate-700 resize-none"
-                        placeholder="Descreva o passo a passo da ativação nutricional..."
-                    />
-                </div>
-
-                <div
-                    onClick={() => document.getElementById('asset-image-upload')?.click()}
-                    className="p-10 border-2 border-dashed border-white/10 rounded-[2.5rem] text-center hover:border-indigo-500/40 transition-all cursor-pointer group bg-white/[0.02] relative overflow-hidden"
-                >
-                    <input
-                        type="file"
-                        id="asset-image-upload"
-                        className="hidden"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                    />
-
-                    {isUploadingFile ? (
-                        <div className="flex flex-col items-center">
-                            <Loader2 className="animate-spin text-indigo-400 mb-2" size={32} />
-                            <p className="text-sm text-slate-400">Processando imagem clinical...</p>
-                        </div>
-                    ) : coverImageUrl ? (
-                        <div className="relative group/cover">
-                            <img src={coverImageUrl} alt="Cover preview" className="max-h-40 mx-auto rounded-2xl object-cover shadow-2xl" />
-                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover/cover:opacity-100 transition-opacity rounded-2xl">
-                                <p className="text-xs font-black text-white uppercase tracking-widest">Substituir Documentação</p>
-                            </div>
-                        </div>
-                    ) : (
-                        <>
-                            <div className="h-16 w-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-indigo-600/20 transition-all group-hover:border-indigo-500/30 border border-transparent">
-                                <ImageIcon size={32} className="text-slate-600 group-hover:text-indigo-400 transition-colors" />
-                            </div>
-                            <p className="text-sm font-black text-slate-400 group-hover:text-white transition-colors uppercase tracking-widest">Registrar Documentação Visual</p>
-                            <p className="text-[9px] text-slate-600 mt-2 uppercase font-black tracking-widest">(Formatos Premium: RAW, PNG, JPG)</p>
-                        </>
-                    )}
-                </div>
-
-                <div className="flex flex-col md:flex-row gap-6 pt-6">
-                    <Button variant="ghost" onClick={onClose} className="h-16 rounded-2xl font-black uppercase tracking-widest text-[11px] border border-white/5 text-slate-500 hover:text-white hover:bg-white/5 px-10">Descartar</Button>
-                    <Button
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className="flex-1 h-16 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black uppercase tracking-widest text-[11px] border-none shadow-2xl shadow-indigo-900/40"
-                    >
-                        {isSaving ? <Loader2 className="animate-spin" /> : (
-                            <span className="flex items-center gap-3">
-                                <Save size={20} />
-                                Validar e Salvar no Reino
-                            </span>
-                        )}
-                    </Button>
+            {/* Dietary tags */}
+            <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2 block flex items-center gap-1"><Tag size={10}/> Tags</label>
+                <div className="flex flex-wrap gap-2">
+                    {DIETARY_TAGS.map(tag => (
+                        <button key={tag} onClick={() => toggleTag(tag)}
+                            className={`text-[11px] font-bold px-2.5 py-1.5 rounded-xl border transition-all
+                                ${tags.includes(tag) ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300'}`}>
+                            {tag}
+                        </button>
+                    ))}
                 </div>
             </div>
+
+            {/* Content fields */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">
+                        {type === 'diets' ? 'Descrição detalhada' : 'Ingredientes'}
+                    </label>
+                    <textarea value={ingredients} onChange={e => setIngredients(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 resize-none h-32"
+                        placeholder={type === 'diets' ? 'Descreva o protocolo...' : 'Um ingrediente por linha...'}/>
+                </div>
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">
+                        {type === 'diets' ? 'Instruções / Regras' : 'Modo de preparo'}
+                    </label>
+                    <textarea value={instructions} onChange={e => setInstructions(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 resize-none h-32"
+                        placeholder="Passo a passo..."/>
+                </div>
+            </div>
+
+            {/* Image upload */}
+            <div onClick={() => document.getElementById('lib-img-upload')?.click()}
+                className="border border-dashed border-white/10 rounded-2xl p-4 text-center cursor-pointer hover:border-indigo-500/30 transition-all group">
+                <input type="file" id="lib-img-upload" className="hidden" accept="image/*" onChange={handleImageUpload}/>
+                {uploading ? (
+                    <div className="flex items-center justify-center gap-2 py-2"><Loader2 size={16} className="animate-spin text-indigo-400"/> <span className="text-xs text-slate-400">Enviando...</span></div>
+                ) : coverUrl ? (
+                    <div className="relative group/img">
+                        <img src={coverUrl} alt="Cover" className="max-h-28 mx-auto rounded-xl object-cover"/>
+                        <p className="text-[10px] text-slate-500 mt-1">Clique para trocar</p>
+                    </div>
+                ) : (
+                    <div className="py-2 flex items-center justify-center gap-2 text-slate-600 group-hover:text-slate-400 transition-colors">
+                        <ImageIcon size={16}/> <span className="text-xs font-bold">Adicionar imagem de capa</span>
+                    </div>
+                )}
+            </div>
+
+            <div className="flex gap-3">
+                <button onClick={onClose} className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 text-sm font-bold hover:bg-white/10 transition-all">Cancelar</button>
+                <button onClick={handleSave} disabled={saving}
+                    className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2 transition-all">
+                    {saving ? <Loader2 size={13} className="animate-spin"/> : <Save size={13}/>}
+                    {isEditing ? 'Atualizar' : 'Salvar'}
+                </button>
+            </div>
         </motion.div>
+    )
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+export function LibraryView({ setView, tenantId = '' }: { setView: (v: any) => void; tenantId?: string }) {
+    const { protocols, loading, createProtocol, updateProtocol, deleteProtocol, refresh } = useProtocols()
+    const [activeTab, setActiveTab] = useState<'recipes' | 'shots' | 'diets'>('recipes')
+    const [showForm, setShowForm] = useState(false)
+    const [editingItem, setEditingItem] = useState<Protocol | null>(null)
+    const [viewingItem, setViewingItem] = useState<Protocol | null>(null)
+    const [search, setSearch] = useState('')
+    const [selectedTag, setSelectedTag] = useState<string | null>(null)
+
+    const tab = TABS.find(t => t.id === activeTab)!
+
+    const filtered = protocols.filter(p => {
+        const correctType = p.category === tab.category
+        const matchSearch = !search || p.title.toLowerCase().includes(search.toLowerCase()) ||
+            (p.description || '').toLowerCase().includes(search.toLowerCase())
+        const itemTags: string[] = p.content_json?.find((c: any) => c.type === 'tags')?.content || []
+        const matchTag = !selectedTag || itemTags.includes(selectedTag)
+        return correctType && matchSearch && matchTag
+    })
+
+    const handleToggleActive = async (item: Protocol) => {
+        await updateProtocol(item.id, { is_active: !item.is_active })
+    }
+
+    const handleDelete = async (item: Protocol) => {
+        if (!confirm(`Excluir "${item.title}"?`)) return
+        await deleteProtocol(item.id)
+    }
+
+    return (
+        <div className="space-y-5 pb-10">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-light text-white">Biblioteca do <span className="font-bold">Reino</span></h1>
+                    <p className="text-slate-500 text-sm mt-0.5">Receitas, shots bio-ativos e protocolos clínicos.</p>
+                </div>
+                <div className="flex gap-2">
+                    <button onClick={refresh} className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-slate-500">
+                        <RefreshCw size={15} className={loading ? 'animate-spin' : ''}/>
+                    </button>
+                    {!showForm && (
+                        <button onClick={() => { setEditingItem(null); setShowForm(true) }}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-2xl transition-all">
+                            <Plus size={15}/> Cadastrar
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Tabs + search */}
+            <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex bg-white/5 border border-white/10 rounded-2xl p-1 gap-1">
+                    {TABS.map(t => (
+                        <button key={t.id} onClick={() => { setActiveTab(t.id); setSelectedTag(null) }}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all
+                                ${activeTab === t.id ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                            <t.icon size={14}/> {t.label}
+                        </button>
+                    ))}
+                </div>
+                <div className="relative flex-1">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600"/>
+                    <input value={search} onChange={e => setSearch(e.target.value)}
+                        placeholder={`Buscar ${tab.label.toLowerCase()}...`}
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-2.5 pl-9 pr-3 text-sm text-white focus:outline-none focus:border-indigo-500/50"/>
+                </div>
+            </div>
+
+            {/* Tag filter (recipes only) */}
+            {activeTab === 'recipes' && (
+                <div className="flex flex-wrap gap-2">
+                    <button onClick={() => setSelectedTag(null)}
+                        className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all
+                            ${!selectedTag ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300'}`}>
+                        Todos
+                    </button>
+                    {DIETARY_TAGS.map(tag => (
+                        <button key={tag} onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
+                            className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all
+                                ${selectedTag === tag ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300'}`}>
+                            {tag}
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            {/* Form */}
+            <AnimatePresence>
+                {(showForm || editingItem) && (
+                    <ItemForm
+                        item={editingItem}
+                        tenantId={tenantId}
+                        category={tab.category}
+                        type={activeTab}
+                        onClose={() => { setShowForm(false); setEditingItem(null); refresh() }}
+                        createItem={createProtocol}
+                        updateItem={updateProtocol}
+                    />
+                )}
+            </AnimatePresence>
+
+            {/* Grid */}
+            {loading ? (
+                <div className="flex justify-center py-16"><Loader2 size={28} className="animate-spin text-slate-600"/></div>
+            ) : filtered.length === 0 ? (
+                <div className="text-center py-20 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl">
+                    <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4 text-slate-600">
+                        <tab.icon size={28}/>
+                    </div>
+                    <p className="text-white font-bold mb-1">{search ? 'Nenhum resultado' : `Sem ${tab.label.toLowerCase()} cadastrados`}</p>
+                    <p className="text-slate-500 text-sm mb-5">{search ? 'Tente outro termo' : 'Comece cadastrando o primeiro item'}</p>
+                    {!search && (
+                        <button onClick={() => { setEditingItem(null); setShowForm(true) }}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl transition-all">
+                            <Plus size={14}/> Cadastrar agora
+                        </button>
+                    )}
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {filtered.map(item => {
+                        const itemTags: string[] = item.content_json?.find((c: any) => c.type === 'tags')?.content || []
+                        const calories = itemTags.find(t => t.includes('kcal')) || null
+                        const displayTags = itemTags.filter(t => !t.includes('kcal'))
+                        const mealType = item.content_json?.find((c: any) => c.type === 'meal_type')?.content || null
+
+                        return (
+                            <div key={item.id} className={`bg-white/5 border rounded-3xl p-5 group relative flex flex-col gap-3 transition-all ${item.is_active ? 'border-white/10 hover:border-indigo-500/25' : 'border-white/5 opacity-60'}`}>
+                                {/* Icon + title */}
+                                <div className="flex items-start gap-3">
+                                    <div className="w-11 h-11 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 flex-shrink-0">
+                                        <tab.icon size={18}/>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-bold text-white text-sm truncate">{item.title}</h3>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            {mealType && <span className="text-[9px] text-slate-500">{mealType}</span>}
+                                            {calories && <>
+                                                {mealType && <span className="text-slate-700">·</span>}
+                                                <span className="text-[9px] text-amber-400 flex items-center gap-0.5"><Flame size={8}/> {calories}</span>
+                                            </>}
+                                            {item.duration_days > 0 && <>
+                                                <span className="text-slate-700">·</span>
+                                                <span className="text-[9px] text-slate-500 flex items-center gap-0.5"><Clock size={8}/> {item.duration_days}d</span>
+                                            </>}
+                                        </div>
+                                    </div>
+                                    <button onClick={() => handleToggleActive(item)}
+                                        className="flex-shrink-0 hover:scale-110 transition-all ml-1">
+                                        {item.is_active
+                                            ? <ToggleRight size={18} className="text-emerald-400"/>
+                                            : <ToggleLeft size={18} className="text-slate-600"/>}
+                                    </button>
+                                </div>
+
+                                {/* Description */}
+                                {item.description && (
+                                    <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{item.description}</p>
+                                )}
+
+                                {/* Tags */}
+                                {displayTags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {displayTags.slice(0, 3).map((tag, i) => (
+                                            <span key={i} className="text-[9px] font-bold px-2 py-0.5 rounded-lg bg-indigo-500/10 border border-indigo-500/15 text-indigo-300">
+                                                {tag}
+                                            </span>
+                                        ))}
+                                        {displayTags.length > 3 && (
+                                            <span className="text-[9px] text-slate-600">+{displayTags.length - 3}</span>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Actions */}
+                                <div className="flex items-center gap-2 pt-1 border-t border-white/5 mt-auto">
+                                    <button onClick={() => setViewingItem(item)}
+                                        className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-indigo-600/15 hover:bg-indigo-600/30 text-indigo-300 text-xs font-bold transition-all">
+                                        <BookOpen size={12}/> Ver ficha
+                                    </button>
+                                    <button onClick={() => { setEditingItem(item); setShowForm(false); }}
+                                        className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-500 hover:text-white transition-all">
+                                        <Edit3 size={13}/>
+                                    </button>
+                                    <button onClick={() => handleDelete(item)}
+                                        className="w-8 h-8 rounded-xl bg-white/5 hover:bg-rose-500/20 flex items-center justify-center text-slate-500 hover:text-rose-400 transition-all">
+                                        <Trash2 size={13}/>
+                                    </button>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            )}
+
+            {/* Detail modal */}
+            <AnimatePresence>
+                {viewingItem && (
+                    <ItemDetailModal
+                        item={viewingItem}
+                        onClose={() => setViewingItem(null)}
+                        onEdit={() => { setEditingItem(viewingItem); setViewingItem(null) }}
+                    />
+                )}
+            </AnimatePresence>
+        </div>
     )
 }
