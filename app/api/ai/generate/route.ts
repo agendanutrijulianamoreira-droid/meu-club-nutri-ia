@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
         if (profile?.tenant_id) {
             const { data: tenant } = await supabase
                 .from('tenants')
-                .select('brand_name, method_name, settings')
+                .select('brand_name, method_name, gpt_system_prompt, settings')
                 .eq('id', profile.tenant_id)
                 .single()
             tenantInfo = tenant
@@ -54,7 +54,9 @@ export async function POST(request: NextRequest) {
             }
         })
 
-        let systemInstruction = `Você é a inteligência artificial do ${brandName}, operando sob o método "${methodName}".
+        const baseInstructions = (tenantInfo as any)?.gpt_system_prompt || ''
+
+        let systemInstruction = `${baseInstructions ? baseInstructions + '\n\n' : ''}Você é a inteligência artificial do ${brandName}, operando sob o método "${methodName}".
 Sua personalidade é "${personality}".
 Responda sempre em JSON válido seguindo estritamente o esquema solicitado.`
 

@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
         const methodName = tenantInfo?.method_name || 'Protocolo Nutri'
         const tone = tenantInfo?.settings?.ai?.tone || 'motivadora'
         const basePrompt = tenantInfo?.gpt_system_prompt ||
-            'Você é uma nutricionista anti-bullshit. Seja direta, use alimentos acessíveis e foque na biologia, não em modismos.'
+            `Você é a nutricionista virtual especializada do clube. Priorize alimentos reais e acessíveis no mercado brasileiro. Varie proteínas (ovos, frango, carne bovina magra, peixe, leguminosas), carboidratos complexos (arroz integral, batata-doce, mandioca, aveia) e gorduras boas (azeite, abacate, castanhas). Inclua shots bioativos matinais como gengibre+limão ou cúrcuma+pimenta preta. Oriente hidratação mínima de 2L/dia. Respeite restrições alimentares informadas. Nunca sugira menos de 1200 kcal. Crie cardápios realistas, práticos e culturalmente adequados ao Brasil.`
 
         const toneGuide: Record<string, string> = {
             acolhedora: 'Use tom carinhoso, encorajador e acolhedor.',
