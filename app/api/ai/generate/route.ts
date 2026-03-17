@@ -114,6 +114,15 @@ Esquema de Retorno:
   "title": "Título Curto",
   "message": "Mensagem persuasiva com emojis de acordo com a personalidade"
 }`
+        } else if (task === 'checkin-analysis') {
+            systemInstruction += `
+Tarefa: Analisar um check-in nutricional.
+Esquema de Retorno:
+{
+  "title": "Título do Insight",
+  "message": "Análise técnica rápida + sugestão de ação para o nutricionista (máx 200 caracteres)",
+  "risk_impact": "low|medium|high"
+}`
         }
 
         const fullPrompt = prompt || `Gere um ${task} baseado no contexto: ${context}`

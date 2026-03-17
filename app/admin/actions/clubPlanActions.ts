@@ -78,7 +78,7 @@ export async function generateClubPlan(planType: 'semestral' | 'anual') {
     Gere exatamente ${monthCount} meses.
     `
 
-    const aiResult = await generateClinicalContent(prompt, 'club_plan')
+    const aiResult = await generateClinicalContent(prompt, 'club_plan', profile.tenant_id)
 
     let months: MonthPlan[] = []
 

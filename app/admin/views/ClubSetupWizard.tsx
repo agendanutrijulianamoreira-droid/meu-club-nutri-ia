@@ -74,7 +74,8 @@ export default function ClubSetupWizard({ tenantId, onComplete, onClose }: Wizar
         try {
             const result = await generateClinicalContent(
                 `Nicho: ${nicheToUse}. Duração: ${formData.duration} meses.`,
-                'club_setup'
+                'club_setup',
+                tenantId
             )
             if (result.success && result.data) {
                 setFormData(prev => ({

@@ -24,8 +24,7 @@ import {
     Globe,
     Brain,
     BookOpen,
-    ShieldCheck,
-    Bot
+    ShieldCheck
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -39,11 +38,10 @@ import { RewardsView } from "./views/RewardsView"
 import { CheckinsView } from "./views/CheckinsView"
 import { SalesPageGenerator } from "./views/SalesPageGenerator"
 import { LibraryView } from "./views/LibraryView"
-import { AISettingsView, CronEngagementPanel } from "./views/AISettingsView"
-import { CommunityView } from "./views/CommunityView"
-import { AnalyticsView } from "./views/AnalyticsView"
+import { AISettingsView } from "./views/AISettingsView"
 import { SettingsView } from "./views/SettingsView"
 import { ClubPlanView } from "./views/ClubPlanView"
+import { AICreditsView } from "./views/AICreditsView"
 import { repairProfile } from "./actions/repairProfileAction"
 import AccountOverlay from "./components/AccountOverlay"
 import ClinicSettingsOverlay from "./components/ClinicSettingsOverlay"
@@ -53,7 +51,7 @@ import { ChevronDown, LogOut, User as UserIcon, Building2, Palette } from "lucid
 
 import { SettingsLoginView } from "./views/SettingsLoginView"
 
-type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-cron' | 'community' | 'analytics' | 'library' | 'settings' | 'settings-login' | 'club-plan'
+type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits' | 'library' | 'settings' | 'settings-login' | 'club-plan'
 
 const navItems = [
     { id: 'dashboard' as ViewType, label: 'Painel Central', icon: LayoutDashboard },
@@ -66,10 +64,8 @@ const navItems = [
     { id: 'checkins' as ViewType, label: 'Check-ins IA', icon: MessageCircle },
     { id: 'library' as ViewType, label: 'Cérebro Técnico', icon: BookOpen },
     { id: 'sales-page' as ViewType, label: 'Bio-Page', icon: Globe },
+    { id: 'ai-credits' as ViewType, label: 'Créditos IA', icon: CreditCard },
     { id: 'ai-brain' as ViewType, label: 'Config. IA', icon: Brain },
-    { id: 'ai-cron' as ViewType, label: 'IA 24h', icon: Bot },
-    { id: 'community' as ViewType, label: 'Comunidade', icon: Users },
-    { id: 'analytics' as ViewType, label: 'Analytics', icon: BarChart3 },
     { id: 'settings' as ViewType, label: 'Sistema', icon: Settings },
 ]
 
@@ -104,33 +100,15 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
         switch (activeView) {
             case 'dashboard': return <DashboardView {...props} />
             case 'communication': return <CommunicationCenterView setView={setActiveView} />
-            case 'protocols': return <ProtocolsView setView={setActiveView} tenantId={tenantId} />
-            case 'challenges': return <ChallengesView setView={setActiveView} tenantId={tenantId} />
+            case 'protocols': return <ProtocolsView setView={setActiveView} />
+            case 'challenges': return <ChallengesView setView={setActiveView} />
             case 'patients': return <PatientsView setView={setActiveView} />
             case 'rewards': return <RewardsView setView={setActiveView} />
             case 'checkins': return <CheckinsView setView={setActiveView} />
-            case 'library': return <LibraryView setView={setActiveView} tenantId={tenantId} />
+            case 'library': return <LibraryView setView={setActiveView} />
             case 'sales-page': return <SalesPageGenerator setView={setActiveView} tenantId={tenantId} />
             case 'ai-brain': return <AISettingsView setView={setActiveView} tenantId={tenantId} />
-            case 'analytics': return <AnalyticsView setView={setActiveView} />
-            case 'community': return (
-                <div className="space-y-4">
-                    <div>
-                        <h1 className="text-3xl font-light text-white tracking-tight">Feed da <span className="font-bold">Comunidade</span></h1>
-                        <p className="text-slate-400 mt-1">Modere posts, publique anúncios e acompanhe o engajamento do clube.</p>
-                    </div>
-                    <CommunityView />
-                </div>
-            )
-            case 'ai-cron': return (
-                <div className="space-y-4">
-                    <div>
-                        <h1 className="text-3xl font-light text-white tracking-tight">IA de <span className="font-bold">Engajamento 24h</span></h1>
-                        <p className="text-slate-400 mt-1">Automação que trabalha enquanto você dorme.</p>
-                    </div>
-                    <CronEngagementPanel />
-                </div>
-            )
+            case 'ai-credits': return <AICreditsView setView={setActiveView} tenantId={tenantId} />
             case 'settings': return <SettingsView {...props} />
             case 'settings-login': return <SettingsLoginView />
             case 'club-plan': return <ClubPlanView {...props} />

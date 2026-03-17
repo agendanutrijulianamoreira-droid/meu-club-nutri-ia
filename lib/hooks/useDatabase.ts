@@ -104,6 +104,22 @@ export function useProtocols() {
         }
     }
 
+    const duplicateProtocol = async (id: string) => {
+        try {
+            const { data, error } = await supabase.rpc('duplicate_protocol', {
+                p_protocol_id: id
+            })
+
+            if (error) throw error
+
+            // Recarregar lista para ver a cópia
+            fetchProtocols()
+            return { data, error: null }
+        } catch (err: any) {
+            return { data: null, error: err.message }
+        }
+    }
+
     useEffect(() => {
         fetchProtocols()
     }, [])
@@ -115,6 +131,7 @@ export function useProtocols() {
         createProtocol,
         updateProtocol,
         deleteProtocol,
+        duplicateProtocol,
         refresh: fetchProtocols
     }
 }

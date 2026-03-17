@@ -1,6 +1,7 @@
 'use server';
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { checkAndConsumeCredit } from "@/lib/ai-credits";
 
 /**
  * Helper para limpar o JSON retornado pela IA (remove markdown blocks)
@@ -14,8 +15,22 @@ function sanitizeJSON(text: string) {
  * Server Action para gerar conteúdo clínico com Gemini.
  * Roda no servidor Next.js — sem CORS, sem timeout de Edge Function.
  */
-export async function generateClinicalContent(prompt: string, type: 'protocol' | 'challenge' | 'persona' | 'club_plan' | 'club_setup') {
+export async function generateClinicalContent(prompt: string, type: 'protocol' | 'challenge' | 'persona' | 'club_plan' | 'club_setup', tenantId?: string) {
     try {
+        // === VERIFICAÇÃO DE CRÉDITOS IA ===
+        if (tenantId) {
+            const creditResult = await checkAndConsumeCredit(tenantId, type, `Geração de ${type}: ${prompt.substring(0, 50)}...`)
+            if (!creditResult.success) {
+                return {
+                    success: false,
+                    error: creditResult.error || 'Créditos de IA esgotados.',
+                    creditsExhausted: true,
+                    credits_remaining: creditResult.credits_remaining ?? 0
+                }
+            }
+            console.log(`[generateAI] Crédito consumido. Restantes: ${creditResult.credits_remaining}`)
+        }
+
         const apiKey = process.env.GEMINI_API_KEY
         if (!apiKey) {
             console.error('[generateAI] GEMINI_API_KEY falhou: Chave não configurada')

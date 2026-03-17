@@ -1,8 +1,20 @@
 "use server"
 
 import { createSupabaseServerClient } from "@/lib/supabase-server"
+import { createClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
 import { z } from "zod"
+
+// Service role client for bypassing RLS (safe in server actions after auth check)
+function getAdminClient() {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!serviceRoleKey) throw new Error("SUPABASE_SERVICE_ROLE_KEY not configured")
+    return createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        serviceRoleKey,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+}
 
 const profileSchema = z.object({
     honorific: z.string().optional(),
@@ -34,15 +46,18 @@ export async function updateProfileAction(data: z.infer<typeof profileSchema>) {
     }
 
     try {
+        // Authenticate user via session
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) throw new Error("Não autorizado")
 
-        const { error } = await supabase
+        // Use admin client to bypass RLS (prevents infinite recursion)
+        const adminClient = getAdminClient()
+
+        const { error } = await adminClient
             .from('profiles')
             .update({
                 honorific: data.honorific,
-                name: data.display_name, // Sync with core name column
-                display_name: data.display_name,
+                name: data.display_name,
                 phone: data.phone,
                 license_type: data.license_type,
                 license_number: data.license_number,
@@ -69,10 +84,15 @@ export async function updateClinicAction(data: z.infer<typeof clinicSchema>) {
     }
 
     try {
+        // Authenticate user via session
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) throw new Error("Não autorizado")
 
-        const { data: profile } = await supabase
+        // Use admin client to bypass RLS
+        const adminClient = getAdminClient()
+
+        // Get profile to verify admin role
+        const { data: profile } = await adminClient
             .from('profiles')
             .select('tenant_id, role')
             .eq('user_id', user.id)
@@ -82,7 +102,7 @@ export async function updateClinicAction(data: z.infer<typeof clinicSchema>) {
             throw new Error("Apenas administradores podem alterar configurações da clínica.")
         }
 
-        const { error } = await supabase
+        const { error } = await adminClient
             .from('tenants')
             .update({
                 brand_name: data.brand_name,
@@ -102,3 +122,4 @@ export async function updateClinicAction(data: z.infer<typeof clinicSchema>) {
         return { success: false, error: err.message }
     }
 }
+

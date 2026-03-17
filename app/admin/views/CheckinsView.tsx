@@ -1,522 +1,299 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react"
+import { useState } from "react"
 import {
-    AlertCircle, CheckCircle, BarChart2, Search, Sparkles,
-    Activity, X, Loader2, Brain, RefreshCw, Flame, Zap,
-    Heart, Settings, Send, Clock, TrendingDown, TrendingUp,
-    ChevronRight, Users, Shield, Save
+    ClipboardList, Plus, AlertCircle, CheckCircle, BarChart2, Edit, Trash2, Search,
+    MessageSquare, Sparkles, TrendingDown, TrendingUp, Activity, X, Save, GripVertical, Loader2, Brain, ShieldCheck, ChevronRight
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
 
-interface CheckinDetails {
-    diet_score: number | null
-    main_difficulty: string | null
-    bowel: string | null
-    had_binge: boolean | null
-    mood: string | null
-    extra_notes: string | null
-    ai_suggestion: string | null
-    week_start: string | null
-    created_at: string
+interface Question {
+    id: string
+    type: 'scale' | 'text' | 'select' | 'yesno'
+    text: string
+    options?: string[]
+    required: boolean
 }
 
-interface PatientRow {
-    id: string; userName: string; userAvatar: string; date: string
-    riskScore: number; riskLevel: 'low' | 'medium' | 'high'
-    summary: string; streak: number; xp: number; plan: string
-    adherenceRate: number; daysSinceActivity: number
-    hasCheckin: boolean; checkinScore: number | null
-    checkinDetails: CheckinDetails | null
+interface Response {
+    id: string
+    userName: string
+    userAvatar: string
+    date: string
+    riskScore: number
+    riskLevel: 'low' | 'medium' | 'high'
+    summary: string
 }
 
-interface Stats { total: number; low: number; medium: number; high: number }
+const MOCK_QUESTIONS: Question[] = [
+    { id: 'q1', type: 'scale', text: 'De 0 a 10, qual sua nota para a dieta esta semana?', required: true },
+    { id: 'q2', type: 'text', text: 'Qual foi sua maior dificuldade?', required: true },
+    { id: 'q3', type: 'select', text: 'Como está seu intestino?', options: ['Normal', 'Preso', 'Solto'], required: true },
+    { id: 'q4', type: 'yesno', text: 'Sentiu compulsão alimentar?', required: true },
+]
 
-const PLAN_LABELS: Record<string, string> = { vip: 'VIP', tech_diet: 'Tech Diet', community: 'Community', manual: 'Manual' }
+const MOCK_RESPONSES: Response[] = [
+    { id: 'r1', userName: 'Maria Silva', userAvatar: 'MS', date: 'Hoje, 10:30', riskScore: 8, riskLevel: 'low', summary: 'Está amando a dieta. Emagreceu 2kg.' },
+    { id: 'r2', userName: 'Joana Dark', userAvatar: 'JD', date: 'Ontem, 18:00', riskScore: 3, riskLevel: 'high', summary: 'Relatou compulsão por doces.' },
+    { id: 'r3', userName: 'Fernanda Lima', userAvatar: 'FL', date: 'Ontem, 14:20', riskScore: 5, riskLevel: 'medium', summary: 'Dificuldade com horários.' },
+    { id: 'r4', userName: 'Ana Paula', userAvatar: 'AP', date: 'Ontem, 09:15', riskScore: 9, riskLevel: 'low', summary: 'Excelente adesão ao protocolo.' },
+]
 
-const RISK_META = {
-    high:   { label: 'Crítico',  color: 'text-rose-400',    bg: 'bg-rose-500/10 border-rose-500/20',    icon: <AlertCircle size={12}/> },
-    medium: { label: 'Atenção',  color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20',  icon: <Activity size={12}/> },
-    low:    { label: 'Estável',  color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', icon: <CheckCircle size={12}/> },
-}
-
-const MOOD_LABELS: Record<string, string> = { otimo: '🤩 Ótimo', bem: '😊 Bem', neutro: '😐 Neutro', ruim: '😞 Ruim' }
-const BOWEL_LABELS: Record<string, string> = { Normal: '✅ Normal', Preso: '⚠️ Preso', Solto: '⚠️ Solto' }
-
-// ─── Detail Drawer ────────────────────────────────────────────────────────────
-function PatientDetailDrawer({ patient, onClose, onRescue, onNavigate }: {
-    patient: PatientRow; onClose: () => void
-    onRescue: () => Promise<void>; onNavigate: () => void
-}) {
-    const [rescuing, setRescuing] = useState(false)
-    const [rescued, setRescued] = useState(false)
-    const rm = RISK_META[patient.riskLevel]
-    const d = patient.checkinDetails
-
-    const handleRescue = async () => {
-        setRescuing(true)
-        await onRescue()
-        setRescued(true)
-        setRescuing(false)
-    }
-
-    const scoreColor = (s: number) => s >= 8 ? 'text-emerald-400' : s >= 5 ? 'text-amber-400' : 'text-rose-400'
-
-    return (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/65 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-4"
-            onClick={onClose}>
-            <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 50, opacity: 0 }} transition={{ type: 'spring', damping: 28 }}
-                onClick={e => e.stopPropagation()}
-                className="bg-slate-900 border border-white/10 rounded-3xl p-5 w-full max-w-md max-h-[88vh] overflow-y-auto">
-
-                {/* Header */}
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-sm font-black border ${rm.bg} ${rm.color}`}>
-                            {patient.userAvatar}
-                        </div>
-                        <div>
-                            <p className="font-bold text-white">{patient.userName}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${rm.bg} ${rm.color} flex items-center gap-1`}>
-                                    {rm.icon} {rm.label}
-                                </span>
-                                <span className="text-[10px] text-slate-600">score {patient.riskScore}/10</span>
-                            </div>
-                        </div>
-                    </div>
-                    <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl text-slate-500 hover:text-white transition-colors">
-                        <X size={16}/>
-                    </button>
-                </div>
-
-                {/* Quick metrics */}
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                    {[
-                        { label: 'Streak', value: `${patient.streak}d`, color: patient.streak > 0 ? 'text-orange-400' : 'text-slate-600', icon: <Flame size={11}/> },
-                        { label: 'Adesão 7d', value: `${patient.adherenceRate}%`, color: patient.adherenceRate >= 60 ? 'text-emerald-400' : 'text-rose-400', icon: <Activity size={11}/> },
-                        { label: 'Última ativ.', value: patient.date, color: 'text-slate-300', icon: <Clock size={11}/> },
-                    ].map(m => (
-                        <div key={m.label} className="bg-white/5 rounded-xl p-2.5 text-center">
-                            <p className={`text-base font-bold ${m.color} flex items-center justify-center gap-1`}>
-                                <span className={m.color}>{m.icon}</span> {m.value}
-                            </p>
-                            <p className="text-[9px] text-slate-600 uppercase font-bold mt-0.5">{m.label}</p>
-                        </div>
-                    ))}
-                </div>
-
-                {/* AI Summary */}
-                <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 mb-4">
-                    <p className="text-[10px] font-bold text-indigo-400 uppercase flex items-center gap-1 mb-2">
-                        <Sparkles size={11}/> {patient.hasCheckin ? 'Análise IA — check-in semanal' : 'Avaliação por comportamento'}
-                    </p>
-                    <p className="text-sm text-slate-200 leading-relaxed">"{patient.summary}"</p>
-                    {d?.ai_suggestion && (
-                        <div className="mt-2 bg-white/5 rounded-xl px-3 py-2">
-                            <p className="text-[9px] font-bold text-indigo-300 uppercase mb-0.5">Sugestão</p>
-                            <p className="text-xs text-slate-300">{d.ai_suggestion}</p>
-                        </div>
-                    )}
-                </div>
-
-                {/* Check-in details */}
-                {d && (
-                    <div className="space-y-2 mb-4">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                            Detalhes do check-in{d.week_start && ` · semana de ${new Date(d.week_start + 'T12:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`}
-                        </p>
-
-                        {d.diet_score !== null && (
-                            <div className="flex items-center justify-between bg-white/5 rounded-xl px-3 py-2.5">
-                                <span className="text-xs text-slate-400">Nota da dieta</span>
-                                <span className={`text-sm font-black ${scoreColor(d.diet_score!)}`}>{d.diet_score}/10</span>
-                            </div>
-                        )}
-                        {d.mood && (
-                            <div className="flex items-center justify-between bg-white/5 rounded-xl px-3 py-2.5">
-                                <span className="text-xs text-slate-400">Humor</span>
-                                <span className="text-xs font-bold text-white">{MOOD_LABELS[d.mood] || d.mood}</span>
-                            </div>
-                        )}
-                        {d.bowel && (
-                            <div className="flex items-center justify-between bg-white/5 rounded-xl px-3 py-2.5">
-                                <span className="text-xs text-slate-400">Funcionamento intestinal</span>
-                                <span className="text-xs font-bold text-white">{BOWEL_LABELS[d.bowel] || d.bowel}</span>
-                            </div>
-                        )}
-                        {d.had_binge !== null && d.had_binge !== undefined && (
-                            <div className="flex items-center justify-between bg-white/5 rounded-xl px-3 py-2.5">
-                                <span className="text-xs text-slate-400">Compulsão alimentar</span>
-                                <span className={`text-xs font-bold ${d.had_binge ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                    {d.had_binge ? '⚠️ Sim' : '✅ Não'}
-                                </span>
-                            </div>
-                        )}
-                        {d.main_difficulty && (
-                            <div className="bg-white/5 rounded-xl px-3 py-2.5">
-                                <p className="text-[10px] text-slate-500 mb-1">Principal dificuldade</p>
-                                <p className="text-xs text-slate-200">"{d.main_difficulty}"</p>
-                            </div>
-                        )}
-                        {d.extra_notes && (
-                            <div className="bg-white/5 rounded-xl px-3 py-2.5">
-                                <p className="text-[10px] text-slate-500 mb-1">Observações extras</p>
-                                <p className="text-xs text-slate-200 italic">"{d.extra_notes}"</p>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Actions */}
-                <div className="flex gap-2 flex-wrap">
-                    {patient.riskLevel === 'high' && !rescued && (
-                        <button onClick={handleRescue} disabled={rescuing}
-                            className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-300 text-xs font-bold transition-all disabled:opacity-50">
-                            {rescuing ? <Loader2 size={12} className="animate-spin"/> : <Heart size={12}/>}
-                            {rescuing ? 'Enviando...' : 'Enviar resgate'}
-                        </button>
-                    )}
-                    {rescued && (
-                        <div className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
-                            <CheckCircle size={12}/> Resgate enviado!
-                        </div>
-                    )}
-                    <button onClick={onNavigate}
-                        className="flex items-center gap-1.5 px-4 py-3 rounded-2xl bg-white/5 hover:bg-indigo-600/20 border border-white/10 hover:border-indigo-500/30 text-slate-400 hover:text-indigo-300 text-xs font-bold transition-all">
-                        Ver perfil <ChevronRight size={12}/>
-                    </button>
-                </div>
-            </motion.div>
-        </motion.div>
-    )
-}
-
-// ─── Config Panel ─────────────────────────────────────────────────────────────
-function ConfigPanel() {
-    const [config, setConfig] = useState({
-        frequency: 'weekly',
-        reminder_day: '1',      // 0=Sun .. 6=Sat
-        reminder_hour: '08',
-        custom_note: '',
-    })
-    const [loading, setLoading] = useState(true)
-    const [saving, setSaving] = useState(false)
-    const [saved, setSaved] = useState(false)
-
-    useEffect(() => {
-        fetch('/api/admin/checkins/config')
-            .then(r => r.ok ? r.json() : null)
-            .then(d => { if (d?.config) setConfig(prev => ({ ...prev, ...d.config })); setLoading(false) })
-            .catch(() => setLoading(false))
-    }, [])
-
-    const handleSave = async () => {
-        setSaving(true)
-        await fetch('/api/admin/checkins/config', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ config })
-        })
-        setSaving(false); setSaved(true)
-        setTimeout(() => setSaved(false), 2500)
-    }
-
-    const days = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']
-
-    if (loading) return <div className="flex justify-center py-12"><Loader2 size={22} className="animate-spin text-slate-600"/></div>
-
-    return (
-        <div className="max-w-2xl space-y-5">
-            {/* Info */}
-            <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 flex items-start gap-3">
-                <Shield size={16} className="text-indigo-400 flex-shrink-0 mt-0.5"/>
-                <div>
-                    <p className="text-sm font-bold text-white mb-1">Formulário de Check-in Semanal</p>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                        As pacientes respondem em <strong className="text-white">/patient/checkin</strong>. O formulário coleta: nota da dieta (0-10), principal dificuldade, funcionamento intestinal, compulsão alimentar, humor e observações livres. A IA analisa cada resposta e gera um resumo + nível de risco automático.
-                    </p>
-                </div>
-            </div>
-
-            {/* Config options */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4">
-                <p className="text-xs font-black uppercase tracking-wider text-slate-500">Configurações de notificação</p>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Frequência</label>
-                        <select value={config.frequency} onChange={e => setConfig(c => ({...c, frequency: e.target.value}))}
-                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none">
-                            <option value="weekly">Semanal</option>
-                            <option value="biweekly">Quinzenal</option>
-                            <option value="monthly">Mensal</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Dia da semana</label>
-                        <select value={config.reminder_day} onChange={e => setConfig(c => ({...c, reminder_day: e.target.value}))}
-                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none">
-                            {days.map((d, i) => <option key={i} value={String(i)}>{d}</option>)}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Horário do lembrete</label>
-                        <select value={config.reminder_hour} onChange={e => setConfig(c => ({...c, reminder_hour: e.target.value}))}
-                            className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none">
-                            {['06','07','08','09','10','12','14','18','20'].map(h => <option key={h} value={h}>{h}:00</option>)}
-                        </select>
-                    </div>
-                </div>
-
-                <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Mensagem personalizada no check-in (opcional)</label>
-                    <textarea value={config.custom_note}
-                        onChange={e => setConfig(c => ({...c, custom_note: e.target.value}))}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/50 resize-none h-20"
-                        placeholder="Ex: Olá rainha! Que semana você teve? Responda com carinho 💜"/>
-                </div>
-            </div>
-
-            {/* Perguntas do formulário — informativo */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <p className="text-xs font-black uppercase tracking-wider text-slate-500 mb-3">Perguntas do formulário</p>
-                {[
-                    { q: 'Nota da dieta esta semana (0–10)', type: 'Escala' },
-                    { q: 'Principal dificuldade', type: 'Texto livre' },
-                    { q: 'Funcionamento intestinal', type: 'Múltipla escolha' },
-                    { q: 'Sentiu compulsão alimentar?', type: 'Sim / Não' },
-                    { q: 'Como está seu humor?', type: 'Múltipla escolha' },
-                    { q: 'Observações extras', type: 'Texto livre' },
-                ].map((item, i) => (
-                    <div key={i} className="flex items-center gap-3 py-2 border-b border-white/5 last:border-0">
-                        <span className="text-slate-600 text-xs w-4 font-bold">{i+1}</span>
-                        <span className="text-sm text-slate-300 flex-1">{item.q}</span>
-                        <span className="text-[9px] text-slate-600 bg-white/5 px-2 py-0.5 rounded font-bold uppercase">{item.type}</span>
-                    </div>
-                ))}
-            </div>
-
-            <button onClick={handleSave} disabled={saving}
-                className={`flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-bold transition-all
-                    ${saved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'} disabled:opacity-50`}>
-                {saving ? <Loader2 size={14} className="animate-spin"/> : saved ? <CheckCircle size={14}/> : <Save size={14}/>}
-                {saving ? 'Salvando...' : saved ? 'Salvo!' : 'Salvar configurações'}
-            </button>
-        </div>
-    )
-}
-
-// ─── Main ─────────────────────────────────────────────────────────────────────
-export function CheckinsView({ setView: setMainView, tenantId }: { setView: (v: any) => void; tenantId?: string }) {
-    const [tab, setTab] = useState<'dashboard' | 'config'>('dashboard')
-    const [responses, setResponses] = useState<PatientRow[]>([])
-    const [stats, setStats] = useState<Stats>({ total: 0, low: 0, medium: 0, high: 0 })
-    const [loading, setLoading] = useState(true)
-    const [selected, setSelected] = useState<PatientRow | null>(null)
-    const [search, setSearch] = useState('')
+export function CheckinsView({ setView: setMainView }: { setView: (v: any) => void }) {
+    const [view, setLocalView] = useState<'dashboard' | 'editor'>('dashboard')
+    const [questions, setQuestions] = useState(MOCK_QUESTIONS)
+    const [responses] = useState(MOCK_RESPONSES)
+    const [selectedResponse, setSelectedResponse] = useState<Response | null>(null)
+    const [searchQuery, setSearchQuery] = useState("")
     const [filterRisk, setFilterRisk] = useState<'all' | 'high' | 'medium' | 'low'>('all')
-    const [sendingRescue, setSendingRescue] = useState<string | null>(null)
+    const [saving, setSaving] = useState(false)
+    const [isAnalyzing, setIsAnalyzing] = useState(false)
 
-    const loadData = useCallback(async () => {
-        setLoading(true)
-        try {
-            const res = await fetch('/api/admin/checkins')
-            if (res.ok) {
-                const data = await res.json()
-                setResponses(data.responses || [])
-                setStats(data.stats || { total: 0, low: 0, medium: 0, high: 0 })
-            }
-        } finally { setLoading(false) }
-    }, [])
+    const lowRiskCount = responses.filter(r => r.riskLevel === 'low').length
+    const mediumRiskCount = responses.filter(r => r.riskLevel === 'medium').length
+    const highRiskCount = responses.filter(r => r.riskLevel === 'high').length
+    const total = responses.length
 
-    useEffect(() => { loadData() }, [loadData])
-
-    const handleRescue = async (patientId: string) => {
-        setSendingRescue(patientId)
-        await fetch(`/api/admin/patients/${patientId}/action`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'send-rescue' })
-        })
-        setSendingRescue(null)
-    }
-
-    const filtered = responses.filter(r => {
-        const ms = r.userName.toLowerCase().includes(search.toLowerCase())
-        const mf = filterRisk === 'all' || r.riskLevel === filterRisk
-        return ms && mf
+    const filteredResponses = responses.filter(r => {
+        if (filterRisk !== 'all' && r.riskLevel !== filterRisk) return false
+        if (searchQuery && !r.userName.toLowerCase().includes(searchQuery.toLowerCase())) return false
+        return true
     })
 
-    const checkinRate = stats.total > 0
-        ? Math.round((responses.filter(r => r.hasCheckin).length / stats.total) * 100)
-        : 0
+    const getRiskBadge = (level: string) => {
+        if (level === 'high') return <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><AlertCircle size={12} /> CRÍTICO</span>
+        if (level === 'medium') return <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><Activity size={12} /> ATENÇÃO</span>
+        return <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><CheckCircle size={12} /> ESTÁVEL</span>
+    }
+
+    const addQuestion = () => setQuestions(prev => [...prev, { id: `q-${Date.now()}`, type: 'text', text: 'Nova pergunta...', required: false }])
+    const deleteQuestion = (id: string) => setQuestions(prev => prev.filter(q => q.id !== id))
+    const updateQuestion = (id: string, field: string, value: any) => setQuestions(prev => prev.map(q => q.id === id ? { ...q, [field]: value } : q))
+    const handleSave = async () => { setSaving(true); await new Promise(r => setTimeout(r, 1500)); setSaving(false) }
+
+    const analyzeWithAI = async (response: Response) => {
+        setIsAnalyzing(true)
+        try {
+            const res = await fetch('/api/ai/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    task: 'checkin-analysis',
+                    context: `Analisando check-in da paciente ${response.userName}. Resumo atual: ${response.summary}. Risco: ${response.riskLevel}.`,
+                    prompt: `Como uma IA de acompanhamento nutricional de elite, analise este check-in e forneça um insight interpretativo rápido e uma sugestão de ação para o nutricionista.`
+                })
+            })
+            const data = await res.json()
+            if (data.error) throw new Error(data.error)
+            
+            setSelectedResponse(prev => prev ? { ...prev, summary: data.message } : null)
+        } catch (err: any) {
+            console.error("Erro AI Checkin:", err)
+            alert("Erro ao gerar análise: " + err.message)
+        } finally {
+            setIsAnalyzing(false)
+        }
+    }
 
     return (
-        <div className="space-y-6 pb-10">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-light text-white">
-                        Check-ins <span className="font-bold">Inteligentes</span>
-                    </h1>
-                    <p className="text-slate-500 text-sm mt-0.5">
-                        {loading ? 'Carregando...' : `${stats.total} rainhas monitoradas`}
-                    </p>
+        <div className="space-y-8 pb-32">
+            {/* Header Clinical */}
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="bg-indigo-600/20 p-2 rounded-xl border border-indigo-500/30">
+                            <Brain size={20} className="text-indigo-400" />
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">Monitoramento Biométrico</span>
+                    </div>
+                    <h1 className="text-4xl font-light text-white tracking-tight">Check-ins <span className="font-bold">Inteligentes</span></h1>
+                    <p className="text-slate-400 font-medium font-medium">Análise qualitativa e detecção de riscos em tempo real.</p>
                 </div>
-                <div className="flex items-center gap-2">
-                    <button onClick={loadData} className={`p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all ${loading ? 'text-indigo-400' : 'text-slate-500'}`}>
-                        <RefreshCw size={15} className={loading ? 'animate-spin' : ''}/>
+                <div className="flex bg-slate-950 p-1.5 rounded-[1.25rem] border border-white/10 shadow-xl">
+                    <button onClick={() => setLocalView('dashboard')} className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${view === 'dashboard' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'text-slate-500 hover:text-white'}`}>
+                        <BarChart2 size={16} className="inline mr-2" />Monitoramento
                     </button>
-                    <div className="flex bg-white/5 border border-white/10 rounded-2xl p-1 gap-1">
-                        {([['dashboard', <BarChart2 size={13}/>, 'Monitoramento'], ['config', <Settings size={13}/>, 'Config']] as const).map(([v, icon, l]) => (
-                            <button key={v} onClick={() => setTab(v as any)}
-                                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all
-                                    ${tab === v ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
-                                {icon} {l}
-                            </button>
+                    <button onClick={() => setLocalView('editor')} className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${view === 'editor' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'text-slate-500 hover:text-white'}`}>
+                        <Edit size={16} className="inline mr-2" />Configuração
+                    </button>
+                </div>
+            </div>
+
+            {view === 'dashboard' && (
+                <div className="space-y-10">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="glass-panel p-8 rounded-[2rem] border border-emerald-500/20 bg-emerald-500/5 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-3xl" />
+                            <h3 className="text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4"><CheckCircle size={16} /> Performance Alta</h3>
+                            <p className="text-5xl font-black text-white tracking-tighter">{Math.round((lowRiskCount / total) * 100)}<span className="text-2xl text-emerald-500/50">%</span></p>
+                            <p className="text-xs text-slate-500 mt-2 font-medium">{lowRiskCount} rainhas em adesão total</p>
+                        </div>
+                        <div className="glass-panel p-8 rounded-[2rem] border border-amber-500/20 bg-amber-500/5 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 blur-3xl" />
+                            <h3 className="text-amber-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4"><Activity size={16} /> Alerta de Estagnação</h3>
+                            <p className="text-5xl font-black text-white tracking-tighter">{Math.round((mediumRiskCount / total) * 100)}<span className="text-2xl text-amber-500/50">%</span></p>
+                            <p className="text-xs text-slate-500 mt-2 font-medium">{mediumRiskCount} precisam de ajuste leve</p>
+                        </div>
+                        <div className="glass-panel p-8 rounded-[2rem] border border-rose-500/20 bg-rose-500/5 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 blur-3xl" />
+                            <h3 className="text-rose-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 mb-4"><AlertCircle size={16} /> Risco de Evasão</h3>
+                            <p className="text-5xl font-black text-white tracking-tighter">{Math.round((highRiskCount / total) * 100)}<span className="text-2xl text-rose-500/50">%</span></p>
+                            <p className="text-xs text-slate-500 mt-2 font-medium">{highRiskCount} em situação crítica</p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row items-center gap-6">
+                        <div className="relative flex-1 w-full group">
+                            <Search className="absolute left-4 top-4 text-slate-600 group-focus-within:text-indigo-400 transition-colors" size={20} />
+                            <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-950 border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-white outline-none focus:border-indigo-500/50 transition-all font-medium" placeholder="Filtrar por nome da rainha..." />
+                        </div>
+                        <div className="flex gap-2 w-full md:w-auto overflow-x-auto no-scrollbar pb-2">
+                            {['all', 'high', 'medium', 'low'].map((r) => (
+                                <button key={r} onClick={() => setFilterRisk(r as any)} className={`px-5 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${filterRisk === r ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-900/40' : 'bg-slate-950 border-white/10 text-slate-500 hover:text-white'}`}>
+                                    {r === 'all' ? 'Ver Todos' : r === 'high' ? '⚠️ Crítico' : r === 'medium' ? '⚡ Atenção' : '✅ Estável'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="rounded-[2.5rem] border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden shadow-2xl divide-y divide-white/5">
+                        <div className="bg-slate-900/50 p-6 grid grid-cols-4 items-center text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                            <span>Rainha</span>
+                            <span>Insights da IA</span>
+                            <span>Data do Registro</span>
+                            <span className="text-right">Status Bio</span>
+                        </div>
+                        {filteredResponses.map((r) => (
+                            <div key={r.id} onClick={() => setSelectedResponse(r)} className="p-6 grid grid-cols-4 items-center hover:bg-white/[0.04] cursor-pointer transition-all group">
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xs font-black shadow-inner border border-white/10 ${r.riskLevel === 'high' ? 'bg-rose-500/10 text-rose-400' : r.riskLevel === 'medium' ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'}`}>{r.userAvatar}</div>
+                                    <span className="font-bold text-white group-hover:text-indigo-400 transition-colors text-sm">{r.userName}</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <Sparkles size={16} className="text-indigo-400 shrink-0" />
+                                    <span className="text-slate-400 text-sm italic truncate font-light">"{r.summary}"</span>
+                                </div>
+                                <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest">{r.date}</span>
+                                <div className="flex justify-end">{getRiskBadge(r.riskLevel)}</div>
+                            </div>
                         ))}
                     </div>
                 </div>
-            </div>
+            )}
 
-            {tab === 'config' && <ConfigPanel/>}
-
-            {tab === 'dashboard' && (
-                <div className="space-y-5">
-                    {/* Stats */}
-                    {!loading && stats.total === 0 ? (
-                        <div className="text-center py-20 bg-white/5 rounded-3xl border border-white/10">
-                            <Users size={32} className="mx-auto mb-3 text-slate-700 opacity-50"/>
-                            <h3 className="text-lg font-bold text-white mb-2">Nenhuma rainha cadastrada ainda</h3>
-                            <p className="text-slate-500 text-sm">Os dados de risco aparecerão aqui quando houver pacientes.</p>
+            {view === 'editor' && (
+                <div className="max-w-3xl mx-auto space-y-8 mt-10">
+                    <div className="glass-panel p-8 rounded-[2.5rem] border border-indigo-500/20 bg-indigo-500/5 flex items-center gap-6 shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 blur-3xl" />
+                        <div className="bg-indigo-600/20 p-4 rounded-2xl border border-indigo-500/30 text-indigo-400 shadow-inner">
+                            <ShieldCheck size={32} />
                         </div>
-                    ) : (
-                        <>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                {[
-                                    { label: 'Estável', value: stats.low, pct: stats.total ? Math.round((stats.low/stats.total)*100) : 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', icon: <CheckCircle size={14} className="text-emerald-400"/> },
-                                    { label: 'Atenção', value: stats.medium, pct: stats.total ? Math.round((stats.medium/stats.total)*100) : 0, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20', icon: <Activity size={14} className="text-amber-400"/> },
-                                    { label: 'Crítico', value: stats.high, pct: stats.total ? Math.round((stats.high/stats.total)*100) : 0, color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20', icon: <AlertCircle size={14} className="text-rose-400"/> },
-                                    { label: 'Fizeram check-in', value: responses.filter(r => r.hasCheckin).length, pct: checkinRate, color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20', icon: <Brain size={14} className="text-indigo-400"/> },
-                                ].map(s => (
-                                    <div key={s.label} className={`${s.bg} border rounded-2xl p-4`}>
-                                        <div className="flex items-center gap-2 mb-2">{s.icon}</div>
-                                        <p className={`text-3xl font-bold ${s.color}`}>{s.pct}<span className="text-base text-slate-600">%</span></p>
-                                        <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mt-0.5">{s.label}</p>
-                                        <p className="text-[10px] text-slate-700 mt-0.5">{s.value} rainhas</p>
-                                    </div>
-                                ))}
-                            </div>
+                        <div>
+                            <h3 className="font-bold text-white text-lg tracking-tight">Arquitetura de Check-in</h3>
+                            <p className="text-sm text-slate-400 font-medium">Cronograma: Envio automatizado a cada 15 dias para todo o reino.</p>
+                        </div>
+                    </div>
 
-                            {/* Search + filter */}
-                            <div className="flex items-center gap-3 flex-wrap">
-                                <div className="relative flex-1 min-w-48">
-                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600"/>
-                                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome..."
-                                        className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-9 pr-3 text-sm text-white focus:outline-none focus:border-indigo-500/50"/>
-                                </div>
-                                <div className="flex bg-white/5 border border-white/10 rounded-xl p-1 gap-1">
-                                    {(['all','high','medium','low'] as const).map(r => (
-                                        <button key={r} onClick={() => setFilterRisk(r)}
-                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap
-                                                ${filterRisk === r ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
-                                            {r === 'all' ? 'Todas' : r === 'high' ? '⚠️ Crítico' : r === 'medium' ? '⚡ Atenção' : '✅ Estável'}
-                                            {r !== 'all' && ` (${stats[r]})`}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Table */}
-                            <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
-                                <div className="hidden md:grid grid-cols-5 px-5 py-3 bg-white/[0.03] border-b border-white/5 text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                                    <span>Rainha</span>
-                                    <span>Situação IA</span>
-                                    <span>Check-in</span>
-                                    <span>Engajamento</span>
-                                    <span className="text-right">Status</span>
-                                </div>
-
-                                {loading ? (
-                                    <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-slate-600"/></div>
-                                ) : filtered.length === 0 ? (
-                                    <div className="py-12 text-center text-slate-600 text-sm">Nenhuma rainha encontrada.</div>
-                                ) : filtered.map(r => {
-                                    const rm = RISK_META[r.riskLevel as keyof typeof RISK_META]
-                                    return (
-                                        <div key={r.id} onClick={() => setSelected(r)}
-                                            className="grid grid-cols-2 md:grid-cols-5 items-center px-5 py-3.5 border-b border-white/[0.04] hover:bg-white/[0.03] cursor-pointer transition-colors group">
-
-                                            {/* Name */}
-                                            <div className="flex items-center gap-3">
-                                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black border flex-shrink-0 ${rm.bg} ${rm.color}`}>
-                                                    {r.userAvatar}
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <p className="font-bold text-white text-sm truncate group-hover:text-indigo-300 transition-colors">{r.userName}</p>
-                                                    <p className="text-[9px] text-slate-600">{PLAN_LABELS[r.plan] || r.plan}</p>
-                                                </div>
-                                            </div>
-
-                                            {/* AI summary */}
-                                            <div className="hidden md:flex items-start gap-1.5 min-w-0">
-                                                <Sparkles size={11} className="text-indigo-400 flex-shrink-0 mt-0.5"/>
-                                                <span className="text-slate-500 text-xs italic truncate">"{r.summary}"</span>
-                                            </div>
-
-                                            {/* Check-in score */}
-                                            <div className="hidden md:flex items-center gap-2">
-                                                {r.hasCheckin && r.checkinScore !== null ? (
-                                                    <span className={`text-sm font-black ${r.checkinScore >= 7 ? 'text-emerald-400' : r.checkinScore >= 5 ? 'text-amber-400' : 'text-rose-400'}`}>
-                                                        {r.checkinScore}/10
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-[10px] text-slate-700 italic">sem check-in</span>
-                                                )}
-                                            </div>
-
-                                            {/* Engagement */}
-                                            <div className="hidden md:flex items-center gap-3">
-                                                <span className="flex items-center gap-1 text-xs text-orange-400"><Flame size={11}/> {r.streak}d</span>
-                                                <span className="flex items-center gap-1 text-xs text-slate-400">
-                                                    {r.adherenceRate >= 60 ? <TrendingUp size={11} className="text-emerald-400"/> : <TrendingDown size={11} className="text-rose-400"/>}
-                                                    {r.adherenceRate}%
-                                                </span>
-                                            </div>
-
-                                            {/* Status + quick rescue */}
-                                            <div className="flex items-center justify-end gap-2">
-                                                {r.riskLevel === 'high' && (
-                                                    <button onClick={e => { e.stopPropagation(); handleRescue(r.id) }}
-                                                        disabled={sendingRescue === r.id}
-                                                        className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2.5 py-1.5 bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-300 rounded-xl text-[10px] font-bold transition-all">
-                                                        {sendingRescue === r.id ? <Loader2 size={10} className="animate-spin"/> : <Heart size={10}/>}
-                                                        Resgatar
-                                                    </button>
-                                                )}
-                                                <span className={`text-[9px] font-black uppercase px-2.5 py-1.5 rounded-xl border flex items-center gap-1 ${rm.bg} ${rm.color}`}>
-                                                    {rm.icon} {rm.label}
-                                                </span>
-                                            </div>
+                    <div className="space-y-6">
+                        {questions.map((q, i) => (
+                            <div key={q.id} className="glass-panel p-6 rounded-[2rem] border border-white/10 bg-white/5 group flex items-start gap-6 hover:border-indigo-500/30 transition-all shadow-xl">
+                                <span className="text-slate-700 font-black text-2xl pt-2">{String(i + 1).padStart(2, '0')}</span>
+                                <div className="flex-1 space-y-4">
+                                    <input value={q.text} onChange={(e) => updateQuestion(q.id, 'text', e.target.value)} className="w-full bg-transparent font-bold text-white outline-none border-b border-transparent focus:border-indigo-500 pb-2 text-lg transition-all" />
+                                    <div className="flex items-center gap-4">
+                                        <div className="relative">
+                                            <select value={q.type} onChange={(e) => updateQuestion(q.id, 'type', e.target.value)} className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-400 appearance-none cursor-pointer focus:border-indigo-500 outline-none">
+                                                <option value="scale">Métrica 0-10</option>
+                                                <option value="text">Campo de Texto</option>
+                                                <option value="select">Múltipla Escolha</option>
+                                                <option value="yesno">Decisão Binária (S/N)</option>
+                                            </select>
+                                            <ChevronRight size={14} className="absolute right-3 top-3 text-slate-600 rotate-90" />
                                         </div>
-                                    )
-                                })}
+                                        <label className="flex items-center gap-2 cursor-pointer group/check">
+                                            <input
+                                                type="checkbox"
+                                                checked={q.required}
+                                                onChange={(e) => updateQuestion(q.id, 'required', e.target.checked)}
+                                                className="w-4 h-4 rounded border-white/10 bg-white/5 checked:bg-indigo-600 transition-all cursor-pointer"
+                                            />
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 group-hover/check:text-indigo-400 transition-colors">Obrigatório</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <button onClick={() => deleteQuestion(q.id)} className="opacity-0 group-hover:opacity-100 text-rose-500 p-3 hover:bg-rose-500/10 rounded-xl transition-all"><Trash2 size={20} /></button>
                             </div>
-                        </>
-                    )}
+                        ))}
+                    </div>
+
+                    <div className="flex flex-col md:flex-row gap-4">
+                        <button onClick={addQuestion} className="flex-1 py-8 border-2 border-dashed border-white/10 rounded-[2rem] text-slate-600 hover:text-indigo-400 hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all flex items-center justify-center gap-3 font-black uppercase tracking-widest text-xs">
+                            <Plus size={24} /> Criar Novo Campo de Análise
+                        </button>
+                        <Button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="h-24 px-12 rounded-[2rem] bg-indigo-600 hover:bg-indigo-500 shadow-2xl shadow-indigo-900/40 font-black uppercase tracking-[0.2em] text-sm border-none gap-4"
+                        >
+                            {saving ? <Loader2 className="animate-spin" size={24} /> : <Save size={24} />}
+                            {saving ? 'Validando...' : 'Propagar no Reino'}
+                        </Button>
+                    </div>
                 </div>
             )}
 
-            {/* Detail drawer */}
             <AnimatePresence>
-                {selected && (
-                    <PatientDetailDrawer
-                        patient={selected}
-                        onClose={() => setSelected(null)}
-                        onRescue={() => handleRescue(selected.id)}
-                        onNavigate={() => { setSelected(null); setMainView('patients') }}
-                    />
+                {selectedResponse && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-[#020617]/95 backdrop-blur-2xl z-[100] flex items-center justify-center p-6" onClick={() => setSelectedResponse(null)}>
+                        <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} onClick={(e) => e.stopPropagation()} className="bg-slate-900 border border-white/10 w-full max-w-xl rounded-[3rem] overflow-hidden shadow-2xl">
+                            <div className="p-10 border-b border-white/5 flex justify-between items-start">
+                                <div className="flex items-center gap-6">
+                                    <div className={`w-16 h-16 rounded-[1.25rem] flex items-center justify-center text-xl font-black shadow-inner border border-white/10 ${selectedResponse.riskLevel === 'high' ? 'bg-rose-500/10 text-rose-400' : selectedResponse.riskLevel === 'medium' ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'}`}>{selectedResponse.userAvatar}</div>
+                                    <div>
+                                        <h3 className="text-2xl font-bold text-white tracking-tight">{selectedResponse.userName}</h3>
+                                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">Registro Biomático: {selectedResponse.date}</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setSelectedResponse(null)} className="h-10 w-10 rounded-xl bg-white/5 flex items-center justify-center text-slate-500 hover:text-white transition-all"><X size={20} /></button>
+                            </div>
+                            <div className="p-10 space-y-8">
+                                <div className="grid grid-cols-2 gap-8">
+                                    <div className="space-y-1">
+                                        <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Nível de Risco</span>
+                                        <div className="pt-2">{getRiskBadge(selectedResponse.riskLevel)}</div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Score Qualitativo</span>
+                                        <div className="text-3xl font-black text-white pt-1">{selectedResponse.riskScore}<span className="text-slate-600 font-light">/10</span></div>
+                                    </div>
+                                </div>
+
+                                <div className="glass-panel p-8 rounded-[2rem] border border-indigo-500/20 bg-indigo-500/5 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 blur-3xl" />
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-3 text-indigo-400 text-[10px] font-black uppercase tracking-widest">
+                                            <Sparkles size={16} /> Análise Interpretativa Nutri.AI
+                                        </div>
+                                        <button 
+                                            onClick={() => analyzeWithAI(selectedResponse)}
+                                            disabled={isAnalyzing}
+                                            className="text-indigo-400 hover:text-white transition-colors"
+                                        >
+                                            {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
+                                        </button>
+                                    </div>
+                                    <p className="text-slate-300 text-base leading-relaxed font-light italic">
+                                        {isAnalyzing ? "Analisando biomarcadores em tempo real..." : `"${selectedResponse.summary}"`}
+                                    </p>
+                                </div>
+
+                                <Button className="w-full h-16 bg-white hover:bg-slate-200 text-slate-900 rounded-2xl font-black uppercase tracking-widest text-xs gap-3 shadow-2xl shadow-white/5 border-none">
+                                    <MessageSquare size={18} /> Iniciar Intervenção Direta
+                                </Button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
                 )}
             </AnimatePresence>
         </div>
