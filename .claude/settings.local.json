@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where gh:*)",
+      "Bash(npx tsc:*)",
+      "Bash(winget install:*)"
+    ]
+  }
+}
