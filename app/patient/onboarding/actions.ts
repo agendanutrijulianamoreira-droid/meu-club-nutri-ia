@@ -9,13 +9,14 @@ const onboardingSchema = z.object({
     weight: z.string().min(1, "Peso é obrigatório"),
     height: z.string().min(1, "Altura é obrigatória"),
     mainGoal: z.string().min(1, "Selecione um objetivo"),
-    painPoints: z.string() // Array stringificado (JSON) das dores
+    painPoints: z.string(),
+    dietaryRestrictions: z.string(),
+    activityLevel: z.string().min(1, "Selecione o nível de atividade"),
 });
 
 export async function completeOnboarding(formData: FormData) {
     const supabase = createSupabaseServerClient(cookies());
 
-    // 1. Pega o usuário logado
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return { error: "Não autorizado" };
 
@@ -25,16 +26,24 @@ export async function completeOnboarding(formData: FormData) {
     if (!parsed.success) return { error: "Verifique os dados preenchidos." };
 
     try {
-        // 2. Salva as informações iniciais no perfil do paciente
+        const painPoints = JSON.parse(parsed.data.painPoints) as string[];
+        const dietaryRestrictions = JSON.parse(parsed.data.dietaryRestrictions) as string[];
+        const weightNum = parseFloat(parsed.data.weight);
+        const heightNum = parseInt(parsed.data.height, 10);
+
         const { error } = await supabase
             .from('profiles')
             .update({
                 onboarding_completed: true,
+                initial_weight: weightNum,
+                current_weight: weightNum,
+                primary_goal: parsed.data.mainGoal,
+                dietary_restrictions: dietaryRestrictions,
                 metadata: {
-                    initial_weight: parsed.data.weight,
-                    height: parsed.data.height,
-                    main_goal: parsed.data.mainGoal,
-                    pain_points: JSON.parse(parsed.data.painPoints)
+                    height: heightNum,
+                    pain_points: painPoints,
+                    activity_level: parsed.data.activityLevel,
+                    onboarding_date: new Date().toISOString(),
                 }
             })
             .eq('user_id', session.user.id);
@@ -42,10 +51,9 @@ export async function completeOnboarding(formData: FormData) {
         if (error) throw error;
 
     } catch (err: any) {
-        console.error("Erro no onboarding:", err);
+        console.error("[Onboarding] Erro:", err);
         return { error: "Erro ao salvar seus dados. Tente novamente." };
     }
 
-    // 3. Redireciona para a Home destravada
     redirect('/patient/home?onboarded=true');
 }

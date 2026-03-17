@@ -1,20 +1,25 @@
 "use client"
 
-import { ReactNode, useEffect } from "react"
+import { ReactNode, useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Home, Utensils, Trophy, User } from "lucide-react"
 import { supabase } from "@/lib/supabase-browser"
 import { useFCMToken } from "@/lib/hooks/useFCMToken"
+import { useOneSignal } from "@/lib/hooks/useOneSignal"
 
 export default function PatientLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname()
     const router = useRouter()
+    const [discretionMode, setDiscretionMode] = useState(false)
 
     // Ativar captura de Token FCM para Push (Desativado para MVP - Foco Inbox)
     // useFCMToken()
 
-    // Proteção: 
+    // OneSignal Web Push - inicializa SDK e registra external_user_id
+    useOneSignal()
+
+    // Proteção:
     // 1. Redirecionar nutris que caírem aqui por engano
     // 2. Forçar onboarding se não completou (trava-portas)
     useEffect(() => {
@@ -24,11 +29,25 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
 
             const { data: profile } = await supabase
                 .from('profiles')
-                .select('role, onboarding_completed')
+                .select('role, onboarding_completed, discretion_mode')
                 .eq('user_id', user.id)
                 .single()
 
             if (!profile) return
+
+            // Load discretion mode
+            if (profile.discretion_mode) {
+                setDiscretionMode(true)
+                document.title = 'My Wellness'
+                // Add noindex meta tag for discretion
+                const existingMeta = document.querySelector('meta[name="robots"]')
+                if (!existingMeta) {
+                    const meta = document.createElement('meta')
+                    meta.name = 'robots'
+                    meta.content = 'noindex'
+                    document.head.appendChild(meta)
+                }
+            }
 
             // Nutris → admin
             const role = profile.role || user.user_metadata?.user_type
@@ -46,12 +65,19 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
         checkAccess()
     }, [router, pathname])
 
-    const navItems = [
-        { href: "/patient/home", label: "Início", icon: Home },
-        { href: "/patient/diet", label: "Meu Plano", icon: Utensils },
-        { href: "/patient/ranking", label: "Ranking", icon: Trophy },
-        { href: "/patient/profile", label: "Perfil", icon: User },
-    ]
+    const navItems = discretionMode
+        ? [
+            { href: "/patient/home", label: "Home", icon: Home },
+            { href: "/patient/diet", label: "Planner", icon: Utensils },
+            { href: "/patient/ranking", label: "Goals", icon: Trophy },
+            { href: "/patient/profile", label: "Me", icon: User },
+        ]
+        : [
+            { href: "/patient/home", label: "Início", icon: Home },
+            { href: "/patient/diet", label: "Meu Plano", icon: Utensils },
+            { href: "/patient/ranking", label: "Ranking", icon: Trophy },
+            { href: "/patient/profile", label: "Perfil", icon: User },
+        ]
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-950 via-[#0f172a] to-[#1e1b4b] pb-20">

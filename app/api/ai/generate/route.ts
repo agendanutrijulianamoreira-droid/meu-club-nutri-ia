@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { aiGenerateLimiter } from '@/lib/rate-limiter'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
 
@@ -18,6 +19,23 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // 2. Rate Limit Guard
+    const { allowed, remaining, resetAt } = aiGenerateLimiter.check(user.id)
+    if (!allowed) {
+        const retryAfterSeconds = Math.ceil((resetAt - Date.now()) / 1000)
+        return NextResponse.json(
+            { error: `Muitas requisições. Tente novamente em ${retryAfterSeconds} segundos.` },
+            {
+                status: 429,
+                headers: {
+                    'X-RateLimit-Remaining': String(remaining),
+                    'X-RateLimit-Reset': String(resetAt),
+                    'Retry-After': String(retryAfterSeconds),
+                },
+            }
+        )
+    }
+
     try {
         const { task, context, prompt } = await request.json()
 
@@ -25,10 +43,10 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Task is required' }, { status: 400 })
         }
 
-        // 2. Load Tenant Personality
+        // 2. Load Tenant Personality & Patient Cycle Data
         const { data: profile } = await supabase
             .from('profiles')
-            .select('tenant_id')
+            .select('tenant_id, cycle_tracking_enabled, last_period_start, cycle_length')
             .eq('user_id', user.id)
             .single()
 
@@ -57,6 +75,23 @@ export async function POST(request: NextRequest) {
         let systemInstruction = `Você é a inteligência artificial do ${brandName}, operando sob o método "${methodName}".
 Sua personalidade é "${personality}".
 Responda sempre em JSON válido seguindo estritamente o esquema solicitado.`
+
+        // If patient has cycle tracking, include phase context
+        if (profile?.cycle_tracking_enabled && profile?.last_period_start) {
+            const lastPeriod = new Date(profile.last_period_start)
+            const today = new Date()
+            const diffDays = Math.floor((today.getTime() - lastPeriod.getTime()) / (1000 * 60 * 60 * 24))
+            const cycleLen = profile.cycle_length || 28
+            const currentDay = (diffDays % cycleLen) + 1
+
+            let phase = 'menstrual'
+            if (currentDay <= 5) phase = 'menstrual'
+            else if (currentDay <= 13) phase = 'folicular'
+            else if (currentDay <= 16) phase = 'ovulatória'
+            else phase = 'lútea'
+
+            systemInstruction += `\nA paciente está na fase ${phase} do ciclo menstrual (dia ${currentDay} de ${cycleLen}). Considere isso nas recomendações nutricionais e de atividades.`
+        }
 
         if (task === 'generate-protocol') {
             systemInstruction += `

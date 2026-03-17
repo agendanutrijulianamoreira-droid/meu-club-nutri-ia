@@ -33,21 +33,50 @@ export default function PatientHomePage() {
     } = usePatientEngine()
     const [unreadCount, setUnreadCount] = useState(0)
     const [firstName, setFirstName] = useState("Rainha")
+    const [cycleData, setCycleData] = useState<{
+        enabled: boolean
+        phase: string | null
+        day: number | null
+        length: number
+    } | null>(null)
 
     useEffect(() => {
         const init = async () => {
             const { data: { session } } = await supabase.auth.getSession()
             if (!session) return
 
-            // Load profile name
+            // Load profile name and cycle data
             const { data: profile } = await supabase
                 .from('profiles')
-                .select('name')
+                .select('name, cycle_tracking_enabled, last_period_start, cycle_length')
                 .eq('user_id', session.user.id)
                 .single()
 
             if (profile?.name) {
                 setFirstName(profile.name.split(' ')[0])
+            }
+
+            // Calculate cycle phase if tracking enabled
+            if (profile?.cycle_tracking_enabled && profile?.last_period_start) {
+                const lastPeriod = new Date(profile.last_period_start)
+                const today = new Date()
+                const diffTime = today.getTime() - lastPeriod.getTime()
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+                const cycleLen = profile.cycle_length || 28
+                const currentDay = (diffDays % cycleLen) + 1
+
+                let phase = 'menstrual'
+                if (currentDay <= 5) phase = 'menstrual'
+                else if (currentDay <= 13) phase = 'follicular'
+                else if (currentDay <= 16) phase = 'ovulatory'
+                else phase = 'luteal'
+
+                setCycleData({
+                    enabled: true,
+                    phase,
+                    day: currentDay,
+                    length: cycleLen
+                })
             }
 
             // Load unread count
@@ -120,6 +149,11 @@ export default function PatientHomePage() {
                         <p className="text-2xl font-bold text-white">{progressPercentage}%</p>
                     </div>
                 </div>
+
+                {/* Cycle Tracker Card */}
+                {cycleData?.enabled && cycleData.phase && (
+                    <CycleTrackerCard phase={cycleData.phase} day={cycleData.day!} length={cycleData.length} />
+                )}
             </div>
 
             {/* Daily Progress Ring */}
@@ -281,5 +315,74 @@ export default function PatientHomePage() {
                 </div>
             )}
         </div>
+    )
+}
+
+/* ── Cycle Tracker Card ── */
+
+const CYCLE_PHASES: Record<string, { emoji: string; label: string; tip: string; gradient: string; border: string }> = {
+    menstrual: {
+        emoji: "\uD83D\uDD34",
+        label: "Menstrual",
+        tip: "Fase de descanso. Prefira alimentos ricos em ferro e reduza treinos intensos.",
+        gradient: "from-red-600/10 to-pink-600/10",
+        border: "border-red-500/20"
+    },
+    follicular: {
+        emoji: "\uD83C\uDF31",
+        label: "Folicular",
+        tip: "Energia em alta! Bom momento para novos hábitos e treinos mais intensos.",
+        gradient: "from-green-600/10 to-emerald-600/10",
+        border: "border-green-500/20"
+    },
+    ovulatory: {
+        emoji: "\uD83C\uDF38",
+        label: "Ovulat\u00f3ria",
+        tip: "Pico de energia e disposi\u00e7\u00e3o. Aproveite para socializar e treinar forte!",
+        gradient: "from-pink-600/10 to-rose-600/10",
+        border: "border-pink-500/20"
+    },
+    luteal: {
+        emoji: "\uD83C\uDF42",
+        label: "L\u00fatea",
+        tip: "O corpo pede conforto. Aumente magn\u00e9sio e evite a\u00e7\u00facar refinado.",
+        gradient: "from-amber-600/10 to-orange-600/10",
+        border: "border-amber-500/20"
+    }
+}
+
+function CycleTrackerCard({ phase, day, length }: { phase: string; day: number; length: number }) {
+    const info = CYCLE_PHASES[phase] || CYCLE_PHASES.menstrual
+    const progressPct = Math.round((day / length) * 100)
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className={`mt-3 bg-gradient-to-br ${info.gradient} backdrop-blur-xl border ${info.border} rounded-2xl p-4`}
+        >
+            <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                    <span className="text-xl">{info.emoji}</span>
+                    <div>
+                        <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Ciclo Menstrual</p>
+                        <p className="text-sm font-bold text-white">Fase {info.label}</p>
+                    </div>
+                </div>
+                <span className="text-xs font-bold text-slate-300 bg-white/10 px-3 py-1 rounded-full">
+                    Dia {day} de {length}
+                </span>
+            </div>
+            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mb-3">
+                <motion.div
+                    className="h-full rounded-full bg-gradient-to-r from-white/30 to-white/50"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progressPct}%` }}
+                    transition={{ duration: 0.6, ease: "easeOut" }}
+                />
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">{info.tip}</p>
+        </motion.div>
     )
 }
