@@ -509,17 +509,24 @@ O sistema usa um **Orchestrator** central que recebe eventos e despacha para age
 **Trigger:** Cron diário + chamada direta de outros webhooks
 **Segredos:** `ANTHROPIC_API_KEY`, `CRON_SECRET`, `FCM_SERVER_KEY`
 **Eventos suportados:**
-- `cron_daily` → roda Sabotage + Daily Engagement para todos os tenants
+- `cron_daily` → roda Sabotage → Engagement → Retention → Protocol → Community
 - `checkin_submitted` → analisa risco pós-checkin
+- `meal_logged` → feedback nutricional via Meals Agent
+- `post_created` → auto-moderação via Community Moderation Agent
 - `stripe_webhook` → dispara Onboarding para novos assinantes
-- `manual` → execução manual de agente específico
+- `manual` → execução manual de agente específico (payload: `{ agent: 'nome' }`)
 
-**Agentes embutidos:**
+**Agentes embutidos (8 total):**
 | Agente | Função | Trigger |
 |---|---|---|
-| Sabotage Detection | Calcula risk scores, detecta padrões de autossabotagem | cron_daily, checkin |
+| Sabotage Detection | Calcula risk scores 0-100 em 4 dimensões, detecta autossabotagem | cron_daily, checkin |
 | Daily Engagement | Gera mensagens personalizadas baseado em risk scores | cron_daily |
 | Onboarding | Boas-vindas em 3 etapas para novos assinantes | stripe_webhook |
+| Meals | Feedback nutricional instantâneo ao registrar refeição (score + dica) | meal_logged |
+| Retention | Win-back para pacientes sumidas 3+d, escala urgência, anti-spam 48h | cron_daily |
+| Protocol | Detecta transições de fase (início/metade/fim/completou), auto-completa | cron_daily |
+| Community | Gera 1 post inspiracional/dia adaptado ao dia da semana | cron_daily |
+| Community Moderation | Auto-modera posts novos, flagga conteúdo impróprio, fail-open | post_created |
 
 ### `daily-engagement`
 **Deploy:** `supabase/functions/daily-engagement/index.ts`

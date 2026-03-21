@@ -16,7 +16,7 @@ const MODEL = 'claude-sonnet-4-20250514'
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface OrchestratorEvent {
-  type: 'cron_daily' | 'checkin_submitted' | 'chat_message' | 'stripe_webhook' | 'photo_submitted' | 'manual'
+  type: 'cron_daily' | 'checkin_submitted' | 'chat_message' | 'stripe_webhook' | 'photo_submitted' | 'meal_logged' | 'post_created' | 'manual'
   tenant_id?: string
   user_id?: string
   payload?: Record<string, any>
@@ -132,7 +132,7 @@ serve(async (req) => {
     switch (event.type) {
 
       case 'cron_daily': {
-        // Cron diário: roda sabotage → daily_checkin → gamification para cada tenant
+        // Cron diário: roda toda a cadeia de agentes para cada tenant
         const tenants = await getActiveTenants(supabase, event.tenant_id)
 
         for (const tenant of tenants) {
@@ -143,15 +143,27 @@ serve(async (req) => {
           const sabotageResult = await runSabotageAgent(supabase, tenant, patients)
           results.push(sabotageResult)
 
-          // 2. Daily Check-in — gera mensagens de engajamento baseado no risk
+          // 2. Daily Engagement — mensagens personalizadas baseado no risk
           const engagementResult = await runDailyEngagementAgent(supabase, tenant, patients, sabotageResult)
           results.push(engagementResult)
+
+          // 3. Retention — win-back para pacientes sumidas
+          const retentionResult = await runRetentionAgent(supabase, tenant, patients, sabotageResult)
+          results.push(retentionResult)
+
+          // 4. Protocol — detecta transições de fase e gera conteúdo
+          const protocolResult = await runProtocolAgent(supabase, tenant, patients)
+          results.push(protocolResult)
+
+          // 5. Community — gera post inspiracional diário para o feed
+          const communityResult = await runCommunityAgent(supabase, tenant, patients)
+          results.push(communityResult)
         }
         break
       }
 
       case 'checkin_submitted': {
-        // Paciente enviou check-in semanal → analisa e responde
+        // Paciente enviou check-in semanal → analisa risco e dá feedback
         if (!event.user_id || !event.tenant_id) break
         const tenant = (await getActiveTenants(supabase, event.tenant_id))[0]
         if (!tenant) break
@@ -160,6 +172,22 @@ serve(async (req) => {
 
         const sabotageResult = await runSabotageAgent(supabase, tenant, patients)
         results.push(sabotageResult)
+        break
+      }
+
+      case 'meal_logged': {
+        // Paciente registrou refeição ou enviou foto → feedback nutricional
+        if (!event.user_id || !event.tenant_id) break
+        const mealsResult = await runMealsAgent(supabase, event.tenant_id, event.user_id, event.payload)
+        results.push(mealsResult)
+        break
+      }
+
+      case 'post_created': {
+        // Novo post na comunidade → auto-moderação
+        if (!event.tenant_id || !event.payload?.post_id) break
+        const communityModResult = await runCommunityModerationAgent(supabase, event.tenant_id, event.payload.post_id)
+        results.push(communityModResult)
         break
       }
 
@@ -184,6 +212,15 @@ serve(async (req) => {
         } else if (agentName === 'daily_engagement') {
           const sabResult = await runSabotageAgent(supabase, tenant, patients)
           results.push(await runDailyEngagementAgent(supabase, tenant, patients, sabResult))
+        } else if (agentName === 'retention') {
+          const sabResult = await runSabotageAgent(supabase, tenant, patients)
+          results.push(await runRetentionAgent(supabase, tenant, patients, sabResult))
+        } else if (agentName === 'protocol') {
+          results.push(await runProtocolAgent(supabase, tenant, patients))
+        } else if (agentName === 'community') {
+          results.push(await runCommunityAgent(supabase, tenant, patients))
+        } else if (agentName === 'meals' && event.user_id) {
+          results.push(await runMealsAgent(supabase, event.tenant_id, event.user_id, event.payload))
         }
         break
       }
@@ -909,6 +946,557 @@ Retorne APENAS JSON:
       }).eq('id', agentLog.id)
     }
     return { agent_name: 'onboarding', status: 'error', messages: [], tokens_used: 0, duration_ms: elapsed, error: err.message }
+  }
+}
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AGENT: MEALS — Feedback nutricional ao registrar refeição
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function runMealsAgent(
+  supabase: SupabaseClient,
+  tenantId: string,
+  userId: string,
+  payload?: Record<string, any>
+): Promise<AgentResult> {
+  const start = Date.now()
+
+  const { data: agentLog } = await supabase
+    .from('agent_logs')
+    .insert({
+      tenant_id: tenantId,
+      user_id: userId,
+      agent_name: 'meals',
+      trigger_type: 'realtime',
+      input_payload: payload || {},
+      status: 'running',
+    })
+    .select('id')
+    .single()
+
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('name, primary_goal, current_streak, total_xp')
+      .eq('user_id', userId)
+      .single()
+
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('brand_name, method_name, gpt_system_prompt')
+      .eq('id', tenantId)
+      .single()
+
+    const { data: recentLogs } = await supabase
+      .from('daily_logs')
+      .select('log_date, meal_plan_check, water_check')
+      .eq('user_id', userId)
+      .order('log_date', { ascending: false })
+      .limit(7)
+
+    const firstName = (profile?.name || 'Rainha').split(' ')[0]
+    const brand = tenant?.brand_name || 'VitaClub'
+    const adherence7d = recentLogs
+      ? Math.round((recentLogs.filter((l: any) => l.meal_plan_check).length / Math.max(recentLogs.length, 1)) * 100)
+      : 0
+
+    const systemPrompt = tenant?.gpt_system_prompt ||
+      `Você é a nutricionista virtual do ${brand}. Dê feedback nutricional prático, sem julgamento, em português caloroso.`
+
+    const mealData = payload?.meal_description || payload?.log_data || 'Refeição registrada'
+
+    const userPrompt = `A paciente ${firstName} registrou uma refeição.
+
+DADOS: ${typeof mealData === 'object' ? JSON.stringify(mealData) : mealData}
+${payload?.photo_url ? 'Enviou foto do prato.' : ''}
+
+CONTEXTO: Streak ${profile?.current_streak || 0}d, Adesão 7d ${adherence7d}%, Objetivo: ${profile?.primary_goal || '?'}
+
+Dê feedback curto. Se seguiu o plano, celebre. Senão, acolha e sugira melhoria.
+
+Retorne APENAS JSON:
+{
+  "title": "título (máx 6 palavras)",
+  "body": "feedback (máx 3 frases, use nome ${firstName})",
+  "score": 1-10,
+  "tip": "dica prática para próxima refeição"
+}`
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({ model: MODEL, max_tokens: 500, system: systemPrompt, messages: [{ role: 'user', content: userPrompt }] }),
+    })
+
+    if (!res.ok) throw new Error(`Anthropic error: ${res.status}`)
+    const data = await res.json()
+    const totalTokens = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
+    const text = data.content?.[0]?.text || ''
+    const parsed = JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
+
+    await supabase.from('inbox_messages').insert({
+      tenant_id: tenantId, user_id: userId, agent_name: 'meals', agent_log_id: agentLog?.id,
+      title: parsed.title || 'Feedback da refeição',
+      body: `${parsed.body}\n\n💡 ${parsed.tip}`,
+      message_type: 'tip', priority: 'normal',
+      cta_label: 'Ver meu dia', cta_url: '/patient/home',
+      channels: ['inbox'], metadata: { score: parsed.score },
+    })
+
+    const elapsed = Date.now() - start
+    if (agentLog?.id) {
+      await supabase.from('agent_logs').update({
+        status: 'success', output_payload: { score: parsed.score }, tokens_used: totalTokens,
+        cost_usd: (data.usage?.input_tokens || 0) / 1000000 * 3 + (data.usage?.output_tokens || 0) / 1000000 * 15,
+        duration_ms: elapsed, completed_at: new Date().toISOString(),
+      }).eq('id', agentLog.id)
+    }
+
+    return {
+      agent_name: 'meals', status: 'success',
+      messages: [{ user_id: userId, title: parsed.title, body: parsed.body, message_type: 'tip', priority: 'normal', channels: ['inbox'] }],
+      tokens_used: totalTokens, duration_ms: elapsed,
+    }
+
+  } catch (err: any) {
+    const elapsed = Date.now() - start
+    console.error('[meals] Error:', err)
+    if (agentLog?.id) {
+      await supabase.from('agent_logs').update({ status: 'error', error_message: err.message, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+    }
+    return { agent_name: 'meals', status: 'error', messages: [], tokens_used: 0, duration_ms: elapsed, error: err.message }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AGENT: RETENTION — Win-back para pacientes sumidas
+// Escala: 3d nudge → 5d rescue → 7d+ alert_nutritionist
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function runRetentionAgent(
+  supabase: SupabaseClient,
+  tenant: TenantContext,
+  patients: PatientContext[],
+  sabotageResult: AgentResult
+): Promise<AgentResult> {
+  const start = Date.now()
+  let totalTokens = 0
+  const messages: AgentResult['messages'] = []
+
+  const { data: agentLog } = await supabase
+    .from('agent_logs')
+    .insert({ tenant_id: tenant.id, agent_name: 'retention', trigger_type: 'agent_chain', input_payload: { patients_count: patients.length }, status: 'running' })
+    .select('id').single()
+
+  try {
+    const riskMap = new Map((sabotageResult.risk_scores || []).map(r => [r.user_id, r]))
+
+    const inactivePatients = patients.filter(p => {
+      const risk = riskMap.get(p.user_id)
+      return p.days_since_activity >= 3 || risk?.recommended_action === 'rescue' || risk?.risk_level === 'critical'
+    })
+
+    if (inactivePatients.length === 0) {
+      const elapsed = Date.now() - start
+      if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'skipped', output_payload: { reason: 'no_inactive_patients' }, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+      return { agent_name: 'retention', status: 'skipped', messages: [], tokens_used: 0, duration_ms: elapsed }
+    }
+
+    // Anti-spam: não mandar se já contatou nas últimas 48h
+    const { data: recentRetention } = await supabase
+      .from('inbox_messages').select('user_id')
+      .eq('tenant_id', tenant.id).eq('agent_name', 'retention')
+      .gte('created_at', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString())
+
+    const recentlyContacted = new Set((recentRetention || []).map((r: any) => r.user_id))
+    const toContact = inactivePatients.filter(p => !recentlyContacted.has(p.user_id))
+
+    if (toContact.length === 0) {
+      const elapsed = Date.now() - start
+      if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'skipped', output_payload: { reason: 'all_recently_contacted' }, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+      return { agent_name: 'retention', status: 'skipped', messages: [], tokens_used: 0, duration_ms: elapsed }
+    }
+
+    const brand = tenant.brand_name
+    const systemPrompt = tenant.gpt_system_prompt ||
+      `Você é a nutricionista virtual do ${brand}. Traga pacientes de volta com carinho, sem julgamento, sem culpa.`
+
+    const patientsSummary = toContact.map(p => {
+      const risk = riskMap.get(p.user_id)
+      const urgency = p.days_since_activity >= 7 ? 'URGENTE' : p.days_since_activity >= 5 ? 'ALTA' : 'MÉDIA'
+      return `- ${p.name.split(' ')[0]} (${p.user_id}): ${p.days_since_activity}d sumida, streak era ${p.current_streak}, urgência ${urgency}`
+    }).join('\n')
+
+    const userPrompt = `Marca: ${brand}
+
+Win-back para pacientes inativas:
+${patientsSummary}
+
+REGRAS:
+- MÉDIA (3-4d): "sentimos sua falta", propor pequeno passo
+- ALTA (5-6d): acolher, facilitar retorno
+- URGENTE (7+d): empático, sem pressão, recomeço limpo
+- NUNCA culpe
+
+Retorne APENAS JSON:
+{ "messages": [{ "user_id": "uuid", "title": "máx 8 palavras", "body": "máx 3 frases", "urgency": "medium|high|urgent", "priority": "normal|high|urgent" }] }`
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 1500, system: systemPrompt, messages: [{ role: 'user', content: userPrompt }] }),
+    })
+
+    if (!res.ok) throw new Error(`Anthropic error: ${res.status}`)
+    const data = await res.json()
+    totalTokens = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
+    const parsed = JSON.parse((data.content?.[0]?.text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
+
+    for (const msg of parsed.messages || []) {
+      const channels = ['inbox']
+      if (msg.priority === 'high' || msg.priority === 'urgent') channels.push('push')
+
+      await supabase.from('inbox_messages').insert({
+        tenant_id: tenant.id, user_id: msg.user_id, agent_name: 'retention', agent_log_id: agentLog?.id,
+        title: msg.title, body: msg.body, message_type: 'rescue', priority: msg.priority || 'high',
+        cta_label: 'Voltar ao app', cta_url: '/patient/home', channels, metadata: { urgency: msg.urgency },
+      })
+      if (channels.includes('push')) await sendPush(supabase, msg.user_id, msg.title, msg.body)
+
+      messages.push({ user_id: msg.user_id, title: msg.title, body: msg.body, message_type: 'rescue', priority: msg.priority, channels })
+
+      // Marcar action_taken no risk score
+      await supabase.from('patient_risk_scores').update({ action_taken: true })
+        .eq('user_id', msg.user_id).eq('recommended_action', 'rescue').is('action_taken', false)
+    }
+
+    const elapsed = Date.now() - start
+    if (agentLog?.id) {
+      await supabase.from('agent_logs').update({
+        status: 'success', output_payload: { win_back_sent: messages.length },
+        tokens_used: totalTokens, cost_usd: (data.usage?.input_tokens || 0) / 1000000 * 3 + (data.usage?.output_tokens || 0) / 1000000 * 15,
+        duration_ms: elapsed, completed_at: new Date().toISOString(),
+      }).eq('id', agentLog.id)
+    }
+
+    return { agent_name: 'retention', status: 'success', messages, tokens_used: totalTokens, duration_ms: elapsed }
+
+  } catch (err: any) {
+    const elapsed = Date.now() - start
+    console.error('[retention] Error:', err)
+    if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'error', error_message: err.message, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+    return { agent_name: 'retention', status: 'error', messages: [], tokens_used: totalTokens, duration_ms: elapsed, error: err.message }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AGENT: PROTOCOL — Detecta transições de fase, gera conteúdo
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function runProtocolAgent(
+  supabase: SupabaseClient,
+  tenant: TenantContext,
+  patients: PatientContext[]
+): Promise<AgentResult> {
+  const start = Date.now()
+  let totalTokens = 0
+  const messages: AgentResult['messages'] = []
+
+  const { data: agentLog } = await supabase
+    .from('agent_logs')
+    .insert({ tenant_id: tenant.id, agent_name: 'protocol', trigger_type: 'agent_chain', input_payload: { patients_count: patients.length }, status: 'running' })
+    .select('id').single()
+
+  try {
+    const userIds = patients.map(p => p.user_id)
+    const { data: assignments } = await supabase
+      .from('protocol_assignments')
+      .select('id, user_id, protocol_id, start_date, status, protocols!inner(title, duration_days, content, category)')
+      .eq('tenant_id', tenant.id).eq('status', 'active').in('user_id', userIds)
+
+    if (!assignments || assignments.length === 0) {
+      const elapsed = Date.now() - start
+      if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'skipped', output_payload: { reason: 'no_active_assignments' }, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+      return { agent_name: 'protocol', status: 'skipped', messages: [], tokens_used: 0, duration_ms: elapsed }
+    }
+
+    const today = new Date()
+    const transitionPatients: Array<{ user_id: string; name: string; protocol_title: string; current_day: number; total_days: number; phase: string; assignment_id: string }> = []
+
+    for (const assignment of assignments) {
+      const protocol = (assignment as any).protocols
+      const startDate = new Date(assignment.start_date)
+      const currentDay = Math.floor((today.getTime() - startDate.getTime()) / 86400000) + 1
+      const totalDays = protocol.duration_days
+
+      const isFirstDay = currentDay === 1
+      const isHalfway = currentDay === Math.ceil(totalDays / 2)
+      const isLastDay = currentDay === totalDays
+      const isCompleted = currentDay > totalDays
+
+      if (isFirstDay || isHalfway || isLastDay || isCompleted) {
+        const patient = patients.find(p => p.user_id === assignment.user_id)
+        const phase = isCompleted ? 'completed' : isLastDay ? 'last_day' : isHalfway ? 'halfway' : 'first_day'
+
+        transitionPatients.push({
+          user_id: assignment.user_id, name: patient?.name || 'Rainha',
+          protocol_title: protocol.title, current_day: currentDay,
+          total_days: totalDays, phase, assignment_id: assignment.id,
+        })
+
+        if (isCompleted) {
+          await supabase.from('protocol_assignments')
+            .update({ status: 'completed', end_date: today.toISOString().split('T')[0] })
+            .eq('id', assignment.id)
+        }
+      }
+    }
+
+    if (transitionPatients.length === 0) {
+      const elapsed = Date.now() - start
+      if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'skipped', output_payload: { reason: 'no_transitions_today' }, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+      return { agent_name: 'protocol', status: 'skipped', messages: [], tokens_used: 0, duration_ms: elapsed }
+    }
+
+    const brand = tenant.brand_name
+    const systemPrompt = tenant.gpt_system_prompt || `Você é a nutricionista virtual do ${brand}. Guie pacientes nas transições de protocolo.`
+
+    const phaseMsg: Record<string, string> = {
+      first_day: 'INÍCIO do protocolo', halfway: 'METADE do protocolo',
+      last_day: 'ÚLTIMO DIA', completed: 'COMPLETOU o protocolo',
+    }
+    const patientsSummary = transitionPatients.map(p =>
+      `- ${p.name.split(' ')[0]} (${p.user_id}): ${phaseMsg[p.phase]} "${p.protocol_title}" (dia ${p.current_day}/${p.total_days})`
+    ).join('\n')
+
+    const userPrompt = `Marca: ${brand}
+
+Transições de protocolo hoje:
+${patientsSummary}
+
+REGRAS: INÍCIO→boas-vindas+dica, METADE→celebrar+motivar, ÚLTIMO DIA→preparar transição, COMPLETOU→grande celebração
+
+Retorne APENAS JSON:
+{ "messages": [{ "user_id": "uuid", "title": "máx 8 palavras", "body": "máx 4 frases", "phase": "first_day|halfway|last_day|completed", "cta_label": "texto", "cta_url": "/rota" }] }`
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 1500, system: systemPrompt, messages: [{ role: 'user', content: userPrompt }] }),
+    })
+
+    if (!res.ok) throw new Error(`Anthropic error: ${res.status}`)
+    const data = await res.json()
+    totalTokens = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
+    const parsed = JSON.parse((data.content?.[0]?.text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
+
+    for (const msg of parsed.messages || []) {
+      await supabase.from('inbox_messages').insert({
+        tenant_id: tenant.id, user_id: msg.user_id, agent_name: 'protocol', agent_log_id: agentLog?.id,
+        title: msg.title, body: msg.body, message_type: 'protocol',
+        priority: msg.phase === 'completed' ? 'high' : 'normal',
+        cta_label: msg.cta_label || 'Ver protocolo', cta_url: msg.cta_url || '/protocolo',
+        channels: ['inbox', 'push'],
+      })
+      await sendPush(supabase, msg.user_id, msg.title, msg.body)
+      messages.push({ user_id: msg.user_id, title: msg.title, body: msg.body, message_type: 'protocol', priority: msg.phase === 'completed' ? 'high' : 'normal', channels: ['inbox', 'push'] })
+    }
+
+    const elapsed = Date.now() - start
+    if (agentLog?.id) {
+      await supabase.from('agent_logs').update({
+        status: 'success', output_payload: { transitions: transitionPatients.map(p => ({ user_id: p.user_id, phase: p.phase })) },
+        tokens_used: totalTokens, cost_usd: (data.usage?.input_tokens || 0) / 1000000 * 3 + (data.usage?.output_tokens || 0) / 1000000 * 15,
+        duration_ms: elapsed, completed_at: new Date().toISOString(),
+      }).eq('id', agentLog.id)
+    }
+
+    return { agent_name: 'protocol', status: 'success', messages, tokens_used: totalTokens, duration_ms: elapsed }
+
+  } catch (err: any) {
+    const elapsed = Date.now() - start
+    console.error('[protocol] Error:', err)
+    if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'error', error_message: err.message, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+    return { agent_name: 'protocol', status: 'error', messages: [], tokens_used: totalTokens, duration_ms: elapsed, error: err.message }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AGENT: COMMUNITY — Post inspiracional diário + sugestão de temas
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function runCommunityAgent(
+  supabase: SupabaseClient,
+  tenant: TenantContext,
+  patients: PatientContext[]
+): Promise<AgentResult> {
+  const start = Date.now()
+  let totalTokens = 0
+
+  const { data: agentLog } = await supabase
+    .from('agent_logs')
+    .insert({ tenant_id: tenant.id, agent_name: 'community', trigger_type: 'agent_chain', input_payload: { patients_count: patients.length }, status: 'running' })
+    .select('id').single()
+
+  try {
+    // Anti-spam: já postou hoje?
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+    const { data: todayPosts } = await supabase
+      .from('posts').select('id').eq('tenant_id', tenant.id).eq('type', 'post')
+      .gte('created_at', todayStart.toISOString()).like('content', '%[IA]%').limit(1)
+
+    if (todayPosts && todayPosts.length > 0) {
+      const elapsed = Date.now() - start
+      if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'skipped', output_payload: { reason: 'already_posted_today' }, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+      return { agent_name: 'community', status: 'skipped', messages: [], tokens_used: 0, duration_ms: elapsed }
+    }
+
+    const activePatients = patients.filter(p => p.days_since_activity <= 2).length
+    const avgAdherence = patients.length > 0 ? Math.round(patients.reduce((sum, p) => sum + p.adherence_7d, 0) / patients.length) : 0
+
+    const { data: activeChallenges } = await supabase.from('challenges').select('title').eq('tenant_id', tenant.id).eq('status', 'active').limit(3)
+    const challengesList = (activeChallenges || []).map((c: any) => c.title).join(', ')
+
+    const brand = tenant.brand_name
+    const dayOfWeek = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'][new Date().getDay()]
+    const systemPrompt = tenant.gpt_system_prompt || `Você é a nutricionista virtual do ${brand}. Crie conteúdo inspiracional para a comunidade.`
+
+    const userPrompt = `Marca: ${brand}, dia: ${dayOfWeek}
+Comunidade: ${patients.length} pacientes, ${activePatients} ativas, adesão média ${avgAdherence}%
+${challengesList ? `Desafios ativos: ${challengesList}` : ''}
+
+Crie 1 post inspiracional: motivacional, pergunta engajante no final, máx 4 frases + 1 pergunta, sem hashtags.
+Tom de ${dayOfWeek === 'segunda' ? 'recomeço' : dayOfWeek === 'sexta' ? 'celebração' : dayOfWeek === 'domingo' ? 'preparação' : 'motivação prática'}
+
+Retorne APENAS JSON:
+{ "post_content": "texto", "engagement_question": "pergunta" }`
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 500, system: systemPrompt, messages: [{ role: 'user', content: userPrompt }] }),
+    })
+
+    if (!res.ok) throw new Error(`Anthropic error: ${res.status}`)
+    const data = await res.json()
+    totalTokens = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
+    const parsed = JSON.parse((data.content?.[0]?.text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
+
+    const { data: tenantOwner } = await supabase.from('tenants').select('owner_id').eq('id', tenant.id).single()
+
+    if (tenantOwner?.owner_id) {
+      await supabase.from('posts').insert({
+        user_id: tenantOwner.owner_id, tenant_id: tenant.id,
+        content: `${parsed.post_content}\n\n${parsed.engagement_question}\n\n[IA] 🤖`,
+        type: 'post', is_ai_moderated: true, ai_status: 'approved',
+      })
+    }
+
+    const elapsed = Date.now() - start
+    if (agentLog?.id) {
+      await supabase.from('agent_logs').update({
+        status: 'success', output_payload: { post_created: true, day_of_week: dayOfWeek },
+        tokens_used: totalTokens, cost_usd: (data.usage?.input_tokens || 0) / 1000000 * 3 + (data.usage?.output_tokens || 0) / 1000000 * 15,
+        duration_ms: elapsed, completed_at: new Date().toISOString(),
+      }).eq('id', agentLog.id)
+    }
+
+    return { agent_name: 'community', status: 'success', messages: [], tokens_used: totalTokens, duration_ms: elapsed }
+
+  } catch (err: any) {
+    const elapsed = Date.now() - start
+    console.error('[community] Error:', err)
+    if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'error', error_message: err.message, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+    return { agent_name: 'community', status: 'error', messages: [], tokens_used: totalTokens, duration_ms: elapsed, error: err.message }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AGENT: COMMUNITY MODERATION — Auto-modera posts novos
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function runCommunityModerationAgent(
+  supabase: SupabaseClient,
+  tenantId: string,
+  postId: string
+): Promise<AgentResult> {
+  const start = Date.now()
+
+  const { data: agentLog } = await supabase
+    .from('agent_logs')
+    .insert({ tenant_id: tenantId, agent_name: 'community_moderation', trigger_type: 'realtime', input_payload: { post_id: postId }, status: 'running' })
+    .select('id').single()
+
+  try {
+    const { data: post } = await supabase.from('posts').select('id, content, user_id, type').eq('id', postId).single()
+
+    if (!post || !post.content) {
+      const elapsed = Date.now() - start
+      if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'skipped', output_payload: { reason: 'post_not_found' }, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+      return { agent_name: 'community_moderation', status: 'skipped', messages: [], tokens_used: 0, duration_ms: elapsed }
+    }
+
+    const systemPrompt = `Você é moderador de comunidade de saúde feminina.
+Classifique: approved (adequado) ou flagged (revisão humana).
+FLAGGAR: spam, bullying, desinformação de saúde, conteúdo sexual, dados pessoais, promoção de distúrbios alimentares.
+PERMITIR: desabafos, vulnerabilidades, dificuldades — isso é saudável.
+Retorne APENAS JSON: { "status": "approved|flagged", "reason": "motivo se flagged" }`
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 200, system: systemPrompt, messages: [{ role: 'user', content: `Analise: "${post.content}"` }] }),
+    })
+
+    if (!res.ok) throw new Error(`Anthropic error: ${res.status}`)
+    const data = await res.json()
+    const totalTokens = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
+    const parsed = JSON.parse((data.content?.[0]?.text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
+
+    await supabase.from('posts').update({ is_ai_moderated: true, ai_status: parsed.status }).eq('id', postId)
+
+    const adminMessages: AgentResult['messages'] = []
+    if (parsed.status === 'flagged') {
+      const { data: admins } = await supabase.from('profiles').select('user_id').eq('tenant_id', tenantId).in('role', ['admin', 'nutritionist'])
+      for (const admin of admins || []) {
+        await supabase.from('inbox_messages').insert({
+          tenant_id: tenantId, user_id: admin.user_id, agent_name: 'community_moderation', agent_log_id: agentLog?.id,
+          title: 'Post flaggado para revisão', body: `Motivo: ${parsed.reason}`,
+          message_type: 'alert', priority: 'high', cta_label: 'Revisar', cta_url: '/admin?view=community',
+          channels: ['inbox'], metadata: { post_id: postId, flag_reason: parsed.reason },
+        })
+        adminMessages.push({ user_id: admin.user_id, title: 'Post flaggado', body: parsed.reason, message_type: 'alert', priority: 'high', channels: ['inbox'] })
+      }
+    }
+
+    const elapsed = Date.now() - start
+    if (agentLog?.id) {
+      await supabase.from('agent_logs').update({
+        status: 'success', output_payload: { moderation_result: parsed.status, reason: parsed.reason || null },
+        tokens_used: totalTokens, cost_usd: (data.usage?.input_tokens || 0) / 1000000 * 3 + (data.usage?.output_tokens || 0) / 1000000 * 15,
+        duration_ms: elapsed, completed_at: new Date().toISOString(),
+      }).eq('id', agentLog.id)
+    }
+
+    return { agent_name: 'community_moderation', status: 'success', messages: adminMessages, tokens_used: totalTokens, duration_ms: elapsed }
+
+  } catch (err: any) {
+    const elapsed = Date.now() - start
+    console.error('[community_moderation] Error:', err)
+    // Fail-open: aprovar post em caso de erro (não bloquear a comunidade)
+    await supabase.from('posts').update({ is_ai_moderated: true, ai_status: 'approved' }).eq('id', postId)
+    if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'error', error_message: err.message, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+    return { agent_name: 'community_moderation', status: 'error', messages: [], tokens_used: 0, duration_ms: elapsed, error: err.message }
   }
 }
 
