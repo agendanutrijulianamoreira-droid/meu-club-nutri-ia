@@ -1,12 +1,12 @@
 // ==================================================
 // Supabase Edge Function: generate-menu
-// Gera cardápio personalizado usando OpenAI GPT-4o
+// Gera cardápio personalizado usando Claude (Anthropic)
 // ==================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -129,41 +129,44 @@ TIPOS VÁLIDOS: shot, meal, workout, water, content
 PONTOS: shot=10-20, meal=20-40, workout=30-50, water=10, content=5-10
 `;
 
-        // 4. Chamar OpenAI
+        // 4. Chamar Claude (Anthropic)
         const startTime = Date.now();
 
-        const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'x-api-key': ANTHROPIC_API_KEY!,
+                'anthropic-version': '2023-06-01',
             },
             body: JSON.stringify({
-                model: 'gpt-4o',
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 4000,
+                system: systemPrompt,
                 messages: [
-                    { role: 'system', content: systemPrompt },
                     { role: 'user', content: userPrompt }
                 ],
-                temperature: temperature,
-                response_format: { type: 'json_object' },
-                max_tokens: 3000,
             }),
         });
 
-        if (!openaiResponse.ok) {
-            const errorData = await openaiResponse.json();
-            throw new Error(`OpenAI error: ${JSON.stringify(errorData)}`);
+        if (!anthropicResponse.ok) {
+            const errorData = await anthropicResponse.json();
+            throw new Error(`Anthropic error: ${JSON.stringify(errorData)}`);
         }
 
-        const openaiData = await openaiResponse.json();
+        const anthropicData = await anthropicResponse.json();
         const generationTime = Date.now() - startTime;
 
-        // Parse JSON da IA
-        const generatedContent = JSON.parse(openaiData.choices[0].message.content);
+        // Parse JSON da IA (strip markdown fences)
+        const rawText = anthropicData.content?.[0]?.text || '';
+        const cleanText = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+        const generatedContent = JSON.parse(cleanText);
 
         // 5. Calcular custo aproximado
-        const tokensUsed = openaiData.usage.total_tokens;
-        const costUsd = (tokensUsed / 1000000) * 2.5; // GPT-4o pricing
+        const inputTokens = anthropicData.usage?.input_tokens || 0;
+        const outputTokens = anthropicData.usage?.output_tokens || 0;
+        const tokensUsed = inputTokens + outputTokens;
+        const costUsd = (inputTokens / 1000000) * 3 + (outputTokens / 1000000) * 15; // Claude Sonnet pricing
 
         // 6. Salvar log no banco
         const { data: logData, error: logError } = await supabase
@@ -175,7 +178,7 @@ PONTOS: shot=10-20, meal=20-40, workout=30-50, water=10, content=5-10
                 focus: focus,
                 duration_days: duration_days,
                 user_profile_snapshot: profile,
-                gpt_model: 'gpt-4o',
+                gpt_model: 'claude-sonnet-4-20250514',
                 gpt_temperature: temperature,
                 system_prompt_used: systemPrompt,
                 generated_content: generatedContent,

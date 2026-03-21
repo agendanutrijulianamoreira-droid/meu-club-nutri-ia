@@ -8,7 +8,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') || ''
+const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') || ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const CRON_SECRET = Deno.env.get('CRON_SECRET') || ''
@@ -247,7 +247,7 @@ serve(async (req) => {
   }
 })
 
-// ─── Generate personalized message with Gemini ───────────────────────────────
+// ─── Generate personalized message with Claude ───────────────────────────────
 async function generateEngagementMessage(
   patient: PatientContext,
   tenant: TenantContext
@@ -311,27 +311,26 @@ Retorne APENAS JSON válido:
 }`
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: userPrompt }] }],
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          generationConfig: {
-            responseMimeType: 'application/json',
-            maxOutputTokens: 200,
-            temperature: 0.9,
-          },
-        }),
-      }
-    )
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 300,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      }),
+    })
 
-    if (!res.ok) throw new Error(`Gemini error: ${res.status}`)
+    if (!res.ok) throw new Error(`Anthropic error: ${res.status}`)
     const data = await res.json()
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-    return JSON.parse(text)
+    const text = data.content?.[0]?.text || ''
+    const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+    return JSON.parse(clean)
   } catch (err) {
     console.error('[generateEngagementMessage] Error:', err)
     // Fallback sem IA

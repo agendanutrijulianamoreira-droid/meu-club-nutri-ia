@@ -25,11 +25,11 @@
 | Animações | Framer Motion | `motion`, `AnimatePresence` |
 | Banco de dados | Supabase (PostgreSQL) | RLS habilitado em todas as tabelas |
 | Autenticação | Supabase Auth | JWT, cookies server-side |
-| IA | Google Gemini (gemini-1.5-flash) | Via `@google/generative-ai` |
+| IA | Anthropic Claude (claude-sonnet-4-20250514) | Via `fetch` direto à API REST |
 | Storage | Supabase Storage | Buckets: `logos`, `library`, `social-proof` |
-| Edge Functions | Supabase Functions (Deno) | `daily-engagement`, `generate-menu` |
+| Edge Functions | Supabase Functions (Deno) | `agent-orchestrator`, `daily-engagement`, `generate-menu`, `analyze-plate`, `send-push-campaign` |
 | Pagamentos | Stripe | Não implementado ainda |
-| Push | OneSignal / Expo | Não implementado ainda |
+| Push | FCM (Firebase Cloud Messaging) | Via `device_tokens` table |
 
 ### Imports críticos
 ```typescript
@@ -493,21 +493,73 @@ seed_reward_items(p_tenant_id UUID)  -- Popula catálogo de recompensas de exemp
 
 ---
 
-## 12. EDGE FUNCTIONS
+## 12. EDGE FUNCTIONS & ORQUESTRA DE AGENTES
+
+### Arquitetura de Agentes IA
+
+O sistema usa um **Orchestrator** central que recebe eventos e despacha para agentes especializados. Todas as chamadas IA usam `fetch` direto à API Anthropic com `claude-sonnet-4-20250514`.
+
+**Tabelas de suporte:**
+- `agent_logs` — log de execução de todos os agentes (debug, métricas, billing)
+- `inbox_messages` — mensagens dos agentes para pacientes (Realtime habilitado)
+- `patient_risk_scores` — score de risco diário por paciente
+
+### `agent-orchestrator` (NOVO)
+**Deploy:** `supabase/functions/agent-orchestrator/index.ts`
+**Trigger:** Cron diário + chamada direta de outros webhooks
+**Segredos:** `ANTHROPIC_API_KEY`, `CRON_SECRET`, `FCM_SERVER_KEY`
+**Eventos suportados:**
+- `cron_daily` → roda Sabotage + Daily Engagement para todos os tenants
+- `checkin_submitted` → analisa risco pós-checkin
+- `stripe_webhook` → dispara Onboarding para novos assinantes
+- `manual` → execução manual de agente específico
+
+**Agentes embutidos:**
+| Agente | Função | Trigger |
+|---|---|---|
+| Sabotage Detection | Calcula risk scores, detecta padrões de autossabotagem | cron_daily, checkin |
+| Daily Engagement | Gera mensagens personalizadas baseado em risk scores | cron_daily |
+| Onboarding | Boas-vindas em 3 etapas para novos assinantes | stripe_webhook |
 
 ### `daily-engagement`
 **Deploy:** `supabase/functions/daily-engagement/index.ts`
 **Trigger:** Cron diário `0 9 * * *` (09:00 BRT = 12:00 UTC)
-**Segredos necessários:** `GEMINI_API_KEY`, `CRON_SECRET`
-**Lógica:**
-- Risco ALTO (daysSince > 7 ou streak = 0 + baixa adesão) → mensagem de resgate
-- Marco de streak (7/14/21/30/60/100 dias) → celebração
-- Risco MÉDIO (adesão < 60%) → dica motivacional
-- Risco BAIXO sem marco → nenhuma notificação (anti-spam)
+**Segredos:** `ANTHROPIC_API_KEY`, `CRON_SECRET`
+**Nota:** Versão legada mantida para compatibilidade. O `agent-orchestrator` é o caminho recomendado.
 
 ### `generate-menu`
 **Deploy:** `supabase/functions/generate-menu/index.ts`
-**Uso:** Geração de cardápio completo para a paciente
+**Uso:** Geração de cardápio personalizado (migrado de OpenAI para Claude)
+
+### `analyze-plate`
+**Deploy:** `supabase/functions/analyze-plate/index.ts`
+**Uso:** Análise de foto de prato via Claude Vision
+
+### `send-push-campaign`
+**Deploy:** `supabase/functions/send-push-campaign/index.ts`
+**Uso:** Envio de campanhas push em massa via FCM
+
+### Padrão de chamada IA em Edge Functions
+```typescript
+const res = await fetch('https://api.anthropic.com/v1/messages', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': Deno.env.get('ANTHROPIC_API_KEY')!,
+    'anthropic-version': '2023-06-01',
+  },
+  body: JSON.stringify({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 2000,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }],
+  }),
+})
+const data = await res.json()
+const text = data.content?.[0]?.text || ''
+const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+const parsed = JSON.parse(clean)
+```
 
 ---
 
@@ -548,7 +600,8 @@ Responda em português brasileiro natural, caloroso e humano. Use o nome da paci
 |---|---|
 | Chat paciente | Como "INSTRUÇÕES ADICIONAIS DO MÉTODO" ao final do systemPrompt |
 | Plano alimentar | Como base principal (`basePrompt`), concatenado com toneGuide |
-| Daily engagement | Como `systemInstruction` direto para o Gemini |
+| Daily engagement | Como `system` prompt direto para Claude |
+| Agent orchestrator | Como base do `system` prompt de cada agente |
 | Generate (protocolos/desafios/copy) | Como `baseInstructions` prefixado antes da instrução de task |
 | generate-menu (Edge) | Como base principal da instrução |
 
