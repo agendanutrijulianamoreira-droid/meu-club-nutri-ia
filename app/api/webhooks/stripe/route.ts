@@ -3,6 +3,7 @@ import { getStripe } from '@/lib/stripe'
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { OnboardingService } from '@/lib/services/onboarding'
+import { triggerOrchestrator } from '@/lib/services/anthropic'
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -140,6 +141,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
     // 4. Enviar boas-vindas (Email/WhatsApp)
     await OnboardingService.sendWelcomeMessages(userId, tenantId)
+
+    // 5. Trigger agent orchestrator → Onboarding Agent (3 mensagens personalizadas no inbox)
+    triggerOrchestrator('stripe_webhook', tenantId, userId, { plan, subscription_id: subscriptionId })
 }
 
 /**

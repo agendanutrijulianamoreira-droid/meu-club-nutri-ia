@@ -659,26 +659,55 @@ Responda em português brasileiro natural, caloroso e humano. Use o nome da paci
 NEXT_PUBLIC_SUPABASE_URL=https://antszuxeairmbctwuafo.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...   # Para criar usuários e operações admin
-GEMINI_API_KEY=...              # Google AI Studio
-CRON_SECRET=...                 # Mesmo valor configurado no Supabase Secret
+ANTHROPIC_API_KEY=sk-ant-...    # Anthropic Claude API
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+FCM_SERVER_KEY=...              # Firebase Cloud Messaging (push)
 
-# Supabase Edge Function Secrets
-GEMINI_API_KEY=...
+# Supabase Edge Function Secrets (configurar no Dashboard)
+ANTHROPIC_API_KEY=sk-ant-...
 CRON_SECRET=...
-FCM_SERVER_KEY=...              # Opcional - Firebase Cloud Messaging
+FCM_SERVER_KEY=...
+SUPABASE_URL=...                # Auto-preenchido pelo Supabase
+SUPABASE_SERVICE_ROLE_KEY=...   # Auto-preenchido pelo Supabase
+```
+
+### Helper Anthropic compartilhado: `lib/services/anthropic.ts`
+```typescript
+import { callClaude, callClaudeJSON, streamClaude, triggerOrchestrator } from '@/lib/services/anthropic'
+
+// Texto simples
+const text = await callClaude({ system: '...', messages: [...], maxTokens: 1000 })
+
+// JSON tipado
+const data = await callClaudeJSON<MyType>({ system: '...', messages: [...] })
+
+// Streaming (Next.js Response)
+const stream = streamClaude({ system: '...', messages: [...] })
+return new NextResponse(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
+
+// Fire-and-forget para orchestrator
+triggerOrchestrator('checkin_submitted', tenantId, userId)
 ```
 
 ---
 
 ## 16. PRÓXIMOS PASSOS CONHECIDOS
 
-- [ ] Integração Stripe para pagamentos e planos
-- [ ] Push notifications via OneSignal
-- [ ] Modo de discrição na paciente (ocultar app de terceiros)
-- [ ] Adaptação ao ciclo menstrual no app da paciente
-- [ ] Webhook do Stripe para ativação automática de planos
+- [x] Migração completa Gemini/OpenAI → Anthropic Claude (100% concluída)
+- [x] Orquestra de 8 agentes IA no orchestrator
+- [x] Dashboard admin de agentes (4 tabs: Overview, Agentes, Risco, Timeline)
+- [x] Inbox da paciente com Realtime
+- [x] Stripe webhook → Onboarding Agent
+- [x] Triggers automáticos (checkin, meal, post)
+- [ ] Rodar migration SQL `20260320_agent_infrastructure.sql` no Supabase
+- [ ] Deploy `supabase functions deploy agent-orchestrator`
+- [ ] Configurar pg_cron para cron diário do orchestrator
+- [ ] Push notifications via FCM (integração parcial — device_tokens existe)
 - [ ] Exportação CSV de dados das pacientes
 - [ ] Testes automatizados (zero cobertura atual)
+- [ ] Remover tabela `notifications` legada após validar `inbox_messages`
 
 ---
 
@@ -688,23 +717,41 @@ FCM_SERVER_KEY=...              # Opcional - Firebase Cloud Messaging
 # Dev local
 npm run dev
 
-# Type check (deve retornar 0 erros relevantes)
+# Type check (deve retornar 0 erros nos nossos arquivos)
 npx tsc --noEmit 2>&1 | grep "error TS" | grep -v "TS2307\|TS7026\|TS2503\|TS7006\|TS2580"
 
 # Commit padrão
 git add -A && git commit -m "feat: ..." && git push
 
 # Deploy Edge Functions
+supabase functions deploy agent-orchestrator
 supabase functions deploy daily-engagement
 supabase functions deploy generate-menu
+supabase functions deploy analyze-plate
+supabase functions deploy send-push-campaign
 
-# Seed de rewards (via API)
-curl -X POST /api/admin/rewards/seed
+# Trigger manual do orchestrator (cron)
+curl -X POST https://antszuxeairmbctwuafo.supabase.co/functions/v1/agent-orchestrator \
+  -H "Authorization: Bearer SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"cron_daily"}'
 
-# Ver logs do cron
-curl /api/admin/cron/trigger
+# Trigger manual de agente específico
+curl -X POST https://antszuxeairmbctwuafo.supabase.co/functions/v1/agent-orchestrator \
+  -H "Authorization: Bearer SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"manual","tenant_id":"UUID","payload":{"agent":"sabotage"}}'
+
+# pg_cron setup (rodar no SQL Editor do Supabase)
+SELECT cron.schedule('daily-agents', '0 12 * * *',
+  $$SELECT net.http_post(
+    url := 'https://antszuxeairmbctwuafo.supabase.co/functions/v1/agent-orchestrator',
+    headers := '{"x-cron-secret":"SEU_CRON_SECRET"}'::jsonb,
+    body := '{"type":"cron_daily"}'::jsonb
+  )$$
+);
 ```
 
 ---
 
-*Última atualização: Março 2026 — VitaClub v1.0 em desenvolvimento ativo*
+*Última atualização: Março 2026 — VitaClub v1.0 com orquestra completa de 8 agentes IA*
