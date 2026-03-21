@@ -93,6 +93,19 @@ export function useDailyLogs(userId: string) {
             if (error) throw error;
 
             setTodayLog(data);
+
+            // Trigger Meals Agent if meal was checked
+            if (checks.meal_plan_check !== undefined || checks.proof_photo_url) {
+                fetch('/api/trigger-agent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'meal_logged',
+                        payload: { log_data: checks },
+                    }),
+                }).catch(() => {}) // fire-and-forget
+            }
+
             return { success: true, data };
         } catch (err: any) {
             console.error('Erro ao salvar check-in:', err);

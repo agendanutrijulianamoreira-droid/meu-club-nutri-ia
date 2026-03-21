@@ -97,6 +97,16 @@ export default function CommunityPage() {
             setPosts([newPost, ...posts])
             setNewPostContent("")
             alert('Postagem enviada para a Tribo! +10 XP 🚀')
+
+            // Trigger Community Moderation Agent
+            fetch('/api/trigger-agent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'post_created',
+                    payload: { post_id: newPost.id },
+                }),
+            }).catch(() => {}) // fire-and-forget
         }
     }
 

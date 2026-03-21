@@ -52,7 +52,7 @@ export default function PatientHomePage() {
 
             // Load unread count
             const { count } = await supabase
-                .from('notifications')
+                .from('inbox_messages')
                 .select('*', { count: 'exact', head: true })
                 .eq('user_id', session.user.id)
                 .eq('status', 'unread')

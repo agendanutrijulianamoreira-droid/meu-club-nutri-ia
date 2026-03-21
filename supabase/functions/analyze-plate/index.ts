@@ -55,7 +55,7 @@ serve(async (req) => {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                model: 'claude-3-5-sonnet-20240620',
+                model: 'claude-sonnet-4-20250514',
                 max_tokens: 1024,
                 system: systemPrompt,
                 messages: [
@@ -105,7 +105,7 @@ serve(async (req) => {
                 tenant_id: (await supabase.from('profiles').select('tenant_id').eq('user_id', user_id).single()).data?.tenant_id,
                 prompt_text: "Plate Analysis",
                 generated_content: analysis,
-                gpt_model: 'claude-3-5-sonnet',
+                gpt_model: 'claude-sonnet-4-20250514',
                 generation_time_ms: generationTime,
                 status: 'success',
             });
