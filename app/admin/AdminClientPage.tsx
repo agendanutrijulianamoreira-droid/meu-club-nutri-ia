@@ -24,7 +24,8 @@ import {
     Globe,
     Brain,
     BookOpen,
-    ShieldCheck
+    ShieldCheck,
+    Bot
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -50,8 +51,9 @@ import { signOutAction } from "./actions/authActions"
 import { ChevronDown, LogOut, User as UserIcon, Building2, Palette } from "lucide-react"
 
 import { SettingsLoginView } from "./views/SettingsLoginView"
+import { AgentsDashboardView } from "./views/AgentsDashboardView"
 
-type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits' | 'library' | 'settings' | 'settings-login' | 'club-plan'
+type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits' | 'library' | 'settings' | 'settings-login' | 'club-plan' | 'agents-dashboard'
 
 const navItems = [
     { id: 'dashboard' as ViewType, label: 'Painel Central', icon: LayoutDashboard },
@@ -66,6 +68,7 @@ const navItems = [
     { id: 'sales-page' as ViewType, label: 'Bio-Page', icon: Globe },
     { id: 'ai-credits' as ViewType, label: 'Créditos IA', icon: CreditCard },
     { id: 'ai-brain' as ViewType, label: 'Config. IA', icon: Brain },
+    { id: 'agents-dashboard' as ViewType, label: 'Agentes IA', icon: Bot },
     { id: 'settings' as ViewType, label: 'Sistema', icon: Settings },
 ]
 
@@ -109,6 +112,7 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
             case 'sales-page': return <SalesPageGenerator setView={setActiveView} tenantId={tenantId} />
             case 'ai-brain': return <AISettingsView setView={setActiveView} tenantId={tenantId} />
             case 'ai-credits': return <AICreditsView setView={setActiveView} tenantId={tenantId} />
+            case 'agents-dashboard': return <AgentsDashboardView setView={setActiveView} tenantId={tenantId} />
             case 'settings': return <SettingsView {...props} />
             case 'settings-login': return <SettingsLoginView />
             case 'club-plan': return <ClubPlanView {...props} />
