@@ -84,7 +84,6 @@ export async function POST(
             ? Math.floor((Date.now() - new Date(profile.last_checkin_date).getTime()) / 86400000)
             : 999
 
-        const GEMINI_KEY = process.env.GEMINI_API_KEY!
         let title = `${firstName}, sentimos sua falta 💜`
         let msgBody = `Faz ${daysSince > 999 ? 'um tempo' : daysSince + ' dias'} que você não aparece. Que tal dar um pequeno passo hoje? Estamos aqui por você. 🌿`
 
@@ -96,28 +95,36 @@ Tom: ${tone === 'acolhedora' ? 'carinhoso e acolhedor' : tone === 'tecnica' ? 'd
 Sem julgamento. Máximo 2 frases. Termine com emoji.
 Retorne JSON: {"title": "...", "body": "..."}`
 
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+            const res = await fetch('https://api.anthropic.com/v1/messages', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': process.env.ANTHROPIC_API_KEY!,
+                    'anthropic-version': '2023-06-01',
+                },
                 body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 150 }
+                    model: 'claude-sonnet-4-20250514',
+                    max_tokens: 200,
+                    messages: [{ role: 'user', content: prompt }],
                 })
             })
             if (res.ok) {
                 const data = await res.json()
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-                const parsed = JSON.parse(text)
+                const text = data.content?.[0]?.text || ''
+                const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+                const parsed = JSON.parse(clean)
                 if (parsed.title) title = parsed.title
                 if (parsed.body) msgBody = parsed.body
             }
         } catch { /* use fallback */ }
 
-        await supabase.from('notifications').insert({
+        // Write to inbox_messages (new) and notifications (legacy) for backward compatibility
+        await supabase.from('inbox_messages').insert({
             tenant_id: tenant.id, user_id: patientId,
-            title, body: msgBody,
+            agent_name: 'manual', title, body: msgBody,
+            message_type: 'rescue', priority: 'high',
             cta_label: 'Voltar ao app', cta_url: '/patient/home',
-            status: 'unread',
+            channels: ['inbox', 'push'],
         })
 
         return NextResponse.json({ success: true, title, body: msgBody })
@@ -128,12 +135,14 @@ Retorne JSON: {"title": "...", "body": "..."}`
         const firstName = profile.name?.split(' ')[0] || 'Rainha'
         const streak = profile.current_streak || 0
 
-        await supabase.from('notifications').insert({
+        await supabase.from('inbox_messages').insert({
             tenant_id: tenant.id, user_id: patientId,
+            agent_name: 'manual',
             title: `${firstName}, você é incrível! 🏆`,
             body: `${streak > 0 ? `${streak} dias de streak e` : ''} uma consistência que inspira todo o clube! Continue assim, rainha! 👑`,
+            message_type: 'celebration', priority: 'normal',
             cta_label: 'Ver conquistas', cta_url: '/patient/home',
-            status: 'unread',
+            channels: ['inbox'],
         })
 
         return NextResponse.json({ success: true })
@@ -144,10 +153,12 @@ Retorne JSON: {"title": "...", "body": "..."}`
         const { title: msgTitle, body: msgBody } = body
         if (!msgTitle || !msgBody) return NextResponse.json({ error: 'title and body required' }, { status: 400 })
 
-        await supabase.from('notifications').insert({
+        await supabase.from('inbox_messages').insert({
             tenant_id: tenant.id, user_id: patientId,
+            agent_name: 'manual',
             title: msgTitle, body: msgBody,
-            status: 'unread',
+            message_type: 'engagement', priority: 'normal',
+            channels: ['inbox'],
         })
 
         return NextResponse.json({ success: true })

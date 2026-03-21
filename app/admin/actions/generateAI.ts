@@ -1,6 +1,6 @@
 'use server';
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { callClaudeJSON } from "@/lib/services/anthropic";
 import { checkAndConsumeCredit } from "@/lib/ai-credits";
 
 /**
@@ -31,19 +31,11 @@ export async function generateClinicalContent(prompt: string, type: 'protocol' |
             console.log(`[generateAI] Crédito consumido. Restantes: ${creditResult.credits_remaining}`)
         }
 
-        const apiKey = process.env.GEMINI_API_KEY
+        const apiKey = process.env.ANTHROPIC_API_KEY
         if (!apiKey) {
-            console.error('[generateAI] GEMINI_API_KEY falhou: Chave não configurada')
+            console.error('[generateAI] ANTHROPIC_API_KEY não configurada')
             return { success: false, error: "Chave da API não configurada no servidor." }
         }
-
-        const genAI = new GoogleGenerativeAI(apiKey)
-        const model = genAI.getGenerativeModel({
-            model: 'gemini-2.5-flash',
-            generationConfig: {
-                responseMimeType: "application/json"
-            }
-        })
 
         const systemInstruction = `
             Você é um assistente especialista em nutrição, marketing e negócios para saúde B2B.
@@ -149,20 +141,13 @@ export async function generateClinicalContent(prompt: string, type: 'protocol' |
             `}
         `
 
-        const result = await model.generateContent(`${systemInstruction}\n\nO pedido do usuário é: ${prompt}`)
-        const responseText = result.response.text()
+        const data = await callClaudeJSON({
+            system: systemInstruction,
+            maxTokens: 4000,
+            messages: [{ role: 'user', content: prompt }],
+        })
 
-        if (!responseText) throw new Error("IA não retornou texto")
-
-        const cleanedText = sanitizeJSON(responseText)
-
-        try {
-            const data = JSON.parse(cleanedText)
-            return { success: true, data, error: null }
-        } catch (parseError) {
-            console.error("Falha ao fazer parse do JSON da IA:", responseText)
-            return { success: false, error: "A IA devolveu um formato inválido. Tente novamente." }
-        }
+        return { success: true, data, error: null }
 
     } catch (error: any) {
         console.error("[generateAI] Erro:", error)

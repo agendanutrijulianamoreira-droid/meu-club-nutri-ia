@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
+import { streamClaude } from '@/lib/services/anthropic'
 
 export async function POST(request: NextRequest) {
-    if (!process.env.GEMINI_API_KEY) {
-        return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 })
+    if (!process.env.ANTHROPIC_API_KEY) {
+        return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
     }
 
     const supabase = createSupabaseServerClient(cookies())
@@ -113,43 +111,18 @@ REGRAS ABSOLUTAS:
 - Responda em português brasileiro, de forma natural e humana.
 ${tenantInfo?.gpt_system_prompt ? `\nINSTRUÇÕES ADICIONAIS DO MÉTODO:\n${tenantInfo.gpt_system_prompt}` : ''}`
 
-        // 5. Build conversation history for Gemini
-        const model = genAI.getGenerativeModel({
-            model: 'gemini-1.5-flash',
-            systemInstruction: systemPrompt,
-        })
-
-        // Convert history to Gemini format
-        const geminiHistory = (history || []).map((msg: { sender: string; content: string }) => ({
-            role: msg.sender === 'user' ? 'user' : 'model',
-            parts: [{ text: msg.content }],
+        // 5. Convert history to Claude format
+        const claudeMessages = (history || []).map((msg: { sender: string; content: string }) => ({
+            role: msg.sender === 'user' ? 'user' as const : 'assistant' as const,
+            content: msg.content,
         }))
-
-        const chat = model.startChat({
-            history: geminiHistory,
-            generationConfig: {
-                maxOutputTokens: 600,
-                temperature: 0.85,
-            },
-        })
+        claudeMessages.push({ role: 'user' as const, content: message })
 
         // 6. Stream the response
-        const result = await chat.sendMessageStream(message)
-
-        const stream = new ReadableStream({
-            async start(controller) {
-                const encoder = new TextEncoder()
-                try {
-                    for await (const chunk of result.stream) {
-                        const text = chunk.text()
-                        if (text) {
-                            controller.enqueue(encoder.encode(text))
-                        }
-                    }
-                } finally {
-                    controller.close()
-                }
-            },
+        const stream = streamClaude({
+            system: systemPrompt,
+            maxTokens: 600,
+            messages: claudeMessages,
         })
 
         return new NextResponse(stream, {

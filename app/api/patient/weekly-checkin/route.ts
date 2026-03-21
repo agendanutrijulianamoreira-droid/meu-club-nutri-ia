@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
 
 export async function POST(request: NextRequest) {
     const supabase = createSupabaseServerClient(cookies())
@@ -21,18 +18,14 @@ export async function POST(request: NextRequest) {
 
     if (!profile?.tenant_id) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
-    // AI analysis of the checkin
+    // AI analysis via Claude
     let aiSummary = ''
     let aiRiskLevel: 'low' | 'medium' | 'high' = 'low'
     let aiSuggestion = ''
 
     try {
-        if (process.env.GEMINI_API_KEY) {
-            const model = genAI.getGenerativeModel({
-                model: 'gemini-1.5-flash',
-                generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 300 },
-            })
-
+        const apiKey = process.env.ANTHROPIC_API_KEY
+        if (apiKey) {
             const prompt = `Analise este check-in semanal de uma paciente de nutrição e retorne JSON:
 
 Dados:
@@ -51,20 +44,37 @@ Retorne APENAS JSON válido:
   "suggestion": "1 sugestão prática e direta para a nutricionista agir (máx 15 palavras)"
 }`
 
-            const result = await model.generateContent(prompt)
-            const parsed = JSON.parse(result.response.text())
-            aiSummary = parsed.summary || ''
-            aiRiskLevel = parsed.risk_level || 'low'
-            aiSuggestion = parsed.suggestion || ''
+            const res = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': apiKey,
+                    'anthropic-version': '2023-06-01',
+                },
+                body: JSON.stringify({
+                    model: 'claude-sonnet-4-20250514',
+                    max_tokens: 300,
+                    messages: [{ role: 'user', content: prompt }],
+                }),
+            })
+
+            if (res.ok) {
+                const data = await res.json()
+                const text = data.content?.[0]?.text || ''
+                const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+                const parsed = JSON.parse(clean)
+                aiSummary = parsed.summary || ''
+                aiRiskLevel = parsed.risk_level || 'low'
+                aiSuggestion = parsed.suggestion || ''
+            }
         }
     } catch (err) {
         console.error('[Checkin AI] Error:', err)
-        // Continue without AI analysis
         aiSummary = `Nota ${diet_score}/10 · ${had_binge ? 'Teve compulsão' : 'Sem compulsão'}`
         aiRiskLevel = diet_score <= 4 ? 'high' : diet_score <= 6 ? 'medium' : 'low'
     }
 
-    // Save response (upsert by week_start to prevent duplicates)
+    // Save response
     const weekStart = new Date()
     const day = weekStart.getDay()
     weekStart.setDate(weekStart.getDate() - (day === 0 ? 6 : day - 1))
@@ -94,43 +104,8 @@ Retorne APENAS JSON válido:
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Auto-post to community feed if good check-in (score >= 8 or low risk)
-    if (diet_score >= 8 || aiRiskLevel === 'low') {
-        try {
-            const { data: profileData } = await supabase
-                .from('profiles')
-                .select('name, current_streak')
-                .eq('user_id', user.id)
-                .single()
-
-            const firstName = (profileData?.name || 'Rainha').split(' ')[0]
-            const streak = profileData?.current_streak || 0
-            const moodEmoji = mood === 'otimo' ? '🤩' : mood === 'bem' ? '😊' : mood === 'neutro' ? '😐' : '💪'
-
-            let body = ''
-            if (diet_score >= 9) {
-                body = `${moodEmoji} Nota ${diet_score}/10 no check-in semanal! Semana incrível! ${streak > 0 ? `🔥 ${streak} dias de streak!` : ''}`
-            } else if (diet_score >= 8) {
-                body = `${moodEmoji} Check-in da semana: nota ${diet_score}/10. Mantendo o foco! ${streak > 0 ? `🔥 ${streak}d de streak` : ''}`
-            } else {
-                body = `${moodEmoji} Semana positiva no check-in! Seguindo com o protocolo. ${streak > 0 ? `🔥 ${streak}d de streak` : ''}`
-            }
-
-            await supabase.from('community_posts').insert({
-                tenant_id: profile.tenant_id,
-                user_id: user.id,
-                type: 'checkin',
-                body,
-                meta: {
-                    diet_score,
-                    streak_days: streak || undefined,
-                    mood,
-                },
-            })
-        } catch (err) {
-            console.error('[Checkin] Auto-post error (non-fatal):', err)
-        }
-    }
+    // ── Trigger orchestrator: checkin_submitted ─────────────────────────
+    triggerOrchestrator('checkin_submitted', profile.tenant_id, user.id)
 
     return NextResponse.json({ success: true, data, ai_summary: aiSummary, ai_suggestion: aiSuggestion })
 }
@@ -140,7 +115,6 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Check if patient already submitted this week
     const weekStart = new Date()
     const day = weekStart.getDay()
     weekStart.setDate(weekStart.getDate() - (day === 0 ? 6 : day - 1))
@@ -154,4 +128,17 @@ export async function GET(request: NextRequest) {
         .single()
 
     return NextResponse.json({ submitted: !!data, data })
+}
+
+// ── Fire-and-forget trigger to orchestrator ─────────────────────────────
+function triggerOrchestrator(type: string, tenantId: string, userId?: string, payload?: any) {
+    const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-orchestrator`
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!url || !key) return
+
+    fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({ type, tenant_id: tenantId, user_id: userId, payload }),
+    }).catch(err => console.error('[triggerOrchestrator]', err))
 }

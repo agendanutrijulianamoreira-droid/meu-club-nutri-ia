@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
+import { callClaudeJSON } from '@/lib/services/anthropic'
 
 export async function POST(request: NextRequest) {
-    if (!process.env.GEMINI_API_KEY) {
-        return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 })
+    if (!process.env.ANTHROPIC_API_KEY) {
+        return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
     }
 
     const supabase = createSupabaseServerClient(cookies())
@@ -19,19 +17,14 @@ export async function POST(request: NextRequest) {
 
     try {
         const { focus, duration_days = 7 } = await request.json()
+        if (!focus) return NextResponse.json({ error: 'focus is required' }, { status: 400 })
 
-        if (!focus) {
-            return NextResponse.json({ error: 'focus is required' }, { status: 400 })
-        }
-
-        // Load patient profile
         const { data: profile } = await supabase
             .from('profiles')
             .select('name, tenant_id, dietary_restrictions, primary_goal, current_weight, initial_weight')
             .eq('user_id', user.id)
             .single()
 
-        // Load tenant personality
         let tenantInfo: any = null
         if (profile?.tenant_id) {
             const { data: tenant } = await supabase
@@ -47,7 +40,7 @@ export async function POST(request: NextRequest) {
         const methodName = tenantInfo?.method_name || 'Protocolo Nutri'
         const tone = tenantInfo?.settings?.ai?.tone || 'motivadora'
         const basePrompt = tenantInfo?.gpt_system_prompt ||
-            `Você é a nutricionista virtual especializada do clube. Priorize alimentos reais e acessíveis no mercado brasileiro. Varie proteínas (ovos, frango, carne bovina magra, peixe, leguminosas), carboidratos complexos (arroz integral, batata-doce, mandioca, aveia) e gorduras boas (azeite, abacate, castanhas). Inclua shots bioativos matinais como gengibre+limão ou cúrcuma+pimenta preta. Oriente hidratação mínima de 2L/dia. Respeite restrições alimentares informadas. Nunca sugira menos de 1200 kcal. Crie cardápios realistas, práticos e culturalmente adequados ao Brasil.`
+            `Você é a nutricionista virtual especializada do clube. Priorize alimentos reais e acessíveis no mercado brasileiro. Varie proteínas, carboidratos complexos e gorduras boas. Inclua shots bioativos matinais. Oriente hidratação mínima de 2L/dia. Nunca sugira menos de 1200 kcal.`
 
         const toneGuide: Record<string, string> = {
             acolhedora: 'Use tom carinhoso, encorajador e acolhedor.',
@@ -55,71 +48,21 @@ export async function POST(request: NextRequest) {
             tecnica: 'Use tom técnico, objetivo e embasado em ciência.',
         }
 
-        const systemInstruction = `${basePrompt}
-Método: ${methodName}. ${toneGuide[tone] || toneGuide.motivadora}
-Responda APENAS com JSON válido, sem markdown, sem explicações fora do JSON.`
+        const systemPrompt = `${basePrompt}\nMétodo: ${methodName}. ${toneGuide[tone] || toneGuide.motivadora}\nResponda APENAS com JSON válido, sem markdown.`
 
         const userPrompt = `Crie um cardápio de ${duration_days} dias focado em: ${focus}
 
-PERFIL:
-- Nome: ${patientName}
-- Restrições: ${restrictions.length > 0 ? restrictions.join(', ') : 'Nenhuma'}
-- Objetivo: ${profile?.primary_goal || 'Não especificado'}
-- Peso atual: ${profile?.current_weight ? `${profile.current_weight}kg` : 'Não informado'}
-
-REGRAS:
-- Use alimentos acessíveis e comuns no Brasil
-- Seja específica com quantidades e horários
-- Varie as refeições entre os dias
-- Inclua shots matinais e hidratação
-- Cardápio realista e sustentável
+PERFIL: ${patientName}, Restrições: ${restrictions.length > 0 ? restrictions.join(', ') : 'Nenhuma'}, Objetivo: ${profile?.primary_goal || '?'}, Peso: ${profile?.current_weight ? `${profile.current_weight}kg` : '?'}
 
 FORMATO JSON:
-{
-  "title": "Título motivacional curto",
-  "description": "2 linhas explicando o foco",
-  "days": [
-    {
-      "day": 1,
-      "title": "Ex: Dia 1 - Despertar Metabólico",
-      "tasks": [
-        {
-          "time": "07:00",
-          "type": "shot",
-          "description": "Nome da tarefa",
-          "ingredients": ["item 1", "item 2"],
-          "points": 15
-        },
-        {
-          "time": "08:00",
-          "type": "meal",
-          "description": "Nome da refeição",
-          "ingredients": ["item 1", "item 2", "item 3"],
-          "points": 30
-        }
-      ]
-    }
-  ]
-}
+{ "title": "Título", "description": "2 linhas", "days": [{ "day": 1, "title": "Dia 1 - Título", "tasks": [{ "time": "07:00", "type": "shot|meal|water|workout|content", "description": "Nome", "ingredients": ["item"], "points": 15 }] }] }`
 
-TIPOS: shot, meal, water, workout, content
-PONTOS: shot=10-20, meal=20-40, water=10, workout=30-50, content=5`
-
-        const model = genAI.getGenerativeModel({
-            model: 'gemini-1.5-flash',
-            systemInstruction,
-            generationConfig: {
-                responseMimeType: 'application/json',
-                maxOutputTokens: 4000,
-                temperature: 0.8,
-            },
+        const generated = await callClaudeJSON({
+            system: systemPrompt,
+            maxTokens: 4000,
+            messages: [{ role: 'user', content: userPrompt }],
         })
 
-        const result = await model.generateContent(userPrompt)
-        const responseText = result.response.text()
-        const generated = JSON.parse(responseText)
-
-        // Save to ai_generations log
         await supabase.from('ai_generations').insert({
             user_id: user.id,
             tenant_id: profile?.tenant_id,

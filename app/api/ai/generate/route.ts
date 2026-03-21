@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
+import { callClaudeJSON } from '@/lib/services/anthropic'
 
 export async function POST(request: NextRequest) {
-    if (!process.env.GEMINI_API_KEY) {
-        return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 })
+    if (!process.env.ANTHROPIC_API_KEY) {
+        return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
     }
 
     // 1. Auth Guard
@@ -45,20 +43,12 @@ export async function POST(request: NextRequest) {
         const personality = tenantInfo?.settings?.ai?.tone || 'motivadora'
         const brandName = tenantInfo?.brand_name || 'Meu Club Nutri'
         const methodName = tenantInfo?.method_name || 'Protocolo Nutri'
-
-        // 3. Prepare AI System Instruction
-        const model = genAI.getGenerativeModel({ 
-            model: "gemini-1.5-flash",
-            generationConfig: {
-                responseMimeType: "application/json",
-            }
-        })
-
         const baseInstructions = (tenantInfo as any)?.gpt_system_prompt || ''
 
+        // 3. Build system prompt
         let systemInstruction = `${baseInstructions ? baseInstructions + '\n\n' : ''}Você é a inteligência artificial do ${brandName}, operando sob o método "${methodName}".
 Sua personalidade é "${personality}".
-Responda sempre em JSON válido seguindo estritamente o esquema solicitado.`
+Responda APENAS em JSON válido seguindo estritamente o esquema solicitado. Sem markdown, sem texto extra.`
 
         if (task === 'generate-protocol') {
             systemInstruction += `
@@ -127,13 +117,13 @@ Esquema de Retorno:
 
         const fullPrompt = prompt || `Gere um ${task} baseado no contexto: ${context}`
 
-        const result = await model.generateContent([
-            { text: systemInstruction },
-            { text: fullPrompt }
-        ])
+        const result = await callClaudeJSON({
+            system: systemInstruction,
+            maxTokens: 2000,
+            messages: [{ role: 'user', content: fullPrompt }],
+        })
 
-        const responseText = result.response.text()
-        return NextResponse.json(JSON.parse(responseText))
+        return NextResponse.json(result)
 
     } catch (error: any) {
         console.error('[AI API] Error:', error)
