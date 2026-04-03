@@ -7,11 +7,12 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') || ''
+const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const CRON_SECRET = Deno.env.get('CRON_SECRET') || ''
-const MODEL = 'claude-sonnet-4-20250514'
+const GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20'
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -498,26 +499,17 @@ Retorne JSON no formato:
   ]
 }`
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(GEMINI_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 2000,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }],
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: userPrompt }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, generationConfig: { maxOutputTokens: 2000, responseMimeType: 'application/json' } }),
     })
 
-    if (!res.ok) throw new Error(`Anthropic error: ${res.status}`)
+    if (!res.ok) throw new Error(`Gemini error: ${res.status}`)
     const data = await res.json()
-    totalTokens = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
+    totalTokens = data.usageMetadata?.totalTokenCount || 0
 
-    const text = data.content?.[0]?.text || ''
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
     const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     const parsed = JSON.parse(clean)
 
@@ -583,7 +575,7 @@ Retorne JSON no formato:
           },
         },
         tokens_used: totalTokens,
-        cost_usd: (data.usage?.input_tokens || 0) / 1000000 * 3 + (data.usage?.output_tokens || 0) / 1000000 * 15,
+        cost_usd: 0,
         duration_ms: elapsed,
         completed_at: new Date().toISOString(),
       }).eq('id', agentLog.id)
@@ -712,26 +704,17 @@ Retorne APENAS JSON:
   ]
 }`
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(GEMINI_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 2000,
-        system: baseSystemPrompt,
-        messages: [{ role: 'user', content: userPrompt }],
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: userPrompt }] }], systemInstruction: { parts: [{ text: baseSystemPrompt }] }, generationConfig: { maxOutputTokens: 2000, responseMimeType: 'application/json' } }),
     })
 
-    if (!res.ok) throw new Error(`Anthropic error: ${res.status}`)
+    if (!res.ok) throw new Error(`Gemini error: ${res.status}`)
     const data = await res.json()
-    totalTokens = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
+    totalTokens = data.usageMetadata?.totalTokenCount || 0
 
-    const text = data.content?.[0]?.text || ''
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
     const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     const parsed = JSON.parse(clean)
 
@@ -778,7 +761,7 @@ Retorne APENAS JSON:
         status: 'success',
         output_payload: { messages_sent: messages.length },
         tokens_used: totalTokens,
-        cost_usd: (data.usage?.input_tokens || 0) / 1000000 * 3 + (data.usage?.output_tokens || 0) / 1000000 * 15,
+        cost_usd: 0,
         duration_ms: elapsed,
         completed_at: new Date().toISOString(),
       }).eq('id', agentLog.id)
@@ -869,26 +852,17 @@ Retorne APENAS JSON:
   ]
 }`
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(GEMINI_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 800,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }],
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: userPrompt }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, generationConfig: { maxOutputTokens: 800, responseMimeType: 'application/json' } }),
     })
 
-    if (!res.ok) throw new Error(`Anthropic error: ${res.status}`)
+    if (!res.ok) throw new Error(`Gemini error: ${res.status}`)
     const data = await res.json()
-    const totalTokens = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
+    const totalTokens = data.usageMetadata?.totalTokenCount || 0
 
-    const text = data.content?.[0]?.text || ''
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
     const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     const parsed = JSON.parse(clean)
 
@@ -1024,20 +998,16 @@ Retorne APENAS JSON:
   "tip": "dica prática para próxima refeição"
 }`
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(GEMINI_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({ model: MODEL, max_tokens: 500, system: systemPrompt, messages: [{ role: 'user', content: userPrompt }] }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: userPrompt }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, generationConfig: { maxOutputTokens: 500, responseMimeType: 'application/json' } }),
     })
 
-    if (!res.ok) throw new Error(`Anthropic error: ${res.status}`)
+    if (!res.ok) throw new Error(`Gemini error: ${res.status}`)
     const data = await res.json()
-    const totalTokens = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
-    const text = data.content?.[0]?.text || ''
+    const totalTokens = data.usageMetadata?.totalTokenCount || 0
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
     const parsed = JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
 
     await supabase.from('inbox_messages').insert({
@@ -1053,7 +1023,7 @@ Retorne APENAS JSON:
     if (agentLog?.id) {
       await supabase.from('agent_logs').update({
         status: 'success', output_payload: { score: parsed.score }, tokens_used: totalTokens,
-        cost_usd: (data.usage?.input_tokens || 0) / 1000000 * 3 + (data.usage?.output_tokens || 0) / 1000000 * 15,
+        cost_usd: 0,
         duration_ms: elapsed, completed_at: new Date().toISOString(),
       }).eq('id', agentLog.id)
     }
@@ -1148,16 +1118,16 @@ REGRAS:
 Retorne APENAS JSON:
 { "messages": [{ "user_id": "uuid", "title": "máx 8 palavras", "body": "máx 3 frases", "urgency": "medium|high|urgent", "priority": "normal|high|urgent" }] }`
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(GEMINI_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: MODEL, max_tokens: 1500, system: systemPrompt, messages: [{ role: 'user', content: userPrompt }] }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: userPrompt }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, generationConfig: { maxOutputTokens: 1500, responseMimeType: 'application/json' } }),
     })
 
-    if (!res.ok) throw new Error(`Anthropic error: ${res.status}`)
+    if (!res.ok) throw new Error(`Gemini error: ${res.status}`)
     const data = await res.json()
-    totalTokens = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
-    const parsed = JSON.parse((data.content?.[0]?.text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
+    totalTokens = data.usageMetadata?.totalTokenCount || 0
+    const parsed = JSON.parse((data.candidates?.[0]?.content?.parts?.[0]?.text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
 
     for (const msg of parsed.messages || []) {
       const channels = ['inbox']
@@ -1181,7 +1151,7 @@ Retorne APENAS JSON:
     if (agentLog?.id) {
       await supabase.from('agent_logs').update({
         status: 'success', output_payload: { win_back_sent: messages.length },
-        tokens_used: totalTokens, cost_usd: (data.usage?.input_tokens || 0) / 1000000 * 3 + (data.usage?.output_tokens || 0) / 1000000 * 15,
+        tokens_used: totalTokens, cost_usd: 0,
         duration_ms: elapsed, completed_at: new Date().toISOString(),
       }).eq('id', agentLog.id)
     }
@@ -1287,16 +1257,16 @@ REGRAS: INÍCIO→boas-vindas+dica, METADE→celebrar+motivar, ÚLTIMO DIA→pre
 Retorne APENAS JSON:
 { "messages": [{ "user_id": "uuid", "title": "máx 8 palavras", "body": "máx 4 frases", "phase": "first_day|halfway|last_day|completed", "cta_label": "texto", "cta_url": "/rota" }] }`
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(GEMINI_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: MODEL, max_tokens: 1500, system: systemPrompt, messages: [{ role: 'user', content: userPrompt }] }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: userPrompt }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, generationConfig: { maxOutputTokens: 1500, responseMimeType: 'application/json' } }),
     })
 
-    if (!res.ok) throw new Error(`Anthropic error: ${res.status}`)
+    if (!res.ok) throw new Error(`Gemini error: ${res.status}`)
     const data = await res.json()
-    totalTokens = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
-    const parsed = JSON.parse((data.content?.[0]?.text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
+    totalTokens = data.usageMetadata?.totalTokenCount || 0
+    const parsed = JSON.parse((data.candidates?.[0]?.content?.parts?.[0]?.text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
 
     for (const msg of parsed.messages || []) {
       await supabase.from('inbox_messages').insert({
@@ -1314,7 +1284,7 @@ Retorne APENAS JSON:
     if (agentLog?.id) {
       await supabase.from('agent_logs').update({
         status: 'success', output_payload: { transitions: transitionPatients.map(p => ({ user_id: p.user_id, phase: p.phase })) },
-        tokens_used: totalTokens, cost_usd: (data.usage?.input_tokens || 0) / 1000000 * 3 + (data.usage?.output_tokens || 0) / 1000000 * 15,
+        tokens_used: totalTokens, cost_usd: 0,
         duration_ms: elapsed, completed_at: new Date().toISOString(),
       }).eq('id', agentLog.id)
     }
@@ -1380,16 +1350,16 @@ Tom de ${dayOfWeek === 'segunda' ? 'recomeço' : dayOfWeek === 'sexta' ? 'celebr
 Retorne APENAS JSON:
 { "post_content": "texto", "engagement_question": "pergunta" }`
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(GEMINI_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: MODEL, max_tokens: 500, system: systemPrompt, messages: [{ role: 'user', content: userPrompt }] }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: userPrompt }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, generationConfig: { maxOutputTokens: 500, responseMimeType: 'application/json' } }),
     })
 
-    if (!res.ok) throw new Error(`Anthropic error: ${res.status}`)
+    if (!res.ok) throw new Error(`Gemini error: ${res.status}`)
     const data = await res.json()
-    totalTokens = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
-    const parsed = JSON.parse((data.content?.[0]?.text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
+    totalTokens = data.usageMetadata?.totalTokenCount || 0
+    const parsed = JSON.parse((data.candidates?.[0]?.content?.parts?.[0]?.text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
 
     const { data: tenantOwner } = await supabase.from('tenants').select('owner_id').eq('id', tenant.id).single()
 
@@ -1405,7 +1375,7 @@ Retorne APENAS JSON:
     if (agentLog?.id) {
       await supabase.from('agent_logs').update({
         status: 'success', output_payload: { post_created: true, day_of_week: dayOfWeek },
-        tokens_used: totalTokens, cost_usd: (data.usage?.input_tokens || 0) / 1000000 * 3 + (data.usage?.output_tokens || 0) / 1000000 * 15,
+        tokens_used: totalTokens, cost_usd: 0,
         duration_ms: elapsed, completed_at: new Date().toISOString(),
       }).eq('id', agentLog.id)
     }
@@ -1452,16 +1422,16 @@ FLAGGAR: spam, bullying, desinformação de saúde, conteúdo sexual, dados pess
 PERMITIR: desabafos, vulnerabilidades, dificuldades — isso é saudável.
 Retorne APENAS JSON: { "status": "approved|flagged", "reason": "motivo se flagged" }`
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(GEMINI_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: MODEL, max_tokens: 200, system: systemPrompt, messages: [{ role: 'user', content: `Analise: "${post.content}"` }] }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `Analise: "${post.content}"` }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, generationConfig: { maxOutputTokens: 200, responseMimeType: "application/json" } }),
     })
 
-    if (!res.ok) throw new Error(`Anthropic error: ${res.status}`)
+    if (!res.ok) throw new Error(`Gemini error: ${res.status}`)
     const data = await res.json()
-    const totalTokens = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
-    const parsed = JSON.parse((data.content?.[0]?.text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
+    const totalTokens = data.usageMetadata?.totalTokenCount || 0
+    const parsed = JSON.parse((data.candidates?.[0]?.content?.parts?.[0]?.text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
 
     await supabase.from('posts').update({ is_ai_moderated: true, ai_status: parsed.status }).eq('id', postId)
 
@@ -1483,7 +1453,7 @@ Retorne APENAS JSON: { "status": "approved|flagged", "reason": "motivo se flagge
     if (agentLog?.id) {
       await supabase.from('agent_logs').update({
         status: 'success', output_payload: { moderation_result: parsed.status, reason: parsed.reason || null },
-        tokens_used: totalTokens, cost_usd: (data.usage?.input_tokens || 0) / 1000000 * 3 + (data.usage?.output_tokens || 0) / 1000000 * 15,
+        tokens_used: totalTokens, cost_usd: 0,
         duration_ms: elapsed, completed_at: new Date().toISOString(),
       }).eq('id', agentLog.id)
     }

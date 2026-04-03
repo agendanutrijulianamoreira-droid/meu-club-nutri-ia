@@ -1,12 +1,12 @@
 // ==================================================
 // Supabase Edge Function: generate-menu
-// Gera cardápio personalizado usando Claude (Anthropic)
+// Gera cardápio personalizado usando Gemini
 // ==================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
+const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -129,18 +129,14 @@ TIPOS VÁLIDOS: shot, meal, workout, water, content
 PONTOS: shot=10-20, meal=20-40, workout=30-50, water=10, content=5-10
 `;
 
-        // 4. Chamar Claude (Anthropic)
+        // 4. Chamar Gemini
         const startTime = Date.now();
 
-        const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
+        const geminiResponse = await fetch(GEMINI_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': ANTHROPIC_API_KEY!,
-                'anthropic-version': '2023-06-01',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
+                model: 'gemini-2.5-flash',
                 max_tokens: 4000,
                 system: systemPrompt,
                 messages: [
@@ -149,24 +145,23 @@ PONTOS: shot=10-20, meal=20-40, workout=30-50, water=10, content=5-10
             }),
         });
 
-        if (!anthropicResponse.ok) {
-            const errorData = await anthropicResponse.json();
-            throw new Error(`Anthropic error: ${JSON.stringify(errorData)}`);
+        if (!geminiResponse.ok) {
+            const errorData = await geminiResponse.json();
+            throw new Error(`Gemini error: ${JSON.stringify(errorData)}`);
         }
 
-        const anthropicData = await anthropicResponse.json();
+        const geminiData = await geminiResponse.json();
         const generationTime = Date.now() - startTime;
 
         // Parse JSON da IA (strip markdown fences)
-        const rawText = anthropicData.content?.[0]?.text || '';
+        const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
         const cleanText = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
         const generatedContent = JSON.parse(cleanText);
 
         // 5. Calcular custo aproximado
-        const inputTokens = anthropicData.usage?.input_tokens || 0;
-        const outputTokens = anthropicData.usage?.output_tokens || 0;
-        const tokensUsed = inputTokens + outputTokens;
-        const costUsd = (inputTokens / 1000000) * 3 + (outputTokens / 1000000) * 15; // Claude Sonnet pricing
+        const inputTokens = 0;
+        const tokensUsed = geminiData.usageMetadata?.totalTokenCount || 0;
+        const costUsd = 0; // Gemini free tier // Claude Sonnet pricing
 
         // 6. Salvar log no banco
         const { data: logData, error: logError } = await supabase
@@ -178,7 +173,7 @@ PONTOS: shot=10-20, meal=20-40, workout=30-50, water=10, content=5-10
                 focus: focus,
                 duration_days: duration_days,
                 user_profile_snapshot: profile,
-                gpt_model: 'claude-sonnet-4-20250514',
+                gpt_model: 'gemini-2.5-flash',
                 gpt_temperature: temperature,
                 system_prompt_used: systemPrompt,
                 generated_content: generatedContent,

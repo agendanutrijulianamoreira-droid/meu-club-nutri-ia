@@ -31,9 +31,9 @@ export async function generateClinicalContent(prompt: string, type: 'protocol' |
             console.log(`[generateAI] Crédito consumido. Restantes: ${creditResult.credits_remaining}`)
         }
 
-        const apiKey = process.env.ANTHROPIC_API_KEY
+        const apiKey = process.env.GEMINI_API_KEY
         if (!apiKey) {
-            console.error('[generateAI] ANTHROPIC_API_KEY não configurada')
+            console.error('[generateAI] GEMINI_API_KEY não configurada')
             return { success: false, error: "Chave da API não configurada no servidor." }
         }
 

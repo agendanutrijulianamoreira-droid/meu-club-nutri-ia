@@ -1,12 +1,12 @@
 // ==================================================
 // Supabase Edge Function: analyze-plate
-// Analisa fotos de pratos usando Anthropic Claude
+// Analisa fotos de pratos usando Gemini
 // ==================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
+const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -40,22 +40,21 @@ serve(async (req) => {
         // Criar cliente Supabase
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-        // 1. Chamar Anthropic (Claude 3.5 Sonnet)
+        // 1. Chamar Gemini
         const startTime = Date.now();
 
         // Prompt do usuário conforme solicitado
         const systemPrompt = "Você é um especialista em nutrição clínica. Analise imagens de pratos e forneça dados estruturados em JSON.";
         const userPrompt = `Analise este prato alimentar. Estime: calorias totais, gramas de proteína, carboidrato e gordura. Avalie se está adequado para uma pessoa em protocolo de inibidor de apetite com meta de 2000 kcal e 120g de proteína por dia (média de 400-500 kcal e 30g proteína por refeição). Dê feedback motivacional e uma sugestão de melhoria. Responda APENAS em JSON com campos: calorias, proteina, carboidrato, gordura, status (dentro_do_plano / acima / abaixo), feedback, sugestao.`;
 
-        const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
+        const geminiResponse = await fetch(GEMINI_URL, {
             method: 'POST',
             headers: {
-                'x-api-key': ANTHROPIC_API_KEY!,
-                'anthropic-version': '2023-06-01',
-                'Content-Type': 'application/json',
+                'x-api-key': GEMINI_API_KEY!,
+                                'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
+                model: 'gemini-2.5-flash',
                 max_tokens: 1024,
                 system: systemPrompt,
                 messages: [
@@ -80,16 +79,16 @@ serve(async (req) => {
             }),
         });
 
-        if (!anthropicResponse.ok) {
-            const errorData = await anthropicResponse.json();
-            throw new Error(`Anthropic error: ${JSON.stringify(errorData)}`);
+        if (!geminiResponse.ok) {
+            const errorData = await geminiResponse.json();
+            throw new Error(`Gemini error: ${JSON.stringify(errorData)}`);
         }
 
-        const anthropicData = await anthropicResponse.json();
+        const geminiData = await geminiResponse.json();
         const generationTime = Date.now() - startTime;
 
         // Extrair JSON da resposta do Claude
-        const textResponse = anthropicData.content[0].text;
+        const textResponse = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
         const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
         const analysis = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
 
@@ -105,7 +104,7 @@ serve(async (req) => {
                 tenant_id: (await supabase.from('profiles').select('tenant_id').eq('user_id', user_id).single()).data?.tenant_id,
                 prompt_text: "Plate Analysis",
                 generated_content: analysis,
-                gpt_model: 'claude-sonnet-4-20250514',
+                gpt_model: 'gemini-2.5-flash',
                 generation_time_ms: generationTime,
                 status: 'success',
             });

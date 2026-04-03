@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     let aiSuggestion = ''
 
     try {
-        const apiKey = process.env.ANTHROPIC_API_KEY
+        const apiKey = process.env.GEMINI_API_KEY
         if (apiKey) {
             const prompt = `Analise este check-in semanal de uma paciente de nutrição e retorne JSON:
 
@@ -44,23 +44,18 @@ Retorne APENAS JSON válido:
   "suggestion": "1 sugestão prática e direta para a nutricionista agir (máx 15 palavras)"
 }`
 
-            const res = await fetch('https://api.anthropic.com/v1/messages', {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': apiKey,
-                    'anthropic-version': '2023-06-01',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    model: 'claude-sonnet-4-20250514',
-                    max_tokens: 300,
-                    messages: [{ role: 'user', content: prompt }],
+                    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                    generationConfig: { maxOutputTokens: 300, responseMimeType: 'application/json' },
                 }),
             })
 
             if (res.ok) {
                 const data = await res.json()
-                const text = data.content?.[0]?.text || ''
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
                 const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
                 const parsed = JSON.parse(clean)
                 aiSummary = parsed.summary || ''

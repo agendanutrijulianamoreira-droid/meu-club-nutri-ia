@@ -1,9 +1,11 @@
-// ─── Shared Anthropic Claude helper for Next.js API routes ─────────────────
-// Usage: import { callClaude, streamClaude } from '@/lib/services/anthropic'
+// ─── Shared AI helper for Next.js API routes ───────────────────────────────
+// Migrado para Google Gemini 2.5 Flash (free tier)
+// Mantém mesmas assinaturas: callClaude, callClaudeJSON, streamClaude
+// Usage: import { callClaude, callClaudeJSON, streamClaude } from '@/lib/services/anthropic'
 
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
-const MODEL = 'claude-sonnet-4-20250514'
-const API_URL = 'https://api.anthropic.com/v1/messages'
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
+const MODEL = 'gemini-2.5-flash-preview-05-20'
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}`
 
 interface ClaudeOptions {
   system?: string
@@ -11,117 +13,95 @@ interface ClaudeOptions {
   messages: Array<{ role: 'user' | 'assistant'; content: string }>
 }
 
-/**
- * Non-streaming Claude call. Returns parsed text.
- */
+function toGeminiMessages(messages: ClaudeOptions['messages']) {
+  return messages.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }))
+}
+
 export async function callClaude(opts: ClaudeOptions): Promise<string> {
-  const res = await fetch(API_URL, {
+  const res = await fetch(`${API_URL}:generateContent?key=${GEMINI_API_KEY}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: MODEL,
-      max_tokens: opts.maxTokens || 1000,
-      ...(opts.system ? { system: opts.system } : {}),
-      messages: opts.messages,
+      contents: toGeminiMessages(opts.messages),
+      ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
+      generationConfig: { maxOutputTokens: opts.maxTokens || 1000 },
     }),
   })
-
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown' }))
-    throw new Error(`Anthropic error ${res.status}: ${JSON.stringify(err)}`)
+    throw new Error(`Gemini error ${res.status}: ${JSON.stringify(err)}`)
   }
-
   const data = await res.json()
-  return data.content?.[0]?.text || ''
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || ''
 }
 
-/**
- * Non-streaming Claude call that returns parsed JSON.
- */
 export async function callClaudeJSON<T = any>(opts: ClaudeOptions): Promise<T> {
-  const text = await callClaude(opts)
-  const clean = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
-  return JSON.parse(clean)
+  const res = await fetch(`${API_URL}:generateContent?key=${GEMINI_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: toGeminiMessages(opts.messages),
+      ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
+      generationConfig: { maxOutputTokens: opts.maxTokens || 1000, responseMimeType: 'application/json' },
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown' }))
+    throw new Error(`Gemini error ${res.status}: ${JSON.stringify(err)}`)
+  }
+  const data = await res.json()
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+  return JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
 }
 
-/**
- * Streaming Claude call. Returns a ReadableStream of text chunks.
- * Compatible with Next.js streaming responses.
- */
 export function streamClaude(opts: ClaudeOptions): ReadableStream {
   return new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder()
-
       try {
-        const res = await fetch(API_URL, {
+        const res = await fetch(`${API_URL}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': ANTHROPIC_API_KEY,
-            'anthropic-version': '2023-06-01',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: MODEL,
-            max_tokens: opts.maxTokens || 1000,
-            stream: true,
-            ...(opts.system ? { system: opts.system } : {}),
-            messages: opts.messages,
+            contents: toGeminiMessages(opts.messages),
+            ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
+            generationConfig: { maxOutputTokens: opts.maxTokens || 1000 },
           }),
         })
-
-        if (!res.ok || !res.body) {
-          throw new Error(`Anthropic streaming error: ${res.status}`)
-        }
-
+        if (!res.ok || !res.body) throw new Error(`Gemini stream error: ${res.status}`)
         const reader = res.body.getReader()
         const decoder = new TextDecoder()
         let buffer = ''
-
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
-
           buffer += decoder.decode(value, { stream: true })
           const lines = buffer.split('\n')
           buffer = lines.pop() || ''
-
           for (const line of lines) {
             if (line.startsWith('data: ')) {
-              const jsonStr = line.slice(6)
-              if (jsonStr === '[DONE]') continue
               try {
-                const event = JSON.parse(jsonStr)
-                if (event.type === 'content_block_delta' && event.delta?.text) {
-                  controller.enqueue(encoder.encode(event.delta.text))
-                }
-              } catch {
-                // Skip malformed events
-              }
+                const evt = JSON.parse(line.slice(6))
+                const t = evt.candidates?.[0]?.content?.parts?.[0]?.text
+                if (t) controller.enqueue(encoder.encode(t))
+              } catch {}
             }
           }
         }
       } catch (err: any) {
         controller.enqueue(encoder.encode(`\n\n[Erro: ${err.message}]`))
-      } finally {
-        controller.close()
-      }
+      } finally { controller.close() }
     },
   })
 }
 
-/**
- * Fire-and-forget trigger to orchestrator Edge Function.
- */
 export function triggerOrchestrator(type: string, tenantId: string, userId?: string, payload?: any) {
   const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-orchestrator`
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!url || !key) return
-
   fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
