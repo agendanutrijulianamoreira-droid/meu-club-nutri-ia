@@ -25,7 +25,7 @@
 | Animações | Framer Motion | `motion`, `AnimatePresence` |
 | Banco de dados | Supabase (PostgreSQL) | RLS habilitado em todas as tabelas |
 | Autenticação | Supabase Auth | JWT, cookies server-side |
-| IA | Anthropic Claude (claude-sonnet-4-20250514) | Via `fetch` direto à API REST |
+| IA | Google Gemini 2.5 Flash (free tier) | Via `fetch` direto à API REST, env: `GEMINI_API_KEY` |
 | Storage | Supabase Storage | Buckets: `logos`, `library`, `social-proof` |
 | Edge Functions | Supabase Functions (Deno) | `agent-orchestrator`, `daily-engagement`, `generate-menu`, `analyze-plate`, `send-push-campaign` |
 | Pagamentos | Stripe | Não implementado ainda |
@@ -497,7 +497,7 @@ seed_reward_items(p_tenant_id UUID)  -- Popula catálogo de recompensas de exemp
 
 ### Arquitetura de Agentes IA
 
-O sistema usa um **Orchestrator** central que recebe eventos e despacha para agentes especializados. Todas as chamadas IA usam `fetch` direto à API Anthropic com `claude-sonnet-4-20250514`.
+O sistema usa um **Orchestrator** central que recebe eventos e despacha para agentes especializados. Todas as chamadas IA usam `fetch` direto à API Google Gemini 2.5 Flash (free tier).
 
 **Tabelas de suporte:**
 - `agent_logs` — log de execução de todos os agentes (debug, métricas, billing)
@@ -507,7 +507,7 @@ O sistema usa um **Orchestrator** central que recebe eventos e despacha para age
 ### `agent-orchestrator` (NOVO)
 **Deploy:** `supabase/functions/agent-orchestrator/index.ts`
 **Trigger:** Cron diário + chamada direta de outros webhooks
-**Segredos:** `ANTHROPIC_API_KEY`, `CRON_SECRET`, `FCM_SERVER_KEY`
+**Segredos:** `GEMINI_API_KEY`, `CRON_SECRET`, `FCM_SERVER_KEY`
 **Eventos suportados:**
 - `cron_daily` → roda Sabotage → Engagement → Retention → Protocol → Community
 - `checkin_submitted` → analisa risco pós-checkin
@@ -531,7 +531,7 @@ O sistema usa um **Orchestrator** central que recebe eventos e despacha para age
 ### `daily-engagement`
 **Deploy:** `supabase/functions/daily-engagement/index.ts`
 **Trigger:** Cron diário `0 9 * * *` (09:00 BRT = 12:00 UTC)
-**Segredos:** `ANTHROPIC_API_KEY`, `CRON_SECRET`
+**Segredos:** `GEMINI_API_KEY`, `CRON_SECRET`
 **Nota:** Versão legada mantida para compatibilidade. O `agent-orchestrator` é o caminho recomendado.
 
 ### `generate-menu`
@@ -548,15 +548,15 @@ O sistema usa um **Orchestrator** central que recebe eventos e despacha para age
 
 ### Padrão de chamada IA em Edge Functions
 ```typescript
-const res = await fetch('https://api.anthropic.com/v1/messages', {
+const res = await fetch(GEMINI_URL, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'x-api-key': Deno.env.get('ANTHROPIC_API_KEY')!,
-    'anthropic-version': '2023-06-01',
+    // Gemini API (free tier)
+    
   },
   body: JSON.stringify({
-    model: 'claude-sonnet-4-20250514',
+    // Model: gemini-2.5-flash-preview-05-20
     max_tokens: 2000,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
@@ -659,21 +659,21 @@ Responda em português brasileiro natural, caloroso e humano. Use o nome da paci
 NEXT_PUBLIC_SUPABASE_URL=https://antszuxeairmbctwuafo.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...   # Para criar usuários e operações admin
-ANTHROPIC_API_KEY=sk-ant-...    # Anthropic Claude API
+GEMINI_API_KEY=sua_chave    # Google Gemini (free: aistudio.google.com/apikey)
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 FCM_SERVER_KEY=...              # Firebase Cloud Messaging (push)
 
 # Supabase Edge Function Secrets (configurar no Dashboard)
-ANTHROPIC_API_KEY=sk-ant-...
+GEMINI_API_KEY=sua_chave_gemini
 CRON_SECRET=...
 FCM_SERVER_KEY=...
 SUPABASE_URL=...                # Auto-preenchido pelo Supabase
 SUPABASE_SERVICE_ROLE_KEY=...   # Auto-preenchido pelo Supabase
 ```
 
-### Helper Anthropic compartilhado: `lib/services/anthropic.ts`
+### Helper IA compartilhado (Gemini): `lib/services/anthropic.ts`
 ```typescript
 import { callClaude, callClaudeJSON, streamClaude, triggerOrchestrator } from '@/lib/services/anthropic'
 
@@ -695,7 +695,7 @@ triggerOrchestrator('checkin_submitted', tenantId, userId)
 
 ## 16. PRÓXIMOS PASSOS CONHECIDOS
 
-- [x] Migração completa Gemini/OpenAI → Anthropic Claude (100% concluída)
+- [x] Migração completa para Gemini 2.5 Flash free tier (100% concluída)
 - [x] Orquestra de 8 agentes IA no orchestrator
 - [x] Dashboard admin de agentes (4 tabs: Overview, Agentes, Risco, Timeline)
 - [x] Inbox da paciente com Realtime
