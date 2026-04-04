@@ -6,7 +6,9 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || ''
+const GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20'
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -49,33 +51,22 @@ serve(async (req) => {
 
         const geminiResponse = await fetch(GEMINI_URL, {
             method: 'POST',
-            headers: {
-                'x-api-key': GEMINI_API_KEY!,
-                                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: 'gemini-2.5-flash',
-                max_tokens: 1024,
-                system: systemPrompt,
-                messages: [
-                    {
-                        role: 'user',
-                        content: [
-                            {
-                                type: 'image',
-                                source: {
-                                    type: 'base64',
-                                    media_type: 'image/jpeg',
-                                    data: image_base64?.replace(/^data:image\/\w+;base64,/, '') || '',
-                                },
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                contents: [{
+                    role: 'user',
+                    parts: [
+                        {
+                            inlineData: {
+                                mimeType: 'image/jpeg',
+                                data: image_base64?.replace(/^data:image\/\w+;base64,/, '') || '',
                             },
-                            {
-                                type: 'text',
-                                text: userPrompt
-                            }
-                        ]
-                    }
-                ],
+                        },
+                        { text: userPrompt }
+                    ]
+                }],
+                generationConfig: { maxOutputTokens: 1024, responseMimeType: 'application/json' },
             }),
         });
 
