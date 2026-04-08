@@ -147,12 +147,11 @@ CREATE TABLE IF NOT EXISTS patient_risk_scores (
   
   -- Metadata
   agent_log_id    uuid REFERENCES agent_logs(id) ON DELETE SET NULL,
-  calculated_at   timestamptz DEFAULT now()
-);
+  calculated_at   timestamptz DEFAULT now(),
+  calculated_date date GENERATED ALWAYS AS ((calculated_at AT TIME ZONE 'UTC')::date) STORED,
 
--- Um score por usuário por dia (cast não pode ir em UNIQUE inline no Postgres)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_risk_unique_user_day
-  ON patient_risk_scores (user_id, (calculated_at::date));
+  UNIQUE (user_id, calculated_date)
+);
 
 CREATE INDEX idx_risk_tenant ON patient_risk_scores(tenant_id);
 CREATE INDEX idx_risk_user ON patient_risk_scores(user_id);
