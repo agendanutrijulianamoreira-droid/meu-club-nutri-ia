@@ -47,3 +47,7 @@ NEXT_STEPS.md
 # Claude Code / Antigravity
 .claude/
 .antigravity/
+
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+*.zip

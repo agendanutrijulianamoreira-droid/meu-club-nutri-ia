@@ -6,3 +6,7 @@ build/
 coverage/
 *.log
 *.pack.gz
+
+docs/archive/
+*.tsbuildinfo
+*.zip
