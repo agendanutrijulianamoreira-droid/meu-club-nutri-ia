@@ -38,15 +38,13 @@ export async function PATCH(
 
     // If cancelled, refund coins
     if (status === 'cancelled') {
-        await supabase.rpc('adjust_nutri_coins', {
+        const { error: rpcErr } = await supabase.rpc('adjust_nutri_coins', {
             p_user_id: data.user_id,
             p_delta: data.item_cost,
-        }).catch(() => {
-            // Fallback direct update
-            supabase.from('profiles')
-                .update({ nutri_coins: supabase.rpc('GREATEST', [0]) })
-                .eq('user_id', data.user_id)
         })
+        if (rpcErr) {
+            console.error('[rewards] adjust_nutri_coins failed:', rpcErr)
+        }
     }
 
     // Notify patient via inbox

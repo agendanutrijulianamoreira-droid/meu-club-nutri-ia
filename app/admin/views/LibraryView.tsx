@@ -376,7 +376,7 @@ export function LibraryView({ setView, tenantId = '' }: { setView: (v: any) => v
                     <p className="text-slate-500 text-sm mt-0.5">Receitas, shots bio-ativos e protocolos clínicos.</p>
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={refresh} className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-slate-500">
+                    <button onClick={() => refresh()} className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-slate-500">
                         <RefreshCw size={15} className={loading ? 'animate-spin' : ''}/>
                     </button>
                     {!showForm && (

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { triggerOrchestrator } from '@/lib/services/anthropic'
 
 export async function POST(request: NextRequest) {
     const supabase = createSupabaseServerClient(cookies())
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     if (!profile?.tenant_id) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
-    // AI analysis via Claude
+    // AI analysis via Gemini
     let aiSummary = ''
     let aiRiskLevel: 'low' | 'medium' | 'high' = 'low'
     let aiSuggestion = ''
@@ -123,17 +124,4 @@ export async function GET(request: NextRequest) {
         .single()
 
     return NextResponse.json({ submitted: !!data, data })
-}
-
-// ── Fire-and-forget trigger to orchestrator ─────────────────────────────
-function triggerOrchestrator(type: string, tenantId: string, userId?: string, payload?: any) {
-    const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-orchestrator`
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    if (!url || !key) return
-
-    fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-        body: JSON.stringify({ type, tenant_id: tenantId, user_id: userId, payload }),
-    }).catch(err => console.error('[triggerOrchestrator]', err))
 }

@@ -32,12 +32,12 @@ export async function GET(request: NextRequest) {
     const userIds = (patients || []).map(p => p.user_id)
 
     // ── 2. Active subscriptions (revenue proxy) ───────────────────────────────
-    const { count: activeSubscriptions } = await supabase
+    const subsRes = await supabase
         .from('subscriptions')
         .select('*', { count: 'exact', head: true })
         .eq('tenant_id', tenantId)
         .eq('status', 'active')
-        .catch(() => ({ count: 0 })) as any
+    const activeSubscriptions = subsRes.count ?? 0
 
     // ── 3. Active protocol assignments ────────────────────────────────────────
     const { count: activeProtocols } = await supabase
@@ -151,14 +151,14 @@ export async function GET(request: NextRequest) {
     ).map(p => ({ name: p.name?.split(' ')[0] || 'Rainha', streak: p.current_streak }))
 
     // ── 12. Active protocol (for the tracker widget) ─────────────────────────
-    const { data: activeProtocol } = await supabase
+    const protoRes = await supabase
         .from('protocols')
         .select('id, title, duration_days')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .limit(1)
-        .single()
-        .catch(() => ({ data: null })) as any
+        .maybeSingle()
+    const activeProtocol = protoRes.data
 
     // ── 13. Build AI insights (data-driven, no hallucination) ─────────────────
     const insights: any[] = []
