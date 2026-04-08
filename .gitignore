@@ -43,3 +43,7 @@ next-env.d.ts
 COMANDOS_DEPLOY.md
 DEPLOY_OPENAI.md
 NEXT_STEPS.md
+
+# Claude Code / Antigravity
+.claude/
+.antigravity/
