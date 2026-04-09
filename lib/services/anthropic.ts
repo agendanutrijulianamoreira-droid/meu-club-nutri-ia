@@ -78,12 +78,78 @@ export async function callClaudeJSON<T = any>(opts: ClaudeOptions): Promise<T> {
     try {
       return JSON.parse(patched)
     } catch (secondErr: any) {
-      console.error('[callClaudeJSON] Failed to parse Gemini response:')
-      console.error('Raw text:', text.slice(0, 500))
-      console.error('First parse error:', firstErr.message)
-      throw new Error(`Gemini returned invalid JSON: ${firstErr.message}`)
+      // Third pass: truncation recovery
+      // If Gemini got cut off mid-array/object, try to close unterminated structures
+      try {
+        const recovered = recoverTruncatedJSON(patched)
+        return JSON.parse(recovered)
+      } catch (thirdErr: any) {
+        console.error('[callClaudeJSON] Failed to parse Gemini response:')
+        console.error('Length:', text.length)
+        console.error('Raw text start:', text.slice(0, 300))
+        console.error('Raw text end:', text.slice(-300))
+        console.error('First parse error:', firstErr.message)
+        throw new Error(`Gemini returned invalid JSON: ${firstErr.message}`)
+      }
     }
   }
+}
+
+/**
+ * Best-effort recovery for JSON truncated mid-structure.
+ * Walks the string, tracks open brackets/braces/strings, and closes them.
+ */
+function recoverTruncatedJSON(s: string): string {
+  const stack: string[] = []
+  let inString = false
+  let escape = false
+  let lastGoodEnd = -1
+
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+    if (escape) { escape = false; continue }
+    if (c === '\\') { escape = true; continue }
+    if (c === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (c === '{' || c === '[') stack.push(c)
+    else if (c === '}') { if (stack[stack.length - 1] === '{') stack.pop() }
+    else if (c === ']') { if (stack[stack.length - 1] === '[') stack.pop() }
+    if (stack.length === 0) lastGoodEnd = i
+  }
+
+  // If still inside a string, close it
+  let result = s
+  if (inString) {
+    // Drop incomplete string: cut at last quoted value
+    const lastComma = result.lastIndexOf(',')
+    const lastOpenBracket = Math.max(result.lastIndexOf('['), result.lastIndexOf('{'))
+    const cutAt = Math.max(lastComma, lastOpenBracket)
+    if (cutAt > 0) result = result.slice(0, cutAt)
+    // Recompute stack after cut
+    return recoverTruncatedJSON(result)
+  }
+
+  // Remove any trailing partial content after last complete value
+  // Find last complete element by walking back to nearest closing bracket
+  const lastClose = Math.max(result.lastIndexOf('}'), result.lastIndexOf(']'))
+  if (lastClose >= 0 && lastClose < result.length - 1) {
+    // Trim trailing junk but keep structure up to lastClose
+    const trailing = result.slice(lastClose + 1).trim()
+    if (trailing && !trailing.match(/^[\]}]*$/)) {
+      result = result.slice(0, lastClose + 1)
+    }
+  }
+
+  // Strip trailing commas
+  result = result.replace(/,(\s*)$/g, '$1')
+
+  // Close unclosed brackets in reverse order
+  while (stack.length > 0) {
+    const open = stack.pop()
+    result += open === '{' ? '}' : ']'
+  }
+
+  return result
 }
 
 export function streamClaude(opts: ClaudeOptions): ReadableStream {
