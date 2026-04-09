@@ -8,6 +8,7 @@ import {
     Zap, RefreshCw, BookOpen, Flame, Drumstick, Wheat,
 } from "lucide-react"
 import { useAssignments } from "@/lib/hooks/useDatabase"
+import { ProtocolMealView } from "./ProtocolMealView"
 import { supabase } from "@/lib/supabase-browser"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -360,7 +361,7 @@ export default function PatientDietPage() {
                                 </div>
                                 <h2 className="text-xl font-bold text-white mb-2">Nenhum Protocolo Ativo</h2>
                                 <p className="text-slate-400 text-sm max-w-sm mb-4">
-                                    Sua nutricionista ainda não atribuiu um plano. Enquanto isso, experimente o Plano IA!
+                                    Sua nutricionista ainda não atribuiu um plano.
                                 </p>
                                 <button
                                     onClick={() => setActiveTab("ia")}
@@ -371,80 +372,24 @@ export default function PatientDietPage() {
                                 </button>
                             </div>
                         ) : (
-                            <>
-                                {/* Protocol header */}
-                                <div className="mb-5">
-                                    <div className="inline-block bg-indigo-600/10 border border-indigo-500/20 rounded-full px-3 py-1 mb-3">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Protocolo Ativo</span>
-                                    </div>
-                                    <h1 className="text-2xl font-bold text-white mb-1">
-                                        {(activeProtocol.protocol as any)?.title || "Meu Protocolo"}
-                                    </h1>
-                                    <p className="text-slate-400 text-sm">
-                                        {(activeProtocol.protocol as any)?.description || "Seu plano nutricional personalizado"}
-                                    </p>
-                                    <div className="mt-4 p-4 bg-white/5 border border-white/10 rounded-2xl">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Progresso Geral</span>
-                                            <span className="text-sm font-bold text-white">{activeProtocol.progress_percentage || 0}%</span>
-                                        </div>
-                                        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                                            <div
-                                                className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-500"
-                                                style={{ width: `${activeProtocol.progress_percentage || 0}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Protocol days */}
-                                <div className="space-y-3">
-                                    {protocolDays.map((day: any) => {
-                                        const isExpanded = expandedDay === day.day
-                                        return (
-                                            <div key={day.day} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-                                                <button
-                                                    onClick={() => setExpandedDay(isExpanded ? 0 : day.day)}
-                                                    className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors"
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-full bg-indigo-600/20 flex items-center justify-center">
-                                                            <span className="text-sm font-bold text-indigo-400">{day.day}</span>
-                                                        </div>
-                                                        <div className="text-left">
-                                                            <h3 className="font-bold text-white text-sm">{day.title}</h3>
-                                                            <p className="text-xs text-slate-500">{day.items.length} itens</p>
-                                                        </div>
-                                                    </div>
-                                                    {isExpanded ? <ChevronUp className="text-slate-400" size={20} /> : <ChevronDown className="text-slate-400" size={20} />}
-                                                </button>
-                                                {isExpanded && (
-                                                    <div className="p-4 space-y-3 border-t border-white/5">
-                                                        {day.items.map((item: any, idx: number) => {
-                                                            const cfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.meal
-                                                            return (
-                                                                <div key={idx} className="flex items-start gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
-                                                                    <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${cfg.bg}`}>
-                                                                        <cfg.Icon size={14} className={cfg.color} />
-                                                                    </div>
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <div className="flex items-center gap-2 mb-0.5">
-                                                                            {item.time && <span className="text-[10px] text-slate-500 font-bold">{item.time}</span>}
-                                                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
-                                                                        </div>
-                                                                        <p className="text-sm font-bold text-white">{item.title}</p>
-                                                                        {item.description && <p className="text-xs text-slate-400 mt-0.5">{item.description}</p>}
-                                                                    </div>
-                                                                </div>
-                                                            )
-                                                        })}
-                                                    </div>
-                                                )}
-                                            </div>
+                            <ProtocolMealView
+                                protocol={(activeProtocol.protocol as any)}
+                                days={protocolDays || []}
+                                currentDay={
+                                    (() => {
+                                        const assignedAt = activeProtocol.assigned_at
+                                            ? new Date(activeProtocol.assigned_at)
+                                            : new Date()
+                                        const diffDays = Math.floor(
+                                            (Date.now() - assignedAt.getTime()) / (1000 * 60 * 60 * 24)
                                         )
-                                    })}
-                                </div>
-                            </>
+                                        const totalDays = (protocolDays || []).length
+                                        return totalDays > 0 ? Math.min(diffDays + 1, totalDays) : 1
+                                    })()
+                                }
+                                progress={activeProtocol.progress_percentage || 0}
+                                onGoIA={() => setActiveTab("ia")}
+                            />
                         )}
                     </motion.div>
                 )}
