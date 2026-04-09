@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
         .eq('user_id', user.id)
         .single()
 
-    if (!profile?.tenant_id || !['admin', 'nutritionist'].includes(profile.role)) {
+    if (!profile?.tenant_id || !['admin', 'nutritionist', 'nutri'].includes(profile.role)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

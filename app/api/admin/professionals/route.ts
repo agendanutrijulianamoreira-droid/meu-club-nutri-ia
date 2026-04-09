@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
     const { data: profile } = await supabase
         .from('profiles').select('tenant_id, role').eq('user_id', user.id).single()
-    if (!profile?.tenant_id || !['admin', 'nutritionist'].includes(profile.role))
+    if (!profile?.tenant_id || !['admin', 'nutritionist', 'nutri'].includes(profile.role))
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const { data: professionals } = await supabase
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     const { data: profile } = await supabase
         .from('profiles').select('tenant_id, role').eq('user_id', user.id).single()
-    if (!profile?.tenant_id || !['admin', 'nutritionist'].includes(profile.role))
+    if (!profile?.tenant_id || !['admin', 'nutritionist', 'nutri'].includes(profile.role))
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const body = await request.json()

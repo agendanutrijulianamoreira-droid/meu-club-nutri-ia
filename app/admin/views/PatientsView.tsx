@@ -6,7 +6,7 @@ import {
     Activity, Star, Crown, Trophy, Flame, CheckCircle, Mail,
     Phone, Clock, Target, ChevronRight, Loader2, Sparkles,
     Heart, Plus, X, RefreshCw, Send, Shield, Users, FileText,
-    ToggleLeft, ToggleRight, Gift, Coins
+    ToggleLeft, ToggleRight, Gift, Coins, Download
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -536,6 +536,40 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
         setTimeout(() => setToast(null), 3500)
     }
 
+    const exportCSV = () => {
+        if (!patients.length) {
+            showToast('Nenhuma rainha para exportar');
+            return;
+        }
+        
+        const headers = ['Nome', 'Email', 'Telefone', 'Plano', 'Status', 'Risco', 'Adesão', 'XP', 'Streak', 'Progresso_Peso'];
+        const csvContent = [
+            headers.join(','),
+            ...patients.map(p => [
+                `"${p.name}"`,
+                `"${p.email}"`,
+                `"${p.phone || ''}"`,
+                `"${PLAN_LABELS[p.plan] || p.plan}"`,
+                `"${p.status}"`,
+                `"${p.riskLevel}"`,
+                `"${p.adherenceRate}%"`,
+                `${p.xp}`,
+                `${p.streak}`,
+                p.weight.start > 0 ? `"${(p.weight.start - p.weight.current).toFixed(1)}kg perdidos"` : '"-"'
+            ].join(','))
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `vitaclub-pacientes-${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('CSV exportado com sucesso!');
+    }
+
     const filtered = patients.filter(p => {
         const ms = p.name.toLowerCase().includes(search.toLowerCase()) || p.email.toLowerCase().includes(search.toLowerCase())
         const mf = filter === 'all' || p.status === filter
@@ -571,11 +605,14 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                             <span className="text-[10px] bg-white/10 text-slate-400 px-1.5 py-0.5 rounded-md font-bold">{patients.length}</span>
                         </h2>
                         <div className="flex gap-1">
-                            <button onClick={refresh} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-600 hover:text-slate-400 transition-colors">
+                            <button onClick={exportCSV} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-600 hover:text-slate-400 transition-colors" title="Exportar CSV">
+                                <Download size={13}/>
+                            </button>
+                            <button onClick={refresh} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-600 hover:text-slate-400 transition-colors" title="Atualizar">
                                 <RefreshCw size={13}/>
                             </button>
                             <button onClick={() => setShowRegister(true)}
-                                className="p-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white transition-colors">
+                                className="p-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white transition-colors" title="Nova Rainha">
                                 <Plus size={13}/>
                             </button>
                         </div>

@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     const roleLower = (profile?.role || '').toLowerCase()
     const metadataRole = (user.user_metadata?.user_type || user.user_metadata?.role || '').toLowerCase()
-    const isAuthorized = ['admin', 'nutritionist'].includes(roleLower) || ['admin', 'nutritionist'].includes(metadataRole)
+    const isAuthorized = ['admin', 'nutritionist', 'nutri'].includes(roleLower) || ['admin', 'nutritionist', 'nutri'].includes(metadataRole)
 
     if (!profile?.tenant_id || !isAuthorized) {
         return NextResponse.json({ error: 'Acesso negado. Somente nutricionistas e admins.' }, { status: 403 })

@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const roleLower = (requesterProfile?.role || '').toLowerCase()
     const metadataRole = (currentUser.user_metadata?.user_type || currentUser.user_metadata?.role || '').toLowerCase()
     
-    let isAuthorized = ['admin', 'nutritionist'].includes(roleLower) || ['admin', 'nutritionist'].includes(metadataRole)
+    let isAuthorized = ['admin', 'nutritionist', 'nutri'].includes(roleLower) || ['admin', 'nutritionist', 'nutri'].includes(metadataRole)
     let tenantId = requesterProfile?.tenant_id
 
     if (!tenantId || !isAuthorized) {
