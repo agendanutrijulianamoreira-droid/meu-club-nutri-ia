@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { callClaudeJSON } from '@/lib/services/anthropic'
+import { NUTRITIONIST_IDENTITY, TONE_LAYER } from '@/lib/ai-nutritionist-identity'
 
 export async function POST(request: NextRequest) {
     if (!process.env.GEMINI_API_KEY) {
@@ -39,16 +40,8 @@ export async function POST(request: NextRequest) {
         const patientName = profile?.name?.split(' ')[0] || 'Rainha'
         const methodName = tenantInfo?.method_name || 'Protocolo Nutri'
         const tone = tenantInfo?.settings?.ai?.tone || 'motivadora'
-        const basePrompt = tenantInfo?.gpt_system_prompt ||
-            `Você é a nutricionista virtual especializada do clube. Priorize alimentos reais e acessíveis no mercado brasileiro. Varie proteínas, carboidratos complexos e gorduras boas. Inclua shots bioativos matinais. Oriente hidratação mínima de 2L/dia. Nunca sugira menos de 1200 kcal.`
-
-        const toneGuide: Record<string, string> = {
-            acolhedora: 'Use tom carinhoso, encorajador e acolhedor.',
-            motivadora: 'Use tom energético, motivacional e empoderador.',
-            tecnica: 'Use tom técnico, objetivo e embasado em ciência.',
-        }
-
-        const systemPrompt = `${basePrompt}\nMétodo: ${methodName}. ${toneGuide[tone] || toneGuide.motivadora}\nResponda APENAS com JSON válido, sem markdown.`
+        const customPrompt = tenantInfo?.gpt_system_prompt || ''
+        const systemPrompt = `${NUTRITIONIST_IDENTITY}\n\nPAPEL ESPECÍFICO — NUTRICIONISTA CRIADORA DE CARDÁPIOS:\nVocê cria planos alimentares para pacientes do ${tenantInfo?.brand_name || 'clube'} sob o método ${methodName}.\n${TONE_LAYER[tone] || TONE_LAYER['acolhedora']}\n${customPrompt ? `\nINSTRUÇÕES DO MÉTODO: ${customPrompt}` : ''}\nResponda APENAS com JSON válido, sem markdown.`
 
         const userPrompt = `Crie um cardápio de ${duration_days} dias focado em: ${focus}
 

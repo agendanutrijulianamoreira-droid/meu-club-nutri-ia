@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { streamClaude } from '@/lib/services/anthropic'
+import { getChatSystemPrompt } from '@/lib/ai-nutritionist-identity'
 
 export async function POST(request: NextRequest) {
     if (!process.env.GEMINI_API_KEY) {
@@ -92,24 +93,17 @@ export async function POST(request: NextRequest) {
             ? `Nome: ${profile.name}. XP Total: ${profile.total_xp || 0}. Streak atual: ${profile.current_streak || 0} dias. Plano: ${profile.current_plan || 'community'}. ${profile.primary_goal ? `Objetivo principal: ${profile.primary_goal}.` : ''} ${profile.initial_weight && profile.current_weight ? `Peso inicial: ${profile.initial_weight}kg, Peso atual: ${profile.current_weight}kg.` : ''}`
             : ''
 
-        const systemPrompt = `Você é a IA de saúde e nutrição do ${brandName}, operando sob o método "${methodName}".
+        const systemPrompt = getChatSystemPrompt(
+            brandName,
+            methodName,
+            tone,
+            emojiLevel,
+            tenantInfo?.gpt_system_prompt,
+        ) + `
 
-PERSONALIDADE: ${toneInstructions[tone] || toneInstructions.acolhedora}
-EMOJIS: ${emojiInstructions[emojiLevel] || emojiInstructions[1]}
-
-CONTEXTO DA PACIENTE:
+CONTEXTO DA PACIENTE (${patientName}):
 ${profileContext}
-${protocolContext}
-
-REGRAS ABSOLUTAS:
-- Sempre chame a paciente de "${patientName}" ou "Rainha", nunca de "você" de forma fria.
-- Suas respostas devem ser concisas (máximo 4 parágrafos curtos) e práticas.
-- Foque em nutrição, saúde, bem-estar, motivação e o protocolo ativo.
-- Se perguntarem sobre algo fora da sua área (finanças, política, etc.), redirecione gentilmente para saúde.
-- Nunca forneça diagnósticos médicos. Para sintomas graves, indique procurar um médico.
-- Personalize sempre com base no contexto da paciente acima.
-- Responda em português brasileiro, de forma natural e humana.
-${tenantInfo?.gpt_system_prompt ? `\nINSTRUÇÕES ADICIONAIS DO MÉTODO:\n${tenantInfo.gpt_system_prompt}` : ''}`
+${protocolContext}`
 
         // 5. Convert history to Claude format
         const claudeMessages = (history || []).map((msg: { sender: string; content: string }) => ({

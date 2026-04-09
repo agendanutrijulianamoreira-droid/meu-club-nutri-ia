@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { callClaudeJSON } from '@/lib/services/anthropic'
+import { getGenerateSystemPrompt } from '@/lib/ai-nutritionist-identity'
 
 export async function POST(request: NextRequest) {
     if (!process.env.GEMINI_API_KEY) {
@@ -46,9 +47,7 @@ export async function POST(request: NextRequest) {
         const baseInstructions = (tenantInfo as any)?.gpt_system_prompt || ''
 
         // 3. Build system prompt
-        let systemInstruction = `${baseInstructions ? baseInstructions + '\n\n' : ''}Você é a inteligência artificial do ${brandName}, operando sob o método "${methodName}".
-Sua personalidade é "${personality}".
-Responda APENAS em JSON válido seguindo estritamente o esquema solicitado. Sem markdown, sem texto extra.`
+        let systemInstruction = getGenerateSystemPrompt(brandName, methodName, personality, baseInstructions)
 
         if (task === 'generate-protocol') {
             systemInstruction += `
