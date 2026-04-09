@@ -150,6 +150,9 @@ export interface Challenge {
     start_date: string | null
     end_date: string | null
     is_active: boolean
+    prize_pool_coins: number
+    entry_fee_coins: number
+    max_participants: number | null
     rewards_json: any
     created_at: string
 }

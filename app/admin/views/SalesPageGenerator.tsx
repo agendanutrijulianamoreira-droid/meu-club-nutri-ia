@@ -268,7 +268,12 @@ export function SalesPageGenerator({ setView, tenantId }: { setView: (v: any) =>
                 update({ subheadline: json.subheadline })
             }
         } catch (err: any) {
-            setAiError(err.message || 'Erro na IA')
+            const msg = err.message || '';
+            if (msg.includes('503') || msg.includes('high demand') || msg.includes('UNAVAILABLE')) {
+                setAiError('A IA está recebendo muitas requisições agora. Tente novamente em alguns instantes.')
+            } else {
+                setAiError(msg || 'Erro ao gerar cópia com IA')
+            }
         } finally {
             setAiGenerating(null)
         }

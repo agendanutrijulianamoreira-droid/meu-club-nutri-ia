@@ -153,7 +153,7 @@ Retorne APENAS JSON:
 
         const generated = await callClaudeJSON({
             system: systemPrompt,
-            maxTokens: 8000,
+            maxTokens: 16000,
             messages: [{ role: 'user', content: userPrompt }],
         })
 

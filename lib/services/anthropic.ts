@@ -54,7 +54,36 @@ export async function callClaudeJSON<T = any>(opts: ClaudeOptions): Promise<T> {
   }
   const data = await res.json()
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-  return JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
+
+  // Robust JSON extraction: handles markdown fences, leading/trailing junk,
+  // and common Gemini quirks (unescaped newlines, trailing commas).
+  let cleaned = text
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim()
+
+  // If the response has junk before/after, extract the outermost {...} or [...]
+  const firstBrace = cleaned.search(/[{[]/)
+  if (firstBrace > 0) cleaned = cleaned.slice(firstBrace)
+  const lastBrace = Math.max(cleaned.lastIndexOf('}'), cleaned.lastIndexOf(']'))
+  if (lastBrace >= 0 && lastBrace < cleaned.length - 1) cleaned = cleaned.slice(0, lastBrace + 1)
+
+  try {
+    return JSON.parse(cleaned)
+  } catch (firstErr: any) {
+    // Second pass: strip trailing commas and retry
+    const patched = cleaned
+      .replace(/,(\s*[}\]])/g, '$1')         // trailing commas
+      .replace(/[\u0000-\u001F]+/g, ' ')      // control chars including raw newlines in strings
+    try {
+      return JSON.parse(patched)
+    } catch (secondErr: any) {
+      console.error('[callClaudeJSON] Failed to parse Gemini response:')
+      console.error('Raw text:', text.slice(0, 500))
+      console.error('First parse error:', firstErr.message)
+      throw new Error(`Gemini returned invalid JSON: ${firstErr.message}`)
+    }
+  }
 }
 
 export function streamClaude(opts: ClaudeOptions): ReadableStream {

@@ -376,7 +376,11 @@ function CreateProtocolForm({ onClose, onSave, onUpdate, editingData }: {
             }));
             setStep(2);
         } catch (err: any) {
-            alert("Erro na IA: " + err.message);
+            if (err.message && (err.message.includes('503') || err.message.includes('high demand') || err.message.includes('UNAVAILABLE'))) {
+                alert("A Inteligência Artificial está com muitas requisições no momento. Por favor, aguarde alguns instantes e tente novamente.");
+            } else {
+                alert("Não foi possível gerar a estrutura no momento: " + err.message);
+            }
         } finally {
             setIsGenerating(false);
         }
