@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import {
     Clock, ChevronDown, ChevronUp, CheckCircle, Circle, Loader2,
     Sparkles, Utensils, ChefHat, Droplets, Dumbbell, FileText,
-    Zap, RefreshCw, BookOpen,
+    Zap, RefreshCw, BookOpen, Flame, Drumstick, Wheat,
 } from "lucide-react"
 import { useAssignments } from "@/lib/hooks/useDatabase"
 import { supabase } from "@/lib/supabase-browser"
@@ -51,8 +51,14 @@ const FOCUS_PRESETS = [
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PatientDietPage() {
     const [userId, setUserId] = useState<string | null>(null)
-    const [activeTab, setActiveTab] = useState<"protocol" | "ia">("protocol")
+    const [activeTab, setActiveTab] = useState<"cardapio" | "protocol" | "ia">("cardapio")
     const [expandedDay, setExpandedDay] = useState(1)
+
+    // Meal plan (atribuído pela nutricionista)
+    const [mealPlan, setMealPlan] = useState<any | null>(null)
+    const [mealPlanLoading, setMealPlanLoading] = useState(false)
+    const [mealPlanDay, setMealPlanDay] = useState(1)
+    const [mealPlanLoaded, setMealPlanLoaded] = useState(false)
 
     // IA Plan state
     const [focus, setFocus] = useState("")
@@ -69,6 +75,17 @@ export default function PatientDietPage() {
         }
         loadUser()
     }, [])
+
+    // Load meal plan from nutritionist
+    useEffect(() => {
+        if (!userId || mealPlanLoaded) return
+        setMealPlanLoading(true)
+        fetch('/api/patient/meal-plan')
+            .then(r => r.json())
+            .then(d => { setMealPlan(d.plan || null); setMealPlanLoaded(true) })
+            .catch(() => setMealPlanLoaded(true))
+            .finally(() => setMealPlanLoading(false))
+    }, [userId, mealPlanLoaded])
 
     const { assignments, loading } = useAssignments(userId || undefined)
     const activeProtocol = assignments?.[0]
@@ -126,32 +143,207 @@ export default function PatientDietPage() {
     return (
         <div className="min-h-screen px-4 pt-6 pb-28">
             {/* Tab switcher */}
-            <div className="flex gap-2 mb-6 bg-white/5 p-1 rounded-2xl border border-white/10">
+            <div className="flex gap-1 mb-6 bg-white/5 p-1 rounded-2xl border border-white/10">
+                <button
+                    onClick={() => setActiveTab("cardapio")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        activeTab === "cardapio"
+                            ? "bg-indigo-600 text-white"
+                            : "text-slate-500 hover:text-white"
+                    }`}
+                >
+                    <Utensils size={13} />
+                    Cardápio
+                </button>
                 <button
                     onClick={() => setActiveTab("protocol")}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                         activeTab === "protocol"
                             ? "bg-indigo-600 text-white"
                             : "text-slate-500 hover:text-white"
                     }`}
                 >
-                    <BookOpen size={15} />
-                    Meu Protocolo
+                    <BookOpen size={13} />
+                    Protocolo
                 </button>
                 <button
                     onClick={() => setActiveTab("ia")}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                         activeTab === "ia"
                             ? "bg-indigo-600 text-white"
                             : "text-slate-500 hover:text-white"
                     }`}
                 >
-                    <Sparkles size={15} />
+                    <Sparkles size={13} />
                     Plano IA
                 </button>
             </div>
 
             <AnimatePresence mode="wait">
+                {/* ── CARDÁPIO TAB ─────────────────────────────────────────── */}
+                {activeTab === "cardapio" && (
+                    <motion.div
+                        key="cardapio"
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 8 }}
+                        transition={{ duration: 0.2 }}
+                        className="space-y-4"
+                    >
+                        {mealPlanLoading ? (
+                            <div className="flex flex-col items-center justify-center py-20 gap-3">
+                                <Loader2 className="animate-spin text-indigo-400" size={32} />
+                                <p className="text-slate-400 text-sm">Carregando seu cardápio...</p>
+                            </div>
+                        ) : !mealPlan ? (
+                            <div className="flex flex-col items-center justify-center text-center py-20 gap-4">
+                                <div className="w-16 h-16 rounded-full bg-indigo-500/10 flex items-center justify-center">
+                                    <Utensils size={28} className="text-indigo-400" />
+                                </div>
+                                <div>
+                                    <p className="text-white font-semibold mb-1">Nenhum cardápio atribuído</p>
+                                    <p className="text-slate-500 text-sm">Sua nutricionista ainda não enviou um cardápio para você.</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Header do plano */}
+                                <div className="bg-gradient-to-br from-indigo-600/20 to-violet-600/10 rounded-2xl border border-indigo-500/20 p-4">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs text-indigo-400 font-semibold uppercase tracking-wide mb-1">Cardápio da sua nutricionista</p>
+                                            <h2 className="text-white font-bold text-lg leading-tight">{mealPlan.title}</h2>
+                                            {mealPlan.description && (
+                                                <p className="text-slate-400 text-sm mt-1">{mealPlan.description}</p>
+                                            )}
+                                        </div>
+                                        {mealPlan.is_ai_generated && (
+                                            <span className="shrink-0 flex items-center gap-1 text-xs bg-violet-500/20 text-violet-300 px-2 py-1 rounded-full">
+                                                <Sparkles size={10} />IA
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex gap-4 mt-3 text-xs text-slate-400">
+                                        <span className="flex items-center gap-1"><Flame size={11} className="text-orange-400" />{mealPlan.target_kcal} kcal/dia</span>
+                                        <span className="flex items-center gap-1"><Drumstick size={11} className="text-rose-400" />{mealPlan.target_protein_g}g proteína</span>
+                                        <span>{mealPlan.duration_days} dias</span>
+                                    </div>
+                                </div>
+
+                                {/* Seletor de dias */}
+                                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                                    {mealPlan.days.map((d: any) => {
+                                        const isActive = mealPlanDay === d.day_number
+                                        const kcalPct = mealPlan.target_kcal > 0
+                                            ? Math.round((d.day_total_kcal / mealPlan.target_kcal) * 100) : 0
+                                        return (
+                                            <button
+                                                key={d.day_number}
+                                                onClick={() => setMealPlanDay(d.day_number)}
+                                                className={`shrink-0 px-3 py-2 rounded-xl text-center transition-all border ${isActive ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'}`}
+                                            >
+                                                <div className="text-xs font-bold">Dia {d.day_number}</div>
+                                                <div className={`text-xs mt-0.5 ${kcalPct >= 90 && kcalPct <= 110 ? 'text-emerald-400' : kcalPct > 110 ? 'text-rose-400' : 'text-amber-400'}`}>
+                                                    {d.day_total_kcal} kcal
+                                                </div>
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+
+                                {/* Refeições do dia ativo */}
+                                {mealPlan.days
+                                    .filter((d: any) => d.day_number === mealPlanDay)
+                                    .map((day: any) => (
+                                        <div key={day.day_number} className="space-y-3">
+                                            {/* Totais do dia */}
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {[
+                                                    { label: 'Calorias', value: `${day.day_total_kcal} kcal`, icon: Flame, color: 'text-orange-400' },
+                                                    { label: 'Proteínas', value: `${day.day_total_protein}g`, icon: Drumstick, color: 'text-rose-400' },
+                                                    { label: 'Refeições', value: `${day.meals.length}x`, icon: Utensils, color: 'text-indigo-400' },
+                                                ].map(m => (
+                                                    <div key={m.label} className="bg-white/5 rounded-xl p-3 border border-white/10 text-center">
+                                                        <m.icon size={14} className={`${m.color} mx-auto mb-1`} />
+                                                        <p className="text-white text-sm font-bold">{m.value}</p>
+                                                        <p className="text-slate-500 text-xs">{m.label}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Cards de refeição */}
+                                            {day.meals.map((meal: any, mi: number) => (
+                                                <motion.div
+                                                    key={mi}
+                                                    initial={{ opacity: 0, y: 6 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    transition={{ delay: mi * 0.04 }}
+                                                    className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden"
+                                                >
+                                                    {/* Header da refeição */}
+                                                    <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-base">{meal.emoji}</span>
+                                                            <div>
+                                                                <p className="text-white text-sm font-semibold">{meal.meal_label}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            {meal.time && (
+                                                                <span className="text-xs text-slate-400 bg-white/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                    <Clock size={10} />{meal.time}
+                                                                </span>
+                                                            )}
+                                                            <span className="text-xs text-slate-500">
+                                                                {Math.round(meal.items.reduce((s: number, i: any) => s + (i.calc_kcal || 0), 0))} kcal
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Itens da refeição */}
+                                                    <div className="divide-y divide-white/5">
+                                                        {meal.items.map((item: any, ii: number) => (
+                                                            <div key={ii} className="px-4 py-3">
+                                                                <div className="flex items-start justify-between gap-2">
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="text-white text-sm font-medium">{item.food_name}</p>
+                                                                        <p className="text-slate-500 text-xs mt-0.5">
+                                                                            {item.quantity_g}g
+                                                                            {item.serving_qty && item.serving_label
+                                                                                ? ` (${item.serving_qty} ${item.serving_label})`
+                                                                                : ''}
+                                                                            {' · '}
+                                                                            {Math.round(item.calc_kcal)} kcal
+                                                                            {' · P:'}{Math.round(item.calc_protein_g)}g
+                                                                            {' · C:'}{Math.round(item.calc_carbs_g)}g
+                                                                            {' · G:'}{Math.round(item.calc_fat_g)}g
+                                                                        </p>
+                                                                        {item.preparation_notes && (
+                                                                            <p className="text-indigo-400/70 text-xs mt-1 italic">{item.preparation_notes}</p>
+                                                                        )}
+                                                                    </div>
+                                                                    <span className="shrink-0 text-xs text-slate-600 bg-white/5 px-1.5 py-0.5 rounded">
+                                                                        {Math.round(item.calc_kcal)} kcal
+                                                                    </span>
+                                                                </div>
+                                                                {item.substitution_note && (
+                                                                    <p className="text-xs text-slate-600 mt-1 flex items-center gap-1">
+                                                                        <span>↔</span>{item.substitution_note}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </motion.div>
+                                            ))}
+                                        </div>
+                                    ))
+                                }
+                            </>
+                        )}
+                    </motion.div>
+                )}
+
                 {/* ── PROTOCOL TAB ─────────────────────────────────────────── */}
                 {activeTab === "protocol" && (
                     <motion.div
