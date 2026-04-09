@@ -27,8 +27,8 @@ interface MealItem {
   preparation_notes?: string; substitution_note?: string;
 }
 
-interface MealGroup { meal_type: string; meal_label: string; items: MealItem[] }
-interface DayPlan { day_number: number; meals: MealGroup[] }
+interface MealGroup { meal_type: string; meal_label: string; time?: string; items: MealItem[] }
+interface DayPlan { day_number: number; day_theme?: string; meals: MealGroup[] }
 
 interface MealPlan {
   id?: string; title: string; description?: string; goal: string; duration_days: number;
@@ -37,13 +37,16 @@ interface MealPlan {
 }
 
 const MEAL_TYPES = [
-  { value: 'shot', label: 'Shot matinal', emoji: '🧪' },
-  { value: 'cafe_manha', label: 'Café da manhã', emoji: '☀️' },
-  { value: 'lanche_manha', label: 'Lanche da manhã', emoji: '🍎' },
-  { value: 'almoco', label: 'Almoço', emoji: '🍽️' },
-  { value: 'lanche_tarde', label: 'Lanche da tarde', emoji: '🥤' },
-  { value: 'jantar', label: 'Jantar', emoji: '🌙' },
-  { value: 'ceia', label: 'Ceia', emoji: '😴' },
+  { value: 'shot',          label: 'Shot Matinal',    emoji: '🧪', time: '06:30' },
+  { value: 'cafe_manha',   label: 'Café da Manhã',   emoji: '☀️', time: '08:30' },
+  { value: 'colacao',      label: 'Colação',          emoji: '🍎', time: '10:00' },
+  { value: 'almoco',       label: 'Almoço',           emoji: '🍽️', time: '12:00' },
+  { value: 'lanche_tarde', label: 'Lanche da Tarde', emoji: '🥤', time: '16:00' },
+  { value: 'jantar',       label: 'Jantar',           emoji: '🌙', time: '19:30' },
+  { value: 'cha_noturno',  label: 'Chá Noturno',     emoji: '🍵', time: '22:00' },
+  // legado — planos antigos
+  { value: 'lanche_manha', label: 'Lanche da Manhã', emoji: '🍎', time: '10:00' },
+  { value: 'ceia',         label: 'Ceia',             emoji: '😴', time: '21:00' },
 ]
 
 const GOALS = ['emagrecimento', 'hipertrofia', 'manutenção', 'detox', 'anti-inflamatório', 'intestinal', 'energia']
@@ -106,9 +109,11 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
       const generated = data.generated
       const planDays: DayPlan[] = (generated.days || []).map((d: any) => ({
         day_number: d.day_number,
+        day_theme: d.day_theme,
         meals: (d.meals || []).map((m: any) => ({
           meal_type: m.meal_type,
           meal_label: m.meal_label,
+          time: m.time,
           items: (m.items || []).map((i: any) => ({
             food_id: i.food_id, food_name: i.food_name, quantity_g: i.quantity_g,
             serving_qty: i.serving_qty, serving_label: i.serving_label,
@@ -385,7 +390,8 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
               return (
                 <button key={d.day_number} onClick={() => setActiveDay(d.day_number)}
                   className={`shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border ${activeDay === d.day_number ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:text-white'}`}>
-                  <div>Dia {d.day_number}</div>
+                  <div className="font-semibold">Dia {d.day_number}</div>
+                  {d.day_theme && <div className="text-xs opacity-70 truncate max-w-[100px]">{d.day_theme}</div>}
                   <div className={`text-xs mt-0.5 ${kcalPct >= 90 && kcalPct <= 110 ? 'text-emerald-400' : kcalPct > 110 ? 'text-rose-400' : 'text-amber-400'}`}>
                     {totals.kcal} kcal
                   </div>
@@ -433,6 +439,11 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
                         <h4 className="text-sm font-semibold text-white flex items-center gap-2">
                           <span>{mealMeta?.emoji || '🍽️'}</span>
                           {meal.meal_label || mealMeta?.label || meal.meal_type}
+                          {(meal.time || mealMeta?.time) && (
+                            <span className="text-xs font-normal text-slate-500 bg-slate-700/40 px-1.5 py-0.5 rounded">
+                              {meal.time || mealMeta?.time}
+                            </span>
+                          )}
                         </h4>
                         <span className="text-xs text-slate-500">
                           {Math.round(meal.items.reduce((s, i) => s + (i.calc_kcal || 0), 0))} kcal
