@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { streamClaude } from '@/lib/services/anthropic'
 import { getChatSystemPrompt } from '@/lib/ai-nutritionist-identity'
+import { sanitizeForPrompt } from '@/lib/ai-security'
 
 export async function POST(request: NextRequest) {
     if (!process.env.GEMINI_API_KEY) {
@@ -17,11 +18,19 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        const { message, history } = await request.json()
+        const body = await request.json()
+        const rawMessage: string = body.message
+        const rawHistory: Array<{ sender: string; content: string }> = body.history || []
 
-        if (!message) {
+        if (!rawMessage) {
             return NextResponse.json({ error: 'Message is required' }, { status: 400 })
         }
+
+        const message = sanitizeForPrompt(rawMessage, 2000)
+        const history = rawHistory.map(msg => ({
+            sender: msg.sender,
+            content: sanitizeForPrompt(msg.content, 2000),
+        }))
 
         // 1. Load patient profile + active protocol
         const { data: profile } = await supabase
@@ -90,7 +99,7 @@ export async function POST(request: NextRequest) {
             : 'A paciente ainda não tem um protocolo ativo.'
 
         const profileContext = profile
-            ? `Nome: ${profile.name}. XP Total: ${profile.total_xp || 0}. Streak atual: ${profile.current_streak || 0} dias. Plano: ${profile.current_plan || 'community'}. ${profile.primary_goal ? `Objetivo principal: ${profile.primary_goal}.` : ''} ${profile.initial_weight && profile.current_weight ? `Peso inicial: ${profile.initial_weight}kg, Peso atual: ${profile.current_weight}kg.` : ''}`
+            ? `Nome: ${sanitizeForPrompt(profile.name, 100)}. XP Total: ${profile.total_xp || 0}. Streak atual: ${profile.current_streak || 0} dias. Plano: ${profile.current_plan || 'community'}. ${profile.primary_goal ? `Objetivo principal: ${sanitizeForPrompt(profile.primary_goal, 200)}.` : ''} ${profile.initial_weight && profile.current_weight ? `Peso inicial: ${profile.initial_weight}kg, Peso atual: ${profile.current_weight}kg.` : ''}`
             : ''
 
         const systemPrompt = getChatSystemPrompt(

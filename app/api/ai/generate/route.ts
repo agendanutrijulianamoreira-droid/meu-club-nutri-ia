@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { callClaudeJSON } from '@/lib/services/anthropic'
 import { getGenerateSystemPrompt } from '@/lib/ai-nutritionist-identity'
+import { sanitizeForPrompt, isValidTask, validateGenerateOutput, type GenerateTask } from '@/lib/ai-security'
 
 export async function POST(request: NextRequest) {
     if (!process.env.GEMINI_API_KEY) {
@@ -18,10 +19,17 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        const { task, context, prompt } = await request.json()
+        const body = await request.json()
+        const task: string = body.task
+        const context = sanitizeForPrompt(body.context, 500)
+        const prompt = sanitizeForPrompt(body.prompt, 1000)
 
         if (!task) {
             return NextResponse.json({ error: 'Task is required' }, { status: 400 })
+        }
+
+        if (!isValidTask(task)) {
+            return NextResponse.json({ error: 'Invalid task' }, { status: 400 })
         }
 
         // 2. Load Tenant Personality
@@ -116,11 +124,13 @@ Esquema de Retorno:
 
         const fullPrompt = prompt || `Gere um ${task} baseado no contexto: ${context}`
 
-        const result = await callClaudeJSON({
+        const raw = await callClaudeJSON({
             system: systemInstruction,
             maxTokens: 2000,
             messages: [{ role: 'user', content: fullPrompt }],
         })
+
+        const result = validateGenerateOutput(task as GenerateTask, raw)
 
         return NextResponse.json(result)
 
