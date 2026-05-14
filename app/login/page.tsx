@@ -20,6 +20,7 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [fullName, setFullName] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [successMsg, setSuccessMsg] = useState<string | null>(null);
     const [config, setConfig] = useState<any>(null);
 
     // Fetch Public Settings for Login
@@ -55,6 +56,25 @@ export default function LoginPage() {
         };
         checkUser();
     }, [router]);
+
+    const handleForgotPassword = async () => {
+        if (!email) {
+            setError('Digite seu e-mail acima antes de solicitar a redefinição de senha.');
+            return;
+        }
+        setLoading(true);
+        setError(null);
+        setSuccessMsg(null);
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/auth/callback?next=/admin/reset-password`,
+        });
+        setLoading(false);
+        if (error) {
+            setError(error.message);
+        } else {
+            setSuccessMsg(`E-mail de redefinição enviado para ${email}. Verifique sua caixa de entrada.`);
+        }
+    };
 
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -187,7 +207,7 @@ export default function LoginPage() {
                         <div className="space-y-2">
                             <div className="flex justify-between">
                                 <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1">Senha</label>
-                                {!isSignUp && <span className="text-[10px] font-black uppercase text-indigo-500 cursor-pointer">Esqueceu?</span>}
+                                {!isSignUp && <span onClick={handleForgotPassword} className="text-[10px] font-black uppercase text-indigo-500 cursor-pointer hover:text-indigo-300 transition-colors">Esqueceu?</span>}
                             </div>
                             <input
                                 type="password" value={password} onChange={e => setPassword(e.target.value)}
@@ -199,6 +219,11 @@ export default function LoginPage() {
                         {error && (
                             <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-400 text-[10px] font-black uppercase tracking-widest text-center">
                                 {error}
+                            </div>
+                        )}
+                        {successMsg && (
+                            <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-emerald-400 text-[10px] font-black uppercase tracking-widest text-center">
+                                {successMsg}
                             </div>
                         )}
 
