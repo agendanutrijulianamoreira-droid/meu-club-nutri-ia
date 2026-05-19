@@ -37,6 +37,15 @@ export async function GET(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Busca o plano da paciente para determinar o tier
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('current_plan')
+    .eq('user_id', user.id)
+    .single()
+
+  const planTier: 'basic' | 'premium' = profile?.current_plan === 'vip' ? 'premium' : 'basic'
+
   // Busca o assignment ativo mais recente
   const { data: assignment } = await supabase
     .from('meal_plan_assignments')
@@ -55,7 +64,7 @@ export async function GET(request: NextRequest) {
     .single()
 
   if (!assignment || !assignment.meal_plan) {
-    return NextResponse.json({ plan: null })
+    return NextResponse.json({ plan: null, tier: planTier, planType: profile?.current_plan || 'community' })
   }
 
   const plan = assignment.meal_plan as any
@@ -73,7 +82,7 @@ export async function GET(request: NextRequest) {
     .order('sort_order')
 
   if (!items || items.length === 0) {
-    return NextResponse.json({ plan: { ...plan, days: [] } })
+    return NextResponse.json({ plan: { ...plan, days: [] }, tier: planTier, planType: profile?.current_plan || 'community' })
   }
 
   // Agrupa por dia → meal_type
@@ -122,5 +131,7 @@ export async function GET(request: NextRequest) {
       assigned_at: assignment.assigned_at,
       days,
     },
+    tier: planTier,
+    planType: profile?.current_plan || 'community',
   })
 }
