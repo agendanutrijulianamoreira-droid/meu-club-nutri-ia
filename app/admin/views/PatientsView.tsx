@@ -229,6 +229,8 @@ function SendMessageModal({ patientId, patientName, onClose, onSuccess }: {
 }
 
 // ─── Patient detail panel ─────────────────────────────────────────────────────
+const COMMON_RESTRICTIONS = ['Lactose', 'Glúten', 'Ovo', 'Frutos do mar', 'Amendoim', 'Soja', 'Nozes', 'Carne vermelha', 'Carne de porco', 'Vegetariana', 'Vegana']
+
 function PatientDetail({ patient, onAction, onRefresh }: {
     patient: Patient
     onAction: (type: string) => void
@@ -237,7 +239,10 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     const [actionLoading, setActionLoading] = useState<string | null>(null)
     const [showProtocolModal, setShowProtocolModal] = useState(false)
     const [showMessageModal, setShowMessageModal] = useState(false)
-    const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview')
+    const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'health'>('overview')
+    const [restrictions, setRestrictions] = useState<string[]>([])
+    const [customRestriction, setCustomRestriction] = useState('')
+    const [savingRestrictions, setSavingRestrictions] = useState(false)
 
     const rm = RISK_META[patient.riskLevel]
 
@@ -250,6 +255,29 @@ function PatientDetail({ patient, onAction, onRefresh }: {
             })
             onAction(label + ' enviado!')
         } finally { setActionLoading(null) }
+    }
+
+    const saveRestrictions = async () => {
+        setSavingRestrictions(true)
+        try {
+            await fetch(`/api/admin/patients/${patient.id}/action`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'update-restrictions', restrictions })
+            })
+            onAction('Restrições salvas!')
+            onRefresh()
+        } finally { setSavingRestrictions(false) }
+    }
+
+    const toggleRestriction = (r: string) => {
+        setRestrictions(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r])
+    }
+
+    const addCustom = () => {
+        const clean = customRestriction.trim()
+        if (!clean || restrictions.includes(clean)) return
+        setRestrictions(prev => [...prev, clean])
+        setCustomRestriction('')
     }
 
     return (
@@ -307,7 +335,7 @@ function PatientDetail({ patient, onAction, onRefresh }: {
 
                 {/* Tabs */}
                 <div className="flex gap-1 mt-4 bg-white/5 rounded-xl p-1 w-fit">
-                    {[['overview', 'Visão Geral'], ['history', 'Histórico']] .map(([id, label]) => (
+                    {[['overview', 'Visão Geral'], ['history', 'Histórico'], ['health', 'Saúde']] .map(([id, label]) => (
                         <button key={id} onClick={() => setActiveTab(id as any)}
                             className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all
                                 ${activeTab === id ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
@@ -481,6 +509,39 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                     </>
                 )}
             </div>
+
+                {activeTab === 'health' && (
+                    <div className="space-y-4">
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Restrições Alimentares</p>
+                            <p className="text-xs text-slate-400">Selecione as restrições para personalizar o cardápio e o chat com IA</p>
+                            <div className="flex flex-wrap gap-2">
+                                {COMMON_RESTRICTIONS.map(r => (
+                                    <button key={r} onClick={() => toggleRestriction(r)}
+                                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${restrictions.includes(r) ? 'bg-rose-500/15 border-rose-500/25 text-rose-400' : 'bg-white/5 border-white/10 text-slate-500 hover:border-white/20'}`}>
+                                        {r}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="flex gap-2">
+                                <input value={customRestriction} onChange={e => setCustomRestriction(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && addCustom()}
+                                    placeholder="Outra restrição..." className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50"/>
+                                <button onClick={addCustom} className="px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-slate-400 hover:text-white transition-all text-sm">+</button>
+                            </div>
+                            {restrictions.filter(r => !COMMON_RESTRICTIONS.includes(r)).map(r => (
+                                <span key={r} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-rose-500/15 border border-rose-500/25 text-rose-400">
+                                    {r} <button onClick={() => toggleRestriction(r)} className="hover:text-white">×</button>
+                                </span>
+                            ))}
+                            <button onClick={saveRestrictions} disabled={savingRestrictions}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-bold rounded-2xl transition-all">
+                                {savingRestrictions ? <Loader2 size={14} className="animate-spin"/> : null}
+                                Salvar restrições
+                            </button>
+                        </div>
+                    </div>
+                )}
 
             {/* Modals */}
             <AnimatePresence>

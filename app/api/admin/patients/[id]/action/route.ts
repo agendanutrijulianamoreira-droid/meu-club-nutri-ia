@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 // POST /api/admin/patients/[id]/action
-// actions: assign-protocol | send-message | send-rescue | send-congrats
+// actions: assign-protocol | send-message | send-rescue | send-congrats | update-restrictions | update-plan
 export async function POST(
     request: NextRequest,
     { params }: { params: { id: string } }
@@ -155,6 +155,32 @@ Retorne JSON: {"title": "...", "body": "..."}`
             message_type: 'engagement', priority: 'normal',
             channels: ['inbox'],
         })
+
+        return NextResponse.json({ success: true })
+    }
+
+    // ── Update dietary restrictions ───────────────────────────────────────────
+    if (action === 'update-restrictions') {
+        const { restrictions } = body // string[]
+        if (!Array.isArray(restrictions)) return NextResponse.json({ error: 'restrictions must be array' }, { status: 400 })
+
+        await supabase.from('profiles')
+            .update({ dietary_restrictions: restrictions })
+            .eq('user_id', patientId)
+            .eq('tenant_id', tenant.id)
+
+        return NextResponse.json({ success: true })
+    }
+
+    // ── Update plan ───────────────────────────────────────────────────────────
+    if (action === 'update-plan') {
+        const { plan } = body
+        if (!plan) return NextResponse.json({ error: 'plan required' }, { status: 400 })
+
+        await supabase.from('profiles')
+            .update({ current_plan: plan })
+            .eq('user_id', patientId)
+            .eq('tenant_id', tenant.id)
 
         return NextResponse.json({ success: true })
     }
