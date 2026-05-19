@@ -1,6 +1,6 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import {
     Flame,
     Droplet,
@@ -20,6 +20,7 @@ import Link from "next/link"
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase-browser"
 import { useRouter } from "next/navigation"
+import { ReminderSettings } from "@/components/patient/ReminderSettings"
 
 export default function PatientHomePage() {
     const router = useRouter()
@@ -33,6 +34,7 @@ export default function PatientHomePage() {
     } = usePatientEngine()
     const [unreadCount, setUnreadCount] = useState(0)
     const [firstName, setFirstName] = useState("Rainha")
+    const [showReminders, setShowReminders] = useState(false)
 
     useEffect(() => {
         const init = async () => {
@@ -73,6 +75,10 @@ export default function PatientHomePage() {
     const progressPercentage = stats.completionRate
 
     return (
+        <>
+        <AnimatePresence>
+          {showReminders && <ReminderSettings onClose={() => setShowReminders(false)} />}
+        </AnimatePresence>
         <div className="min-h-screen px-4 pt-6 pb-24">
             {/* Header */}
             <div className="mb-8">
@@ -281,5 +287,6 @@ export default function PatientHomePage() {
                 </div>
             )}
         </div>
+        </>
     )
 }

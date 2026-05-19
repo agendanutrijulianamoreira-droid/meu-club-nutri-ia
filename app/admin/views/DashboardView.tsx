@@ -8,7 +8,7 @@ import {
     Bell, Send, BarChart2, ChevronUp, RefreshCw, Star, Award,
     Droplets, Check, X as XIcon, AlertTriangle, Heart,
     TrendingDown, Layers, Lightbulb, ChevronDown, Loader2,
-    UserCheck, Coins, FileText, Dumbbell
+    UserCheck, Coins, FileText, Dumbbell, ShieldCheck
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
@@ -178,6 +178,7 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
     const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([])
     const [activeProtocol, setActiveProtocol] = useState<ActiveProtocol | null>(null)
     const [checkinHistory, setCheckinHistory] = useState<number[]>([])
+    const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0)
 
     useEffect(() => {
         const h = new Date().getHours()
@@ -245,6 +246,16 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
                 last7days.push(count || 0)
             }
             setCheckinHistory(last7days)
+
+            // 7. Pending agent approvals count
+            try {
+                const { count: pendingCount } = await supabase
+                    .from('agent_pending_actions')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('tenant_id', tenantId)
+                    .eq('status', 'pending')
+                setPendingApprovalsCount(pendingCount || 0)
+            } catch {}
 
             // Build patient alerts (inactive patients = risk)
             const patientAlerts: PatientAlert[] = []
@@ -412,13 +423,32 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
             {/* ============================================ */}
             {/* 1. KPIs — DADOS REAIS */}
             {/* ============================================ */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                 <KPICard label="Total Pacientes" value={String(stats.totalPatients)} sub="Cadastrados" icon={<Users size={18}/>} color="indigo" delay={0} onClick={() => setView('patients')} />
                 <KPICard label="Ativos Agora" value={String(stats.activePatients)} sub="Check-in recente" icon={<UserCheck size={18}/>} color="emerald" delay={0.06} onClick={() => setView('patients')} />
                 <KPICard label="Check-ins Hoje" value={String(stats.todayCheckins)} sub="Registros do dia" icon={<Activity size={18}/>} color="violet" sparkData={checkinHistory} delay={0.12} onClick={() => setView('checkins')} />
                 <KPICard label="Alertas Críticos" value={String(stats.criticalAlerts)} sub={stats.criticalAlerts > 0 ? "Requerem ação!" : "Tudo tranquilo"} icon={<AlertCircle size={18}/>} color={stats.criticalAlerts > 0 ? "rose" : "emerald"} delay={0.18} />
                 <KPICard label="Protocolos Ativos" value={String(stats.activeProtocols)} sub="Em andamento" icon={<FileText size={18}/>} color="cyan" delay={0.24} onClick={() => setView('protocols')} />
+                <KPICard label="Aprovações IA" value={String(pendingApprovalsCount)} sub={pendingApprovalsCount > 0 ? "Aguardando revisão" : "Tudo aprovado"} icon={<ShieldCheck size={18}/>} color={pendingApprovalsCount > 0 ? "amber" : "emerald"} delay={0.30} onClick={() => setView('agent-approvals')} />
             </div>
+            {/* CTA for pending approvals */}
+            {pendingApprovalsCount > 0 && (
+                <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl px-5 py-3">
+                    <ShieldCheck size={18} className="text-amber-400 shrink-0" />
+                    <div className="flex-1">
+                        <p className="text-amber-400 text-sm font-bold">
+                            {pendingApprovalsCount} {pendingApprovalsCount === 1 ? 'ação aguarda' : 'ações aguardam'} sua aprovação
+                        </p>
+                        <p className="text-amber-600 text-xs">Agentes propuseram ações que precisam da sua revisão antes de serem executadas</p>
+                    </div>
+                    <button onClick={() => setView('agent-approvals')}
+                        className="shrink-0 flex items-center gap-2 px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-400 text-xs font-bold rounded-xl transition-all">
+                        Ver aprovações
+                        <ChevronRight size={14} />
+                    </button>
+                </motion.div>
+            )}
 
             {/* ============================================ */}
             {/* 2. ALERTAS DE PACIENTES — MOSTRADO PRIMEIRO */}
