@@ -194,6 +194,10 @@ serve(async (req) => {
           // 5. Community — gera post inspiracional diário para o feed
           const communityResult = await runCommunityAgent(supabase, tenant, patients)
           results.push(communityResult)
+
+          // 6. Upsell — detecta candidatas a upgrade e cria oferta para aprovação
+          const upsellResult = await runUpsellAgent(supabase, tenant, patients)
+          results.push(upsellResult)
         }
         break
       }
@@ -257,6 +261,8 @@ serve(async (req) => {
           results.push(await runCommunityAgent(supabase, tenant, patients))
         } else if (agentName === 'meals' && event.user_id) {
           results.push(await runMealsAgent(supabase, event.tenant_id, event.user_id, event.payload))
+        } else if (agentName === 'upsell') {
+          results.push(await runUpsellAgent(supabase, tenant, patients))
         }
         break
       }
@@ -1584,6 +1590,224 @@ Retorne APENAS JSON: { "status": "approved|flagged", "reason": "motivo se flagge
     await supabase.from('posts').update({ is_ai_moderated: true, ai_status: 'approved' }).eq('id', postId)
     if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'error', error_message: err.message, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
     return { agent_name: 'community_moderation', status: 'error', messages: [], tokens_used: 0, duration_ms: elapsed, error: err.message }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AGENT: UPSELL — Detecta candidatas a upgrade, cria oferta na fila de aprovação
+// Dispara quando: streak alto + alta adesão + plano não tem o produto ainda
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function runUpsellAgent(
+  supabase: SupabaseClient,
+  tenant: TenantContext,
+  patients: PatientContext[]
+): Promise<AgentResult> {
+  const start = Date.now()
+  let totalTokens = 0
+  const messages: AgentResult['messages'] = []
+
+  const { data: agentLog } = await supabase
+    .from('agent_logs')
+    .insert({ tenant_id: tenant.id, agent_name: 'upsell', trigger_type: 'agent_chain', input_payload: { patients_count: patients.length }, status: 'running' })
+    .select('id').single()
+
+  try {
+    // Buscar produtos ativos do tenant
+    const { data: products } = await supabase
+      .from('products')
+      .select('id, name, type, description, price_cents, badge_text')
+      .eq('tenant_id', tenant.id)
+      .eq('is_active', true)
+
+    if (!products || products.length === 0) {
+      const elapsed = Date.now() - start
+      if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'skipped', output_payload: { reason: 'no_active_products' }, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+      return { agent_name: 'upsell', status: 'skipped', messages: [], tokens_used: 0, duration_ms: elapsed }
+    }
+
+    // Filtrar candidatas ao upsell: streak ≥ 7, adesão ≥ 50%, plano 'community'
+    const candidates = patients.filter(p =>
+      p.current_streak >= 7 &&
+      p.adherence_7d >= 50 &&
+      p.current_plan === 'community' &&
+      p.risk_level !== 'critical'
+    )
+
+    if (candidates.length === 0) {
+      const elapsed = Date.now() - start
+      if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'skipped', output_payload: { reason: 'no_upsell_candidates' }, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+      return { agent_name: 'upsell', status: 'skipped', messages: [], tokens_used: 0, duration_ms: elapsed }
+    }
+
+    // Para cada candidata: verificar anti-spam via RPC
+    const eligibleCandidates: typeof candidates = []
+    for (const patient of candidates) {
+      const { data: recentlyOffered } = await supabase.rpc('was_recently_offered', {
+        p_user_id: patient.user_id,
+        p_product_id: null,
+        p_days: 14,
+      })
+      if (!recentlyOffered) eligibleCandidates.push(patient)
+    }
+
+    if (eligibleCandidates.length === 0) {
+      const elapsed = Date.now() - start
+      if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'skipped', output_payload: { reason: 'all_candidates_recently_offered' }, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+      return { agent_name: 'upsell', status: 'skipped', messages: [], tokens_used: 0, duration_ms: elapsed }
+    }
+
+    const brand = tenant.brand_name
+    const systemPrompt = `${NUTRITIONIST_IDENTITY}
+
+PAPEL ESPECÍFICO — CONSULTOR DE UPSELL ÉTICO:
+Você cria ofertas personalizadas que genuinamente ajudam cada paciente a avançar.
+
+PRINCÍPIOS:
+• A oferta deve fazer sentido para o momento da paciente (não é spam)
+• Conecta o produto ao objetivo pessoal dela (emagrecimento, saúde hormonal, etc.)
+• Usa o progresso como prova social interna ("você já mostrou que consegue")
+• Cria urgência baseada no momento (streak alto = momento de aprofundar)
+• NUNCA gera sentimento de culpa ou pressão
+• ${TONE_LAYER[tenant?.settings?.ai?.tone || 'acolhedora']}
+Plataforma: ${brand}
+
+Retorne APENAS JSON válido, sem markdown.`
+
+    const productsInfo = products.map((p: any) =>
+      `${p.id}|${p.name}|${p.type}|${Math.floor(p.price_cents / 100)}`
+    ).join('\n')
+
+    const patientsInfo = eligibleCandidates.map(p =>
+      `${p.user_id}|${p.name.split(' ')[0]}|streak ${p.current_streak}d|adesão ${p.adherence_7d}%|objetivo: ${p.primary_goal || 'não informado'}`
+    ).join('\n')
+
+    const userPrompt = `Marca: ${brand}
+
+Produtos disponíveis (id|nome|tipo|preço_reais):
+${productsInfo}
+
+Pacientes candidatas ao upsell (user_id|nome|streak|adesão|objetivo):
+${patientsInfo}
+
+Para cada paciente:
+1. Escolha o produto mais adequado ao objetivo e momento dela
+2. Crie uma mensagem de oferta personalizada (máx 3 frases)
+3. Calcule um engagement_score de 0-100 (quanto acredita que vai converter)
+
+Retorne APENAS JSON:
+{
+  "offers": [
+    {
+      "user_id": "uuid",
+      "product_id": "uuid",
+      "product_name": "nome do produto",
+      "offer_title": "título curto (máx 8 palavras)",
+      "offer_body": "mensagem personalizada (máx 3 frases)",
+      "trigger_reason": "streak_milestone|high_engagement|plan_age",
+      "engagement_score": 0-100,
+      "cta_label": "texto do botão",
+      "cta_url": "/vender/${tenant.id}"
+    }
+  ]
+}`
+
+    const res = await fetch(GEMINI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: userPrompt }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, generationConfig: { maxOutputTokens: 1500, responseMimeType: 'application/json' } }),
+    })
+
+    if (!res.ok) throw new Error(`Gemini error: ${res.status}`)
+    const data = await res.json()
+    totalTokens = data.usageMetadata?.totalTokenCount || 0
+    const parsed = JSON.parse((data.candidates?.[0]?.content?.parts?.[0]?.text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
+
+    for (const offer of parsed.offers || []) {
+      const patient = eligibleCandidates.find(p => p.user_id === offer.user_id)
+      if (!patient) continue
+
+      // Inserir na fila de aprovação (admin precisa aprovar antes de enviar)
+      const { data: queueItem } = await supabase
+        .from('agent_approval_queue')
+        .insert({
+          tenant_id: tenant.id,
+          agent_name: 'upsell',
+          action_type: 'send_offer',
+          target_user_id: patient.user_id,
+          preview_title: offer.offer_title,
+          preview_body: offer.offer_body,
+          preview_context: {
+            patient_name: patient.name,
+            streak: patient.current_streak,
+            adherence: patient.adherence_7d,
+            product_name: offer.product_name,
+            engagement_score: offer.engagement_score,
+          },
+          payload: {
+            user_id: patient.user_id,
+            product_id: offer.product_id,
+            product_name: offer.product_name,
+            offer_title: offer.offer_title,
+            offer_body: offer.offer_body,
+            cta_label: offer.cta_label,
+            cta_url: offer.cta_url,
+            trigger_reason: offer.trigger_reason,
+            days_on_plan: patient.days_since_activity,
+            streak_at_offer: patient.current_streak,
+            engagement_score: offer.engagement_score,
+          },
+          priority: offer.engagement_score >= 70 ? 'high' : 'normal',
+          expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+        })
+        .select('id').single()
+
+      // Log na tabela upsell_events (oferta criada, aguardando aprovação)
+      await supabase.from('upsell_events').insert({
+        tenant_id: tenant.id,
+        user_id: patient.user_id,
+        product_id: offer.product_id || null,
+        approval_id: queueItem?.id || null,
+        trigger_reason: offer.trigger_reason,
+        days_on_plan: patient.days_since_activity,
+        streak_at_offer: patient.current_streak,
+        engagement_score: offer.engagement_score,
+        offer_title: offer.offer_title,
+        offer_body: offer.offer_body,
+        product_name: offer.product_name,
+        event_type: 'sent',
+      })
+
+      messages.push({
+        user_id: patient.user_id,
+        title: offer.offer_title,
+        body: offer.offer_body,
+        message_type: 'offer',
+        priority: offer.engagement_score >= 70 ? 'high' : 'normal',
+        cta_label: offer.cta_label,
+        cta_url: offer.cta_url,
+        channels: ['approval_queue'],
+      })
+    }
+
+    const elapsed = Date.now() - start
+    if (agentLog?.id) {
+      await supabase.from('agent_logs').update({
+        status: 'success',
+        output_payload: { candidates: eligibleCandidates.length, offers_queued: messages.length },
+        tokens_used: totalTokens, cost_usd: 0,
+        duration_ms: elapsed, completed_at: new Date().toISOString(),
+      }).eq('id', agentLog.id)
+    }
+
+    return { agent_name: 'upsell', status: 'success', messages, tokens_used: totalTokens, duration_ms: elapsed }
+
+  } catch (err: any) {
+    const elapsed = Date.now() - start
+    console.error('[upsell] Error:', err)
+    if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'error', error_message: err.message, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+    return { agent_name: 'upsell', status: 'error', messages: [], tokens_used: totalTokens, duration_ms: elapsed, error: err.message }
   }
 }
 
