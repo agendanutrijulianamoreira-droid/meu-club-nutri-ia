@@ -56,12 +56,13 @@ import { ChevronDown, LogOut, User as UserIcon, Building2, Palette } from "lucid
 
 import { SettingsLoginView } from "./views/SettingsLoginView"
 import { AgentsDashboardView } from "./views/AgentsDashboardView"
+import { AgentApprovalsView } from "./views/AgentApprovalsView"
 import { MealPlanBuilderView } from "./views/MealPlanBuilderView"
 import { AppointmentsView } from "./views/AppointmentsView"
 import { ProfessionalsView } from "./views/ProfessionalsView"
 import { ProductGatewayView } from "./views/ProductGatewayView"
 
-type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits' | 'library' | 'settings' | 'settings-login' | 'club-plan' | 'agents-dashboard' | 'meal-plans' | 'appointments' | 'professionals' | 'product-gateway'
+type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits' | 'library' | 'settings' | 'settings-login' | 'club-plan' | 'agents-dashboard' | 'agent-approvals' | 'meal-plans' | 'appointments' | 'professionals' | 'product-gateway'
 
 const navItems = [
     { id: 'dashboard' as ViewType, label: 'Painel Central', icon: LayoutDashboard },
@@ -81,6 +82,7 @@ const navItems = [
     { id: 'ai-credits' as ViewType, label: 'Créditos IA', icon: CreditCard },
     { id: 'ai-brain' as ViewType, label: 'Config. IA', icon: Brain },
     { id: 'agents-dashboard' as ViewType, label: 'Agentes IA', icon: Bot },
+    { id: 'agent-approvals' as ViewType, label: 'Aprovações', icon: ShieldCheck },
     { id: 'settings' as ViewType, label: 'Sistema', icon: Settings },
 ]
 
@@ -125,6 +127,7 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
             case 'ai-brain': return <AISettingsView setView={setActiveView} tenantId={tenantId} />
             case 'ai-credits': return <AICreditsView setView={setActiveView} tenantId={tenantId} />
             case 'agents-dashboard': return <AgentsDashboardView setView={setActiveView} tenantId={tenantId} />
+            case 'agent-approvals': return <AgentApprovalsView setView={setActiveView} tenantId={tenantId} />
             case 'meal-plans': return <MealPlanBuilderView setView={setActiveView} tenantId={tenantId} />
             case 'appointments': return <AppointmentsView setView={setActiveView} tenantId={tenantId} />
             case 'professionals': return <ProfessionalsView setView={setActiveView} tenantId={tenantId} />

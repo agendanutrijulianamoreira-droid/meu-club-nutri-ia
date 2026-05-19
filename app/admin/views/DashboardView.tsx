@@ -178,6 +178,7 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
     const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([])
     const [activeProtocol, setActiveProtocol] = useState<ActiveProtocol | null>(null)
     const [checkinHistory, setCheckinHistory] = useState<number[]>([])
+    const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0)
 
     useEffect(() => {
         const h = new Date().getHours()
