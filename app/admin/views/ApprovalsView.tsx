@@ -326,7 +326,7 @@ export function ApprovalsView({ setView, tenantId = '' }: {
       ) : (
         <div className="space-y-3">
           <AnimatePresence>
-            {items.map(item => (
+            {items.map((item: ApprovalItem) => (
               activeTab === 'pending'
                 ? <ApprovalCard key={item.id} item={item} onDecision={handleDecision}/>
                 : (

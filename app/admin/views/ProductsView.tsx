@@ -334,8 +334,8 @@ function ProductForm({ product, onSave, onCancel }: {
 function ProductCard({ product, onEdit, onToggle, onDelete }: {
   product: Product
   onEdit: (p: Product) => void
-  onToggle: (p: Product) => void
-  onDelete: (id: string) => void
+  onToggle: (p: Product) => void | Promise<void>
+  onDelete: (id: string) => void | Promise<void>
 }) {
   const meta = TYPE_META[product.type]
   return (
