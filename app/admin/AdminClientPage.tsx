@@ -28,7 +28,8 @@ import {
     Bot,
     Utensils,
     CalendarCheck,
-    Stethoscope
+    Stethoscope,
+    ShoppingBag
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -58,8 +59,9 @@ import { AgentsDashboardView } from "./views/AgentsDashboardView"
 import { MealPlanBuilderView } from "./views/MealPlanBuilderView"
 import { AppointmentsView } from "./views/AppointmentsView"
 import { ProfessionalsView } from "./views/ProfessionalsView"
+import { ProductGatewayView } from "./views/ProductGatewayView"
 
-type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits' | 'library' | 'settings' | 'settings-login' | 'club-plan' | 'agents-dashboard' | 'meal-plans' | 'appointments' | 'professionals'
+type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits' | 'library' | 'settings' | 'settings-login' | 'club-plan' | 'agents-dashboard' | 'meal-plans' | 'appointments' | 'professionals' | 'product-gateway'
 
 const navItems = [
     { id: 'dashboard' as ViewType, label: 'Painel Central', icon: LayoutDashboard },
@@ -75,6 +77,7 @@ const navItems = [
     { id: 'checkins' as ViewType, label: 'Check-ins IA', icon: MessageCircle },
     { id: 'library' as ViewType, label: 'Cérebro Técnico', icon: BookOpen },
     { id: 'sales-page' as ViewType, label: 'Bio-Page', icon: Globe },
+    { id: 'product-gateway' as ViewType, label: 'Produtos & Gateway', icon: ShoppingBag },
     { id: 'ai-credits' as ViewType, label: 'Créditos IA', icon: CreditCard },
     { id: 'ai-brain' as ViewType, label: 'Config. IA', icon: Brain },
     { id: 'agents-dashboard' as ViewType, label: 'Agentes IA', icon: Bot },
@@ -125,6 +128,7 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
             case 'meal-plans': return <MealPlanBuilderView setView={setActiveView} tenantId={tenantId} />
             case 'appointments': return <AppointmentsView setView={setActiveView} tenantId={tenantId} />
             case 'professionals': return <ProfessionalsView setView={setActiveView} tenantId={tenantId} />
+            case 'product-gateway': return <ProductGatewayView setView={setActiveView} tenantId={tenantId} />
             case 'settings': return <SettingsView {...props} />
             case 'settings-login': return <SettingsLoginView />
             case 'club-plan': return <ClubPlanView {...props} />
