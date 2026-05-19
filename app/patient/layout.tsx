@@ -3,7 +3,7 @@
 import { ReactNode, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Home, Utensils, Users, User, MessageCircle, ShoppingBag, HeartPulse } from "lucide-react"
+import { Home, Utensils, Users, User, MessageCircle, ShoppingBag, TrendingUp } from "lucide-react"
 import { supabase } from "@/lib/supabase-browser"
 import { useFCMToken } from "@/lib/hooks/useFCMToken"
 
@@ -50,7 +50,7 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
         { href: "/patient/home", label: "Início", icon: Home },
         { href: "/patient/diet", label: "Plano", icon: Utensils },
         { href: "/patient/feed", label: "Tribo", icon: Users },
-        { href: "/patient/professionals", label: "Especialistas", icon: HeartPulse },
+        { href: "/patient/gateway", label: "Crescer", icon: TrendingUp },
         { href: "/patient/profile", label: "Perfil", icon: User },
     ]
 
