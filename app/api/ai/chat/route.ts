@@ -30,6 +30,35 @@ export async function POST(request: NextRequest) {
             .eq('user_id', user.id)
             .single()
 
+        // Enforce chat limits based on plan
+        const plan = profile?.current_plan ?? 'community'
+        if (plan === 'community') {
+            // community plan: limit to 5 AI messages per day
+            const todayStart = new Date()
+            todayStart.setHours(0, 0, 0, 0)
+            const { count } = await supabase
+                .from('ai_generations')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', user.id)
+                .eq('task', 'chat')
+                .gte('created_at', todayStart.toISOString())
+
+            if ((count ?? 0) >= 5) {
+                return NextResponse.json(
+                    { error: 'Limite diário de mensagens atingido. Faça upgrade para chat ilimitado.' },
+                    { status: 429 }
+                )
+            }
+        }
+
+        // Log chat message for usage tracking
+        supabase.from('ai_generations').insert({
+            user_id: user.id,
+            tenant_id: profile?.tenant_id,
+            task: 'chat',
+            model: 'gemini-2.5-flash',
+        }).then(() => {}).catch(() => {})
+
         // 2. Load active protocol assignment
         let activeProtocol = null
         let currentDay = 1
