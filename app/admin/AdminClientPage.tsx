@@ -63,8 +63,11 @@ import { AppointmentsView } from "./views/AppointmentsView"
 import { ProfessionalsView } from "./views/ProfessionalsView"
 import { ProductGatewayView } from "./views/ProductGatewayView"
 import { AnnualPlannerView } from "./views/AnnualPlannerView"
+import { StrategicPlannerView } from "./views/StrategicPlannerView"
+import { ContentPlannerView } from "./views/ContentPlannerView"
+import { AnalyticsView } from "./views/AnalyticsView"
 
-type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits' | 'library' | 'settings' | 'settings-login' | 'club-plan' | 'agents-dashboard' | 'agent-approvals' | 'meal-plans' | 'appointments' | 'professionals' | 'product-gateway' | 'annual-planner'
+type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits' | 'library' | 'settings' | 'settings-login' | 'club-plan' | 'agents-dashboard' | 'agent-approvals' | 'meal-plans' | 'appointments' | 'professionals' | 'product-gateway' | 'annual-planner' | 'strategic-planner' | 'content-planner' | 'analytics'
 
 const navItems = [
     { id: 'dashboard' as ViewType, label: 'Painel Central', icon: LayoutDashboard },
@@ -86,6 +89,9 @@ const navItems = [
     { id: 'agents-dashboard' as ViewType, label: 'Agentes IA', icon: Bot },
     { id: 'agent-approvals' as ViewType, label: 'Aprovações', icon: ShieldCheck },
     { id: 'annual-planner' as ViewType, label: 'Plano Anual IA', icon: TrendingUp },
+    { id: 'strategic-planner' as ViewType, label: 'Régua de Conteúdo', icon: CalendarCheck },
+    { id: 'content-planner' as ViewType, label: 'Planejador Anual', icon: BarChart3 },
+    { id: 'analytics' as ViewType, label: 'Analytics', icon: BarChart3 },
     { id: 'settings' as ViewType, label: 'Sistema', icon: Settings },
 ]
 
@@ -136,6 +142,9 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
             case 'professionals': return <ProfessionalsView setView={setActiveView} tenantId={tenantId} />
             case 'product-gateway': return <ProductGatewayView setView={setActiveView} tenantId={tenantId} />
             case 'annual-planner': return <AnnualPlannerView setView={setActiveView} tenantId={tenantId} />
+            case 'strategic-planner': return <StrategicPlannerView setView={setActiveView} />
+            case 'content-planner': return <ContentPlannerView />
+            case 'analytics': return <AnalyticsView setView={setActiveView} />
             case 'settings': return <SettingsView {...props} />
             case 'settings-login': return <SettingsLoginView />
             case 'club-plan': return <ClubPlanView {...props} />
