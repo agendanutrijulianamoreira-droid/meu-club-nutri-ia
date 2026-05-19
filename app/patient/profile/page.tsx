@@ -6,8 +6,9 @@ import {
     User, Mail, Award, TrendingUp, Target, LogOut,
     ChevronRight, Scale, Activity, Flame, Calendar,
     Pencil, Check, X, ChevronDown, Loader2, Sparkles,
-    Droplets, Heart, Apple, Dumbbell
+    Droplets, Heart, Apple, Dumbbell, Utensils, Bell, ShieldCheck
 } from "lucide-react"
+import Link from "next/link"
 import { supabase } from "@/lib/supabase-browser"
 import { useRouter } from "next/navigation"
 
@@ -241,7 +242,24 @@ export default function PatientProfilePage() {
                 </div>
             )}
 
-            {/* ── Ações ─────────────────────────────────────────────────────── */}
+            {/* ── Acesso rápido ─────────────────────────────────────────────── */}
+            <div className="space-y-2 mb-5">
+                <h2 className="text-xs font-bold uppercase text-slate-500 tracking-wider mb-3">Acesso rápido</h2>
+                {[
+                    { href: '/patient/diet', icon: Utensils, label: 'Meu Plano Alimentar', color: 'text-emerald-400' },
+                    { href: '/patient/inbox', icon: Bell, label: 'Mensagens da Nutri IA', color: 'text-indigo-400' },
+                ].map(({ href, icon: Icon, label, color }) => (
+                    <Link key={href} href={href} className="w-full flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-colors">
+                        <div className="flex items-center gap-3">
+                            <Icon className={color} size={18} />
+                            <span className="text-sm font-bold text-white">{label}</span>
+                        </div>
+                        <ChevronRight className="text-slate-500" size={18} />
+                    </Link>
+                ))}
+            </div>
+
+            {/* ── Configurações ─────────────────────────────────────────────── */}
             <div className="space-y-2 mb-6">
                 <h2 className="text-xs font-bold uppercase text-slate-500 tracking-wider mb-3">Configurações</h2>
 

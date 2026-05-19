@@ -98,6 +98,16 @@ export function CheckinsView({ setView: setMainView }: { setView: (v: any) => vo
 
     return (
         <div className="space-y-8 pb-32">
+            {/* Tabs de navegação integrada com Rainhas */}
+            <div className="flex gap-1 bg-white/5 border border-white/10 rounded-2xl p-1 w-fit mb-2">
+                <button className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white">
+                    <ShieldCheck size={13} className="inline mr-1.5" />Check-ins IA
+                </button>
+                <button onClick={() => setMainView('patients')} className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-colors">
+                    <ChevronRight size={13} className="inline mr-1" />Ver todas as Rainhas
+                </button>
+            </div>
+
             {/* Header Clinical */}
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div className="space-y-1">

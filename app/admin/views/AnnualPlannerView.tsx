@@ -8,7 +8,10 @@ import {
   ArrowRight, RefreshCw, Check, X
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
+import { StrategicPlannerView } from "./StrategicPlannerView"
+import { ContentPlannerView } from "./ContentPlannerView"
 
+type PlannerTab = 'anual' | 'calendario' | 'regua'
 type Screen = 'list' | 'questionnaire' | 'review'
 
 interface QAnswers {
@@ -89,6 +92,7 @@ const EMPTY_ANSWERS: QAnswers = {
 }
 
 export function AnnualPlannerView({ setView, tenantId }: { setView: (v: any) => void; tenantId?: string }) {
+  const [plannerTab, setPlannerTab] = useState<PlannerTab>('anual')
   const [screen, setScreen] = useState<Screen>('list')
   const [plans, setPlans] = useState<AnnualPlan[]>([])
   const [loading, setLoading] = useState(true)
@@ -201,10 +205,28 @@ export function AnnualPlannerView({ setView, tenantId }: { setView: (v: any) => 
       <div className="space-y-5 pb-10">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-light text-white">Planejamento <span className="font-bold">Anual</span></h1>
-            <p className="text-slate-400 text-sm mt-1">A IA analisa seu negócio e gera um plano completo para você revisar</p>
+            <h1 className="text-3xl font-light text-white">Planejador <span className="font-bold">do Clube</span></h1>
+            <p className="text-slate-400 text-sm mt-1">Planejamento anual, calendário de conteúdo e régua de eventos</p>
           </div>
         </div>
+
+        {/* Sub-tabs */}
+        <div className="flex gap-1 bg-white/5 border border-white/10 rounded-2xl p-1 w-fit">
+          {[
+            { id: 'anual' as PlannerTab, label: 'Plano Anual IA' },
+            { id: 'calendario' as PlannerTab, label: 'Calendário de Conteúdo' },
+            { id: 'regua' as PlannerTab, label: 'Régua de Eventos' },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => setPlannerTab(tab.id)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${plannerTab === tab.id ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {plannerTab === 'regua' && <StrategicPlannerView setView={setView} />}
+        {plannerTab === 'calendario' && <ContentPlannerView />}
+        {plannerTab !== 'anual' ? null : (<>
 
         <AnimatePresence>
           {toast && (
@@ -280,6 +302,7 @@ export function AnnualPlannerView({ setView, tenantId }: { setView: (v: any) => 
             ))}
           </div>
         )}
+        </>)}
       </div>
     )
   }

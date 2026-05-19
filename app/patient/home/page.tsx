@@ -12,7 +12,13 @@ import {
     Clock,
     Loader2,
     Bell,
-    CheckCircle
+    CheckCircle,
+    ClipboardCheck,
+    Dumbbell,
+    UtensilsCrossed,
+    Gift,
+    ChevronRight,
+    Zap
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { usePatientEngine } from "@/lib/hooks/usePatientEngine"
@@ -37,6 +43,10 @@ export default function PatientHomePage() {
     const [showReminders, setShowReminders] = useState(false)
     const [isNewMember, setIsNewMember] = useState(false)
     const [showWelcomeTour, setShowWelcomeTour] = useState(false)
+    const [checkinPending, setCheckinPending] = useState(false)
+    const [quickTaps, setQuickTaps] = useState<{ water: boolean; meal: boolean; workout: boolean }>({ water: false, meal: false, workout: false })
+    const [nextReward, setNextReward] = useState<{ name: string; cost: number; emoji: string } | null>(null)
+    const [nutriCoins, setNutriCoins] = useState(0)
 
     useEffect(() => {
         const init = async () => {
@@ -71,6 +81,29 @@ export default function PatientHomePage() {
                 .eq('user_id', session.user.id)
                 .eq('status', 'unread')
             setUnreadCount(count || 0)
+
+            // Check if weekly check-in is pending
+            const checkinRes = await fetch('/api/patient/weekly-checkin')
+            const checkinData = await checkinRes.json().catch(() => ({}))
+            setCheckinPending(!checkinData.submitted)
+
+            // Load nutri coins and next reward
+            const { data: profileData } = await supabase
+                .from('profiles')
+                .select('nutri_coins')
+                .eq('user_id', session.user.id)
+                .single()
+            const coins = profileData?.nutri_coins || 0
+            setNutriCoins(coins)
+
+            const { data: rewards } = await supabase
+                .from('reward_items')
+                .select('name, cost, emoji')
+                .gt('cost', coins)
+                .eq('is_active', true)
+                .order('cost', { ascending: true })
+                .limit(1)
+            if (rewards && rewards.length > 0) setNextReward(rewards[0])
         }
         init()
     }, [])
@@ -188,6 +221,55 @@ export default function PatientHomePage() {
                         </div>
                         <p className="text-2xl font-bold text-white">{progressPercentage}%</p>
                     </div>
+                </div>
+            </div>
+
+            {/* CTA — O que fazer agora */}
+            {checkinPending && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-5"
+                >
+                    <Link href="/patient/checkin">
+                        <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-indigo-600/20 to-violet-600/10 border border-indigo-500/40 rounded-2xl hover:border-indigo-400/60 transition-all group">
+                            <div className="w-12 h-12 rounded-xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center flex-shrink-0">
+                                <ClipboardCheck className="text-indigo-300" size={22} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-indigo-400 mb-0.5">Missão da Semana</p>
+                                <p className="text-white font-bold text-sm">Check-in pendente</p>
+                                <p className="text-slate-400 text-xs">Responda em 2 min e ganhe +20 XP</p>
+                            </div>
+                            <ChevronRight className="text-indigo-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={20} />
+                        </div>
+                    </Link>
+                </motion.div>
+            )}
+
+            {/* Registro em 1 toque */}
+            <div className="mb-6">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-3">Registrar agora</p>
+                <div className="grid grid-cols-3 gap-2">
+                    {[
+                        { key: 'water', label: '+500ml', icon: Droplet, color: 'text-sky-400', bg: 'bg-sky-500/10 border-sky-500/20', activeBg: 'bg-sky-500/25 border-sky-400/40', xp: '+10 XP' },
+                        { key: 'meal', label: 'Refeição', icon: UtensilsCrossed, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', activeBg: 'bg-emerald-500/25 border-emerald-400/40', xp: '+15 XP' },
+                        { key: 'workout', label: 'Exercício', icon: Dumbbell, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20', activeBg: 'bg-amber-500/25 border-amber-400/40', xp: '+20 XP' },
+                    ].map(({ key, label, icon: Icon, color, bg, activeBg, xp }) => {
+                        const done = quickTaps[key as keyof typeof quickTaps]
+                        return (
+                            <motion.button
+                                key={key}
+                                whileTap={{ scale: 0.93 }}
+                                onClick={() => setQuickTaps(prev => ({ ...prev, [key]: !prev[key as keyof typeof quickTaps] }))}
+                                className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-2xl border transition-all ${done ? activeBg : bg}`}
+                            >
+                                <Icon size={22} className={color} />
+                                <span className="text-white text-[11px] font-bold">{label}</span>
+                                <span className={`text-[9px] font-black ${done ? color : 'text-slate-600'}`}>{done ? '✓ feito' : xp}</span>
+                            </motion.button>
+                        )
+                    })}
                 </div>
             </div>
 
@@ -328,6 +410,39 @@ export default function PatientHomePage() {
                     })
                 )}
             </div>
+
+            {/* Próximo Prêmio */}
+            {nextReward && (
+                <motion.div
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-6 mb-2"
+                >
+                    <Link href="/patient/store">
+                        <div className="flex items-center gap-4 p-4 bg-white/5 border border-white/10 rounded-2xl hover:border-amber-500/30 transition-all group">
+                            <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0 text-2xl">
+                                {nextReward.emoji || '🎁'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-amber-400 mb-0.5">Próximo Prêmio</p>
+                                <p className="text-white font-bold text-sm truncate">{nextReward.name}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all"
+                                            style={{ width: `${Math.min(100, (nutriCoins / nextReward.cost) * 100)}%` }}
+                                        />
+                                    </div>
+                                    <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap">
+                                        {nutriCoins}/{nextReward.cost} 👑
+                                    </span>
+                                </div>
+                            </div>
+                            <ChevronRight className="text-slate-500 group-hover:text-amber-400 group-hover:translate-x-1 transition-all flex-shrink-0" size={18} />
+                        </div>
+                    </Link>
+                </motion.div>
+            )}
 
             {/* Current Protocol Card */}
             {activeProtocol && (
