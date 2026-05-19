@@ -710,8 +710,9 @@ async function runDailyEngagementAgent(
     const tone = tenant.settings?.ai?.tone || 'motivadora'
     const brand = tenant.brand_name
     const method = tenant.method_name || 'Protocolo Nutri'
+    const engagementLearning = await getLearningInstructions(supabase, tenant.id, 'daily_checkin', 'send_message')
 
-    const baseSystemPrompt = tenant.gpt_system_prompt ||
+    const baseSystemPrompt = (tenant.gpt_system_prompt ||
       `${NUTRITIONIST_IDENTITY}
 
 PAPEL ESPECÍFICO — NUTRICIONISTA DE ACOMPANHAMENTO DIÁRIO:
@@ -723,7 +724,7 @@ Não é uma mensagem genérica — é uma intervenção clínica leve com impact
 • Quando adesão está baixa → acolhe sem culpa, oferece UMA estratégia concreta e fácil
 • Em marcos de streak (7, 14, 21, 30 dias) → explica o que está acontecendo no corpo nesse ponto
 • ${TONE_LAYER[tone] || TONE_LAYER['acolhedora']}
-Plataforma: ${brand}`
+Plataforma: ${brand}`) + engagementLearning
 
     // Gerar mensagens em batch
     const patientDescriptions = toEngage.map(p => {
@@ -1659,6 +1660,7 @@ async function runUpsellAgent(
     }
 
     const brand = tenant.brand_name
+    const learningInstructions = await getLearningInstructions(supabase, tenant.id, 'upsell', 'send_offer')
     const systemPrompt = `${NUTRITIONIST_IDENTITY}
 
 PAPEL ESPECÍFICO — CONSULTOR DE UPSELL ÉTICO:
@@ -1671,7 +1673,7 @@ PRINCÍPIOS:
 • Cria urgência baseada no momento (streak alto = momento de aprofundar)
 • NUNCA gera sentimento de culpa ou pressão
 • ${TONE_LAYER[tenant?.settings?.ai?.tone || 'acolhedora']}
-Plataforma: ${brand}
+Plataforma: ${brand}${learningInstructions}
 
 Retorne APENAS JSON válido, sem markdown.`
 
@@ -1815,6 +1817,26 @@ Retorne APENAS JSON:
 // ═══════════════════════════════════════════════════════════════════════════
 // UTILS
 // ═══════════════════════════════════════════════════════════════════════════
+
+// Busca instruções de aprendizado do gerente para injetar no prompt do agente
+async function getLearningInstructions(
+  supabase: SupabaseClient,
+  tenantId: string,
+  agentName: string,
+  actionType: string
+): Promise<string> {
+  const { data } = await supabase
+    .from('manager_learning')
+    .select('learning_instructions')
+    .eq('tenant_id', tenantId)
+    .eq('agent_name', agentName)
+    .eq('action_type', actionType)
+    .single()
+
+  return data?.learning_instructions
+    ? `\n\nINSTRUÇÕES APRENDIDAS DO HISTÓRICO DE FEEDBACK:\n${data.learning_instructions}`
+    : ''
+}
 
 async function sendPush(supabase: SupabaseClient, userId: string, title: string, body: string) {
   const FCM_KEY = Deno.env.get('FCM_SERVER_KEY')
