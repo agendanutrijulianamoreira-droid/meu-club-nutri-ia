@@ -63,8 +63,11 @@ import { AppointmentsView } from "./views/AppointmentsView"
 import { ProfessionalsView } from "./views/ProfessionalsView"
 import { ProductGatewayView } from "./views/ProductGatewayView"
 import { AnnualPlannerView } from "./views/AnnualPlannerView"
+import { StrategicPlannerView } from "./views/StrategicPlannerView"
+import { ContentPlannerView } from "./views/ContentPlannerView"
+import { AnalyticsView } from "./views/AnalyticsView"
 
-type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits' | 'library' | 'settings' | 'settings-login' | 'club-plan' | 'agents-dashboard' | 'agent-approvals' | 'meal-plans' | 'appointments' | 'professionals' | 'product-gateway' | 'annual-planner'
+type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits' | 'library' | 'settings' | 'settings-login' | 'club-plan' | 'agents-dashboard' | 'agent-approvals' | 'meal-plans' | 'appointments' | 'professionals' | 'product-gateway' | 'annual-planner' | 'strategic-planner' | 'content-planner' | 'analytics'
 
 const navItems = [
     { id: 'dashboard' as ViewType, label: 'Painel Central', icon: LayoutDashboard },
@@ -86,6 +89,9 @@ const navItems = [
     { id: 'agents-dashboard' as ViewType, label: 'Agentes IA', icon: Bot },
     { id: 'agent-approvals' as ViewType, label: 'Aprovações', icon: ShieldCheck },
     { id: 'annual-planner' as ViewType, label: 'Plano Anual IA', icon: TrendingUp },
+    { id: 'strategic-planner' as ViewType, label: 'Régua de Conteúdo', icon: CalendarCheck },
+    { id: 'content-planner' as ViewType, label: 'Planejador Anual', icon: BarChart3 },
+    { id: 'analytics' as ViewType, label: 'Analytics', icon: BarChart3 },
     { id: 'settings' as ViewType, label: 'Sistema', icon: Settings },
 ]
 
@@ -101,7 +107,21 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
     const router = useRouter()
     const [activeView, setActiveView] = useState<ViewType>('dashboard')
     const [sidebarOpen, setSidebarOpen] = useState(true)
+    const [pendingApprovals, setPendingApprovals] = useState(0)
     const { openOverlay } = useOverlays()
+
+    // Poll pending approvals count every 60s
+    useEffect(() => {
+        const loadPending = () => {
+            fetch('/api/admin/agent-approvals?status=pending')
+                .then(r => r.json())
+                .then(d => setPendingApprovals(Array.isArray(d) ? d.length : 0))
+                .catch(() => {})
+        }
+        loadPending()
+        const interval = setInterval(loadPending, 60_000)
+        return () => clearInterval(interval)
+    }, [])
 
     // Autocura: reparar perfil via Server Action (não durante render)
     useEffect(() => {
@@ -136,6 +156,9 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
             case 'professionals': return <ProfessionalsView setView={setActiveView} tenantId={tenantId} />
             case 'product-gateway': return <ProductGatewayView setView={setActiveView} tenantId={tenantId} />
             case 'annual-planner': return <AnnualPlannerView setView={setActiveView} tenantId={tenantId} />
+            case 'strategic-planner': return <StrategicPlannerView setView={setActiveView} />
+            case 'content-planner': return <ContentPlannerView />
+            case 'analytics': return <AnalyticsView setView={setActiveView} />
             case 'settings': return <SettingsView {...props} />
             case 'settings-login': return <SettingsLoginView />
             case 'club-plan': return <ClubPlanView {...props} />
@@ -187,6 +210,11 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
                                 {sidebarOpen && (
                                     <>
                                         <span className={`flex-1 text-left text-xs font-black uppercase tracking-widest ${isActive ? 'text-white' : ''}`}>{item.label}</span>
+                                        {item.id === 'agent-approvals' && pendingApprovals > 0 && (
+                                            <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-black">
+                                                {pendingApprovals > 99 ? '99+' : pendingApprovals}
+                                            </span>
+                                        )}
                                         {isActive && <div className="h-1.5 w-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)]" />}
                                     </>
                                 )}

@@ -22,6 +22,9 @@ interface SalesData {
     countdownEnabled: boolean
     faqs: FAQ[]
     useInternalCheckout: boolean
+    price_community: string
+    price_tech_diet: string
+    price_vip: string
 }
 
 const DEFAULT_DATA: SalesData = {
@@ -35,6 +38,9 @@ const DEFAULT_DATA: SalesData = {
         { question: "Tem garantia?", answer: "Sim! Oferecemos 7 dias de garantia incondicional." }
     ],
     useInternalCheckout: true,
+    price_community: 'R$ 47',
+    price_tech_diet: 'R$ 97',
+    price_vip: 'R$ 197',
 }
 
 // ─── Toggle component ────────────────────────────────────────────────────────
@@ -203,6 +209,9 @@ export function SalesPageGenerator({ setView, tenantId }: { setView: (v: any) =>
                 countdownEnabled: s.countdownEnabled ?? DEFAULT_DATA.countdownEnabled,
                 faqs: s.faqs || DEFAULT_DATA.faqs,
                 useInternalCheckout: s.useInternalCheckout ?? DEFAULT_DATA.useInternalCheckout,
+                price_community: s.price_community || DEFAULT_DATA.price_community,
+                price_tech_diet: s.price_tech_diet || DEFAULT_DATA.price_tech_diet,
+                price_vip: s.price_vip || DEFAULT_DATA.price_vip,
             })
             setProofUrls(s.socialProofUrls || [])
             setIsPublished(true)
@@ -414,6 +423,26 @@ export function SalesPageGenerator({ setView, tenantId }: { setView: (v: any) =>
                         className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors">
                         <Plus size={12}/> Adicionar benefício
                     </button>
+                </Section>
+
+                {/* Preços por plano */}
+                <Section title="Preços por Plano">
+                    <p className="text-[10px] text-slate-500">Exibido na tabela de planos da página de vendas</p>
+                    {[
+                        { key: 'price_community' as keyof SalesData, label: 'Comunidade' },
+                        { key: 'price_tech_diet' as keyof SalesData, label: 'Tech Diet (destaque)' },
+                        { key: 'price_vip' as keyof SalesData, label: 'VIP Premium' },
+                    ].map(({ key, label }) => (
+                        <div key={key} className="flex items-center gap-3">
+                            <span className="text-xs text-slate-400 w-36 shrink-0">{label}</span>
+                            <div className="flex-1 flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3">
+                                <DollarSign size={12} className="text-slate-500 shrink-0" />
+                                <input value={data[key] as string} onChange={e => update({ [key]: e.target.value })}
+                                    className="flex-1 bg-transparent py-2 text-sm text-white focus:outline-none"
+                                    placeholder="R$ 97" />
+                            </div>
+                        </div>
+                    ))}
                 </Section>
 
                 {/* Checkout */}

@@ -705,6 +705,19 @@ async function runDailyEngagementAgent(
     const brand = tenant.brand_name
     const method = tenant.method_name || 'Protocolo Nutri'
 
+    // Learning context from past approvals/rejections
+    const agentPrefs = tenant.settings?.agent_preferences?.['daily_checkin'] ?? {}
+    const approvedExamples: string[] = agentPrefs.example_approved ?? []
+    const rejectionReasons: string[] = agentPrefs.rejection_reasons ?? []
+    const learningCtx = [
+      approvedExamples.length > 0
+        ? `\nEXEMPLOS APROVADOS PELA NUTRICIONISTA (use como referência de tom/formato):\n${approvedExamples.map((e, i) => `${i+1}. "${e}"`).join('\n')}`
+        : '',
+      rejectionReasons.length > 0
+        ? `\nEVITE (rejeitados anteriormente):\n${rejectionReasons.map((r, i) => `${i+1}. ${r}`).join('\n')}`
+        : '',
+    ].filter(Boolean).join('\n')
+
     const baseSystemPrompt = tenant.gpt_system_prompt ||
       `${NUTRITIONIST_IDENTITY}
 
@@ -717,7 +730,7 @@ Não é uma mensagem genérica — é uma intervenção clínica leve com impact
 • Quando adesão está baixa → acolhe sem culpa, oferece UMA estratégia concreta e fácil
 • Em marcos de streak (7, 14, 21, 30 dias) → explica o que está acontecendo no corpo nesse ponto
 • ${TONE_LAYER[tone] || TONE_LAYER['acolhedora']}
-Plataforma: ${brand}`
+Plataforma: ${brand}${learningCtx}`
 
     // Gerar mensagens em batch
     const patientDescriptions = toEngage.map(p => {

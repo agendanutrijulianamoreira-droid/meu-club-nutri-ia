@@ -35,21 +35,33 @@ export default function PatientHomePage() {
     const [unreadCount, setUnreadCount] = useState(0)
     const [firstName, setFirstName] = useState("Rainha")
     const [showReminders, setShowReminders] = useState(false)
+    const [isNewMember, setIsNewMember] = useState(false)
+    const [showWelcomeTour, setShowWelcomeTour] = useState(false)
 
     useEffect(() => {
         const init = async () => {
             const { data: { session } } = await supabase.auth.getSession()
             if (!session) return
 
-            // Load profile name
+            // Load profile name + check if new member
             const { data: profile } = await supabase
                 .from('profiles')
-                .select('name')
+                .select('name, created_at')
                 .eq('user_id', session.user.id)
                 .single()
 
             if (profile?.name) {
                 setFirstName(profile.name.split(' ')[0])
+            }
+            // Show welcome tour for accounts created in last 48h
+            if (profile?.created_at) {
+                const createdAt = new Date(profile.created_at)
+                const hoursOld = (Date.now() - createdAt.getTime()) / 3_600_000
+                if (hoursOld < 48) {
+                    setIsNewMember(true)
+                    const tourDone = localStorage.getItem(`welcome_tour_${session.user.id}`)
+                    if (!tourDone) setShowWelcomeTour(true)
+                }
             }
 
             // Load unread count
@@ -78,6 +90,57 @@ export default function PatientHomePage() {
         <>
         <AnimatePresence>
           {showReminders && <ReminderSettings onClose={() => setShowReminders(false)} />}
+          {showWelcomeTour && (
+            <motion.div
+              key="welcome-tour"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-sm flex items-end justify-center p-4"
+            >
+              <motion.div
+                initial={{ y: 60, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 60, opacity: 0 }}
+                className="w-full max-w-[430px] bg-slate-900 border border-white/10 rounded-3xl p-6 mb-4 space-y-5"
+              >
+                <div className="text-center">
+                  <div className="text-4xl mb-3">🎉</div>
+                  <h2 className="text-xl font-bold text-white">Bem-vinda ao Clube, {firstName}!</h2>
+                  <p className="text-slate-400 text-sm mt-1">Aqui está tudo que você pode acessar</p>
+                </div>
+                <div className="space-y-3">
+                  {[
+                    { emoji: '🍽️', title: 'Cardápio personalizado', desc: 'Veja seu plano alimentar na aba Dieta', href: '/patient/diet' },
+                    { emoji: '🏆', title: 'Missões e Desafios', desc: 'Complete missões diárias e ganhe XP', href: null },
+                    { emoji: '💧', title: 'Lembretes inteligentes', desc: 'Configure alertas de água e refeições', href: null },
+                    { emoji: '💬', title: 'Chat com IA nutricionista', desc: 'Tire dúvidas a qualquer hora', href: null },
+                    { emoji: '🌟', title: 'Comunidade e Ranking', desc: 'Conecte-se com outras mulheres', href: '/patient/feed' },
+                    { emoji: '🛍️', title: 'Próximos passos', desc: 'Consulta, Método 90d e Teste Genético', href: '/patient/gateway' },
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-center gap-3 bg-white/5 border border-white/5 rounded-2xl px-4 py-3">
+                      <span className="text-xl">{item.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-semibold">{item.title}</p>
+                        <p className="text-slate-500 text-xs">{item.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => {
+                    supabase.auth.getSession().then(({ data: { session } }) => {
+                      if (session) localStorage.setItem(`welcome_tour_${session.user.id}`, '1')
+                    })
+                    setShowWelcomeTour(false)
+                  }}
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-2xl transition-all"
+                >
+                  Começar minha jornada 🚀
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
         </AnimatePresence>
         <div className="min-h-screen px-4 pt-6 pb-24">
             {/* Header */}

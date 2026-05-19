@@ -1,8 +1,42 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { X, Bell, Droplets, Coffee, Sun, Sunset, Moon, Loader2, Check } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { X, Bell, Droplets, Coffee, Sun, Sunset, Moon, Loader2, Check, BellRing, BellOff } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
+
+function requestNotificationPermission() {
+  if (typeof Notification === 'undefined') return Promise.resolve('denied' as NotificationPermission)
+  if (Notification.permission === 'granted') return Promise.resolve('granted' as NotificationPermission)
+  return Notification.requestPermission()
+}
+
+function fireNotification(title: string, body: string) {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+  new Notification(title, { body, icon: '/icon-192.png', badge: '/icon-192.png' })
+}
+
+function useReminderScheduler(reminders: { reminder_type: string; label: string; message: string; time_local: string; days_of_week: number[]; is_active: boolean }[]) {
+  const firedRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    const interval = setInterval(() => {
+      const now = new Date()
+      const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      const dayOfWeek = now.getDay()
+      reminders.forEach(r => {
+        if (!r.is_active) return
+        if (r.time_local !== hhmm) return
+        if (!r.days_of_week.includes(dayOfWeek)) return
+        const key = `${r.reminder_type}-${hhmm}-${now.toDateString()}`
+        if (firedRef.current.has(key)) return
+        firedRef.current.add(key)
+        fireNotification(r.label, r.message)
+      })
+    }, 30_000)
+    return () => clearInterval(interval)
+  }, [reminders])
+}
 
 interface Reminder {
   id?: string
@@ -84,6 +118,19 @@ export function ReminderSettings({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default')
+
+  useEffect(() => {
+    if (typeof Notification !== 'undefined') setNotifPermission(Notification.permission)
+  }, [])
+
+  useReminderScheduler(reminders)
+
+  const handleRequestPermission = async () => {
+    const perm = await requestNotificationPermission()
+    setNotifPermission(perm)
+    if (perm === 'granted') showToast('Notificações ativadas! ✅')
+  }
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -183,6 +230,28 @@ export function ReminderSettings({ onClose }: { onClose: () => void }) {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Notification permission banner */}
+          {notifPermission !== 'granted' && !loading && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+              className={`flex items-center gap-3 px-4 py-3 rounded-2xl border ${notifPermission === 'denied' ? 'bg-rose-500/10 border-rose-500/20' : 'bg-indigo-500/10 border-indigo-500/20'}`}
+            >
+              {notifPermission === 'denied' ? <BellOff className="w-4 h-4 text-rose-400 shrink-0" /> : <BellRing className="w-4 h-4 text-indigo-400 shrink-0" />}
+              <div className="flex-1 min-w-0">
+                {notifPermission === 'denied'
+                  ? <p className="text-xs text-rose-300">Notificações bloqueadas. Ative nas configurações do navegador.</p>
+                  : <p className="text-xs text-indigo-300">Ative as notificações para receber alertas no horário certo.</p>
+                }
+              </div>
+              {notifPermission !== 'denied' && (
+                <button onClick={handleRequestPermission}
+                  className="shrink-0 text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 transition-colors">
+                  Ativar
+                </button>
+              )}
+            </motion.div>
+          )}
 
           {loading ? (
             <div className="flex justify-center py-10">

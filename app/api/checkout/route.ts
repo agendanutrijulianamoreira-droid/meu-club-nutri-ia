@@ -32,9 +32,9 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        if (!['tech_diet', 'vip'].includes(planId)) {
+        if (!['community', 'tech_diet', 'vip'].includes(planId)) {
             return NextResponse.json(
-                { error: 'Plano inválido. Use tech_diet ou vip' },
+                { error: 'Plano inválido. Use community, tech_diet ou vip' },
                 { status: 400 }
             )
         }
