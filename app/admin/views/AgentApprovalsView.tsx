@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import {
   CheckCircle2, XCircle, Clock, Bot, User, MessageSquare,
   FileText, Bell, AlertTriangle, Loader2, RefreshCw,
-  ChevronDown, CheckSquare, Square, Inbox, Shield, Zap
+  ChevronDown, CheckSquare, Square, Inbox, Shield, Zap, ShoppingBag
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -29,6 +29,7 @@ interface PendingAction {
 
 const AGENT_META: Record<string, { label: string; color: string; bg: string }> = {
   'daily-engagement': { label: 'Engajamento Diário', color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
+  'daily_checkin':    { label: 'Engajamento Diário', color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
   'retention':        { label: 'Retenção',           color: 'text-amber-400',  bg: 'bg-amber-500/10 border-amber-500/20'   },
   'onboarding':       { label: 'Onboarding',         color: 'text-emerald-400',bg: 'bg-emerald-500/10 border-emerald-500/20'},
   'protocol':         { label: 'Protocolo',          color: 'text-blue-400',   bg: 'bg-blue-500/10 border-blue-500/20'     },
@@ -36,6 +37,7 @@ const AGENT_META: Record<string, { label: string; color: string; bg: string }> =
   'sabotage':         { label: 'Detecção de Risco',  color: 'text-rose-400',   bg: 'bg-rose-500/10 border-rose-500/20'     },
   'meals':            { label: 'Alimentação',        color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20' },
   'moderation':       { label: 'Moderação',          color: 'text-slate-400',  bg: 'bg-white/5 border-white/10'            },
+  'upsell':           { label: 'Upsell IA',          color: 'text-violet-400', bg: 'bg-violet-500/10 border-violet-500/20' },
 }
 
 const ACTION_META: Record<string, { label: string; icon: React.ElementType }> = {
@@ -44,6 +46,7 @@ const ACTION_META: Record<string, { label: string; icon: React.ElementType }> = 
   send_push:         { label: 'Notificação push',       icon: Bell           },
   flag_patient:      { label: 'Alerta de risco',        icon: AlertTriangle  },
   complete_protocol: { label: 'Completar protocolo',    icon: CheckCircle2   },
+  show_offer:        { label: 'Oferta de upsell',       icon: ShoppingBag    },
 }
 
 type TabType = 'pending' | 'approved' | 'rejected'

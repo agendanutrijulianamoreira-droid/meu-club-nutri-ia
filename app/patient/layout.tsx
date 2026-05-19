@@ -5,14 +5,14 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Home, ClipboardCheck, Users, Gift, User } from "lucide-react"
 import { supabase } from "@/lib/supabase-browser"
-import { useFCMToken } from "@/lib/hooks/useFCMToken"
+import { useOneSignal } from "@/lib/hooks/useOneSignal"
 
 export default function PatientLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname()
     const router = useRouter()
 
-    // Ativar captura de Token FCM para Push (Desativado para MVP - Foco Inbox)
-    // useFCMToken()
+    // Registrar token OneSignal para push notifications (lembretes e agentes)
+    useOneSignal()
 
     // Proteção: 
     // 1. Redirecionar nutris que caírem aqui por engano

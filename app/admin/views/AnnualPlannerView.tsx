@@ -5,7 +5,7 @@ import {
   Sparkles, ChevronRight, ChevronLeft, Loader2, CheckCircle2,
   XCircle, Edit2, Calendar, Trophy, FileText, Bell, Star,
   Target, TrendingUp, Users, MessageCircle, Gift, Zap,
-  ArrowRight, RefreshCw, Check, X
+  ArrowRight, RefreshCw, Check, X, Send
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { StrategicPlannerView } from "./StrategicPlannerView"
@@ -104,6 +104,7 @@ export function AnnualPlannerView({ setView, tenantId }: { setView: (v: any) => 
   const [items, setItems] = useState<PlanItem[]>([])
   const [loadingItems, setLoadingItems] = useState(false)
   const [savingItem, setSavingItem] = useState<string | null>(null)
+  const [pushingItem, setPushingItem] = useState<string | null>(null)
   const [editingItem, setEditingItem] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState({ title: '', description: '' })
   const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
@@ -183,6 +184,26 @@ export function AnnualPlannerView({ setView, tenantId }: { setView: (v: any) => 
 
   const saveEdit = (itemId: string) => {
     handleItemAction(itemId, 'edited', { edited_title: editDraft.title, edited_description: editDraft.description })
+  }
+
+  const handlePushToSystem = async (itemId: string) => {
+    if (!activePlan) return
+    setPushingItem(itemId)
+    try {
+      const res = await fetch(`/api/admin/annual-plan/${activePlan.id}/items/push`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_id: itemId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Erro ao enviar')
+      setItems(prev => prev.map(i => i.id === itemId ? { ...i, status: 'pushed' } : i))
+      showToast('success', `Item enviado para o sistema! (${data.result?.type ?? 'ok'})`)
+    } catch (e: any) {
+      showToast('error', e.message ?? 'Erro ao enviar para o sistema')
+    } finally {
+      setPushingItem(null)
+    }
   }
 
   // Group items by month
@@ -500,7 +521,11 @@ export function AnnualPlannerView({ setView, tenantId }: { setView: (v: any) => 
                               {displayDesc && <p className="text-slate-400 text-xs leading-relaxed">{displayDesc}</p>}
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
-                              {item.status === 'pending_review' ? (
+                              {item.status === 'pushed' ? (
+                                <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full border bg-indigo-500/10 border-indigo-500/20 text-indigo-400">
+                                  No sistema
+                                </span>
+                              ) : item.status === 'pending_review' ? (
                                 <>
                                   <button onClick={() => startEdit(item)} disabled={isSaving}
                                     className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-white rounded-xl hover:bg-white/5 transition-all">
@@ -515,10 +540,21 @@ export function AnnualPlannerView({ setView, tenantId }: { setView: (v: any) => 
                                     {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                                   </button>
                                 </>
+                              ) : (item.status === 'approved' || item.status === 'edited') ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full border bg-emerald-500/10 border-emerald-500/20 text-emerald-400">
+                                    {item.status === 'edited' ? 'Editado' : '✓'}
+                                  </span>
+                                  <button
+                                    onClick={() => handlePushToSystem(item.id)}
+                                    disabled={pushingItem === item.id}
+                                    title="Enviar para o sistema"
+                                    className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-400 rounded-xl hover:bg-indigo-500/10 transition-all">
+                                    {pushingItem === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
                               ) : (
-                                <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${item.status === 'approved' || item.status === 'edited' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400'}`}>
-                                  {item.status === 'edited' ? 'Editado' : item.status === 'approved' ? '✓' : '✗'}
-                                </span>
+                                <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full border bg-rose-500/10 border-rose-500/20 text-rose-400">✗</span>
                               )}
                             </div>
                           </div>
