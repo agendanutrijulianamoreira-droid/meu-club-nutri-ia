@@ -107,7 +107,21 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
     const router = useRouter()
     const [activeView, setActiveView] = useState<ViewType>('dashboard')
     const [sidebarOpen, setSidebarOpen] = useState(true)
+    const [pendingApprovals, setPendingApprovals] = useState(0)
     const { openOverlay } = useOverlays()
+
+    // Poll pending approvals count every 60s
+    useEffect(() => {
+        const loadPending = () => {
+            fetch('/api/admin/agent-approvals?status=pending')
+                .then(r => r.json())
+                .then(d => setPendingApprovals(Array.isArray(d) ? d.length : 0))
+                .catch(() => {})
+        }
+        loadPending()
+        const interval = setInterval(loadPending, 60_000)
+        return () => clearInterval(interval)
+    }, [])
 
     // Autocura: reparar perfil via Server Action (não durante render)
     useEffect(() => {
@@ -196,6 +210,11 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
                                 {sidebarOpen && (
                                     <>
                                         <span className={`flex-1 text-left text-xs font-black uppercase tracking-widest ${isActive ? 'text-white' : ''}`}>{item.label}</span>
+                                        {item.id === 'agent-approvals' && pendingApprovals > 0 && (
+                                            <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-black">
+                                                {pendingApprovals > 99 ? '99+' : pendingApprovals}
+                                            </span>
+                                        )}
                                         {isActive && <div className="h-1.5 w-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)]" />}
                                     </>
                                 )}
