@@ -4,21 +4,16 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase-browser"
 import { useOverlays } from "@/components/ui/OverlayStack"
-import { Button } from "@/components/ui/button"
 import {
     LayoutDashboard,
     Calendar,
     Users,
     Settings,
     Sparkles,
-    Plus,
     FileText,
     Trophy,
     CreditCard,
     BarChart3,
-    Menu,
-    X,
-    ChevronRight,
     Crown,
     MessageCircle,
     Globe,
@@ -146,7 +141,6 @@ interface AdminDashboardProps {
 export default function AdminDashboard({ userName = 'Admin', tenantName = '', role = 'admin', tenantId = '', needsRepair = false }: AdminDashboardProps) {
     const router = useRouter()
     const [activeView, setActiveView] = useState<ViewType>('dashboard')
-    const [sidebarOpen, setSidebarOpen] = useState(true)
     const [pendingApprovals, setPendingApprovals] = useState(0)
     const { openOverlay } = useOverlays()
 
@@ -216,34 +210,30 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
             <div className="fixed top-[-10%] right-[-10%] w-[500px] h-[500px] bg-indigo-600/5 blur-[120px] rounded-full -z-10" />
             <div className="fixed bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-violet-600/5 blur-[120px] rounded-full -z-10" />
 
-            {/* Sidebar Clinical */}
-            <aside className={`${sidebarOpen ? 'w-80' : 'w-24'} border-r border-white/10 flex flex-col fixed h-full bg-[#020617]/40 backdrop-blur-3xl transition-all duration-500 z-50 ease-in-out shadow-2xl`}>
-                {/* Logo & Toggle */}
-                <div className="p-8 flex items-center justify-between border-b border-white/5 h-28">
-                    <div className={`flex items-center gap-4 ${!sidebarOpen && 'justify-center w-full'}`}>
-                        <div className="h-14 w-14 rounded-2xl bg-indigo-600/20 border border-indigo-400/30 flex items-center justify-center shadow-lg shadow-indigo-900/40 relative">
-                            <Brain size={28} className="text-indigo-400" />
-                            <div className="absolute -top-1 -right-1 h-3 w-3 bg-indigo-500 rounded-full border-2 border-slate-900 shadow-sm" />
-                        </div>
-                        {sidebarOpen && (
-                            <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}>
-                                <h1 className="font-black text-lg text-white tracking-tight uppercase tracking-[0.05em]">Meu Club <span className="text-indigo-400 font-light">Nutri.AI</span></h1>
-                                <p className="text-[10px] text-slate-500 font-black tracking-widest uppercase">{tenantName || 'Admin Clinical'}</p>
-                            </motion.div>
-                        )}
+            {/* Sidebar — hover to expand */}
+            <aside className="group/sidebar w-[68px] hover:w-64 border-r border-white/10 flex flex-col fixed h-full bg-[#020617]/60 backdrop-blur-3xl transition-all duration-300 z-50 ease-in-out shadow-2xl overflow-hidden">
+                {/* Logo */}
+                <div className="flex items-center gap-3 px-4 h-20 border-b border-white/5 flex-shrink-0">
+                    <div className="h-9 w-9 min-w-[36px] rounded-xl bg-indigo-600/20 border border-indigo-400/30 flex items-center justify-center shadow-lg shadow-indigo-900/40 relative">
+                        <Brain size={18} className="text-indigo-400" />
+                        <div className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-indigo-500 rounded-full border border-slate-900" />
+                    </div>
+                    <div className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 whitespace-nowrap overflow-hidden">
+                        <p className="font-black text-sm text-white uppercase tracking-wide leading-none">Meu Club</p>
+                        <p className="text-[9px] text-indigo-400 font-light tracking-widest">Nutri.AI</p>
                     </div>
                 </div>
 
                 {/* Navigation Scrollable */}
-                <nav className="flex-1 px-4 py-5 overflow-y-auto no-scrollbar space-y-1">
+                <nav className="flex-1 px-2 py-3 overflow-y-auto no-scrollbar space-y-0.5">
                     {navGroups.map((group, gi) => (
-                        <div key={gi} className={gi > 0 ? 'pt-3' : ''}>
-                            {group.label && sidebarOpen && (
-                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-600 px-3 pb-1.5 pt-1">
+                        <div key={gi} className={gi > 0 ? 'pt-2' : ''}>
+                            {group.label && (
+                                <p className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-600 px-3 pb-1 pt-1 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 whitespace-nowrap">
                                     {group.label}
                                 </p>
                             )}
-                            {gi > 0 && !sidebarOpen && <div className="h-px bg-white/5 mx-2 mb-2" />}
+                            {gi > 0 && <div className="h-px bg-white/5 mx-2 mb-1.5 group-hover/sidebar:opacity-0 transition-opacity" />}
                             {group.items.map((item) => {
                                 const Icon = item.icon
                                 const isActive = activeView === item.id
@@ -252,28 +242,28 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
                                     <button
                                         key={item.id}
                                         onClick={() => setActiveView(item.id)}
-                                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group relative
+                                        title={item.label}
+                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all relative
                                             ${isActive
-                                                ? 'bg-indigo-600/10 text-white border border-indigo-500/30 shadow-inner'
-                                                : 'text-slate-500 hover:bg-white/[0.03] hover:text-white border border-transparent'
+                                                ? 'bg-indigo-600/15 text-white border border-indigo-500/30'
+                                                : 'text-slate-500 hover:bg-white/[0.04] hover:text-slate-200 border border-transparent'
                                             }`}
                                     >
-                                        <Icon size={18} className={`flex-shrink-0 ${isActive ? 'text-indigo-400' : 'group-hover:text-indigo-400 transition-colors'} ${!sidebarOpen && 'mx-auto'}`} />
-                                        {sidebarOpen && (
-                                            <>
-                                                <span className={`flex-1 text-left text-[11px] font-bold ${isActive ? 'text-white' : ''}`}>{item.label}</span>
-                                                {showBadge && (
-                                                    <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-black">
-                                                        {pendingApprovals > 99 ? '99+' : pendingApprovals}
-                                                    </span>
-                                                )}
-                                                {isActive && <div className="h-1.5 w-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)]" />}
-                                            </>
-                                        )}
+                                        <div className="relative flex-shrink-0">
+                                            <Icon size={17} className={isActive ? 'text-indigo-400' : 'group-hover:text-indigo-400 transition-colors'} />
+                                            {showBadge && (
+                                                <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 rounded-full bg-rose-500 text-white text-[7px] font-black">
+                                                    {pendingApprovals > 9 ? '9+' : pendingApprovals}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className={`text-[11px] font-semibold whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 overflow-hidden ${isActive ? 'text-white' : ''}`}>
+                                            {item.label}
+                                        </span>
                                         {isActive && (
                                             <motion.div
                                                 layoutId="active-pill"
-                                                className="absolute left-0 w-1 h-6 bg-indigo-500 rounded-r-full"
+                                                className="absolute left-0 w-0.5 h-5 bg-indigo-400 rounded-r-full"
                                             />
                                         )}
                                     </button>
@@ -283,37 +273,22 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
                     ))}
                 </nav>
 
-                {/* Action Footer */}
-                <div className="p-8 border-t border-white/5 space-y-6 bg-slate-950/20">
-                    {sidebarOpen ? (
-                        <div className="space-y-4">
-                            <Button
-                                className="w-full bg-indigo-600 hover:bg-indigo-500 border-none h-16 font-black uppercase tracking-widest text-xs rounded-2xl shadow-xl shadow-indigo-900/40 gap-3"
-                                onClick={() => setActiveView('protocols')}
-                            >
-                                <Sparkles size={18} />
-                                Ativar IA Hub
-                            </Button>
-                            <button
-                                onClick={() => setSidebarOpen(false)}
-                                className="w-full py-2 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:text-indigo-400 transition-all flex items-center justify-center gap-2"
-                            >
-                                <X size={12} /> Recolher Menu
-                            </button>
-                        </div>
-                    ) : (
-                        <button
-                            onClick={() => setSidebarOpen(true)}
-                            className="w-full flex justify-center text-slate-500 hover:text-indigo-400 transition-all"
-                        >
-                            <Menu size={24} />
-                        </button>
-                    )}
+                {/* Footer — IA Hub button */}
+                <div className="px-2 py-3 border-t border-white/5 flex-shrink-0">
+                    <button
+                        onClick={() => setActiveView('agents-dashboard')}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 rounded-xl transition-all"
+                    >
+                        <Sparkles size={17} className="text-indigo-400 flex-shrink-0" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300 whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">
+                            IA Hub
+                        </span>
+                    </button>
                 </div>
             </aside>
 
             {/* Main Content Area */}
-            <main className={`flex-1 ${sidebarOpen ? 'ml-80' : 'ml-24'} transition-all duration-500 ease-in-out`}>
+            <main className="flex-1 ml-[68px] transition-all duration-300 ease-in-out">
                 {/* Header Superior Area */}
                 <div className="h-28 border-b border-white/5 px-10 flex items-center justify-between bg-slate-950/10 backdrop-blur-md">
                     <div className="flex items-center gap-4">
