@@ -1,6 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { cookies } from 'next/headers'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+async function updateAgentLearning(
+  supabase: SupabaseClient,
+  tenantId: string,
+  action: Record<string, any>,
+  decision: 'approve' | 'reject',
+  rejectionReason?: string
+) {
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('settings')
+    .eq('id', tenantId)
+    .single()
+  if (!tenant) return
+
+  const prefs = tenant.settings?.agent_preferences ?? {}
+  const agentKey = action.agent_name as string
+
+  if (!prefs[agentKey]) prefs[agentKey] = { approvals: 0, rejections: 0, rejection_reasons: [], example_approved: [] }
+
+  if (decision === 'approve') {
+    prefs[agentKey].approvals = (prefs[agentKey].approvals ?? 0) + 1
+    // Keep last 3 approved examples as few-shot reference
+    const examples: string[] = prefs[agentKey].example_approved ?? []
+    examples.unshift(action.content?.substring?.(0, 200) ?? '')
+    prefs[agentKey].example_approved = examples.slice(0, 3)
+  } else {
+    prefs[agentKey].rejections = (prefs[agentKey].rejections ?? 0) + 1
+    if (rejectionReason) {
+      const reasons: string[] = prefs[agentKey].rejection_reasons ?? []
+      reasons.unshift(rejectionReason.substring(0, 100))
+      prefs[agentKey].rejection_reasons = reasons.slice(0, 5)
+    }
+  }
+
+  await supabase
+    .from('tenants')
+    .update({ settings: { ...tenant.settings, agent_preferences: prefs } })
+    .eq('id', tenantId)
+}
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createSupabaseServerClient(cookies())
@@ -62,6 +103,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       console.error('[agent-approvals execute]', execError)
     }
   }
+
+  // Update agent learning preferences in tenant settings (fire-and-forget)
+  updateAgentLearning(supabase, tenant.id, updated, action, rejection_reason).catch(e =>
+    console.error('[agent-approvals learning]', e)
+  )
 
   return NextResponse.json({ ok: true, status: newStatus })
 }
