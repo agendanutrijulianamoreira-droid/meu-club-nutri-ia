@@ -63,8 +63,9 @@ import { ProfessionalsView } from "./views/ProfessionalsView"
 import { ProductsView } from "./views/ProductsView"
 import { ApprovalsView } from "./views/ApprovalsView"
 import { RecipesView } from "./views/RecipesView"
+import { AnnualPlannerView } from "./views/AnnualPlannerView"
 
-type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits' | 'library' | 'settings' | 'settings-login' | 'club-plan' | 'agents-dashboard' | 'meal-plans' | 'appointments' | 'professionals' | 'products' | 'approvals' | 'recipes'
+type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits' | 'library' | 'settings' | 'settings-login' | 'club-plan' | 'agents-dashboard' | 'meal-plans' | 'appointments' | 'professionals' | 'products' | 'approvals' | 'recipes' | 'annual-planner'
 
 const navItems = [
     { id: 'dashboard' as ViewType, label: 'Painel Central', icon: LayoutDashboard },
@@ -86,6 +87,7 @@ const navItems = [
     { id: 'ai-credits' as ViewType, label: 'Créditos IA', icon: CreditCard },
     { id: 'ai-brain' as ViewType, label: 'Config. IA', icon: Brain },
     { id: 'agents-dashboard' as ViewType, label: 'Agentes IA', icon: Bot },
+    { id: 'annual-planner' as ViewType, label: 'Plano Anual IA', icon: Sparkles },
     { id: 'settings' as ViewType, label: 'Sistema', icon: Settings },
 ]
 
@@ -136,6 +138,7 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
             case 'products': return <ProductsView setView={setActiveView} tenantId={tenantId} />
             case 'approvals': return <ApprovalsView setView={setActiveView} tenantId={tenantId} />
             case 'recipes': return <RecipesView setView={setActiveView} tenantId={tenantId} />
+            case 'annual-planner': return <AnnualPlannerView setView={setActiveView} tenantId={tenantId} />
             case 'settings': return <SettingsView {...props} />
             case 'settings-login': return <SettingsLoginView />
             case 'club-plan': return <ClubPlanView {...props} />
