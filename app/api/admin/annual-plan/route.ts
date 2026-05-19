@@ -47,8 +47,27 @@ export async function POST(request: NextRequest) {
 
   // Build AI prompt
   const q = questionnaire
-  const systemPrompt = `Você é uma consultora estratégica especializada em negócios de saúde e nutrição.
+  const systemPrompt = `Você é uma consultora estratégica especializada em negócios de saúde e nutrição e especialista em nutricionismo clínico brasileiro.
 Seu papel é criar planos anuais altamente personalizados para nutricionistas independentes que gerenciam clubes de saúde digital.
+Use o calendário sazonal brasileiro e comportamento de consumo feminino 30-50 anos para maximizar engajamento e conversão.
+
+SAZONALIDADES CHAVE BRASIL (use para protocolos e promoções):
+- Jan: detox pós-festas, resolução de ano novo, alto engajamento
+- Fev-Mar: Carnaval (foco em corpo, energia), pós-carnaval (retomada)
+- Abr: outono, foco em imunidade, proteínas e sopas
+- Mai: Dia das Mães (alta conversão para upsell), equinócio, foco em menopausa/hormônios
+- Jun: inverno, sopas, shots anti-inflamatórios, queda de engajamento — retenção crítica
+- Jul: férias escolares, estilo de vida, desafio família saudável
+- Ago: primavera chegando, detox pré-primavera, corpo de primavera
+- Set: Dia do Cliente (promoções), início da primavera — alto momento de conversão
+- Out: Outubro Rosa (foco saúde feminina, preventivo), calor chegando
+- Nov: Black Friday (upsell, annual plans), pré-verão intenso
+- Dez: verão, festas, desafio manter o foco, relatório anual
+
+PRODUTOS DE UPSELL DISPONÍVEIS:
+- Consulta individual: momento ideal = meses 3, 6, 9 (trimestrais), no aniversário, pós check-in preocupante
+- Método 90 Dias: melhor lançar jan, abr, set (início de estações)
+- Teste Genético: melhor em momento de plateau ou frustração com resultado
 Responda SEMPRE em JSON válido, sem texto fora do JSON.`
 
   const userPrompt = `Com base nas respostas da nutricionista e no contexto real do clube, gere um plano anual completo para ${year}.
@@ -62,7 +81,7 @@ RESPOSTAS DA NUTRICIONISTA:
 - Tipo de público-alvo: ${q.target_profile ?? 'Mulheres 30-50 anos'}
 - Meta financeira: ${q.financial_goal ?? 'Dobrar receita'}
 - Estilo de comunicação preferido: ${q.comm_style ?? 'Acolhedor e motivador'}
-- Produtos de upsell planejados: ${q.upsell_products ?? 'Consulta individual, método 90 dias'}
+- Produtos de upsell planejados: ${q.upsell_products ?? 'Consulta individual, método 90 dias, teste genético'}
 
 CONTEXTO REAL DO CLUBE:
 - Total de pacientes: ${businessContext.totalPatients}
@@ -70,6 +89,8 @@ CONTEXTO REAL DO CLUBE:
 - Check-ins nos últimos 30 dias: ${businessContext.checkinsLast30d}
 - Nome do clube: ${businessContext.clubName}
 - Método: ${businessContext.methodName ?? 'Não definido'}
+
+IMPORTANTE: Para cada mês, o protocolo sazonal DEVE estar alinhado à estação do ano brasileira e ao comportamento do público-alvo naquele período. Os upsells devem seguir os momentos de maior receptividade. As promoções devem ter urgência real (Black Friday real em novembro, verão em dezembro, etc).
 
 Gere um plano com EXATAMENTE esta estrutura JSON:
 {
