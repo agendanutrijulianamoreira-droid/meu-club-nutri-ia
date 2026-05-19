@@ -10,6 +10,9 @@ import {
 import { useAssignments } from "@/lib/hooks/useDatabase"
 import { ProtocolMealView } from "./ProtocolMealView"
 import { supabase } from "@/lib/supabase-browser"
+import { MealPlanBasic } from "@/components/patient/MealPlanBasic"
+import { MealPlanPremium } from "@/components/patient/MealPlanPremium"
+import { PlanUpgradePrompt } from "@/components/patient/PlanUpgradePrompt"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Task {
@@ -60,12 +63,15 @@ export default function PatientDietPage() {
     const [mealPlanLoading, setMealPlanLoading] = useState(false)
     const [mealPlanDay, setMealPlanDay] = useState(1)
     const [mealPlanLoaded, setMealPlanLoaded] = useState(false)
+    const [mealPlanTier, setMealPlanTier] = useState<'basic' | 'premium'>('basic')
 
     // IA Plan state
     const [focus, setFocus] = useState("")
     const [durationDays, setDurationDays] = useState(7)
     const [generating, setGenerating] = useState(false)
     const [generatedPlan, setGeneratedPlan] = useState<GeneratedPlan | null>(null)
+    const [generatedPlanRaw, setGeneratedPlanRaw] = useState<any | null>(null)
+    const [generatedPlanTier, setGeneratedPlanTier] = useState<'basic' | 'premium'>('basic')
     const [expandedAIDay, setExpandedAIDay] = useState(1)
     const [genError, setGenError] = useState<string | null>(null)
 
@@ -83,7 +89,11 @@ export default function PatientDietPage() {
         setMealPlanLoading(true)
         fetch('/api/patient/meal-plan')
             .then(r => r.json())
-            .then(d => { setMealPlan(d.plan || null); setMealPlanLoaded(true) })
+            .then(d => {
+                setMealPlan(d.plan || null)
+                setMealPlanTier(d.tier === 'premium' ? 'premium' : 'basic')
+                setMealPlanLoaded(true)
+            })
             .catch(() => setMealPlanLoaded(true))
             .finally(() => setMealPlanLoading(false))
     }, [userId, mealPlanLoaded])
@@ -111,6 +121,7 @@ export default function PatientDietPage() {
         setGenerating(true)
         setGenError(null)
         setGeneratedPlan(null)
+        setGeneratedPlanRaw(null)
 
         try {
             const res = await fetch("/api/ai/meal-plan", {
@@ -122,8 +133,18 @@ export default function PatientDietPage() {
                 const err = await res.json()
                 throw new Error(err.error || "Erro ao gerar plano")
             }
-            const { data } = await res.json()
-            setGeneratedPlan(data)
+            const response = await res.json()
+            const tier: 'basic' | 'premium' = response.tier === 'premium' ? 'premium' : 'basic'
+            setGeneratedPlanTier(tier)
+            setGeneratedPlanRaw(response.data)
+
+            // For legacy rendering (old format with tasks[]), keep backward compat
+            if (response.data?.days?.[0]?.tasks) {
+                setGeneratedPlan(response.data as GeneratedPlan)
+            } else {
+                // New format (basic/premium) — stored in generatedPlanRaw
+                setGeneratedPlan(null)
+            }
             setExpandedAIDay(1)
         } catch (err: any) {
             setGenError(err.message || "Tente novamente")
@@ -218,128 +239,162 @@ export default function PatientDietPage() {
                                                 <p className="text-slate-400 text-sm mt-1">{mealPlan.description}</p>
                                             )}
                                         </div>
-                                        {mealPlan.is_ai_generated && (
-                                            <span className="shrink-0 flex items-center gap-1 text-xs bg-violet-500/20 text-violet-300 px-2 py-1 rounded-full">
-                                                <Sparkles size={10} />IA
-                                            </span>
-                                        )}
+                                        <div className="flex items-center gap-2">
+                                            {mealPlanTier === 'premium' && (
+                                                <span className="shrink-0 flex items-center gap-1 text-xs bg-amber-500/20 text-amber-300 px-2 py-1 rounded-full font-bold">
+                                                    VIP
+                                                </span>
+                                            )}
+                                            {mealPlan.is_ai_generated && (
+                                                <span className="shrink-0 flex items-center gap-1 text-xs bg-violet-500/20 text-violet-300 px-2 py-1 rounded-full">
+                                                    <Sparkles size={10} />IA
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="flex gap-4 mt-3 text-xs text-slate-400">
-                                        <span className="flex items-center gap-1"><Flame size={11} className="text-orange-400" />{mealPlan.target_kcal} kcal/dia</span>
-                                        <span className="flex items-center gap-1"><Drumstick size={11} className="text-rose-400" />{mealPlan.target_protein_g}g proteína</span>
-                                        <span>{mealPlan.duration_days} dias</span>
-                                    </div>
+                                    {mealPlanTier === 'basic' ? (
+                                        <div className="flex gap-4 mt-3 text-xs text-slate-400">
+                                            <span>{mealPlan.duration_days || mealPlan.days?.length} dias</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex gap-4 mt-3 text-xs text-slate-400">
+                                            {mealPlan.target_kcal && <span className="flex items-center gap-1"><Flame size={11} className="text-orange-400" />{mealPlan.target_kcal} kcal/dia</span>}
+                                            {mealPlan.target_protein_g && <span className="flex items-center gap-1"><Drumstick size={11} className="text-rose-400" />{mealPlan.target_protein_g}g proteína</span>}
+                                            <span>{mealPlan.duration_days || mealPlan.days?.length} dias</span>
+                                        </div>
+                                    )}
                                 </div>
 
-                                {/* Seletor de dias */}
-                                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                                    {mealPlan.days.map((d: any) => {
-                                        const isActive = mealPlanDay === d.day_number
-                                        const kcalPct = mealPlan.target_kcal > 0
-                                            ? Math.round((d.day_total_kcal / mealPlan.target_kcal) * 100) : 0
-                                        return (
-                                            <button
-                                                key={d.day_number}
-                                                onClick={() => setMealPlanDay(d.day_number)}
-                                                className={`shrink-0 px-3 py-2 rounded-xl text-center transition-all border ${isActive ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'}`}
-                                            >
-                                                <div className="text-xs font-bold">Dia {d.day_number}</div>
-                                                <div className={`text-xs mt-0.5 ${kcalPct >= 90 && kcalPct <= 110 ? 'text-emerald-400' : kcalPct > 110 ? 'text-rose-400' : 'text-amber-400'}`}>
-                                                    {d.day_total_kcal} kcal
-                                                </div>
-                                            </button>
-                                        )
-                                    })}
-                                </div>
+                                {/* Renderização adaptada ao tier e formato dos dados */}
+                                {(() => {
+                                    // Detect new AI format (basic: description field, premium: items array in meals)
+                                    const firstDay = mealPlan.days?.[0]
+                                    const firstMeal = firstDay?.meals?.[0]
+                                    const isNewBasicFormat = firstMeal && 'description' in firstMeal && !('items' in firstMeal) && !('meal_type' in firstMeal)
+                                    const isNewPremiumFormat = firstMeal && ('items' in firstMeal) && Array.isArray(firstMeal.items) && firstMeal.items?.[0] && 'food' in firstMeal.items[0]
 
-                                {/* Refeições do dia ativo */}
-                                {mealPlan.days
-                                    .filter((d: any) => d.day_number === mealPlanDay)
-                                    .map((day: any) => (
-                                        <div key={day.day_number} className="space-y-3">
-                                            {/* Totais do dia */}
-                                            <div className="grid grid-cols-3 gap-2">
-                                                {[
-                                                    { label: 'Calorias', value: `${day.day_total_kcal} kcal`, icon: Flame, color: 'text-orange-400' },
-                                                    { label: 'Proteínas', value: `${day.day_total_protein}g`, icon: Drumstick, color: 'text-rose-400' },
-                                                    { label: 'Refeições', value: `${day.meals.length}x`, icon: Utensils, color: 'text-indigo-400' },
-                                                ].map(m => (
-                                                    <div key={m.label} className="bg-white/5 rounded-xl p-3 border border-white/10 text-center">
-                                                        <m.icon size={14} className={`${m.color} mx-auto mb-1`} />
-                                                        <p className="text-white text-sm font-bold">{m.value}</p>
-                                                        <p className="text-slate-500 text-xs">{m.label}</p>
-                                                    </div>
-                                                ))}
+                                    if (isNewBasicFormat) {
+                                        return <MealPlanBasic plan={mealPlan} currentDay={1} />
+                                    }
+                                    if (isNewPremiumFormat) {
+                                        return <MealPlanPremium plan={mealPlan} currentDay={1} />
+                                    }
+
+                                    // Legacy DB format (meal_plan_items with day_number, meal_type, etc.)
+                                    return (
+                                        <>
+                                            {/* Seletor de dias */}
+                                            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                                                {mealPlan.days.map((d: any) => {
+                                                    const isActive = mealPlanDay === d.day_number
+                                                    const kcalPct = mealPlan.target_kcal > 0
+                                                        ? Math.round((d.day_total_kcal / mealPlan.target_kcal) * 100) : 0
+                                                    return (
+                                                        <button
+                                                            key={d.day_number}
+                                                            onClick={() => setMealPlanDay(d.day_number)}
+                                                            className={`shrink-0 px-3 py-2 rounded-xl text-center transition-all border ${isActive ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'}`}
+                                                        >
+                                                            <div className="text-xs font-bold">Dia {d.day_number}</div>
+                                                            <div className={`text-xs mt-0.5 ${kcalPct >= 90 && kcalPct <= 110 ? 'text-emerald-400' : kcalPct > 110 ? 'text-rose-400' : 'text-amber-400'}`}>
+                                                                {d.day_total_kcal} kcal
+                                                            </div>
+                                                        </button>
+                                                    )
+                                                })}
                                             </div>
 
-                                            {/* Cards de refeição */}
-                                            {day.meals.map((meal: any, mi: number) => (
-                                                <motion.div
-                                                    key={mi}
-                                                    initial={{ opacity: 0, y: 6 }}
-                                                    animate={{ opacity: 1, y: 0 }}
-                                                    transition={{ delay: mi * 0.04 }}
-                                                    className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden"
-                                                >
-                                                    {/* Header da refeição */}
-                                                    <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-base">{meal.emoji}</span>
-                                                            <div>
-                                                                <p className="text-white text-sm font-semibold">{meal.meal_label}</p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            {meal.time && (
-                                                                <span className="text-xs text-slate-400 bg-white/10 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                                                    <Clock size={10} />{meal.time}
-                                                                </span>
-                                                            )}
-                                                            <span className="text-xs text-slate-500">
-                                                                {Math.round(meal.items.reduce((s: number, i: any) => s + (i.calc_kcal || 0), 0))} kcal
-                                                            </span>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Itens da refeição */}
-                                                    <div className="divide-y divide-white/5">
-                                                        {meal.items.map((item: any, ii: number) => (
-                                                            <div key={ii} className="px-4 py-3">
-                                                                <div className="flex items-start justify-between gap-2">
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <p className="text-white text-sm font-medium">{item.food_name}</p>
-                                                                        <p className="text-slate-500 text-xs mt-0.5">
-                                                                            {item.quantity_g}g
-                                                                            {item.serving_qty && item.serving_label
-                                                                                ? ` (${item.serving_qty} ${item.serving_label})`
-                                                                                : ''}
-                                                                            {' · '}
-                                                                            {Math.round(item.calc_kcal)} kcal
-                                                                            {' · P:'}{Math.round(item.calc_protein_g)}g
-                                                                            {' · C:'}{Math.round(item.calc_carbs_g)}g
-                                                                            {' · G:'}{Math.round(item.calc_fat_g)}g
-                                                                        </p>
-                                                                        {item.preparation_notes && (
-                                                                            <p className="text-indigo-400/70 text-xs mt-1 italic">{item.preparation_notes}</p>
-                                                                        )}
-                                                                    </div>
-                                                                    <span className="shrink-0 text-xs text-slate-600 bg-white/5 px-1.5 py-0.5 rounded">
-                                                                        {Math.round(item.calc_kcal)} kcal
-                                                                    </span>
+                                            {/* Refeições do dia ativo */}
+                                            {mealPlan.days
+                                                .filter((d: any) => d.day_number === mealPlanDay)
+                                                .map((day: any) => (
+                                                    <div key={day.day_number} className="space-y-3">
+                                                        {/* Totais do dia */}
+                                                        <div className="grid grid-cols-3 gap-2">
+                                                            {[
+                                                                { label: 'Calorias', value: `${day.day_total_kcal} kcal`, icon: Flame, color: 'text-orange-400' },
+                                                                { label: 'Proteínas', value: `${day.day_total_protein}g`, icon: Drumstick, color: 'text-rose-400' },
+                                                                { label: 'Refeições', value: `${day.meals.length}x`, icon: Utensils, color: 'text-indigo-400' },
+                                                            ].map(m => (
+                                                                <div key={m.label} className="bg-white/5 rounded-xl p-3 border border-white/10 text-center">
+                                                                    <m.icon size={14} className={`${m.color} mx-auto mb-1`} />
+                                                                    <p className="text-white text-sm font-bold">{m.value}</p>
+                                                                    <p className="text-slate-500 text-xs">{m.label}</p>
                                                                 </div>
-                                                                {item.substitution_note && (
-                                                                    <p className="text-xs text-slate-600 mt-1 flex items-center gap-1">
-                                                                        <span>↔</span>{item.substitution_note}
-                                                                    </p>
-                                                                )}
-                                                            </div>
+                                                            ))}
+                                                        </div>
+
+                                                        {/* Cards de refeição */}
+                                                        {day.meals.map((meal: any, mi: number) => (
+                                                            <motion.div
+                                                                key={mi}
+                                                                initial={{ opacity: 0, y: 6 }}
+                                                                animate={{ opacity: 1, y: 0 }}
+                                                                transition={{ delay: mi * 0.04 }}
+                                                                className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden"
+                                                            >
+                                                                {/* Header da refeição */}
+                                                                <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-base">{meal.emoji}</span>
+                                                                        <div>
+                                                                            <p className="text-white text-sm font-semibold">{meal.meal_label}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        {meal.time && (
+                                                                            <span className="text-xs text-slate-400 bg-white/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                                <Clock size={10} />{meal.time}
+                                                                            </span>
+                                                                        )}
+                                                                        <span className="text-xs text-slate-500">
+                                                                            {Math.round(meal.items.reduce((s: number, i: any) => s + (i.calc_kcal || 0), 0))} kcal
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Itens da refeição */}
+                                                                <div className="divide-y divide-white/5">
+                                                                    {meal.items.map((item: any, ii: number) => (
+                                                                        <div key={ii} className="px-4 py-3">
+                                                                            <div className="flex items-start justify-between gap-2">
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <p className="text-white text-sm font-medium">{item.food_name}</p>
+                                                                                    <p className="text-slate-500 text-xs mt-0.5">
+                                                                                        {item.quantity_g}g
+                                                                                        {item.serving_qty && item.serving_label
+                                                                                            ? ` (${item.serving_qty} ${item.serving_label})`
+                                                                                            : ''}
+                                                                                        {' · '}
+                                                                                        {Math.round(item.calc_kcal)} kcal
+                                                                                        {' · P:'}{Math.round(item.calc_protein_g)}g
+                                                                                        {' · C:'}{Math.round(item.calc_carbs_g)}g
+                                                                                        {' · G:'}{Math.round(item.calc_fat_g)}g
+                                                                                    </p>
+                                                                                    {item.preparation_notes && (
+                                                                                        <p className="text-indigo-400/70 text-xs mt-1 italic">{item.preparation_notes}</p>
+                                                                                    )}
+                                                                                </div>
+                                                                                <span className="shrink-0 text-xs text-slate-600 bg-white/5 px-1.5 py-0.5 rounded">
+                                                                                    {Math.round(item.calc_kcal)} kcal
+                                                                                </span>
+                                                                            </div>
+                                                                            {item.substitution_note && (
+                                                                                <p className="text-xs text-slate-600 mt-1 flex items-center gap-1">
+                                                                                    <span>↔</span>{item.substitution_note}
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </motion.div>
                                                         ))}
                                                     </div>
-                                                </motion.div>
-                                            ))}
-                                        </div>
-                                    ))
-                                }
+                                                ))
+                                            }
+                                        </>
+                                    )
+                                })()}
                             </>
                         )}
                     </motion.div>
@@ -403,7 +458,7 @@ export default function PatientDietPage() {
                         exit={{ opacity: 0, x: 10 }}
                         transition={{ duration: 0.2 }}
                     >
-                        {!generatedPlan ? (
+                        {!generatedPlan && !generatedPlanRaw ? (
                             <div className="space-y-5">
                                 {/* Header */}
                                 <div className="text-center py-4">
@@ -504,11 +559,15 @@ export default function PatientDietPage() {
                                                 <Sparkles size={10} className="text-indigo-400" />
                                                 <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Plano Gerado pela IA</span>
                                             </div>
-                                            <h2 className="text-xl font-bold text-white">{generatedPlan.title}</h2>
-                                            <p className="text-slate-400 text-sm mt-1">{generatedPlan.description}</p>
+                                            <h2 className="text-xl font-bold text-white">
+                                                {generatedPlan ? generatedPlan.title : generatedPlanRaw?.title}
+                                            </h2>
+                                            {generatedPlan?.description && (
+                                                <p className="text-slate-400 text-sm mt-1">{generatedPlan.description}</p>
+                                            )}
                                         </div>
                                         <button
-                                            onClick={() => setGeneratedPlan(null)}
+                                            onClick={() => { setGeneratedPlan(null); setGeneratedPlanRaw(null) }}
                                             className="ml-3 h-9 w-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all flex-shrink-0"
                                         >
                                             <RefreshCw size={14} className="text-slate-400" />
@@ -516,82 +575,97 @@ export default function PatientDietPage() {
                                     </div>
                                     <div className="flex items-center gap-2 mt-3">
                                         <span className="text-xs bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-slate-400 font-bold">
-                                            {generatedPlan.days.length} dias
+                                            {(generatedPlan?.days ?? generatedPlanRaw?.days)?.length} dias
                                         </span>
                                         <span className="text-xs bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-slate-400 font-bold">
                                             Foco: {focus}
                                         </span>
+                                        {generatedPlanTier === 'premium' && (
+                                            <span className="text-xs bg-amber-500/15 border border-amber-500/25 text-amber-400 rounded-lg px-3 py-1.5 font-bold">
+                                                VIP • Macros calculados
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
 
-                                {/* Days */}
-                                <div className="space-y-3">
-                                    {generatedPlan.days.map((day) => {
-                                        const isExpanded = expandedAIDay === day.day
-                                        const totalXP = day.tasks.reduce((acc, t) => acc + (t.points || 0), 0)
-                                        return (
-                                            <div key={day.day} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-                                                <button
-                                                    onClick={() => setExpandedAIDay(isExpanded ? 0 : day.day)}
-                                                    className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors"
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-full bg-indigo-600/20 flex items-center justify-center">
-                                                            <span className="text-sm font-bold text-indigo-400">{day.day}</span>
-                                                        </div>
-                                                        <div className="text-left">
-                                                            <h3 className="font-bold text-white text-sm">{day.title}</h3>
-                                                            <p className="text-xs text-slate-500">{day.tasks.length} itens · +{totalXP} XP</p>
-                                                        </div>
-                                                    </div>
-                                                    {isExpanded ? <ChevronUp className="text-slate-400" size={18} /> : <ChevronDown className="text-slate-400" size={18} />}
-                                                </button>
+                                {/* Tier-aware rendering for new format */}
+                                {generatedPlanRaw && generatedPlanTier === 'basic' && (
+                                    <MealPlanBasic plan={generatedPlanRaw} currentDay={1} />
+                                )}
+                                {generatedPlanRaw && generatedPlanTier === 'premium' && (
+                                    <MealPlanPremium plan={generatedPlanRaw} currentDay={1} />
+                                )}
 
-                                                {isExpanded && (
-                                                    <motion.div
-                                                        initial={{ opacity: 0 }}
-                                                        animate={{ opacity: 1 }}
-                                                        className="p-4 space-y-3 border-t border-white/5"
+                                {/* Legacy format (tasks array) */}
+                                {generatedPlan && (
+                                    <div className="space-y-3">
+                                        {generatedPlan.days.map((day) => {
+                                            const isExpanded = expandedAIDay === day.day
+                                            const totalXP = day.tasks.reduce((acc, t) => acc + (t.points || 0), 0)
+                                            return (
+                                                <div key={day.day} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                                                    <button
+                                                        onClick={() => setExpandedAIDay(isExpanded ? 0 : day.day)}
+                                                        className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors"
                                                     >
-                                                        {day.tasks.map((task, idx) => {
-                                                            const cfg = TYPE_CONFIG[task.type] || TYPE_CONFIG.meal
-                                                            return (
-                                                                <div key={idx} className="p-3 rounded-xl bg-white/5 border border-white/10">
-                                                                    <div className="flex items-start gap-3">
-                                                                        <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${cfg.bg}`}>
-                                                                            <cfg.Icon size={14} className={cfg.color} />
-                                                                        </div>
-                                                                        <div className="flex-1 min-w-0">
-                                                                            <div className="flex items-center gap-2 mb-0.5">
-                                                                                {task.time && <span className="text-[10px] text-slate-500 font-bold">{task.time}</span>}
-                                                                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
-                                                                                <span className="text-[9px] text-slate-600 ml-auto">+{task.points} XP</span>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-full bg-indigo-600/20 flex items-center justify-center">
+                                                                <span className="text-sm font-bold text-indigo-400">{day.day}</span>
+                                                            </div>
+                                                            <div className="text-left">
+                                                                <h3 className="font-bold text-white text-sm">{day.title}</h3>
+                                                                <p className="text-xs text-slate-500">{day.tasks.length} itens · +{totalXP} XP</p>
+                                                            </div>
+                                                        </div>
+                                                        {isExpanded ? <ChevronUp className="text-slate-400" size={18} /> : <ChevronDown className="text-slate-400" size={18} />}
+                                                    </button>
+
+                                                    {isExpanded && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0 }}
+                                                            animate={{ opacity: 1 }}
+                                                            className="p-4 space-y-3 border-t border-white/5"
+                                                        >
+                                                            {day.tasks.map((task, idx) => {
+                                                                const cfg = TYPE_CONFIG[task.type] || TYPE_CONFIG.meal
+                                                                return (
+                                                                    <div key={idx} className="p-3 rounded-xl bg-white/5 border border-white/10">
+                                                                        <div className="flex items-start gap-3">
+                                                                            <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${cfg.bg}`}>
+                                                                                <cfg.Icon size={14} className={cfg.color} />
                                                                             </div>
-                                                                            <p className="text-sm font-bold text-white">{task.description}</p>
-                                                                            {task.ingredients && task.ingredients.length > 0 && (
-                                                                                <div className="mt-2 flex flex-wrap gap-1">
-                                                                                    {task.ingredients.map((ing, i) => (
-                                                                                        <span key={i} className="text-[10px] bg-white/5 border border-white/10 rounded-lg px-2 py-0.5 text-slate-400">
-                                                                                            {ing}
-                                                                                        </span>
-                                                                                    ))}
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <div className="flex items-center gap-2 mb-0.5">
+                                                                                    {task.time && <span className="text-[10px] text-slate-500 font-bold">{task.time}</span>}
+                                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
+                                                                                    <span className="text-[9px] text-slate-600 ml-auto">+{task.points} XP</span>
                                                                                 </div>
-                                                                            )}
+                                                                                <p className="text-sm font-bold text-white">{task.description}</p>
+                                                                                {task.ingredients && task.ingredients.length > 0 && (
+                                                                                    <div className="mt-2 flex flex-wrap gap-1">
+                                                                                        {task.ingredients.map((ing, i) => (
+                                                                                            <span key={i} className="text-[10px] bg-white/5 border border-white/10 rounded-lg px-2 py-0.5 text-slate-400">
+                                                                                                {ing}
+                                                                                            </span>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
                                                                         </div>
                                                                     </div>
-                                                                </div>
-                                                            )
-                                                        })}
-                                                    </motion.div>
-                                                )}
-                                            </div>
-                                        )
-                                    })}
-                                </div>
+                                                                )
+                                                            })}
+                                                        </motion.div>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
 
                                 {/* Regenerate */}
                                 <button
-                                    onClick={() => setGeneratedPlan(null)}
+                                    onClick={() => { setGeneratedPlan(null); setGeneratedPlanRaw(null) }}
                                     className="w-full mt-4 h-12 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-slate-400 font-bold text-sm flex items-center justify-center gap-2"
                                 >
                                     <RefreshCw size={15} />
