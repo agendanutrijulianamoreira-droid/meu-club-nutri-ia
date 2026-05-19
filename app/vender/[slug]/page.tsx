@@ -153,6 +153,104 @@ export default function PublicSalesPage({ params }: { params: { slug: string } }
                 </div>
             )}
 
+            {/* Pricing Plans Section */}
+            <div className="max-w-5xl mx-auto px-6 py-24 border-t border-white/5">
+                <div className="text-center mb-16">
+                    <div className="inline-flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 px-4 py-2 rounded-full mb-6">
+                        <Zap className="text-purple-400" size={14} />
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-300">Escolha seu plano</span>
+                    </div>
+                    <h2 className="text-4xl md:text-5xl font-black mb-4 tracking-tight">
+                        Invista na sua <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">transformação</span>
+                    </h2>
+                    <p className="text-slate-400 text-lg max-w-xl mx-auto">Comece no seu ritmo. Evolua quando quiser. Cancele quando quiser.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Community Plan */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}
+                        className="bg-white/[0.03] border border-white/10 rounded-3xl p-8 flex flex-col"
+                    >
+                        <div className="mb-6">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 bg-white/5 px-3 py-1 rounded-full border border-white/10">Comunidade</span>
+                            <div className="mt-4">
+                                <p className="text-slate-400 text-sm mb-2">A partir de</p>
+                                <p className="text-4xl font-black text-white">{page.price_community ?? 'R$ 47'}<span className="text-slate-500 text-base font-normal">/mês</span></p>
+                            </div>
+                        </div>
+                        <ul className="space-y-3 flex-1 mb-8">
+                            {['Acesso à comunidade', 'Cardápio qualitativo', 'Missões diárias', 'Desafios em grupo', 'Chat com IA nutricionista', 'Ranking e gamificação'].map((f, i) => (
+                                <li key={i} className="flex items-center gap-3 text-sm text-slate-300">
+                                    <CheckCircle size={16} className="text-emerald-400 shrink-0" /> {f}
+                                </li>
+                            ))}
+                        </ul>
+                        <a href={page.useInternalCheckout ? `/${tenant.slug}/checkout?plan=community` : page.checkoutLink}
+                            className="block w-full text-center bg-white/10 hover:bg-white/15 border border-white/10 text-white font-bold py-4 rounded-2xl transition-all">
+                            Começar agora
+                        </a>
+                    </motion.div>
+
+                    {/* Tech Diet Plan - DESTAQUE */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+                        className="bg-gradient-to-b from-purple-600/20 to-purple-600/5 border border-purple-500/30 rounded-3xl p-8 flex flex-col relative shadow-2xl shadow-purple-900/20"
+                    >
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                            <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full">Mais popular</span>
+                        </div>
+                        <div className="mb-6">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-purple-400 bg-purple-500/10 px-3 py-1 rounded-full border border-purple-500/20">Tech Diet</span>
+                            <div className="mt-4">
+                                <p className="text-slate-400 text-sm mb-2">A partir de</p>
+                                <p className="text-4xl font-black text-white">{page.price_tech_diet ?? 'R$ 97'}<span className="text-slate-500 text-base font-normal">/mês</span></p>
+                            </div>
+                        </div>
+                        <ul className="space-y-3 flex-1 mb-8">
+                            {['Tudo do plano Comunidade', 'Cardápio calculado com macros', 'Protocolos sazonais personalizados', 'Check-in semanal com IA', 'Agenda de consultas', 'Alertas de água e refeições', 'Ofertas exclusivas de upgrade'].map((f, i) => (
+                                <li key={i} className="flex items-center gap-3 text-sm text-slate-200">
+                                    <CheckCircle size={16} className="text-purple-400 shrink-0" /> {f}
+                                </li>
+                            ))}
+                        </ul>
+                        <a href={page.useInternalCheckout ? `/${tenant.slug}/checkout?plan=tech_diet` : page.checkoutLink}
+                            className="block w-full text-center bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg shadow-purple-900/30">
+                            QUERO ENTRAR AGORA 🚀
+                        </a>
+                    </motion.div>
+
+                    {/* VIP Plan */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+                        className="bg-gradient-to-b from-amber-500/10 to-transparent border border-amber-500/20 rounded-3xl p-8 flex flex-col"
+                    >
+                        <div className="mb-6">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">VIP Premium</span>
+                            <div className="mt-4">
+                                <p className="text-slate-400 text-sm mb-2">A partir de</p>
+                                <p className="text-4xl font-black text-white">{page.price_vip ?? 'R$ 197'}<span className="text-slate-500 text-base font-normal">/mês</span></p>
+                            </div>
+                        </div>
+                        <ul className="space-y-3 flex-1 mb-8">
+                            {['Tudo do plano Tech Diet', 'Cardápio ilustrado com fotos', 'Opções de substituição', 'Consulta individual mensal', 'Método 90 Dias incluído', 'Teste genético nutricional', 'Atendimento prioritário'].map((f, i) => (
+                                <li key={i} className="flex items-center gap-3 text-sm text-slate-200">
+                                    <CheckCircle size={16} className="text-amber-400 shrink-0" /> {f}
+                                </li>
+                            ))}
+                        </ul>
+                        <a href={page.useInternalCheckout ? `/${tenant.slug}/checkout?plan=vip` : page.checkoutLink}
+                            className="block w-full text-center bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 font-bold py-4 rounded-2xl transition-all">
+                            Quero o VIP
+                        </a>
+                    </motion.div>
+                </div>
+
+                <p className="text-center text-slate-500 text-sm mt-8">
+                    Todos os planos incluem garantia de 7 dias. Upgrade ou downgrade a qualquer momento.
+                </p>
+            </div>
+
             {/* FAQ Section */}
             {page.faqs?.length > 0 && (
                 <div className="max-w-3xl mx-auto px-6 py-32 border-t border-white/5">
