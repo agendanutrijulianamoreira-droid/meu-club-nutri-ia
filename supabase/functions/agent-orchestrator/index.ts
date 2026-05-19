@@ -1192,6 +1192,18 @@ async function runRetentionAgent(
     }
 
     const brand = tenant.brand_name
+    const retentionPrefs = tenant.settings?.agent_preferences?.['retention'] ?? {}
+    const retentionApprovedEx: string[] = retentionPrefs.example_approved ?? []
+    const retentionRejReasons: string[] = retentionPrefs.rejection_reasons ?? []
+    const retentionLearning = [
+      retentionApprovedEx.length > 0
+        ? `\nEXEMPLOS APROVADOS (use como referência):\n${retentionApprovedEx.map((e, i) => `${i+1}. "${e}"`).join('\n')}`
+        : '',
+      retentionRejReasons.length > 0
+        ? `\nEVITE (rejeitados anteriormente):\n${retentionRejReasons.map((r, i) => `${i+1}. ${r}`).join('\n')}`
+        : '',
+    ].filter(Boolean).join('\n')
+
     const systemPrompt = tenant.gpt_system_prompt ||
       `${NUTRITIONIST_IDENTITY}
 
@@ -1209,7 +1221,7 @@ Sua mensagem:
 • Normaliza a interrupção (todo processo tem idas e vindas — é neurociência do hábito)
 • Oferece um recomeço com MENOS fricção (algo pequeno para HOJE, não uma grande retomada)
 • ${TONE_LAYER[tone] || TONE_LAYER['acolhedora']}
-Plataforma: ${brand}`
+Plataforma: ${brand}${retentionLearning}`
 
     const patientsSummary = toContact.map(p => {
       const risk = riskMap.get(p.user_id)
@@ -1350,6 +1362,18 @@ async function runProtocolAgent(
     }
 
     const brand = tenant.brand_name
+    const protocolPrefs = tenant.settings?.agent_preferences?.['protocol'] ?? {}
+    const protocolApprovedEx: string[] = protocolPrefs.example_approved ?? []
+    const protocolRejReasons: string[] = protocolPrefs.rejection_reasons ?? []
+    const protocolLearning = [
+      protocolApprovedEx.length > 0
+        ? `\nEXEMPLOS APROVADOS (use como referência):\n${protocolApprovedEx.map((e, i) => `${i+1}. "${e}"`).join('\n')}`
+        : '',
+      protocolRejReasons.length > 0
+        ? `\nEVITE (rejeitados anteriormente):\n${protocolRejReasons.map((r, i) => `${i+1}. ${r}`).join('\n')}`
+        : '',
+    ].filter(Boolean).join('\n')
+
     const systemPrompt = tenant.gpt_system_prompt || `${NUTRITIONIST_IDENTITY}
 
 PAPEL ESPECÍFICO — ESPECIALISTA NO MÉTODO DO PROTOCOLO:
@@ -1360,7 +1384,7 @@ Você guia pacientes nas transições de fase do protocolo com base clínica só
 • Antecipa e normaliza sintomas de transição (fadiga nos primeiros dias = reorganização metabólica)
 • Para substituições → oferece alternativas equivalentes nutricionalmente
 • ${TONE_LAYER[tone] || TONE_LAYER['tecnica']}
-Plataforma: ${brand}`
+Plataforma: ${brand}${protocolLearning}`
 
     const phaseMsg: Record<string, string> = {
       first_day: 'INÍCIO do protocolo', halfway: 'METADE do protocolo',
