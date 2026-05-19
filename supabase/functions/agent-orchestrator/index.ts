@@ -194,6 +194,10 @@ serve(async (req) => {
           // 5. Community — gera post inspiracional diário para o feed
           const communityResult = await runCommunityAgent(supabase, tenant, patients)
           results.push(communityResult)
+
+          // 6. Upsell Intelligence — detecta momentos de upgrade e propõe ofertas
+          const upsellResult = await runUpsellAgent(supabase, tenant, patients, sabotageResult)
+          results.push(upsellResult)
         }
         break
       }
@@ -255,6 +259,9 @@ serve(async (req) => {
           results.push(await runProtocolAgent(supabase, tenant, patients))
         } else if (agentName === 'community') {
           results.push(await runCommunityAgent(supabase, tenant, patients))
+        } else if (agentName === 'upsell') {
+          const sabResult = await runSabotageAgent(supabase, tenant, patients)
+          results.push(await runUpsellAgent(supabase, tenant, patients, sabResult))
         } else if (agentName === 'meals' && event.user_id) {
           results.push(await runMealsAgent(supabase, event.tenant_id, event.user_id, event.payload))
         }
@@ -1597,6 +1604,253 @@ Retorne APENAS JSON: { "status": "approved|flagged", "reason": "motivo se flagge
     await supabase.from('posts').update({ is_ai_moderated: true, ai_status: 'approved' }).eq('id', postId)
     if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'error', error_message: err.message, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
     return { agent_name: 'community_moderation', status: 'error', messages: [], tokens_used: 0, duration_ms: elapsed, error: err.message }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AGENT: UPSELL INTELLIGENCE — detecta momentos de upgrade e cria pendências
+// Avalia trigger_type de gateway_products vs estado real de cada paciente
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function runUpsellAgent(
+  supabase: SupabaseClient,
+  tenant: TenantContext,
+  patients: PatientContext[],
+  sabotageResult: AgentResult
+): Promise<AgentResult> {
+  const start = Date.now()
+  let totalTokens = 0
+
+  const { data: agentLog } = await supabase
+    .from('agent_logs')
+    .insert({ tenant_id: tenant.id, agent_name: 'upsell', trigger_type: 'agent_chain', input_payload: { patients_count: patients.length }, status: 'running' })
+    .select('id').single()
+
+  try {
+    // Load active gateway products with auto-triggers
+    const { data: products } = await supabase
+      .from('gateway_products')
+      .select('id, name, short_pitch, product_type, cta_text, external_url, trigger_type, trigger_value, visible_to_plans')
+      .eq('tenant_id', tenant.id)
+      .eq('is_active', true)
+      .neq('trigger_type', 'manual')
+      .order('display_order')
+
+    if (!products || products.length === 0) {
+      const elapsed = Date.now() - start
+      if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'skipped', output_payload: { reason: 'no_auto_trigger_products' }, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+      return { agent_name: 'upsell', status: 'skipped', messages: [], tokens_used: 0, duration_ms: elapsed }
+    }
+
+    const riskMap = new Map((sabotageResult.risk_scores || []).map(r => [r.user_id, r]))
+
+    // Anti-spam: load recent upsell pending actions (last 14d) to avoid double-firing
+    const { data: recentUpsell } = await supabase
+      .from('agent_pending_actions')
+      .select('target_user_id, context_data')
+      .eq('tenant_id', tenant.id)
+      .eq('agent_name', 'upsell')
+      .gte('created_at', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString())
+      .in('status', ['pending', 'approved', 'executed'])
+
+    const recentOffers = new Set(
+      (recentUpsell || []).map((r: any) => `${r.target_user_id}:${r.context_data?.product_id}`)
+    )
+
+    // Fetch patient join dates to calculate days_in_club
+    const userIds = patients.map(p => p.user_id)
+    const { data: joinDates } = await supabase
+      .from('subscriptions')
+      .select('user_id, created_at')
+      .in('user_id', userIds)
+      .eq('status', 'active')
+
+    const joinDateMap = new Map((joinDates || []).map((s: any) => [s.user_id, new Date(s.created_at)]))
+
+    // Fetch checkin counts per patient (last 90d)
+    const { data: checkinCounts } = await supabase
+      .from('weekly_checkin_responses')
+      .select('user_id')
+      .in('user_id', userIds)
+      .gte('created_at', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
+
+    const checkinCountMap: Record<string, number> = {}
+    for (const c of checkinCounts || []) {
+      checkinCountMap[c.user_id] = (checkinCountMap[c.user_id] || 0) + 1
+    }
+
+    const candidates: Array<{ patient: PatientContext; product: any; reason: string }> = []
+
+    for (const patient of patients) {
+      const joinDate = joinDateMap.get(patient.user_id)
+      const daysInClub = joinDate
+        ? Math.floor((Date.now() - joinDate.getTime()) / 86400000)
+        : 0
+      const checkinCount = checkinCountMap[patient.user_id] || 0
+      const risk = riskMap.get(patient.user_id)
+
+      for (const product of products) {
+        // Skip if plan doesn't include this patient
+        const visibleTo: string[] = product.visible_to_plans || ['community', 'tech_diet']
+        if (!visibleTo.includes(patient.current_plan)) continue
+
+        const offerKey = `${patient.user_id}:${product.id}`
+        if (recentOffers.has(offerKey)) continue
+
+        let triggered = false
+        let reason = ''
+
+        switch (product.trigger_type) {
+          case 'after_days':
+            if (daysInClub >= (product.trigger_value || 30)) {
+              triggered = true
+              reason = `${daysInClub} dias no clube`
+            }
+            break
+          case 'after_checkins':
+            if (checkinCount >= (product.trigger_value || 4)) {
+              triggered = true
+              reason = `${checkinCount} check-ins concluídos`
+            }
+            break
+          case 'high_engagement':
+            if (patient.current_streak >= (product.trigger_value || 7) && patient.adherence_7d >= 70) {
+              triggered = true
+              reason = `streak ${patient.current_streak}d, adesão ${patient.adherence_7d}%`
+            }
+            break
+          case 'low_adherence':
+            // Offer specialized help when patient is struggling but still active
+            if (patient.adherence_7d <= (product.trigger_value || 30) && patient.days_since_activity <= 3) {
+              triggered = true
+              reason = `adesão baixa (${patient.adherence_7d}%) mas ainda ativa`
+            }
+            break
+        }
+
+        if (triggered) {
+          candidates.push({ patient, product, reason })
+          // Only propose 1 offer per patient per run
+          break
+        }
+      }
+    }
+
+    if (candidates.length === 0) {
+      const elapsed = Date.now() - start
+      if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'skipped', output_payload: { reason: 'no_trigger_matches' }, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+      return { agent_name: 'upsell', status: 'skipped', messages: [], tokens_used: 0, duration_ms: elapsed }
+    }
+
+    // Use Gemini to craft personalized offer copy for each candidate
+    const brand = tenant.brand_name
+    const systemPrompt = tenant.gpt_system_prompt || `${NUTRITIONIST_IDENTITY}
+
+PAPEL ESPECÍFICO — ESPECIALISTA EM UPSELL CONSULTIVO DE SAÚDE:
+Você apresenta ofertas de produtos/serviços de forma natural e empática, sem pressão de vendas.
+A oferta deve parecer uma recomendação clínica personalizada, não marketing.
+
+REGRAS:
+• Conecte o produto ao momento específico da paciente (streak, objetivo, dificuldade)
+• Tom: "Acho que você está pronta para o próximo nível" — não "Compre agora!"
+• Máximo 3 frases: contexto → benefício → convite
+• Plataforma: ${brand}`
+
+    const offerDescriptions = candidates.map(c =>
+      `- ${c.patient.name.split(' ')[0]} (${c.patient.user_id}): ${c.reason}, objetivo "${c.patient.primary_goal || '?'}", produto "${c.product.name}" — ${c.product.short_pitch}`
+    ).join('\n')
+
+    const userPrompt = `Crie mensagens de apresentação de oferta para estas pacientes:
+${offerDescriptions}
+
+Retorne APENAS JSON:
+{
+  "offers": [
+    {
+      "user_id": "uuid",
+      "title": "máx 8 palavras",
+      "body": "2-3 frases personalizadas",
+      "cta_label": "texto do botão"
+    }
+  ]
+}`
+
+    const res = await fetch(GEMINI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        generationConfig: { maxOutputTokens: 1000, responseMimeType: 'application/json' },
+      }),
+    })
+
+    if (!res.ok) throw new Error(`Gemini error: ${res.status}`)
+    const data = await res.json()
+    totalTokens = data.usageMetadata?.totalTokenCount || 0
+    const parsed = JSON.parse((data.candidates?.[0]?.content?.parts?.[0]?.text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
+
+    const actionMessages: AgentResult['messages'] = []
+
+    for (const offer of parsed.offers || []) {
+      const candidate = candidates.find(c => c.patient.user_id === offer.user_id)
+      if (!candidate) continue
+
+      await supabase.from('agent_pending_actions').insert({
+        tenant_id: tenant.id,
+        agent_name: 'upsell',
+        action_type: 'show_offer',
+        target_type: 'patient',
+        target_user_id: offer.user_id,
+        target_patient_name: candidate.patient.name,
+        title: offer.title,
+        content: offer.body,
+        content_preview: offer.body.substring(0, 120),
+        reasoning: candidate.reason,
+        context_data: {
+          product_id: candidate.product.id,
+          product_name: candidate.product.name,
+          product_type: candidate.product.product_type,
+          external_url: candidate.product.external_url,
+          cta_text: offer.cta_label || candidate.product.cta_text,
+          trigger_type: candidate.product.trigger_type,
+          priority: 'normal',
+        },
+        status: 'pending',
+      })
+
+      actionMessages.push({
+        user_id: offer.user_id,
+        title: offer.title,
+        body: offer.body,
+        message_type: 'engagement',
+        priority: 'normal',
+        cta_label: offer.cta_label,
+        cta_url: candidate.product.external_url || '/patient/gateway',
+        channels: ['inbox'],
+      })
+    }
+
+    const elapsed = Date.now() - start
+    if (agentLog?.id) {
+      await supabase.from('agent_logs').update({
+        status: 'success',
+        output_payload: { offers_proposed: actionMessages.length, candidates_evaluated: candidates.length },
+        tokens_used: totalTokens,
+        cost_usd: 0,
+        duration_ms: elapsed,
+        completed_at: new Date().toISOString(),
+      }).eq('id', agentLog.id)
+    }
+
+    return { agent_name: 'upsell', status: 'success', messages: actionMessages, tokens_used: totalTokens, duration_ms: elapsed }
+
+  } catch (err: any) {
+    const elapsed = Date.now() - start
+    console.error('[upsell] Error:', err)
+    if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'error', error_message: err.message, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+    return { agent_name: 'upsell', status: 'error', messages: [], tokens_used: totalTokens, duration_ms: elapsed, error: err.message }
   }
 }
 
