@@ -56,6 +56,7 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
   const [tab, setTab] = useState<'generate' | 'plans'>('generate')
   // Generator state
   const [goal, setGoal] = useState('emagrecimento')
+  const [planMode, setPlanMode] = useState<'basic' | 'premium'>('premium')
   const [days, setDays] = useState(7)
   const [targetKcal, setTargetKcal] = useState(1600)
   const [targetProtein, setTargetProtein] = useState(100)
@@ -100,7 +101,7 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
       const res = await fetch('/api/admin/meal-plans/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ goal, duration_days: days, target_kcal: targetKcal, target_protein_g: targetProtein, restrictions, preferences }),
+        body: JSON.stringify({ goal, duration_days: days, target_kcal: targetKcal, target_protein_g: targetProtein, restrictions, preferences, plan_mode: planMode }),
       })
       const data = await res.json()
       if (!data.success) throw new Error(data.error)
@@ -277,6 +278,24 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
           <div className="bg-slate-800/40 rounded-xl border border-slate-700/50 p-6 space-y-5">
             <h3 className="text-white font-semibold flex items-center gap-2"><Target size={18} className="text-indigo-400" /> Configurar cardápio</h3>
 
+            {/* Toggle Básico / Premium */}
+            <div>
+              <label className="text-xs text-slate-400 mb-2 block">Tipo de cardápio</label>
+              <div className="flex gap-1.5 p-1 bg-slate-700/40 rounded-xl w-fit">
+                <button onClick={() => setPlanMode('basic')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${planMode === 'basic' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+                  📋 Qualitativo (Básico)
+                </button>
+                <button onClick={() => setPlanMode('premium')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${planMode === 'premium' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+                  ⚡ Calculado (Premium)
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-600 mt-1.5">
+                {planMode === 'basic' ? 'Descreve o que comer sem calcular calorias. Ideal para planos iniciais.' : 'Usa tabela TACO/TBCA com calorias, macros e gramas exatos.'}
+              </p>
+            </div>
+
             <div>
               <label className="text-xs text-slate-400 mb-1 block">Objetivo</label>
               <div className="flex flex-wrap gap-2">
@@ -295,18 +314,22 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
                 <input type="number" value={days} onChange={e => setDays(Number(e.target.value))} min={1} max={30}
                   className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm" />
               </div>
-              <div>
-                <label className="text-xs text-slate-400 mb-1 block">Kcal/dia</label>
-                <input type="number" value={targetKcal} onChange={e => setTargetKcal(Number(e.target.value))} step={100}
-                  className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm" />
-              </div>
+              {planMode === 'premium' && (
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Kcal/dia</label>
+                  <input type="number" value={targetKcal} onChange={e => setTargetKcal(Number(e.target.value))} step={100}
+                    className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm" />
+                </div>
+              )}
             </div>
 
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">Proteína alvo (g/dia)</label>
-              <input type="number" value={targetProtein} onChange={e => setTargetProtein(Number(e.target.value))}
-                className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm" />
-            </div>
+            {planMode === 'premium' && (
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Proteína alvo (g/dia)</label>
+                <input type="number" value={targetProtein} onChange={e => setTargetProtein(Number(e.target.value))}
+                  className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm" />
+              </div>
+            )}
 
             <div>
               <label className="text-xs text-slate-400 mb-1 block">Restrições</label>
@@ -328,7 +351,7 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
 
             <Button onClick={handleGenerate} disabled={generating}
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-12 rounded-xl gap-2">
-              {generating ? <><Loader2 size={18} className="animate-spin" /> Gerando com IA (pode demorar 30s)...</> : <><Sparkles size={18} /> Gerar cardápio com TACO/TBCA</>}
+              {generating ? <><Loader2 size={18} className="animate-spin" /> Gerando com IA (pode demorar 30s)...</> : planMode === 'basic' ? <><Sparkles size={18} /> Gerar cardápio qualitativo</> : <><Sparkles size={18} /> Gerar cardápio com TACO/TBCA</>}
             </Button>
           </div>
 

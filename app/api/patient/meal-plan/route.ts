@@ -37,6 +37,15 @@ export async function GET(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Perfil da paciente para determinar plano e acesso premium
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('current_plan')
+    .eq('user_id', user.id)
+    .single()
+
+  const isPremium = ['vip', 'tech_diet'].includes(profile?.current_plan || '')
+
   // Busca o assignment ativo mais recente
   const { data: assignment } = await supabase
     .from('meal_plan_assignments')
@@ -46,7 +55,7 @@ export async function GET(request: NextRequest) {
       meal_plan:meal_plans (
         id, title, description, goal, duration_days,
         target_kcal, target_protein_g, target_carbs_g, target_fat_g,
-        status, is_ai_generated
+        status, is_ai_generated, plan_mode
       )
     `)
     .eq('user_id', user.id)
@@ -55,7 +64,7 @@ export async function GET(request: NextRequest) {
     .single()
 
   if (!assignment || !assignment.meal_plan) {
-    return NextResponse.json({ plan: null })
+    return NextResponse.json({ plan: null, is_premium: isPremium })
   }
 
   const plan = assignment.meal_plan as any
@@ -66,7 +75,7 @@ export async function GET(request: NextRequest) {
     .select(
       'id, day_number, meal_type, meal_label, sort_order, food_name, quantity_g, ' +
       'serving_qty, serving_label, calc_kcal, calc_protein_g, calc_carbs_g, ' +
-      'calc_fat_g, calc_fiber_g, preparation_notes, substitution_note'
+      'calc_fat_g, calc_fiber_g, preparation_notes, substitution_note, qualitative_description'
     )
     .eq('meal_plan_id', plan.id)
     .order('day_number')
@@ -122,5 +131,6 @@ export async function GET(request: NextRequest) {
       assigned_at: assignment.assigned_at,
       days,
     },
+    is_premium: isPremium,
   })
 }
