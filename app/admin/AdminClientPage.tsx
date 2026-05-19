@@ -69,30 +69,63 @@ import { AnalyticsView } from "./views/AnalyticsView"
 
 type ViewType = 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients' | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits' | 'library' | 'settings' | 'settings-login' | 'club-plan' | 'agents-dashboard' | 'agent-approvals' | 'meal-plans' | 'appointments' | 'professionals' | 'product-gateway' | 'annual-planner' | 'strategic-planner' | 'content-planner' | 'analytics'
 
-const navItems = [
-    { id: 'dashboard' as ViewType, label: 'Painel Central', icon: LayoutDashboard },
-    { id: 'club-plan' as ViewType, label: 'Plano do Clube', icon: Calendar },
-    { id: 'communication' as ViewType, label: 'Comunicação', icon: MessageCircle },
-    { id: 'protocols' as ViewType, label: 'Bio-Protocolos', icon: FileText },
-    { id: 'meal-plans' as ViewType, label: 'Cardápios', icon: Utensils },
-    { id: 'appointments' as ViewType, label: 'Agenda', icon: CalendarCheck },
-    { id: 'professionals' as ViewType, label: 'Profissionais', icon: Stethoscope },
-    { id: 'challenges' as ViewType, label: 'Jornadas', icon: Trophy },
-    { id: 'patients' as ViewType, label: 'Rainhas', icon: Users },
-    { id: 'rewards' as ViewType, label: 'Recompensas', icon: Crown },
-    { id: 'checkins' as ViewType, label: 'Check-ins IA', icon: MessageCircle },
-    { id: 'library' as ViewType, label: 'Cérebro Técnico', icon: BookOpen },
-    { id: 'sales-page' as ViewType, label: 'Bio-Page', icon: Globe },
-    { id: 'product-gateway' as ViewType, label: 'Produtos & Gateway', icon: ShoppingBag },
-    { id: 'ai-credits' as ViewType, label: 'Créditos IA', icon: CreditCard },
-    { id: 'ai-brain' as ViewType, label: 'Config. IA', icon: Brain },
-    { id: 'agents-dashboard' as ViewType, label: 'Agentes IA', icon: Bot },
-    { id: 'agent-approvals' as ViewType, label: 'Aprovações', icon: ShieldCheck },
-    { id: 'annual-planner' as ViewType, label: 'Plano Anual IA', icon: TrendingUp },
-    { id: 'strategic-planner' as ViewType, label: 'Régua de Conteúdo', icon: CalendarCheck },
-    { id: 'content-planner' as ViewType, label: 'Planejador Anual', icon: BarChart3 },
-    { id: 'analytics' as ViewType, label: 'Analytics', icon: BarChart3 },
-    { id: 'settings' as ViewType, label: 'Sistema', icon: Settings },
+const navGroups: { label?: string; items: { id: ViewType; label: string; icon: any; badge?: boolean }[] }[] = [
+    {
+        items: [
+            { id: 'dashboard', label: 'Painel', icon: LayoutDashboard },
+            { id: 'communication', label: 'Comunicação', icon: MessageCircle },
+            { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+        ],
+    },
+    {
+        label: 'Clínica',
+        items: [
+            { id: 'patients', label: 'Rainhas', icon: Users },
+            { id: 'checkins', label: 'Check-ins IA', icon: ShieldCheck },
+            { id: 'appointments', label: 'Agenda', icon: CalendarCheck },
+            { id: 'professionals', label: 'Profissionais', icon: Stethoscope },
+        ],
+    },
+    {
+        label: 'Programas',
+        items: [
+            { id: 'protocols', label: 'Protocolos', icon: FileText },
+            { id: 'meal-plans', label: 'Cardápios', icon: Utensils },
+            { id: 'challenges', label: 'Jornadas', icon: Trophy },
+            { id: 'library', label: 'Biblioteca', icon: BookOpen },
+        ],
+    },
+    {
+        label: 'Engajamento',
+        items: [
+            { id: 'rewards', label: 'Recompensas', icon: Crown },
+            { id: 'annual-planner', label: 'Planejador', icon: TrendingUp },
+        ],
+    },
+    {
+        label: 'Meu Clube',
+        items: [
+            { id: 'club-plan', label: 'Plano do Clube', icon: Calendar },
+            { id: 'sales-page', label: 'Página de Vendas', icon: Globe },
+            { id: 'product-gateway', label: 'Produtos', icon: ShoppingBag },
+        ],
+    },
+    {
+        label: 'Inteligência IA',
+        items: [
+            { id: 'ai-brain', label: 'Config. da IA', icon: Brain },
+            { id: 'agents-dashboard', label: 'Agentes', icon: Bot },
+            { id: 'agent-approvals', label: 'Aprovações', icon: ShieldCheck, badge: true },
+            { id: 'ai-credits', label: 'Créditos', icon: CreditCard },
+        ],
+    },
+    {
+        label: 'Configurações',
+        items: [
+            { id: 'settings', label: 'Sistema', icon: Settings },
+            { id: 'settings-login', label: 'Login Designer', icon: Palette },
+        ],
+    },
 ]
 
 interface AdminDashboardProps {
@@ -192,41 +225,52 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
                 </div>
 
                 {/* Navigation Scrollable */}
-                <nav className="flex-1 p-6 space-y-2 overflow-y-auto no-scrollbar">
-                    {navItems.map((item) => {
-                        const Icon = item.icon
-                        const isActive = activeView === item.id
-                        return (
-                            <button
-                                key={item.id}
-                                onClick={() => setActiveView(item.id)}
-                                className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all group relative
-                                    ${isActive
-                                        ? 'bg-indigo-600/10 text-white border border-indigo-500/30 shadow-inner'
-                                        : 'text-slate-500 hover:bg-white/[0.03] hover:text-white border border-transparent'
-                                    }`}
-                            >
-                                <Icon size={20} className={`${isActive ? 'text-indigo-400' : 'group-hover:text-indigo-400 transition-colors'} ${!sidebarOpen && 'mx-auto'}`} />
-                                {sidebarOpen && (
-                                    <>
-                                        <span className={`flex-1 text-left text-xs font-black uppercase tracking-widest ${isActive ? 'text-white' : ''}`}>{item.label}</span>
-                                        {item.id === 'agent-approvals' && pendingApprovals > 0 && (
-                                            <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-black">
-                                                {pendingApprovals > 99 ? '99+' : pendingApprovals}
-                                            </span>
+                <nav className="flex-1 px-4 py-5 overflow-y-auto no-scrollbar space-y-1">
+                    {navGroups.map((group, gi) => (
+                        <div key={gi} className={gi > 0 ? 'pt-3' : ''}>
+                            {group.label && sidebarOpen && (
+                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-600 px-3 pb-1.5 pt-1">
+                                    {group.label}
+                                </p>
+                            )}
+                            {gi > 0 && !sidebarOpen && <div className="h-px bg-white/5 mx-2 mb-2" />}
+                            {group.items.map((item) => {
+                                const Icon = item.icon
+                                const isActive = activeView === item.id
+                                const showBadge = item.badge && pendingApprovals > 0
+                                return (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => setActiveView(item.id)}
+                                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group relative
+                                            ${isActive
+                                                ? 'bg-indigo-600/10 text-white border border-indigo-500/30 shadow-inner'
+                                                : 'text-slate-500 hover:bg-white/[0.03] hover:text-white border border-transparent'
+                                            }`}
+                                    >
+                                        <Icon size={18} className={`flex-shrink-0 ${isActive ? 'text-indigo-400' : 'group-hover:text-indigo-400 transition-colors'} ${!sidebarOpen && 'mx-auto'}`} />
+                                        {sidebarOpen && (
+                                            <>
+                                                <span className={`flex-1 text-left text-[11px] font-bold ${isActive ? 'text-white' : ''}`}>{item.label}</span>
+                                                {showBadge && (
+                                                    <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-black">
+                                                        {pendingApprovals > 99 ? '99+' : pendingApprovals}
+                                                    </span>
+                                                )}
+                                                {isActive && <div className="h-1.5 w-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)]" />}
+                                            </>
                                         )}
-                                        {isActive && <div className="h-1.5 w-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)]" />}
-                                    </>
-                                )}
-                                {isActive && (
-                                    <motion.div
-                                        layoutId="active-pill"
-                                        className="absolute left-0 w-1 h-8 bg-indigo-500 rounded-r-full"
-                                    />
-                                )}
-                            </button>
-                        )
-                    })}
+                                        {isActive && (
+                                            <motion.div
+                                                layoutId="active-pill"
+                                                className="absolute left-0 w-1 h-6 bg-indigo-500 rounded-r-full"
+                                            />
+                                        )}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    ))}
                 </nav>
 
                 {/* Action Footer */}

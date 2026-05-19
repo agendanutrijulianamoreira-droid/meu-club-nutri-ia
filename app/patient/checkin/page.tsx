@@ -2,11 +2,19 @@
 
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { CheckCircle, ArrowLeft, ArrowRight, Sparkles, Loader2, Star } from "lucide-react"
+import { CheckCircle, ArrowLeft, ArrowRight, Sparkles, Loader2, Star, Heart } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
-const STEPS = 5
+const STEPS = 6
+
+const CYCLE_PHASES = [
+    { value: 'menstrual',  label: 'Menstrual',   emoji: '🌑', desc: 'Dias 1-5 — descanso e introspecção' },
+    { value: 'folicular',  label: 'Folicular',   emoji: '🌒', desc: 'Dias 6-13 — energia crescente' },
+    { value: 'ovulatoria', label: 'Ovulatória',  emoji: '🌕', desc: 'Dias 14-17 — pico de energia' },
+    { value: 'lutea',      label: 'Lútea',       emoji: '🌘', desc: 'Dias 18-28 — TPM e introspecção' },
+    { value: 'nao_sei',    label: 'Não sei',     emoji: '🔮', desc: 'Tudo bem, pularemos esse dado' },
+]
 
 export default function WeeklyCheckinPage() {
     const router = useRouter()
@@ -18,6 +26,7 @@ export default function WeeklyCheckinPage() {
     const [checking, setChecking] = useState(true)
 
     const [form, setForm] = useState({
+        cycle_phase: "",
         diet_score: 7,
         main_difficulty: "",
         bowel: "",
@@ -118,8 +127,38 @@ export default function WeeklyCheckinPage() {
             </div>
 
             <AnimatePresence mode="wait">
-                {/* Step 0 - Diet score */}
+                {/* Step 0 - Ciclo hormonal */}
                 {step === 0 && (
+                    <motion.div key="s0h" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Heart size={18} className="text-rose-400" />
+                            <p className="text-white text-xl font-bold">Fase do ciclo esta semana</p>
+                        </div>
+                        <p className="text-slate-400 text-sm mb-6">Isso ajuda a IA a entender seus sintomas e personalizar as recomendações.</p>
+                        <div className="space-y-2">
+                            {CYCLE_PHASES.map(phase => (
+                                <button
+                                    key={phase.value}
+                                    onClick={() => setForm(f => ({ ...f, cycle_phase: phase.value }))}
+                                    className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all text-left ${
+                                        form.cycle_phase === phase.value
+                                            ? "bg-rose-500/15 border-rose-500/40 text-white"
+                                            : "bg-white/5 border-white/10 text-slate-400 hover:border-white/20"
+                                    }`}
+                                >
+                                    <span className="text-2xl flex-shrink-0">{phase.emoji}</span>
+                                    <div>
+                                        <p className="font-bold text-sm text-white">{phase.label}</p>
+                                        <p className="text-xs text-slate-500">{phase.desc}</p>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* Step 1 - Diet score */}
+                {step === 1 && (
                     <motion.div key="s0" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
                         <p className="text-white text-xl font-bold mb-2">Como foi sua dieta essa semana?</p>
                         <p className="text-slate-400 text-sm mb-8">De 0 a 10, qual nota você daria para sua adesão ao protocolo?</p>
@@ -151,9 +190,9 @@ export default function WeeklyCheckinPage() {
                     </motion.div>
                 )}
 
-                {/* Step 1 - Main difficulty */}
-                {step === 1 && (
-                    <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+                {/* Step 2 - Main difficulty */}
+                {step === 2 && (
+                    <motion.div key="s2d" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
                         <p className="text-white text-xl font-bold mb-2">Qual foi sua maior dificuldade?</p>
                         <p className="text-slate-400 text-sm mb-6">Seja honesta, isso ajuda sua nutricionista a te ajudar melhor.</p>
                         <textarea
@@ -166,8 +205,8 @@ export default function WeeklyCheckinPage() {
                     </motion.div>
                 )}
 
-                {/* Step 2 - Bowel + binge */}
-                {step === 2 && (
+                {/* Step 3 - Bowel + binge */}
+                {step === 3 && (
                     <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col gap-6">
                         <div>
                             <p className="text-white text-xl font-bold mb-2">Como está seu intestino?</p>
@@ -208,9 +247,9 @@ export default function WeeklyCheckinPage() {
                     </motion.div>
                 )}
 
-                {/* Step 3 - Mood */}
-                {step === 3 && (
-                    <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+                {/* Step 4 - Mood */}
+                {step === 4 && (
+                    <motion.div key="s4m" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
                         <p className="text-white text-xl font-bold mb-2">Como está seu humor?</p>
                         <p className="text-slate-400 text-sm mb-8">De modo geral, como você se sentiu essa semana?</p>
                         <div className="grid grid-cols-2 gap-3">
@@ -237,9 +276,9 @@ export default function WeeklyCheckinPage() {
                     </motion.div>
                 )}
 
-                {/* Step 4 - Extra notes */}
-                {step === 4 && (
-                    <motion.div key="s4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
+                {/* Step 5 - Extra notes */}
+                {step === 5 && (
+                    <motion.div key="s5n" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
                         <p className="text-white text-xl font-bold mb-2">Algo mais que queira compartilhar?</p>
                         <p className="text-slate-400 text-sm mb-6">Opcional. Pode falar sobre resultados, medidas, como se sentiu, qualquer coisa.</p>
                         <textarea
@@ -251,7 +290,9 @@ export default function WeeklyCheckinPage() {
                         />
                         <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-2xl p-4">
                             <p className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-1">Resumo do seu check-in</p>
-                            <p className="text-sm text-slate-300">Nota: {form.diet_score}/10 · {form.bowel || "—"} · {form.had_binge ? "Teve compulsão" : "Sem compulsão"} · {form.mood || "—"}</p>
+                            <p className="text-sm text-slate-300">
+                                {CYCLE_PHASES.find(p => p.value === form.cycle_phase)?.emoji || '—'} {CYCLE_PHASES.find(p => p.value === form.cycle_phase)?.label || '—'} · Nota: {form.diet_score}/10 · {form.bowel || "—"} · {form.had_binge ? "Teve compulsão" : "Sem compulsão"} · {form.mood || "—"}
+                            </p>
                         </div>
                     </motion.div>
                 )}

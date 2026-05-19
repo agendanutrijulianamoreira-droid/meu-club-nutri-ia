@@ -421,6 +421,37 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
             </div>
 
             {/* ============================================ */}
+            {/* 0. AÇÕES RÁPIDAS — O QUE FAZER AGORA */}
+            {/* ============================================ */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                    { label: 'Nova Paciente', emoji: '👑', color: 'indigo', action: () => setView('patients') },
+                    { label: 'Enviar Comunicado', emoji: '💬', color: 'violet', action: () => setView('communication') },
+                    { label: 'Gerar Protocolo', emoji: '📋', color: 'emerald', action: () => setView('protocols') },
+                    { label: 'Ver Aprovações IA', emoji: '🤖', color: pendingApprovalsCount > 0 ? 'amber' : 'slate', action: () => setView('agent-approvals'), badge: pendingApprovalsCount },
+                ].map(({ label, emoji, color, action, badge }) => (
+                    <button key={label} onClick={action}
+                        className={`flex items-center gap-3 p-3.5 rounded-2xl border transition-all text-left group
+                            ${color === 'indigo' ? 'bg-indigo-500/5 border-indigo-500/15 hover:border-indigo-500/40' :
+                              color === 'violet' ? 'bg-violet-500/5 border-violet-500/15 hover:border-violet-500/40' :
+                              color === 'emerald' ? 'bg-emerald-500/5 border-emerald-500/15 hover:border-emerald-500/40' :
+                              color === 'amber' ? 'bg-amber-500/10 border-amber-500/30 hover:border-amber-400/50' :
+                              'bg-white/5 border-white/10 hover:border-white/20'}`}>
+                        <span className="text-xl">{emoji}</span>
+                        <span className={`text-xs font-bold flex-1 ${
+                            color === 'indigo' ? 'text-indigo-300' :
+                            color === 'violet' ? 'text-violet-300' :
+                            color === 'emerald' ? 'text-emerald-300' :
+                            color === 'amber' ? 'text-amber-300' : 'text-slate-300'
+                        } group-hover:text-white transition-colors`}>{label}</span>
+                        {badge !== undefined && badge > 0 && (
+                            <span className="h-5 min-w-5 px-1 bg-amber-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">{badge}</span>
+                        )}
+                    </button>
+                ))}
+            </div>
+
+            {/* ============================================ */}
             {/* 1. KPIs — DADOS REAIS */}
             {/* ============================================ */}
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
