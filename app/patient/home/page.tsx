@@ -287,5 +287,6 @@ export default function PatientHomePage() {
                 </div>
             )}
         </div>
+        </>
     )
 }
