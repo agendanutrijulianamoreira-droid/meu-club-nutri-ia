@@ -124,6 +124,32 @@ async function executeApprovedAction(
     return
   }
 
+  if (type === 'show_offer') {
+    const ctx = updated.context_data ?? {}
+    const { error: offerError } = await supabase
+      .from('inbox_messages')
+      .insert({
+        user_id: userId,
+        tenant_id: tenantId,
+        agent_name: 'upsell',
+        title: updated.title || ctx.product_name || 'Oferta especial para você',
+        body: updated.content,
+        message_type: 'engagement',
+        priority: 'normal',
+        cta_label: ctx.cta_text || 'Quero saber mais',
+        cta_url: ctx.external_url || '/patient/gateway',
+        channels: ['inbox'],
+        status: 'unread',
+      })
+    if (!offerError) {
+      await supabase
+        .from('agent_pending_actions')
+        .update({ status: 'executed', executed_at: new Date().toISOString() })
+        .eq('id', actionId)
+    }
+    return
+  }
+
   if (type === 'send_push') {
     // Mark as executed — actual push dispatch handled by the cron/orchestrator
     await supabase
