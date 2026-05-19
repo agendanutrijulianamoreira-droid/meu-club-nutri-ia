@@ -92,21 +92,43 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     let periodStart: string | null = null
     let periodEnd: string | null = null
     let amountCents: number | null = null
+    let verifiedPlan = plan
 
     if (subscriptionId) {
         const sub = await getStripe().subscriptions.retrieve(subscriptionId) as any
         periodStart = new Date(sub.current_period_start * 1000).toISOString()
         periodEnd = new Date(sub.current_period_end * 1000).toISOString()
+        const paidPriceId: string = sub.items?.data?.[0]?.price?.id || ''
         amountCents = sub.items?.data?.[0]?.price?.unit_amount || null
+
+        // Validate: resolve plan from actual price_id paid (prevents metadata tampering)
+        if (paidPriceId) {
+            const { data: planConfig } = await supabaseAdmin
+                .from('tenant_plans')
+                .select('plan')
+                .eq('tenant_id', tenantId)
+                .eq('stripe_price_id', paidPriceId)
+                .eq('is_active', true)
+                .single()
+
+            if (planConfig?.plan) {
+                if (planConfig.plan !== plan) {
+                    console.warn(`[Webhook] Plan mismatch — metadata="${plan}" but price_id maps to "${planConfig.plan}". Using verified plan.`)
+                }
+                verifiedPlan = planConfig.plan
+            } else {
+                console.warn(`[Webhook] Price ID "${paidPriceId}" not found in tenant_plans for tenant ${tenantId}. Falling back to metadata plan "${plan}".`)
+            }
+        }
     }
 
-    // 3. Criar record na tabela subscriptions
+    // 3. Criar record na tabela subscriptions (using verifiedPlan from price lookup)
     const { error: subError } = await supabaseAdmin
         .from('subscriptions')
         .upsert({
             user_id: userId,
             tenant_id: tenantId,
-            plan: plan,
+            plan: verifiedPlan,
             status: 'active',
             gateway: 'stripe',
             gateway_subscription_id: subscriptionId,
@@ -137,13 +159,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         })
     }
 
-    console.log(`[Webhook] Subscription activated: ${userId} → ${plan}`)
+    console.log(`[Webhook] Subscription activated: ${userId} → ${verifiedPlan}`)
 
     // 4. Enviar boas-vindas (Email/WhatsApp)
     await OnboardingService.sendWelcomeMessages(userId, tenantId)
 
     // 5. Trigger agent orchestrator → Onboarding Agent (3 mensagens personalizadas no inbox)
-    triggerOrchestrator('stripe_webhook', tenantId, userId, { plan, subscription_id: subscriptionId })
+    triggerOrchestrator('stripe_webhook', tenantId, userId, { plan: verifiedPlan, subscription_id: subscriptionId })
 }
 
 /**
