@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import {
     TrendingUp, Users, AlertCircle, MessageCircle, CheckCircle,
     ChevronRight, Crown, DollarSign, ArrowUpRight, Zap, Calendar,
@@ -380,6 +380,69 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
         return <MessageCircle size={12} className="text-white" />
     }
 
+    const todayPriorities = useMemo(() => {
+        const items: { title: string; desc: string; action: () => void; color: string }[] = []
+
+        const criticalCount = alerts.filter(a => a.status === 'risk').length
+        if (criticalCount > 0) {
+            items.push({
+                title: `${criticalCount} paciente${criticalCount > 1 ? 's' : ''} em risco crítico`,
+                desc: `Sem check-in há 7+ dias. Risco alto de evasão — contato urgente.`,
+                action: () => setView('patients'),
+                color: 'rose',
+            })
+        }
+
+        if (pendingApprovalsCount > 0) {
+            items.push({
+                title: `${pendingApprovalsCount} aprovação${pendingApprovalsCount > 1 ? 'ões' : ''} pendente${pendingApprovalsCount > 1 ? 's' : ''}`,
+                desc: `Agentes IA propuseram ações que aguardam sua revisão.`,
+                action: () => setView('agent-approvals'),
+                color: 'amber',
+            })
+        }
+
+        const inactiveCount = alerts.filter(a => a.status === 'inactive').length
+        if (inactiveCount > 0 && items.length < 3) {
+            items.push({
+                title: `${inactiveCount} paciente${inactiveCount > 1 ? 's' : ''} sem check-in recente`,
+                desc: `Envie uma mensagem de reengajamento agora.`,
+                action: () => setView('communication'),
+                color: 'amber',
+            })
+        }
+
+        if (!activeProtocol && items.length < 3) {
+            items.push({
+                title: 'Nenhum protocolo ativo',
+                desc: `Crie ou ative um protocolo para engajar suas pacientes.`,
+                action: () => setView('protocols'),
+                color: 'indigo',
+            })
+        }
+
+        const newPatients = alerts.filter(a => a.status === 'question').length
+        if (newPatients > 0 && items.length < 3) {
+            items.push({
+                title: `${newPatients} nova${newPatients > 1 ? 's' : ''} paciente${newPatients > 1 ? 's' : ''} sem onboarding`,
+                desc: `Nunca fizeram check-in. Pode precisar de orientação.`,
+                action: () => setView('patients'),
+                color: 'violet',
+            })
+        }
+
+        if (items.length === 0) {
+            items.push({
+                title: 'Tudo em dia hoje!',
+                desc: `Nenhuma ação urgente detectada. Aproveite para criar conteúdo.`,
+                action: () => setView('protocols'),
+                color: 'emerald',
+            })
+        }
+
+        return items.slice(0, 3)
+    }, [alerts, pendingApprovalsCount, activeProtocol, setView])
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-96">
@@ -421,35 +484,41 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
             </div>
 
             {/* ============================================ */}
-            {/* 0. AÇÕES RÁPIDAS — O QUE FAZER AGORA */}
+            {/* 0. PRIORIDADES DO DIA — DINÂMICAS */}
             {/* ============================================ */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {[
-                    { label: 'Nova Paciente', emoji: '👑', color: 'indigo', action: () => setView('patients') },
-                    { label: 'Enviar Comunicado', emoji: '💬', color: 'violet', action: () => setView('communication') },
-                    { label: 'Gerar Protocolo', emoji: '📋', color: 'emerald', action: () => setView('protocols') },
-                    { label: 'Ver Aprovações IA', emoji: '🤖', color: pendingApprovalsCount > 0 ? 'amber' : 'slate', action: () => setView('agent-approvals'), badge: pendingApprovalsCount },
-                ].map(({ label, emoji, color, action, badge }) => (
-                    <button key={label} onClick={action}
-                        className={`flex items-center gap-3 p-3.5 rounded-2xl border transition-all text-left group
-                            ${color === 'indigo' ? 'bg-indigo-500/5 border-indigo-500/15 hover:border-indigo-500/40' :
-                              color === 'violet' ? 'bg-violet-500/5 border-violet-500/15 hover:border-violet-500/40' :
-                              color === 'emerald' ? 'bg-emerald-500/5 border-emerald-500/15 hover:border-emerald-500/40' :
-                              color === 'amber' ? 'bg-amber-500/10 border-amber-500/30 hover:border-amber-400/50' :
-                              'bg-white/5 border-white/10 hover:border-white/20'}`}>
-                        <span className="text-xl">{emoji}</span>
-                        <span className={`text-xs font-bold flex-1 ${
-                            color === 'indigo' ? 'text-indigo-300' :
-                            color === 'violet' ? 'text-violet-300' :
-                            color === 'emerald' ? 'text-emerald-300' :
-                            color === 'amber' ? 'text-amber-300' : 'text-slate-300'
-                        } group-hover:text-white transition-colors`}>{label}</span>
-                        {badge !== undefined && badge > 0 && (
-                            <span className="h-5 min-w-5 px-1 bg-amber-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">{badge}</span>
-                        )}
-                    </button>
-                ))}
-            </div>
+            {!loading && (
+                <div className="space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2">
+                        <Target size={12} className="text-indigo-400" /> Hoje, {todayPriorities.length === 1 ? '1 prioridade' : `${todayPriorities.length} prioridades`}
+                    </p>
+                    <div className={`grid gap-3 ${todayPriorities.length === 1 ? 'grid-cols-1' : todayPriorities.length === 2 ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 lg:grid-cols-3'}`}>
+                        {todayPriorities.map((item, i) => {
+                            const colorMap: Record<string, { bg: string; border: string; text: string; btn: string }> = {
+                                rose:    { bg: 'bg-rose-500/5',    border: 'border-rose-500/20',    text: 'text-rose-400',    btn: 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border-rose-500/20' },
+                                amber:   { bg: 'bg-amber-500/5',   border: 'border-amber-500/20',   text: 'text-amber-400',   btn: 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/20' },
+                                indigo:  { bg: 'bg-indigo-500/5',  border: 'border-indigo-500/20',  text: 'text-indigo-400',  btn: 'bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border-indigo-500/20' },
+                                violet:  { bg: 'bg-violet-500/5',  border: 'border-violet-500/20',  text: 'text-violet-400',  btn: 'bg-violet-500/15 hover:bg-violet-500/25 text-violet-300 border-violet-500/20' },
+                                emerald: { bg: 'bg-emerald-500/5', border: 'border-emerald-500/20', text: 'text-emerald-400', btn: 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/20' },
+                            }
+                            const c = colorMap[item.color] || colorMap.indigo
+                            return (
+                                <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: i * 0.07 }}
+                                    className={`flex items-center gap-4 p-4 rounded-2xl border ${c.bg} ${c.border}`}>
+                                    <div className="flex-1 min-w-0">
+                                        <p className={`text-sm font-bold ${c.text}`}>{item.title}</p>
+                                        <p className="text-xs text-slate-500 mt-0.5 leading-snug">{item.desc}</p>
+                                    </div>
+                                    <button onClick={item.action}
+                                        className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all ${c.btn}`}>
+                                        Agir <ChevronRight size={13} />
+                                    </button>
+                                </motion.div>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* ============================================ */}
             {/* 1. KPIs — DADOS REAIS */}

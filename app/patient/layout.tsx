@@ -55,7 +55,7 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
     ]
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-950 via-[#0f172a] to-[#1e1b4b] pb-20">
+        <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-[#0d1f14] pb-20">
             {/* Main Content */}
             <main className="relative z-0">
                 {children}
@@ -73,17 +73,17 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
                                 key={item.href}
                                 href={item.href}
                                 className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all ${isActive
-                                    ? "bg-indigo-600/20 text-indigo-400"
+                                    ? "bg-emerald-600/20 text-emerald-400"
                                     : "text-slate-500 hover:text-white"
                                     }`}
                             >
-                                <Icon size={20} className={isActive ? "text-indigo-400" : ""} />
-                                <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? "text-indigo-400" : ""
+                                <Icon size={20} className={isActive ? "text-emerald-400" : ""} />
+                                <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? "text-emerald-400" : ""
                                     }`}>
                                     {item.label}
                                 </span>
                                 {isActive && (
-                                    <div className="absolute -bottom-1 w-1 h-1 rounded-full bg-indigo-400" />
+                                    <div className="absolute -bottom-1 w-1 h-1 rounded-full bg-emerald-400" />
                                 )}
                             </Link>
                         )
@@ -92,7 +92,7 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
             </nav>
 
             {/* Ambient Glow Effect */}
-            <div className="fixed top-0 right-0 w-72 h-72 bg-indigo-600/5 blur-[120px] pointer-events-none -z-10" />
+            <div className="fixed top-0 right-0 w-72 h-72 bg-emerald-600/5 blur-[120px] pointer-events-none -z-10" />
         </div>
     )
 }
