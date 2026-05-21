@@ -98,22 +98,22 @@ const navGroups: NavGroup[] = [
     {
         id: 'overview',
         groupIcon: LayoutDashboard,
-        label: 'Visão Geral',
+        label: 'Início',
         items: [
             { id: 'dashboard', label: 'Painel' },
-            { id: 'communication', label: 'Comunicação' },
             { id: 'analytics', label: 'Analytics' },
+            { id: 'communication', label: 'Comunicação' },
         ],
     },
     {
         id: 'clinic',
         groupIcon: Users,
-        label: 'Clínica',
+        label: 'Pacientes',
         items: [
-            { id: 'patients', label: 'Pacientes' },
+            { id: 'patients', label: 'Minhas Pacientes' },
             { id: 'checkins', label: 'Check-ins IA' },
+            { id: 'patient-journey', label: 'Jornada das Pacientes' },
             { id: 'appointments', label: 'Agenda' },
-            { id: 'professionals', label: 'Profissionais' },
         ],
     },
     {
@@ -122,50 +122,38 @@ const navGroups: NavGroup[] = [
         label: 'Programas',
         items: [
             { id: 'protocols', label: 'Protocolos' },
+            { id: 'challenges', label: 'Desafios' },
             { id: 'meal-plans', label: 'Cardápios' },
-            { id: 'challenges', label: 'Jornadas' },
             { id: 'library', label: 'Biblioteca' },
-        ],
-    },
-    {
-        id: 'engagement',
-        groupIcon: Crown,
-        label: 'Engajamento',
-        items: [
             { id: 'rewards', label: 'Recompensas' },
-            { id: 'annual-planner', label: 'Planejador Anual' },
         ],
     },
     {
         id: 'club',
-        groupIcon: ShoppingBag,
-        label: 'Meu Clube',
+        groupIcon: Crown,
+        label: 'Clube',
         items: [
             { id: 'club-plan', label: 'Plano do Clube' },
             { id: 'sales-page', label: 'Página de Vendas' },
             { id: 'product-gateway', label: 'Produtos' },
+            { id: 'annual-planner', label: 'Planejador Anual' },
+            { id: 'content-planner', label: 'Conteúdo' },
+            { id: 'professionals', label: 'Profissionais' },
         ],
     },
     {
         id: 'ai',
         groupIcon: Bot,
-        label: 'Inteligência IA',
+        label: 'Inteligência',
         items: [
-            { id: 'ai-brain', label: 'Config. da IA' },
-            { id: 'agents-dashboard', label: 'Agentes' },
+            { id: 'ai-brain', label: 'Laboratório IA' },
+            { id: 'agents-dashboard', label: 'Agentes IA' },
             { id: 'agent-approvals', label: 'Aprovações', badge: true },
             { id: 'agent-queue', label: 'Fila de Agentes' },
-            { id: 'patient-journey', label: 'Jornada das Pacientes' },
-            { id: 'meal-plans-premium', label: 'Planos Alimentares' },
+            { id: 'meal-plans-premium', label: 'Planos Avançados' },
             { id: 'ai-credits', label: 'Créditos IA' },
-        ],
-    },
-    {
-        id: 'settings',
-        groupIcon: Settings,
-        label: 'Configurações',
-        items: [
-            { id: 'settings', label: 'Sistema' },
+            { id: 'strategic-planner', label: 'Planejamento' },
+            { id: 'settings', label: 'Configurações' },
             { id: 'settings-login', label: 'Login Designer' },
         ],
     },
@@ -322,16 +310,6 @@ export default function AdminDashboard({
                     })}
                 </nav>
 
-                {/* IA Hub shortcut */}
-                <div className="pb-4 flex flex-col items-center gap-1 w-full border-t border-white/[0.06] pt-3">
-                    <button
-                        title="IA Hub"
-                        onClick={() => navigate('agents-dashboard')}
-                        className="flex items-center justify-center w-10 h-10 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/35 border border-indigo-500/25 text-indigo-400 transition-all"
-                    >
-                        <Sparkles size={16} />
-                    </button>
-                </div>
             </aside>
 
             {/* ── Flyout Submenu ────────────────────────────────────────────── */}
