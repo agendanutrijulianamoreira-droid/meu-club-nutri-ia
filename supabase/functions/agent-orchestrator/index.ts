@@ -82,10 +82,17 @@ interface AgentResult {
 }
 
 // ─── CORS ──────────────────────────────────────────────────────────────────
+// Restrito ao domínio do projeto — este endpoint é chamado apenas server-side
+// (triggerOrchestrator) ou por cron. Não deve ser acessível pelo browser diretamente.
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
+const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') || ''
+
+function corsHeaders(requestOrigin: string | null) {
+  const origin = ALLOWED_ORIGIN || requestOrigin || ''
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
+  }
 }
 
 // ─── Main handler ──────────────────────────────────────────────────────────
@@ -126,8 +133,11 @@ COMUNICAÇÃO:
 • Nunca emite diagnósticos médicos nem prescreve medicamentos`
 
 serve(async (req) => {
+  const origin = req.headers.get('origin')
+  const ch = corsHeaders(origin)
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: ch })
   }
 
   const cronHeader = req.headers.get('x-cron-secret')
@@ -138,7 +148,7 @@ serve(async (req) => {
   if (!isCron && !isServiceRole) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...ch, 'Content-Type': 'application/json' },
     })
   }
 
@@ -290,7 +300,7 @@ serve(async (req) => {
       agents_run: results.length,
       results,
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...ch, 'Content-Type': 'application/json' },
     })
 
   } catch (err: any) {
@@ -303,7 +313,7 @@ serve(async (req) => {
     }
     return new Response(JSON.stringify({ success: false, error: err.message }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...ch, 'Content-Type': 'application/json' },
     })
   }
 })
@@ -1624,8 +1634,8 @@ Retorne APENAS JSON: { "status": "approved|flagged", "reason": "motivo se flagge
   } catch (err: any) {
     const elapsed = Date.now() - start
     console.error('[community_moderation] Error:', err)
-    // Fail-open: aprovar post em caso de erro (não bloquear a comunidade)
-    await supabase.from('posts').update({ is_ai_moderated: true, ai_status: 'approved' }).eq('id', postId)
+    // Fail-safe: manter post em revisão manual quando a IA falhar (não aprovar automaticamente)
+    await supabase.from('posts').update({ is_ai_moderated: false, ai_status: 'pending' }).eq('id', postId)
     if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'error', error_message: err.message, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
     return { agent_name: 'community_moderation', status: 'error', messages: [], tokens_used: 0, duration_ms: elapsed, error: err.message }
   }

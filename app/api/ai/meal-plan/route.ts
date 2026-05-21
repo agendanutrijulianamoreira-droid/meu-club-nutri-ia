@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { callClaudeJSON } from '@/lib/services/anthropic'
 import { NUTRITIONIST_IDENTITY, TONE_LAYER } from '@/lib/ai-nutritionist-identity'
+import { sanitizeForPrompt, MealPlanSchema } from '@/lib/ai-security'
 
 export async function POST(request: NextRequest) {
     if (!process.env.GEMINI_API_KEY) {
@@ -17,8 +18,11 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        const { focus, duration_days = 7 } = await request.json()
+        const body = await request.json()
+        const focus = sanitizeForPrompt(body.focus, 500)
+        const duration_days: number = Number(body.duration_days) || 7
         if (!focus) return NextResponse.json({ error: 'focus is required' }, { status: 400 })
+        if (duration_days < 1 || duration_days > 30) return NextResponse.json({ error: 'duration_days must be 1–30' }, { status: 400 })
 
         const { data: profile } = await supabase
             .from('profiles')
@@ -72,11 +76,13 @@ PERFIL: ${patientName}, Restrições: ${restrictions.length > 0 ? restrictions.j
 Escreva de forma acolhedora e motivacional, sem números exatos de gramas ou calorias.
 Cada refeição deve ter um nome, uma descrição deliciosa e uma dica motivacional.`
 
-        const generated = await callClaudeJSON({
+        const raw = await callClaudeJSON({
             system: systemPrompt,
             maxTokens: 4000,
             messages: [{ role: 'user', content: userPrompt }],
         })
+
+        const generated = MealPlanSchema.parse(raw)
 
         await supabase.from('ai_generations').insert({
             user_id: user.id,
