@@ -64,6 +64,7 @@ export default function PatientDietPage() {
     const [mealPlanDay, setMealPlanDay] = useState(1)
     const [mealPlanLoaded, setMealPlanLoaded] = useState(false)
     const [mealPlanTier, setMealPlanTier] = useState<'basic' | 'premium'>('basic')
+    const [isMealPlanPremium, setIsMealPlanPremium] = useState(false)
 
     // IA Plan state
     const [focus, setFocus] = useState("")
@@ -92,6 +93,7 @@ export default function PatientDietPage() {
             .then(d => {
                 setMealPlan(d.plan || null)
                 setMealPlanTier(d.tier === 'premium' ? 'premium' : 'basic')
+                setIsMealPlanPremium(d.is_premium || false)
                 setMealPlanLoaded(true)
             })
             .catch(() => setMealPlanLoaded(true))
@@ -252,17 +254,18 @@ export default function PatientDietPage() {
                                             )}
                                         </div>
                                     </div>
-                                    {mealPlanTier === 'basic' ? (
-                                        <div className="flex gap-4 mt-3 text-xs text-slate-400">
-                                            <span>{mealPlan.duration_days || mealPlan.days?.length} dias</span>
-                                        </div>
-                                    ) : (
-                                        <div className="flex gap-4 mt-3 text-xs text-slate-400">
-                                            {mealPlan.target_kcal && <span className="flex items-center gap-1"><Flame size={11} className="text-orange-400" />{mealPlan.target_kcal} kcal/dia</span>}
-                                            {mealPlan.target_protein_g && <span className="flex items-center gap-1"><Drumstick size={11} className="text-rose-400" />{mealPlan.target_protein_g}g proteína</span>}
-                                            <span>{mealPlan.duration_days || mealPlan.days?.length} dias</span>
-                                        </div>
-                                    )}
+                                    <div className="flex gap-4 mt-3 text-xs text-slate-400">
+                                        {mealPlan.plan_mode !== 'basic' && mealPlan.target_kcal > 0 && (
+                                            <span className="flex items-center gap-1"><Flame size={11} className="text-orange-400" />{mealPlan.target_kcal} kcal/dia</span>
+                                        )}
+                                        {mealPlan.plan_mode !== 'basic' && mealPlan.target_protein_g > 0 && (
+                                            <span className="flex items-center gap-1"><Drumstick size={11} className="text-rose-400" />{mealPlan.target_protein_g}g proteína</span>
+                                        )}
+                                        {mealPlan.plan_mode === 'basic' && (
+                                            <span className="flex items-center gap-1">📋 Cardápio qualitativo</span>
+                                        )}
+                                        <span>{mealPlan.duration_days || mealPlan.days?.length} dias</span>
+                                    </div>
                                 </div>
 
                                 {/* Renderização adaptada ao tier e formato dos dados */}
@@ -283,11 +286,23 @@ export default function PatientDietPage() {
                                     // Legacy DB format (meal_plan_items with day_number, meal_type, etc.)
                                     return (
                                         <>
+                                            {/* Lock premium: plano calculado mas paciente no plano básico */}
+                                            {mealPlan.plan_mode === 'premium' && !isMealPlanPremium && (
+                                                <div className="bg-amber-500/[0.08] border border-amber-500/20 rounded-2xl p-4 flex items-start gap-3">
+                                                    <span className="text-xl shrink-0">🔒</span>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-white mb-0.5">Cardápio Premium</p>
+                                                        <p className="text-xs text-slate-400">Sua nutricionista enviou um cardápio calculado com calorias e macros. Faça upgrade para ver todos os detalhes.</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             {/* Seletor de dias */}
                                             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                                                 {mealPlan.days.map((d: any) => {
                                                     const isActive = mealPlanDay === d.day_number
-                                                    const kcalPct = mealPlan.target_kcal > 0
+                                                    const showKcal = mealPlan.plan_mode !== 'basic' && isMealPlanPremium
+                                                    const kcalPct = showKcal && mealPlan.target_kcal > 0
                                                         ? Math.round((d.day_total_kcal / mealPlan.target_kcal) * 100) : 0
                                                     return (
                                                         <button
@@ -296,9 +311,13 @@ export default function PatientDietPage() {
                                                             className={`shrink-0 px-3 py-2 rounded-xl text-center transition-all border ${isActive ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'}`}
                                                         >
                                                             <div className="text-xs font-bold">Dia {d.day_number}</div>
-                                                            <div className={`text-xs mt-0.5 ${kcalPct >= 90 && kcalPct <= 110 ? 'text-emerald-400' : kcalPct > 110 ? 'text-rose-400' : 'text-amber-400'}`}>
-                                                                {d.day_total_kcal} kcal
-                                                            </div>
+                                                            {showKcal ? (
+                                                                <div className={`text-xs mt-0.5 ${kcalPct >= 90 && kcalPct <= 110 ? 'text-emerald-400' : kcalPct > 110 ? 'text-rose-400' : 'text-amber-400'}`}>
+                                                                    {d.day_total_kcal} kcal
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-xs mt-0.5 text-slate-500">{d.meals?.length || 0} ref</div>
+                                                            )}
                                                         </button>
                                                     )
                                                 })}
@@ -309,7 +328,8 @@ export default function PatientDietPage() {
                                                 .filter((d: any) => d.day_number === mealPlanDay)
                                                 .map((day: any) => (
                                                     <div key={day.day_number} className="space-y-3">
-                                                        {/* Totais do dia */}
+                                                        {/* Totais do dia — só premium calculado */}
+                                                        {mealPlan.plan_mode !== 'basic' && isMealPlanPremium && (
                                                         <div className="grid grid-cols-3 gap-2">
                                                             {[
                                                                 { label: 'Calorias', value: `${day.day_total_kcal} kcal`, icon: Flame, color: 'text-orange-400' },
@@ -323,75 +343,89 @@ export default function PatientDietPage() {
                                                                 </div>
                                                             ))}
                                                         </div>
+                                                        )}
 
-                                                        {/* Cards de refeição */}
-                                                        {day.meals.map((meal: any, mi: number) => (
-                                                            <motion.div
-                                                                key={mi}
-                                                                initial={{ opacity: 0, y: 6 }}
-                                                                animate={{ opacity: 1, y: 0 }}
-                                                                transition={{ delay: mi * 0.04 }}
-                                                                className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden"
-                                                            >
-                                                                {/* Header da refeição */}
-                                                                <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-base">{meal.emoji}</span>
-                                                                        <div>
-                                                                            <p className="text-white text-sm font-semibold">{meal.meal_label}</p>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        {meal.time && (
-                                                                            <span className="text-xs text-slate-400 bg-white/10 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                                                                <Clock size={10} />{meal.time}
-                                                                            </span>
+                                            {/* Cards de refeição */}
+                                            {day.meals.map((meal: any, mi: number) => (
+                                                <motion.div
+                                                    key={mi}
+                                                    initial={{ opacity: 0, y: 6 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    transition={{ delay: mi * 0.04 }}
+                                                    className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden"
+                                                >
+                                                    {/* Header da refeição */}
+                                                    <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-base">{meal.emoji}</span>
+                                                            <div>
+                                                                <p className="text-white text-sm font-semibold">{meal.meal_label}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            {meal.time && (
+                                                                <span className="text-xs text-slate-400 bg-white/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                    <Clock size={10} />{meal.time}
+                                                                </span>
+                                                            )}
+                                                            {mealPlan.plan_mode !== 'basic' && isMealPlanPremium && (
+                                                            <span className="text-xs text-slate-500">
+                                                                {Math.round(meal.items.reduce((s: number, i: any) => s + (i.calc_kcal || 0), 0))} kcal
+                                                            </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Itens da refeição */}
+                                                    <div className="divide-y divide-white/5">
+                                                        {meal.items.map((item: any, ii: number) => (
+                                                            <div key={ii} className="px-4 py-3">
+                                                                <div className="flex items-start justify-between gap-2">
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="text-white text-sm font-medium">{item.food_name}</p>
+                                                                        {/* Modo básico: descrição qualitativa */}
+                                                                        {(mealPlan.plan_mode === 'basic' || !isMealPlanPremium) ? (
+                                                                            item.qualitative_description ? (
+                                                                                <p className="text-slate-400 text-xs mt-0.5">{item.qualitative_description}</p>
+                                                                            ) : item.quantity_g ? (
+                                                                                <p className="text-slate-500 text-xs mt-0.5">{item.quantity_g}g</p>
+                                                                            ) : null
+                                                                        ) : (
+                                                                        /* Modo premium: macros completos */
+                                                                        <p className="text-slate-500 text-xs mt-0.5">
+                                                                            {item.quantity_g}g
+                                                                            {item.serving_qty && item.serving_label
+                                                                                ? ` (${item.serving_qty} ${item.serving_label})`
+                                                                                : ''}
+                                                                            {' · '}
+                                                                            {Math.round(item.calc_kcal)} kcal
+                                                                            {' · P:'}{Math.round(item.calc_protein_g)}g
+                                                                            {' · C:'}{Math.round(item.calc_carbs_g)}g
+                                                                            {' · G:'}{Math.round(item.calc_fat_g)}g
+                                                                        </p>
                                                                         )}
-                                                                        <span className="text-xs text-slate-500">
-                                                                            {Math.round(meal.items.reduce((s: number, i: any) => s + (i.calc_kcal || 0), 0))} kcal
-                                                                        </span>
+                                                                        {item.preparation_notes && (
+                                                                            <p className="text-indigo-400/70 text-xs mt-1 italic">{item.preparation_notes}</p>
+                                                                        )}
                                                                     </div>
+                                                                    {mealPlan.plan_mode !== 'basic' && isMealPlanPremium && (
+                                                                    <span className="shrink-0 text-xs text-slate-600 bg-white/5 px-1.5 py-0.5 rounded">
+                                                                        {Math.round(item.calc_kcal)} kcal
+                                                                    </span>
+                                                                    )}
                                                                 </div>
-
-                                                                {/* Itens da refeição */}
-                                                                <div className="divide-y divide-white/5">
-                                                                    {meal.items.map((item: any, ii: number) => (
-                                                                        <div key={ii} className="px-4 py-3">
-                                                                            <div className="flex items-start justify-between gap-2">
-                                                                                <div className="flex-1 min-w-0">
-                                                                                    <p className="text-white text-sm font-medium">{item.food_name}</p>
-                                                                                    <p className="text-slate-500 text-xs mt-0.5">
-                                                                                        {item.quantity_g}g
-                                                                                        {item.serving_qty && item.serving_label
-                                                                                            ? ` (${item.serving_qty} ${item.serving_label})`
-                                                                                            : ''}
-                                                                                        {' · '}
-                                                                                        {Math.round(item.calc_kcal)} kcal
-                                                                                        {' · P:'}{Math.round(item.calc_protein_g)}g
-                                                                                        {' · C:'}{Math.round(item.calc_carbs_g)}g
-                                                                                        {' · G:'}{Math.round(item.calc_fat_g)}g
-                                                                                    </p>
-                                                                                    {item.preparation_notes && (
-                                                                                        <p className="text-indigo-400/70 text-xs mt-1 italic">{item.preparation_notes}</p>
-                                                                                    )}
-                                                                                </div>
-                                                                                <span className="shrink-0 text-xs text-slate-600 bg-white/5 px-1.5 py-0.5 rounded">
-                                                                                    {Math.round(item.calc_kcal)} kcal
-                                                                                </span>
-                                                                            </div>
-                                                                            {item.substitution_note && (
-                                                                                <p className="text-xs text-slate-600 mt-1 flex items-center gap-1">
-                                                                                    <span>↔</span>{item.substitution_note}
-                                                                                </p>
-                                                                            )}
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </motion.div>
+                                                                {item.substitution_note && isMealPlanPremium && (
+                                                                    <p className="text-xs text-slate-600 mt-1 flex items-center gap-1">
+                                                                        <span>↔</span>{item.substitution_note}
+                                                                    </p>
+                                                                )}
+                                                            </div>
                                                         ))}
                                                     </div>
-                                                ))
-                                            }
+                                                </motion.div>
+                                            ))}
+                                        </div>
+                                    ))}
                                         </>
                                     )
                                 })()}

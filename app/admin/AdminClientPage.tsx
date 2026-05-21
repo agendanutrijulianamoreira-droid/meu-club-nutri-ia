@@ -32,6 +32,8 @@ import {
     User as UserIcon,
     Building2,
     Palette,
+    Package,
+    ChefHat,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -68,6 +70,10 @@ import { StrategicPlannerView } from "./views/StrategicPlannerView"
 import { ContentPlannerView } from "./views/ContentPlannerView"
 import { AnalyticsView } from "./views/AnalyticsView"
 import { JourneyView } from "./views/JourneyView"
+import { ProductsView } from "./views/ProductsView"
+import { ApprovalsView } from "./views/ApprovalsView"
+import { RecipesView } from "./views/RecipesView"
+import { ManagerLearningView } from "./views/ManagerLearningView"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,6 +84,7 @@ type ViewType =
     | 'agent-approvals' | 'agent-queue' | 'meal-plans' | 'meal-plans-premium'
     | 'appointments' | 'professionals' | 'product-gateway' | 'annual-planner'
     | 'strategic-planner' | 'content-planner' | 'analytics' | 'patient-journey'
+    | 'products' | 'approvals' | 'recipes' | 'manager-learning'
 
 interface NavItem {
     id: ViewType
@@ -124,6 +131,7 @@ const navGroups: NavGroup[] = [
             { id: 'protocols', label: 'Protocolos' },
             { id: 'challenges', label: 'Desafios' },
             { id: 'meal-plans', label: 'Cardápios' },
+            { id: 'recipes', label: 'Receitas' },
             { id: 'library', label: 'Biblioteca' },
             { id: 'rewards', label: 'Recompensas' },
         ],
@@ -135,7 +143,8 @@ const navGroups: NavGroup[] = [
         items: [
             { id: 'club-plan', label: 'Plano do Clube' },
             { id: 'sales-page', label: 'Página de Vendas' },
-            { id: 'product-gateway', label: 'Produtos' },
+            { id: 'product-gateway', label: 'Catálogo de Produtos' },
+            { id: 'products', label: 'Produtos' },
             { id: 'annual-planner', label: 'Planejador Anual' },
             { id: 'content-planner', label: 'Conteúdo' },
             { id: 'professionals', label: 'Profissionais' },
@@ -149,10 +158,12 @@ const navGroups: NavGroup[] = [
             { id: 'ai-brain', label: 'Laboratório IA' },
             { id: 'agents-dashboard', label: 'Agentes IA' },
             { id: 'agent-approvals', label: 'Aprovações', badge: true },
+            { id: 'approvals', label: 'Fila de Aprovação', badge: true },
             { id: 'agent-queue', label: 'Fila de Agentes' },
             { id: 'meal-plans-premium', label: 'Planos Avançados' },
             { id: 'ai-credits', label: 'Créditos IA' },
             { id: 'strategic-planner', label: 'Planejamento' },
+            { id: 'manager-learning', label: 'Gerente IA' },
             { id: 'settings', label: 'Configurações' },
             { id: 'settings-login', label: 'Login Designer' },
         ],
@@ -249,6 +260,10 @@ export default function AdminDashboard({
             case 'strategic-planner':  return <StrategicPlannerView setView={setActiveView} />
             case 'content-planner':    return <ContentPlannerView />
             case 'analytics':          return <AnalyticsView setView={setActiveView} />
+            case 'products':           return <ProductsView setView={setActiveView} tenantId={tenantId} />
+            case 'approvals':          return <ApprovalsView setView={setActiveView} tenantId={tenantId} />
+            case 'recipes':            return <RecipesView setView={setActiveView} tenantId={tenantId} />
+            case 'manager-learning':   return <ManagerLearningView setView={setActiveView} tenantId={tenantId} />
             case 'settings':           return <SettingsView {...props} />
             case 'settings-login':     return <SettingsLoginView />
             case 'club-plan':          return <ClubPlanView {...props} />

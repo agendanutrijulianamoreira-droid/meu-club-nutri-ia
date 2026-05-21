@@ -37,14 +37,15 @@ export async function GET(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Busca o plano da paciente para determinar o tier
+  // Perfil da paciente para determinar plano e acesso premium
   const { data: profile } = await supabase
     .from('profiles')
     .select('current_plan')
     .eq('user_id', user.id)
     .single()
 
-  const planTier: 'basic' | 'premium' = profile?.current_plan === 'vip' ? 'premium' : 'basic'
+  const isPremium = ['vip', 'tech_diet'].includes(profile?.current_plan || '')
+  const planTier: 'basic' | 'premium' = isPremium ? 'premium' : 'basic'
 
   // Busca o assignment ativo mais recente
   const { data: assignment } = await supabase
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
       meal_plan:meal_plans (
         id, title, description, goal, duration_days,
         target_kcal, target_protein_g, target_carbs_g, target_fat_g,
-        status, is_ai_generated
+        status, is_ai_generated, plan_mode
       )
     `)
     .eq('user_id', user.id)
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
     .single()
 
   if (!assignment || !assignment.meal_plan) {
-    return NextResponse.json({ plan: null, tier: planTier, planType: profile?.current_plan || 'community' })
+    return NextResponse.json({ plan: null, tier: planTier, is_premium: isPremium, planType: profile?.current_plan || 'community' })
   }
 
   const plan = assignment.meal_plan as any
@@ -75,14 +76,14 @@ export async function GET(request: NextRequest) {
     .select(
       'id, day_number, meal_type, meal_label, sort_order, food_name, quantity_g, ' +
       'serving_qty, serving_label, calc_kcal, calc_protein_g, calc_carbs_g, ' +
-      'calc_fat_g, calc_fiber_g, preparation_notes, substitution_note'
+      'calc_fat_g, calc_fiber_g, preparation_notes, substitution_note, qualitative_description'
     )
     .eq('meal_plan_id', plan.id)
     .order('day_number')
     .order('sort_order')
 
   if (!items || items.length === 0) {
-    return NextResponse.json({ plan: { ...plan, days: [] }, tier: planTier, planType: profile?.current_plan || 'community' })
+    return NextResponse.json({ plan: { ...plan, days: [] }, tier: planTier, is_premium: isPremium, planType: profile?.current_plan || 'community' })
   }
 
   // Agrupa por dia → meal_type
@@ -132,6 +133,7 @@ export async function GET(request: NextRequest) {
       days,
     },
     tier: planTier,
+    is_premium: isPremium,
     planType: profile?.current_plan || 'community',
   })
 }

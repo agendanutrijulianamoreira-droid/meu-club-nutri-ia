@@ -205,7 +205,7 @@ serve(async (req) => {
           const communityResult = await runCommunityAgent(supabase, tenant, patients)
           results.push(communityResult)
 
-          // 6. Upsell Intelligence — detecta momentos de upgrade e propõe ofertas
+          // 6. Upsell Intelligence — detecta momentos de upgrade e propõe ofertas para aprovação
           const upsellResult = await runUpsellAgent(supabase, tenant, patients, sabotageResult)
           results.push(upsellResult)
         }
@@ -274,6 +274,8 @@ serve(async (req) => {
           results.push(await runUpsellAgent(supabase, tenant, patients, sabResult))
         } else if (agentName === 'meals' && event.user_id) {
           results.push(await runMealsAgent(supabase, event.tenant_id, event.user_id, event.payload))
+        } else if (agentName === 'upsell') {
+          results.push(await runUpsellAgent(supabase, tenant, patients))
         }
         break
       }
@@ -721,21 +723,9 @@ async function runDailyEngagementAgent(
     const tone = tenant.settings?.ai?.tone || 'motivadora'
     const brand = tenant.brand_name
     const method = tenant.method_name || 'Protocolo Nutri'
+    const engagementLearning = await getLearningInstructions(supabase, tenant.id, 'daily_checkin', 'send_message')
 
-    // Learning context from past approvals/rejections
-    const agentPrefs = tenant.settings?.agent_preferences?.['daily_checkin'] ?? {}
-    const approvedExamples: string[] = agentPrefs.example_approved ?? []
-    const rejectionReasons: string[] = agentPrefs.rejection_reasons ?? []
-    const learningCtx = [
-      approvedExamples.length > 0
-        ? `\nEXEMPLOS APROVADOS PELA NUTRICIONISTA (use como referência de tom/formato):\n${approvedExamples.map((e, i) => `${i+1}. "${e}"`).join('\n')}`
-        : '',
-      rejectionReasons.length > 0
-        ? `\nEVITE (rejeitados anteriormente):\n${rejectionReasons.map((r, i) => `${i+1}. ${r}`).join('\n')}`
-        : '',
-    ].filter(Boolean).join('\n')
-
-    const baseSystemPrompt = tenant.gpt_system_prompt ||
+    const baseSystemPrompt = (tenant.gpt_system_prompt ||
       `${NUTRITIONIST_IDENTITY}
 
 PAPEL ESPECÍFICO — NUTRICIONISTA DE ACOMPANHAMENTO DIÁRIO:
@@ -747,7 +737,7 @@ Não é uma mensagem genérica — é uma intervenção clínica leve com impact
 • Quando adesão está baixa → acolhe sem culpa, oferece UMA estratégia concreta e fácil
 • Em marcos de streak (7, 14, 21, 30 dias) → explica o que está acontecendo no corpo nesse ponto
 • ${TONE_LAYER[tone] || TONE_LAYER['acolhedora']}
-Plataforma: ${brand}${learningCtx}`
+Plataforma: ${brand}`) + engagementLearning
 
     // Gerar mensagens em batch
     const patientDescriptions = toEngage.map(p => {
@@ -1643,18 +1633,20 @@ Retorne APENAS JSON: { "status": "approved|flagged", "reason": "motivo se flagge
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// AGENT: UPSELL INTELLIGENCE — detecta momentos de upgrade e cria pendências
+// AGENT: UPSELL INTELLIGENCE — detecta momentos de upgrade e propõe ofertas
 // Avalia trigger_type de gateway_products vs estado real de cada paciente
+// Cria ofertas na fila de aprovação (agent_approval_queue) antes de enviar
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function runUpsellAgent(
   supabase: SupabaseClient,
   tenant: TenantContext,
   patients: PatientContext[],
-  sabotageResult: AgentResult
+  sabotageResult?: AgentResult
 ): Promise<AgentResult> {
   const start = Date.now()
   let totalTokens = 0
+  const messages: AgentResult['messages'] = []
 
   const { data: agentLog } = await supabase
     .from('agent_logs')
@@ -1677,19 +1669,19 @@ async function runUpsellAgent(
       return { agent_name: 'upsell', status: 'skipped', messages: [], tokens_used: 0, duration_ms: elapsed }
     }
 
-    const riskMap = new Map((sabotageResult.risk_scores || []).map(r => [r.user_id, r]))
+    const riskMap = new Map((sabotageResult?.risk_scores || []).map((r: any) => [r.user_id, r]))
 
-    // Anti-spam: load recent upsell pending actions (last 14d) to avoid double-firing
+    // Anti-spam: load recent upsell queue items (last 14d) to avoid double-firing
     const { data: recentUpsell } = await supabase
-      .from('agent_pending_actions')
-      .select('target_user_id, context_data')
+      .from('agent_approval_queue')
+      .select('target_user_id, payload')
       .eq('tenant_id', tenant.id)
       .eq('agent_name', 'upsell')
       .gte('created_at', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString())
       .in('status', ['pending', 'approved', 'executed'])
 
     const recentOffers = new Set(
-      (recentUpsell || []).map((r: any) => `${r.target_user_id}:${r.context_data?.product_id}`)
+      (recentUpsell || []).map((r: any) => `${r.target_user_id}:${r.payload?.product_id}`)
     )
 
     // Fetch patient join dates to calculate days_in_club
@@ -1722,7 +1714,6 @@ async function runUpsellAgent(
         ? Math.floor((Date.now() - joinDate.getTime()) / 86400000)
         : 0
       const checkinCount = checkinCountMap[patient.user_id] || 0
-      const risk = riskMap.get(patient.user_id)
 
       for (const product of products) {
         // Skip if plan doesn't include this patient
@@ -1779,17 +1770,20 @@ async function runUpsellAgent(
 
     // Use Gemini to craft personalized offer copy for each candidate
     const brand = tenant.brand_name
-    const systemPrompt = tenant.gpt_system_prompt || `${NUTRITIONIST_IDENTITY}
+    const learningInstructions = await getLearningInstructions(supabase, tenant.id, 'upsell', 'send_offer')
+    const systemPrompt = (tenant.gpt_system_prompt || `${NUTRITIONIST_IDENTITY}
 
 PAPEL ESPECÍFICO — ESPECIALISTA EM UPSELL CONSULTIVO DE SAÚDE:
 Você apresenta ofertas de produtos/serviços de forma natural e empática, sem pressão de vendas.
 A oferta deve parecer uma recomendação clínica personalizada, não marketing.
 
-REGRAS:
+PRINCÍPIOS:
 • Conecte o produto ao momento específico da paciente (streak, objetivo, dificuldade)
 • Tom: "Acho que você está pronta para o próximo nível" — não "Compre agora!"
 • Máximo 3 frases: contexto → benefício → convite
-• Plataforma: ${brand}`
+• NUNCA gera sentimento de culpa ou pressão
+• ${TONE_LAYER[tenant?.settings?.ai?.tone || 'acolhedora']}
+Plataforma: ${brand}`) + learningInstructions
 
     const offerDescriptions = candidates.map(c =>
       `- ${c.patient.name.split(' ')[0]} (${c.patient.user_id}): ${c.reason}, objetivo "${c.patient.primary_goal || '?'}", produto "${c.product.name}" — ${c.product.short_pitch}`
@@ -1803,9 +1797,14 @@ Retorne APENAS JSON:
   "offers": [
     {
       "user_id": "uuid",
-      "title": "máx 8 palavras",
-      "body": "2-3 frases personalizadas",
-      "cta_label": "texto do botão"
+      "product_id": "uuid do produto (use o id exato)",
+      "product_name": "nome do produto",
+      "offer_title": "título curto (máx 8 palavras)",
+      "offer_body": "mensagem personalizada (máx 3 frases)",
+      "trigger_reason": "streak_milestone|high_engagement|plan_age|low_adherence",
+      "engagement_score": 0,
+      "cta_label": "texto do botão",
+      "cta_url": "/patient/store"
     }
   ]
 }`
@@ -1816,7 +1815,7 @@ Retorne APENAS JSON:
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
         systemInstruction: { parts: [{ text: systemPrompt }] },
-        generationConfig: { maxOutputTokens: 1000, responseMimeType: 'application/json' },
+        generationConfig: { maxOutputTokens: 1500, responseMimeType: 'application/json' },
       }),
     })
 
@@ -1825,44 +1824,54 @@ Retorne APENAS JSON:
     totalTokens = data.usageMetadata?.totalTokenCount || 0
     const parsed = JSON.parse((data.candidates?.[0]?.content?.parts?.[0]?.text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
 
-    const actionMessages: AgentResult['messages'] = []
-
     for (const offer of parsed.offers || []) {
       const candidate = candidates.find(c => c.patient.user_id === offer.user_id)
       if (!candidate) continue
 
-      await supabase.from('agent_pending_actions').insert({
-        tenant_id: tenant.id,
-        agent_name: 'upsell',
-        action_type: 'show_offer',
-        target_type: 'patient',
-        target_user_id: offer.user_id,
-        target_patient_name: candidate.patient.name,
-        title: offer.title,
-        content: offer.body,
-        content_preview: offer.body.substring(0, 120),
-        reasoning: candidate.reason,
-        context_data: {
-          product_id: candidate.product.id,
-          product_name: candidate.product.name,
-          product_type: candidate.product.product_type,
-          external_url: candidate.product.external_url,
-          cta_text: offer.cta_label || candidate.product.cta_text,
-          trigger_type: candidate.product.trigger_type,
-          priority: 'normal',
-        },
-        status: 'pending',
-      })
+      // Inserir na fila de aprovação (admin precisa aprovar antes de enviar)
+      const { data: queueItem } = await supabase
+        .from('agent_approval_queue')
+        .insert({
+          tenant_id: tenant.id,
+          agent_name: 'upsell',
+          action_type: 'send_offer',
+          target_user_id: offer.user_id,
+          preview_title: offer.offer_title || offer.title,
+          preview_body: offer.offer_body || offer.body,
+          preview_context: JSON.stringify({
+            patient_name: candidate.patient.name,
+            streak: candidate.patient.current_streak,
+            adherence: candidate.patient.adherence_7d,
+            product_name: candidate.product.name,
+            reason: candidate.reason,
+            engagement_score: offer.engagement_score,
+          }),
+          payload: {
+            user_id: offer.user_id,
+            product_id: candidate.product.id,
+            product_name: candidate.product.name,
+            offer_title: offer.offer_title || offer.title,
+            offer_body: offer.offer_body || offer.body,
+            cta_label: offer.cta_label || candidate.product.cta_text,
+            cta_url: candidate.product.external_url || offer.cta_url || '/patient/store',
+            trigger_reason: candidate.reason,
+            trigger_type: candidate.product.trigger_type,
+            engagement_score: offer.engagement_score,
+          },
+          priority: (offer.engagement_score || 0) >= 70 ? 'high' : 'normal',
+          expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+        })
+        .select('id').single()
 
-      actionMessages.push({
+      messages.push({
         user_id: offer.user_id,
-        title: offer.title,
-        body: offer.body,
-        message_type: 'engagement',
-        priority: 'normal',
-        cta_label: offer.cta_label,
-        cta_url: candidate.product.external_url || '/patient/gateway',
-        channels: ['inbox'],
+        title: offer.offer_title || offer.title,
+        body: offer.offer_body || offer.body,
+        message_type: 'offer',
+        priority: (offer.engagement_score || 0) >= 70 ? 'high' : 'normal',
+        cta_label: offer.cta_label || candidate.product.cta_text,
+        cta_url: candidate.product.external_url || '/patient/store',
+        channels: ['approval_queue'],
       })
     }
 
@@ -1870,7 +1879,7 @@ Retorne APENAS JSON:
     if (agentLog?.id) {
       await supabase.from('agent_logs').update({
         status: 'success',
-        output_payload: { offers_proposed: actionMessages.length, candidates_evaluated: candidates.length },
+        output_payload: { offers_queued: messages.length, candidates_evaluated: candidates.length },
         tokens_used: totalTokens,
         cost_usd: 0,
         duration_ms: elapsed,
@@ -1878,7 +1887,7 @@ Retorne APENAS JSON:
       }).eq('id', agentLog.id)
     }
 
-    return { agent_name: 'upsell', status: 'success', messages: actionMessages, tokens_used: totalTokens, duration_ms: elapsed }
+    return { agent_name: 'upsell', status: 'success', messages, tokens_used: totalTokens, duration_ms: elapsed }
 
   } catch (err: any) {
     const elapsed = Date.now() - start
@@ -1892,6 +1901,26 @@ Retorne APENAS JSON:
 // ═══════════════════════════════════════════════════════════════════════════
 // UTILS
 // ═══════════════════════════════════════════════════════════════════════════
+
+// Busca instruções de aprendizado do gerente para injetar no prompt do agente
+async function getLearningInstructions(
+  supabase: SupabaseClient,
+  tenantId: string,
+  agentName: string,
+  actionType: string
+): Promise<string> {
+  const { data } = await supabase
+    .from('manager_learning')
+    .select('learning_instructions')
+    .eq('tenant_id', tenantId)
+    .eq('agent_name', agentName)
+    .eq('action_type', actionType)
+    .single()
+
+  return data?.learning_instructions
+    ? `\n\nINSTRUÇÕES APRENDIDAS DO HISTÓRICO DE FEEDBACK:\n${data.learning_instructions}`
+    : ''
+}
 
 async function sendPush(supabase: SupabaseClient, userId: string, title: string, body: string) {
   const FCM_KEY = Deno.env.get('FCM_SERVER_KEY')

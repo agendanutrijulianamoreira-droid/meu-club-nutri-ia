@@ -272,6 +272,16 @@ export default function PatientProfilePage() {
                 </button>
             </div>
 
+            {/* ── Lembretes ─────────────────────────────────────────────────── */}
+            <Link href="/patient/alarms"
+                className="w-full bg-white/5 hover:bg-white/10 border border-white/10 h-14 rounded-2xl font-semibold flex items-center justify-between px-5 transition-colors text-white">
+                <div className="flex items-center gap-3">
+                    <Bell size={18} className="text-indigo-400"/>
+                    <span className="text-sm">Meus Lembretes</span>
+                </div>
+                <ChevronRight size={16} className="text-slate-500"/>
+            </Link>
+
             {/* ── Sair ──────────────────────────────────────────────────────── */}
             <button
                 onClick={handleSignOut}

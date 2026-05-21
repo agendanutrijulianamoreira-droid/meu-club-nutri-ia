@@ -3,7 +3,7 @@
 import { ReactNode, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Home, ClipboardCheck, Users, Gift, User } from "lucide-react"
+import { Home, Utensils, Users, User, ChefHat, ClipboardCheck, Gift } from "lucide-react"
 import { supabase } from "@/lib/supabase-browser"
 import { useOneSignal } from "@/lib/hooks/useOneSignal"
 
@@ -48,10 +48,10 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
 
     const navItems = [
         { href: "/patient/home", label: "Início", icon: Home },
-        { href: "/patient/checkin", label: "Missão", icon: ClipboardCheck },
-        { href: "/patient/feed", label: "Clube", icon: Users },
-        { href: "/patient/store", label: "Prêmios", icon: Gift },
-        { href: "/patient/profile", label: "Eu", icon: User },
+        { href: "/patient/diet", label: "Plano", icon: Utensils },
+        { href: "/patient/recipes", label: "Receitas", icon: ChefHat },
+        { href: "/patient/feed", label: "Tribo", icon: Users },
+        { href: "/patient/profile", label: "Perfil", icon: User },
     ]
 
     return (

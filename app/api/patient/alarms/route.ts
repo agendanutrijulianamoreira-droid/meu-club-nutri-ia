@@ -2,43 +2,33 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { cookies } from 'next/headers'
 
-const VALID_ALARM_TYPES = ['hydration', 'meal', 'medication', 'exercise', 'checkin']
-
 /**
  * GET /api/patient/alarms
  * Lista alarmes da paciente autenticada
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   const supabase = createSupabaseServerClient(cookies())
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, tenant_id')
-    .eq('user_id', user.id)
-    .single()
-
-  if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-
-  const { data, error } = await supabase
-    .from('user_alarms')
+  const { data: alarms, error } = await supabase
+    .from('patient_alarms')
     .select('*')
-    .eq('patient_id', profile.id)
-    .order('time_hhmm')
+    .eq('user_id', user.id)
+    .order('time_hhmm', { ascending: true })
 
   if (error) {
     console.error('[patient/alarms GET]', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ alarms: data || [] })
+  return NextResponse.json({ alarms: alarms || [] })
 }
 
 /**
  * POST /api/patient/alarms
  * Cria um novo alarme para a paciente
- * Body: { alarm_type, label, time_hhmm, days_of_week? }
+ * Body: { type, label, time_hhmm, days_of_week, push_title?, push_body? }
  */
 export async function POST(request: NextRequest) {
   const supabase = createSupabaseServerClient(cookies())
@@ -47,100 +37,74 @@ export async function POST(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, tenant_id')
+    .select('tenant_id')
     .eq('user_id', user.id)
     .single()
-
   if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
   const body = await request.json()
-  const { alarm_type, label, time_hhmm, days_of_week } = body
+  const { type, label, time_hhmm, days_of_week, push_title, push_body } = body
 
-  if (!alarm_type || !label || !time_hhmm) {
-    return NextResponse.json({ error: 'alarm_type, label, and time_hhmm are required' }, { status: 400 })
+  if (!label?.trim()) return NextResponse.json({ error: 'Rótulo é obrigatório' }, { status: 400 })
+  if (!time_hhmm || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time_hhmm)) {
+    return NextResponse.json({ error: 'Horário inválido (use HH:MM)' }, { status: 400 })
+  }
+  if (!Array.isArray(days_of_week) || days_of_week.length === 0) {
+    return NextResponse.json({ error: 'Selecione pelo menos um dia' }, { status: 400 })
   }
 
-  if (!VALID_ALARM_TYPES.includes(alarm_type)) {
-    return NextResponse.json({ error: `alarm_type must be one of: ${VALID_ALARM_TYPES.join(', ')}` }, { status: 400 })
-  }
-
-  // Validate time format HH:MM
-  if (!/^\d{2}:\d{2}$/.test(time_hhmm)) {
-    return NextResponse.json({ error: 'time_hhmm must be in HH:MM format' }, { status: 400 })
-  }
-
-  const { data, error } = await supabase
-    .from('user_alarms')
-    .insert({
-      patient_id: profile.id,
-      tenant_id: profile.tenant_id,
-      alarm_type,
-      label,
-      time_hhmm,
-      days_of_week: days_of_week || [1, 2, 3, 4, 5, 6, 7],
-      is_active: true,
-    })
-    .select()
-    .single()
+  const { data, error } = await supabase.from('patient_alarms').insert({
+    user_id: user.id,
+    tenant_id: profile.tenant_id,
+    type: type || 'custom',
+    label: label.trim(),
+    time_hhmm,
+    days_of_week,
+    push_title: push_title?.trim() || null,
+    push_body: push_body?.trim() || null,
+    is_active: true,
+  }).select().single()
 
   if (error) {
     console.error('[patient/alarms POST]', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, alarm: data }, { status: 201 })
+  return NextResponse.json({ alarm: data }, { status: 201 })
 }
 
 /**
- * PATCH /api/patient/alarms?id=uuid
- * Toggle alarme ativo/inativo ou atualizar campos
+ * PATCH /api/patient/alarms
+ * Editar ou ativar/desativar um alarme
  */
 export async function PATCH(request: NextRequest) {
   const supabase = createSupabaseServerClient(cookies())
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('user_id', user.id)
-    .single()
-
-  if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-
-  const { searchParams } = new URL(request.url)
-  const alarmId = searchParams.get('id')
-
-  if (!alarmId) {
-    return NextResponse.json({ error: 'id query param required' }, { status: 400 })
-  }
-
   const body = await request.json()
-  const allowedFields = ['is_active', 'label', 'time_hhmm', 'days_of_week', 'alarm_type']
-  const updateData: Record<string, any> = { updated_at: new Date().toISOString() }
+  const { id, ...updates } = body
+  if (!id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 })
 
-  for (const field of allowedFields) {
-    if (body[field] !== undefined) updateData[field] = body[field]
-  }
+  // Security: garante que só edita o próprio alarme
+  delete updates.user_id
+  delete updates.tenant_id
 
-  const { data, error } = await supabase
-    .from('user_alarms')
-    .update(updateData)
-    .eq('id', alarmId)
-    .eq('patient_id', profile.id) // Security: only own alarms
-    .select()
-    .single()
+  const { data, error } = await supabase.from('patient_alarms')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select().single()
 
   if (error) {
     console.error('[patient/alarms PATCH]', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-
-  return NextResponse.json({ ok: true, alarm: data })
+  return NextResponse.json({ alarm: data })
 }
 
 /**
- * DELETE /api/patient/alarms?id=uuid
+ * DELETE /api/patient/alarms
  * Remove um alarme da paciente
  */
 export async function DELETE(request: NextRequest) {
@@ -148,31 +112,18 @@ export async function DELETE(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('user_id', user.id)
-    .single()
+  const { id } = await request.json()
+  if (!id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 })
 
-  if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-
-  const { searchParams } = new URL(request.url)
-  const alarmId = searchParams.get('id')
-
-  if (!alarmId) {
-    return NextResponse.json({ error: 'id query param required' }, { status: 400 })
-  }
-
-  const { error } = await supabase
-    .from('user_alarms')
+  const { error } = await supabase.from('patient_alarms')
     .delete()
-    .eq('id', alarmId)
-    .eq('patient_id', profile.id) // Security: only own alarms
+    .eq('id', id)
+    .eq('user_id', user.id) // Security: only own alarms
 
   if (error) {
     console.error('[patient/alarms DELETE]', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ deleted: true })
 }
