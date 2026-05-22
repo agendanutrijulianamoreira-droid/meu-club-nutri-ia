@@ -14,6 +14,11 @@ export async function GET(request: NextRequest) {
         const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
         if (!error && data.user) {
+            const next = requestUrl.searchParams.get('next')
+            if (next) {
+                return NextResponse.redirect(new URL(next, request.url))
+            }
+
             const userMetadata = data.user.user_metadata;
             let role = userMetadata?.user_type || userMetadata?.role;
 
@@ -26,7 +31,6 @@ export async function GET(request: NextRequest) {
                 if (profile) role = profile.role;
             }
 
-            // Standard redirection logic
             const isAdmin = ['nutri', 'nutritionist', 'admin'].includes(role || '');
             return NextResponse.redirect(new URL(isAdmin ? '/admin' : '/patient/home', request.url))
         }
