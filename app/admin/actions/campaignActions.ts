@@ -121,27 +121,26 @@ export async function processCampaignAction(campaignId: string) {
                 status: 'unread'
             }))
 
-            // Run both batch operations
-            const ops: Promise<any>[] = [
+            // Run inbox + recipients operations
+            await Promise.all([
                 adminSupabase.from('campaign_recipients').upsert(recipientRecords, { onConflict: 'campaign_id,user_id' }),
                 adminSupabase.from('notifications').upsert(notificationRecords, { onConflict: 'user_id,campaign_id' })
-            ]
+            ])
 
-            // Send push via OneSignal when channel is enabled
+            // Send push via OneSignal when channel is enabled (fire-and-forget, non-blocking)
             if (campaignData.channels?.push) {
-                const pushOps = userIds.map(uid =>
-                    sendPushToUser({
-                        externalUserId: uid,
-                        title: campaignData.title,
-                        message: campaignData.body,
-                        url: campaignData.cta_url || undefined,
-                        data: { campaign_id: campaignId },
-                    }).catch(err => console.error(`[Campaign] Push failed for ${uid}:`, err))
+                await Promise.allSettled(
+                    userIds.map(uid =>
+                        sendPushToUser({
+                            externalUserId: uid,
+                            title: campaignData.title,
+                            message: campaignData.body,
+                            url: campaignData.cta_url || undefined,
+                            data: { campaign_id: campaignId },
+                        }).catch(err => console.error(`[Campaign] Push failed for ${uid}:`, err))
+                    )
                 )
-                ops.push(Promise.allSettled(pushOps))
             }
-
-            await Promise.all(ops)
 
             // --- H. FINALIZE ---
             await adminSupabase.from('campaigns')
