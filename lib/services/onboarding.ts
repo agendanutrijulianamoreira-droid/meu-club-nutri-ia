@@ -1,9 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+function getSupabaseAdmin() {
+    return createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+}
 
 export class OnboardingService {
     /**
@@ -13,6 +15,7 @@ export class OnboardingService {
         console.log(`[Onboarding] Initiating for user ${userId} on tenant ${tenantId}`)
 
         try {
+            const supabaseAdmin = getSupabaseAdmin()
             // 1. Buscar dados do perfil e do tenant
             const { data: profile } = await supabaseAdmin
                 .from('profiles')
