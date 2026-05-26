@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { sendWhatsApp } from '@/lib/services/whatsapp'
 
 // POST /api/admin/patients/[id]/action
 // actions: assign-protocol | send-message | send-rescue | send-congrats | update-restrictions | update-plan | send-credentials
@@ -229,15 +230,10 @@ Retorne JSON: {"title": "...", "body": "..."}`
             channels: ['inbox'],
         })
 
-        // Best-effort: WhatsApp via Evolution/Z-API if configured
-        if (process.env.WHATSAPP_API_URL && profile.phone) {
-            const phone = profile.phone.replace(/\D/g, '')
+        // Best-effort: WhatsApp via Evolution API (non-blocking)
+        if (profile.phone) {
             const msg = `Olá, ${firstName}! 👋\n\nSeu acesso ao *${tenant.brand_name}* está pronto.\n\n📧 E-mail: ${profile.email}\n🔑 Defina sua senha: ${accessLink}\n\nO link expira em 24 horas. Qualquer dúvida, estamos aqui! 💜`
-            fetch(process.env.WHATSAPP_API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: `55${phone}`, message: msg }),
-            }).catch(() => { /* non-critical */ })
+            sendWhatsApp(profile.phone, msg).catch(() => { /* non-critical */ })
         }
 
         return NextResponse.json({ success: true, email: profile.email })

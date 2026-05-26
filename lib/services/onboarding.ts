@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { sendWhatsApp } from '@/lib/services/whatsapp'
 
 function getSupabaseAdmin() {
     return createClient(
@@ -44,11 +45,10 @@ export class OnboardingService {
                 console.log('[Onboarding] RESEND_API_KEY not found, skipping email')
             }
 
-            // 3. Enviar WhatsApp via Evolution/Z-API (se configurado)
-            if (process.env.WHATSAPP_API_URL && profile.phone) {
-                await this.sendWhatsApp(profile.phone, patientName, tenant.brand_name, loginUrl)
-            } else {
-                console.log('[Onboarding] WHATSAPP_API_URL or phone not found, skipping WhatsApp')
+            // 3. Enviar WhatsApp via Evolution API (se configurado)
+            if (profile.phone) {
+                const msg = `Olá *${patientName}*! 🎉\n\nSeu acesso ao *${tenant.brand_name}* foi liberado!\n\nClique no link abaixo para entrar:\n${loginUrl}\n\nSeu login é seu e-mail. Seja bem-vinda! 💎`
+                await sendWhatsApp(profile.phone, msg)
             }
 
         } catch (error) {
@@ -87,26 +87,4 @@ export class OnboardingService {
         }
     }
 
-    private static async sendWhatsApp(phone: string, name: string, brandName: string, url: string) {
-        console.log(`[Onboarding] Sending WhatsApp to ${phone}`)
-        // Mock for Evolution API or Z-API
-        try {
-            const message = `Olá *${name}*! 🎉\n\nSeu acesso ao *${brandName}* foi liberado!\n\nClique no link abaixo para entrar:\n${url}\n\nSeu login é seu e-mail.\n\nSeja bem-vinda! 💎`
-            
-            const response = await fetch(`${process.env.WHATSAPP_API_URL}/sendMessage`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': process.env.WHATSAPP_API_KEY || '',
-                },
-                body: JSON.stringify({
-                    number: phone.replace(/\D/g, ''),
-                    text: message
-                }),
-            })
-            if (!response.ok) throw new Error('WhatsApp API error')
-        } catch (err) {
-            console.error('[Onboarding] Failed to send WhatsApp')
-        }
-    }
 }
