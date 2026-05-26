@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 // POST /api/admin/patients/[id]/action
-// actions: assign-protocol | send-message | send-rescue | send-congrats | update-restrictions | update-plan
+// actions: assign-protocol | send-message | send-rescue | send-congrats | update-restrictions | update-plan | send-credentials
 export async function POST(
     request: NextRequest,
     { params }: { params: { id: string } }
@@ -23,7 +24,7 @@ export async function POST(
 
     // Verify patient belongs to tenant
     const { data: profile } = await supabase
-        .from('profiles').select('name, tenant_id, current_streak, last_checkin_date')
+        .from('profiles').select('name, email, phone, tenant_id, current_streak, last_checkin_date')
         .eq('user_id', patientId).single()
     if (!profile || profile.tenant_id !== tenant.id) {
         return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
@@ -183,6 +184,63 @@ Retorne JSON: {"title": "...", "body": "..."}`
             .eq('tenant_id', tenant.id)
 
         return NextResponse.json({ success: true })
+    }
+
+    // ── Send credentials (magic link) ────────────────────────────────────────
+    if (action === 'send-credentials') {
+        if (!profile.email) return NextResponse.json({ error: 'Paciente sem e-mail cadastrado' }, { status: 400 })
+
+        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+        if (!serviceKey) return NextResponse.json({ error: 'Configuração do servidor incompleta' }, { status: 500 })
+
+        const supabaseAdmin = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            serviceKey,
+            { auth: { autoRefreshToken: false, persistSession: false } }
+        )
+
+        // Generate a password-reset link valid for 24h
+        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+            type: 'recovery',
+            email: profile.email,
+        })
+
+        if (linkError || !linkData?.properties?.action_link) {
+            console.error('[send-credentials]', linkError)
+            return NextResponse.json({ error: 'Erro ao gerar link de acesso' }, { status: 500 })
+        }
+
+        const accessLink = linkData.properties.action_link
+        const firstName = profile.name?.split(' ')[0] || 'Rainha'
+        const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://vitaclub.app'}/login`
+
+        // Send to patient inbox so she sees it on first login
+        await supabase.from('inbox_messages').insert({
+            tenant_id: tenant.id,
+            user_id: patientId,
+            agent_name: 'sistema',
+            title: `🔑 Seus dados de acesso – ${tenant.brand_name}`,
+            body: `Olá, ${firstName}! Seu acesso ao ${tenant.brand_name} está pronto.\n\nE-mail: ${profile.email}\n\nClique no botão abaixo para definir sua senha e entrar na plataforma. O link expira em 24 horas.`,
+            message_type: 'system',
+            priority: 'high',
+            status: 'unread',
+            cta_label: 'Definir minha senha',
+            cta_url: accessLink,
+            channels: ['inbox'],
+        })
+
+        // Best-effort: WhatsApp via Evolution/Z-API if configured
+        if (process.env.WHATSAPP_API_URL && profile.phone) {
+            const phone = profile.phone.replace(/\D/g, '')
+            const msg = `Olá, ${firstName}! 👋\n\nSeu acesso ao *${tenant.brand_name}* está pronto.\n\n📧 E-mail: ${profile.email}\n🔑 Defina sua senha: ${accessLink}\n\nO link expira em 24 horas. Qualquer dúvida, estamos aqui! 💜`
+            fetch(process.env.WHATSAPP_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: `55${phone}`, message: msg }),
+            }).catch(() => { /* non-critical */ })
+        }
+
+        return NextResponse.json({ success: true, email: profile.email })
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })

@@ -6,7 +6,7 @@ import {
     Activity, Star, Crown, Trophy, Flame, CheckCircle, Mail,
     Phone, Clock, Target, ChevronRight, Loader2, Sparkles,
     Heart, Plus, X, RefreshCw, Send, Shield, Users, FileText,
-    ToggleLeft, ToggleRight, Gift, Coins, Download
+    ToggleLeft, ToggleRight, Gift, Coins, Download, KeyRound
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -329,6 +329,16 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                         <button onClick={() => setShowMessageModal(true)}
                             className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-500/30 text-indigo-400 rounded-xl text-xs font-bold transition-all">
                             <Bell size={12}/> Inbox
+                        </button>
+                        <button
+                            onClick={() => quickAction('send-credentials', 'Dados de acesso')}
+                            disabled={actionLoading === 'send-credentials'}
+                            title={`Enviar link de acesso para ${patient.email}`}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/30 text-amber-300 rounded-xl text-xs font-bold transition-all disabled:opacity-50">
+                            {actionLoading === 'send-credentials'
+                                ? <Loader2 size={12} className="animate-spin"/>
+                                : <KeyRound size={12}/>}
+                            Enviar Acesso
                         </button>
                     </div>
                 </div>
