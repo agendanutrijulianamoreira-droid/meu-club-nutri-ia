@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { sendWhatsApp } from '@/lib/services/whatsapp'
+import { OnboardingService } from '@/lib/services/onboarding'
 
 // POST /api/admin/patients/[id]/action
 // actions: assign-protocol | send-message | send-rescue | send-congrats | update-restrictions | update-plan | send-credentials
@@ -215,6 +216,14 @@ Retorne JSON: {"title": "...", "body": "..."}`
         const firstName = profile.name?.split(' ')[0] || 'Rainha'
         const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://vitaclub.app'}/login`
 
+        // Send email via Resend (best-effort)
+        const emailSent = await OnboardingService.sendCredentialsEmail(
+            profile.email,
+            profile.name || 'Paciente',
+            tenant.brand_name,
+            accessLink
+        ).catch(() => false)
+
         // Send to patient inbox so she sees it on first login
         await supabase.from('inbox_messages').insert({
             tenant_id: tenant.id,
@@ -236,7 +245,7 @@ Retorne JSON: {"title": "...", "body": "..."}`
             sendWhatsApp(profile.phone, msg).catch(() => { /* non-critical */ })
         }
 
-        return NextResponse.json({ success: true, email: profile.email })
+        return NextResponse.json({ success: true, email: profile.email, email_sent: emailSent })
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
