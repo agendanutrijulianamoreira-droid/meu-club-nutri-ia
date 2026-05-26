@@ -5,10 +5,12 @@ import Stripe from 'stripe'
 import { OnboardingService } from '@/lib/services/onboarding'
 import { triggerOrchestrator } from '@/lib/services/anthropic'
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+function getSupabaseAdmin() {
+    return createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+}
 
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!
 
@@ -71,6 +73,7 @@ export async function POST(request: NextRequest) {
  * Checkout concluído → ativa subscription (user já existe!)
  */
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+    const supabaseAdmin = getSupabaseAdmin()
     // O user_id vem do client_reference_id (definido no /api/checkout)
     const userId = session.client_reference_id || session.metadata?.user_id
     const tenantId = session.metadata?.tenant_id
@@ -172,6 +175,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
  * Subscription atualizada (upgrade/downgrade, renovação, etc.)
  */
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+    const supabaseAdmin = getSupabaseAdmin()
     const tenantId = subscription.metadata?.tenant_id
     const plan = subscription.metadata?.plan
 
@@ -202,6 +206,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
  * Subscription cancelada
  */
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+    const supabaseAdmin = getSupabaseAdmin()
     await supabaseAdmin
         .from('subscriptions')
         .update({
