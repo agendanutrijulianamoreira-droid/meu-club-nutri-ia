@@ -61,12 +61,12 @@ export async function POST(request: NextRequest) {
         }
 
         // Log chat message for usage tracking
-        supabase.from('ai_generations').insert({
+        void supabase.from('ai_generations').insert({
             user_id: user.id,
             tenant_id: profile?.tenant_id,
             task: 'chat',
             model: 'gemini-2.5-flash',
-        }).then(() => {}).catch(() => {})
+        })
 
         // 2. Load active protocol assignment
         let activeProtocol = null

@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
   // Agrupa por dia → meal_type
   const daysMap: Record<number, any> = {}
 
-  for (const item of items) {
+  for (const item of items as any[]) {
     const dn = item.day_number
     if (!daysMap[dn]) daysMap[dn] = { day_number: dn, meals: {} }
 

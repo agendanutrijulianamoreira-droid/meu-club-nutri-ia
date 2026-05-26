@@ -395,6 +395,7 @@ export interface Assignment {
     user_id: string
     status: 'active' | 'completed' | 'paused' | 'expired'
     start_date: string
+    assigned_at?: string
     progress_percentage: number
     created_at: string
     // Joined data
