@@ -169,6 +169,7 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
         segmentType: "all", lowAdherenceDays: 3,
         scheduleType: "now", scheduledDate: "", scheduledTime: "09:00",
         recurrenceType: "none",
+        enablePush: false,
     })
     const [charCount, setCharCount] = useState(0)
     const [isSaving, setIsSaving] = useState(false)
@@ -275,7 +276,7 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                 body: form.body,
                 cta_label: form.cta_label || null,
                 cta_url: form.cta_url || null,
-                channels: { push: false, inbox: true },
+                channels: { push: form.enablePush, inbox: true },
                 segment: { type: form.segmentType, days: form.segmentType === 'low_adherence' ? form.lowAdherenceDays : undefined },
                 status: 'scheduled',
                 scheduled_for: scheduledFor,
@@ -473,6 +474,34 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                                     </div>
                                 </motion.div>
                             )}
+                        </div>
+
+                        {/* Channels */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Canais de envio</label>
+                            <div className="space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-bold text-white">Inbox do app</p>
+                                        <p className="text-[10px] text-slate-600">Aparece na caixa de entrada da paciente</p>
+                                    </div>
+                                    <div className="relative w-11 h-6 rounded-full bg-emerald-600 flex-shrink-0">
+                                        <div className="absolute top-0.5 left-5 w-5 h-5 rounded-full bg-white shadow" />
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-bold text-white">Push notification</p>
+                                        <p className="text-[10px] text-slate-600">Alerta no celular via OneSignal</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setForm(f => ({ ...f, enablePush: !f.enablePush }))}
+                                        className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${form.enablePush ? 'bg-emerald-600' : 'bg-white/10'}`}
+                                    >
+                                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${form.enablePush ? 'left-5' : 'left-0.5'}`} />
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         <button
