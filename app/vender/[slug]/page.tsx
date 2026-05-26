@@ -113,10 +113,16 @@ function StickyHeader({ logo, name, checkoutLink }: { logo?: string; name: strin
                         : <span className="font-black text-lg text-white">{name}</span>
                     }
                 </div>
-                <a href={checkoutLink}
-                    className="hidden md:flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold px-5 py-2.5 rounded-full transition-all">
-                    Quero entrar agora <ArrowRight size={14} />
-                </a>
+                <div className="flex items-center gap-3">
+                    <a href="/login/paciente"
+                        className="hidden md:flex items-center text-slate-400 hover:text-white text-sm font-bold px-4 py-2.5 transition-all">
+                        Já sou aluna
+                    </a>
+                    <a href={checkoutLink}
+                        className="hidden md:flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold px-5 py-2.5 rounded-full transition-all">
+                        Quero entrar agora <ArrowRight size={14} />
+                    </a>
+                </div>
             </div>
         </header>
     )
@@ -703,6 +709,14 @@ function Footer({ name }: { name: string }) {
         <footer className="border-t border-white/5 py-8">
             <div className="max-w-5xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-slate-600 text-xs">
                 <p className="font-black uppercase tracking-widest">© {new Date().getFullYear()} {name}</p>
+                <div className="flex items-center gap-6">
+                    <a href="/login/paciente" className="hover:text-slate-400 transition-colors font-bold uppercase tracking-widest">
+                        Área da Aluna
+                    </a>
+                    <a href="/login/nutricionista" className="hover:text-slate-400 transition-colors font-bold uppercase tracking-widest">
+                        Área da Nutricionista
+                    </a>
+                </div>
                 <p>Todos os direitos reservados · Plataforma VitaClub</p>
             </div>
         </footer>

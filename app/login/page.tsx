@@ -96,7 +96,7 @@ export default function LoginPage() {
                 formData.set('userType', userType);
                 const result = await signupUser(formData);
                 if (!result.success) throw new Error(result.error);
-                setSuccessMsg('Conta criada! Verifique seu e-mail para confirmar o cadastro e depois faça login.');
+                setSuccessMsg('Conta criada com sucesso! Faça login agora.');
                 setIsSignUp(false);
             } else {
                 const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
