@@ -13,11 +13,11 @@ export interface Protocol {
     description: string | null
     cover_image_url?: string | null
     duration_days: number
-    content_json: any[]
+    content: any[]
     category?: string
     status?: string
     is_active: boolean
-    is_template: boolean
+    is_favorite: boolean
     created_at: string
 }
 
@@ -112,11 +112,22 @@ export function useProtocols() {
 
             if (error) throw error
 
-            // Recarregar lista para ver a cópia
             fetchProtocols()
             return { data, error: null }
         } catch (err: any) {
             return { data: null, error: err.message }
+        }
+    }
+
+    const toggleFavorite = async (id: string) => {
+        const protocol = protocols.find(p => p.id === id)
+        if (!protocol) return
+        const { error } = await supabase
+            .from('protocols')
+            .update({ is_favorite: !protocol.is_favorite })
+            .eq('id', id)
+        if (!error) {
+            setProtocols(prev => prev.map(p => p.id === id ? { ...p, is_favorite: !p.is_favorite } : p))
         }
     }
 
@@ -132,8 +143,88 @@ export function useProtocols() {
         updateProtocol,
         deleteProtocol,
         duplicateProtocol,
+        toggleFavorite,
         refresh: fetchProtocols
     }
+}
+
+// ==========================================
+// GOALS (Metas)
+// ==========================================
+
+export interface Goal {
+    id: string
+    tenant_id: string
+    title: string
+    description: string | null
+    emoji: string
+    goal_type: 'weight' | 'habit' | 'nutrition' | 'exercise' | 'wellness' | 'custom'
+    metric: string | null
+    target_value: number | null
+    unit: string | null
+    deadline: string | null
+    is_active: boolean
+    is_favorite: boolean
+    content_json: any
+    created_at: string
+}
+
+export function useGoals(tenantId?: string) {
+    const [goals, setGoals] = useState<Goal[]>([])
+    const [loading, setLoading] = useState(true)
+
+    const fetchGoals = async () => {
+        if (!tenantId) { setLoading(false); return }
+        setLoading(true)
+        const { data, error } = await supabase
+            .from('goals')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .order('created_at', { ascending: false })
+            .limit(50)
+        if (!error) setGoals(data || [])
+        setLoading(false)
+    }
+
+    const createGoal = async (goal: Omit<Goal, 'id' | 'created_at'>) => {
+        try {
+            const { data, error } = await supabase
+                .from('goals')
+                .insert([goal])
+                .select()
+                .single()
+            if (error) throw error
+            setGoals(prev => [data, ...prev])
+            return { data, error: null }
+        } catch (err: any) {
+            return { data: null, error: err.message }
+        }
+    }
+
+    const deleteGoal = async (id: string) => {
+        try {
+            const { error } = await supabase.from('goals').delete().eq('id', id)
+            if (error) throw error
+            setGoals(prev => prev.filter(g => g.id !== id))
+            return { error: null }
+        } catch (err: any) {
+            return { error: err.message }
+        }
+    }
+
+    const toggleGoalFavorite = async (id: string) => {
+        const goal = goals.find(g => g.id === id)
+        if (!goal) return
+        const { error } = await supabase
+            .from('goals')
+            .update({ is_favorite: !goal.is_favorite })
+            .eq('id', id)
+        if (!error) setGoals(prev => prev.map(g => g.id === id ? { ...g, is_favorite: !g.is_favorite } : g))
+    }
+
+    useEffect(() => { fetchGoals() }, [tenantId])
+
+    return { goals, loading, createGoal, deleteGoal, toggleGoalFavorite, refresh: fetchGoals }
 }
 
 // ==========================================

@@ -5,6 +5,19 @@ import { callClaudeJSON } from '@/lib/services/anthropic'
 import { getGenerateSystemPrompt } from '@/lib/ai-nutritionist-identity'
 import { sanitizeForPrompt, isValidTask, validateGenerateOutput, type GenerateTask } from '@/lib/ai-security'
 
+function normalizeAIResponse(task: string, raw: any): any {
+    if (!raw || typeof raw !== 'object') return raw
+    if (task === 'generate-protocol') {
+        const inner = raw.protocol || raw.data || raw.result || raw
+        return {
+            title: inner?.title || raw?.title || '',
+            description: inner?.description || inner?.overview || inner?.summary || raw?.description || '',
+            days: inner?.days || inner?.schedule || inner?.plan || raw?.days || [],
+        }
+    }
+    return raw
+}
+
 export async function POST(request: NextRequest) {
     if (!process.env.GEMINI_API_KEY) {
         return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 })
@@ -130,12 +143,17 @@ Esquema de Retorno:
             messages: [{ role: 'user', content: fullPrompt }],
         })
 
-        const result = validateGenerateOutput(task as GenerateTask, raw)
+        const normalized = normalizeAIResponse(task, raw)
+        const result = validateGenerateOutput(task as GenerateTask, normalized)
 
         return NextResponse.json(result)
 
     } catch (error: any) {
         console.error('[AI API] Error:', error)
-        return NextResponse.json({ error: error.message || 'Internal AI Error' }, { status: 500 })
+        const isZodError = error?.name === 'ZodError' || Array.isArray(error?.issues)
+        const message = isZodError
+            ? 'A IA retornou uma resposta inesperada. Tente novamente em instantes.'
+            : (error.message || 'Erro interno da IA')
+        return NextResponse.json({ error: message }, { status: 500 })
     }
 }
