@@ -486,84 +486,106 @@ function PatientDetail({ patient, onAction, onRefresh }: {
         setCustomRestriction('')
     }
 
+    // Composite health score 0-100
+    const healthScore = Math.max(0, Math.min(100, Math.round(
+        patient.adherenceRate * 0.35 +
+        (patient.checkinScore !== null ? patient.checkinScore * 10 * 0.25 : 0) +
+        (patient.streak > 0 ? Math.min(patient.streak * 1.5, 25) : 0) +
+        (patient.onboardingCompleted ? 15 : 0)
+    )))
+
+    const scoreColor = healthScore >= 70 ? 'text-emerald-400' : healthScore >= 40 ? 'text-amber-400' : 'text-rose-400'
+    const scoreBarColor = healthScore >= 70 ? 'bg-emerald-500' : healthScore >= 40 ? 'bg-amber-500' : 'bg-rose-500'
+
+    // Risk causes
+    const riskCauses: string[] = []
+    if (!patient.onboardingCompleted) riskCauses.push('onboarding pendente')
+    if (!patient.hasActiveProtocol) riskCauses.push('sem protocolo')
+    if (!patient.hasCheckin) riskCauses.push('sem check-in')
+    if (patient.adherenceRate === 0) riskCauses.push('adesão zero')
+    if (patient.daysSinceActivity > 7) riskCauses.push(`inativa há ${patient.daysSinceActivity}d`)
+
+    // Activity timeline events
+    const timelineEvents: { label: string; sub: string; done: boolean; urgent?: boolean }[] = [
+        { label: 'Entrou no clube', sub: patient.startDate, done: true },
+        { label: 'Onboarding', sub: patient.onboardingCompleted ? 'Concluído' : 'Pendente', done: patient.onboardingCompleted, urgent: !patient.onboardingCompleted },
+        { label: 'Protocolo', sub: patient.hasActiveProtocol ? 'Atribuído' : 'Não atribuído', done: patient.hasActiveProtocol, urgent: !patient.hasActiveProtocol },
+        { label: 'Check-in semanal', sub: patient.hasCheckin ? `Score ${patient.checkinScore}/10` : 'Sem check-in', done: patient.hasCheckin, urgent: !patient.hasCheckin },
+        { label: 'Última atividade', sub: patient.lastLogin === 'Nunca' ? 'Sem atividade registrada' : patient.lastLogin, done: patient.lastLogin !== 'Nunca' },
+    ]
+
+    // XP to next level threshold
+    const xpNextLevel = Math.pow(patient.level, 2) * 500
+    const xpPrevLevel = patient.level > 1 ? Math.pow(patient.level - 1, 2) * 500 : 0
+    const xpProgress = xpNextLevel > xpPrevLevel ? Math.min(100, Math.round(((patient.xp - xpPrevLevel) / (xpNextLevel - xpPrevLevel)) * 100)) : 100
+
     return (
         <div className="flex-1 flex flex-col h-full overflow-hidden">
-            {/* Header */}
-            <div className="p-6 border-b border-white/5 bg-slate-900/50 flex-shrink-0">
-                <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold text-white flex-shrink-0
-                            ${patient.riskLevel === 'high' ? 'bg-gradient-to-br from-rose-600 to-rose-800'
-                            : patient.status === 'star' ? 'bg-gradient-to-br from-amber-500 to-yellow-600'
-                            : 'bg-gradient-to-br from-indigo-600 to-violet-700'}`}>
-                            {patient.avatar}
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <h2 className="text-xl font-bold text-white">{patient.name}</h2>
-                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${rm.bg} ${rm.color}`}>
-                                    {rm.label}
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-2 mt-0.5">
-                                <p className="text-xs text-slate-500">
-                                    {PLAN_LABELS[patient.plan] || patient.plan} · desde {patient.startDate}
-                                </p>
-                                <button onClick={() => setShowEditModal(true)}
-                                    className="flex items-center gap-1 text-[10px] font-bold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-lg transition-all">
-                                    <Pencil size={9}/> Editar
-                                </button>
-                            </div>
-                            <div className="flex items-center gap-3 mt-2">
-                                {patient.streak > 0 && (
-                                    <span className="flex items-center gap-1 text-xs text-orange-400">
-                                        <Flame size={12}/> {patient.streak}d streak
-                                    </span>
-                                )}
-                                <span className="flex items-center gap-1 text-xs text-indigo-400">
-                                    <Zap size={12}/> {patient.xp.toLocaleString('pt-BR')} XP
-                                </span>
-                                <span className="flex items-center gap-1 text-xs text-amber-400">
-                                    🪙 {patient.coins.toLocaleString('pt-BR')}
-                                </span>
-                            </div>
-                        </div>
+            {/* ── Header ─────────────────────────────────────────────────────── */}
+            <div className="px-6 pt-5 pb-4 border-b border-white/5 bg-slate-900/50 flex-shrink-0 space-y-4">
+
+                {/* Top row: avatar + identity + health score */}
+                <div className="flex items-start gap-4">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-base font-bold text-white flex-shrink-0
+                        ${patient.riskLevel === 'high' ? 'bg-gradient-to-br from-rose-600 to-rose-800'
+                        : patient.status === 'star' ? 'bg-gradient-to-br from-amber-500 to-yellow-600'
+                        : 'bg-gradient-to-br from-indigo-600 to-violet-700'}`}>
+                        {patient.avatar}
                     </div>
 
-                    {/* Quick actions */}
-                    <div className="flex flex-col gap-2 flex-shrink-0">
-                        {patient.phone && (
-                            <a href={`https://wa.me/55${patient.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener"
-                                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-bold transition-all">
-                                <MessageCircle size={12}/> WhatsApp
-                            </a>
-                        )}
-                        <button onClick={() => setShowMessageModal(true)}
-                            className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-500/30 text-indigo-400 rounded-xl text-xs font-bold transition-all">
-                            <Bell size={12}/> Inbox
-                        </button>
-                        <button
-                            onClick={sendCredentials}
-                            disabled={actionLoading === 'send-credentials'}
-                            title={`Enviar e-mail de acesso para ${patient.email}`}
-                            className="flex items-center gap-1.5 px-3 py-2 bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/30 text-amber-300 rounded-xl text-xs font-bold transition-all disabled:opacity-50">
-                            {actionLoading === 'send-credentials'
-                                ? <Loader2 size={12} className="animate-spin"/>
-                                : <KeyRound size={12}/>}
-                            Enviar Acesso
-                        </button>
-                        <button
-                            onClick={copyAccess}
-                            title="Copiar texto de acesso para área de transferência"
-                            className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 rounded-xl text-xs font-bold transition-all">
-                            <Copy size={12}/> Copiar acesso
-                        </button>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <h2 className="text-lg font-bold text-white leading-tight">{patient.name}</h2>
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${rm.bg} ${rm.color}`}>
+                                {rm.label}
+                            </span>
+                            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-white/5 border-white/10 text-slate-500">
+                                {PLAN_LABELS[patient.plan] || patient.plan}
+                            </span>
+                            <button onClick={() => setShowEditModal(true)}
+                                className="flex items-center gap-1 text-[10px] font-bold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-lg transition-all">
+                                <Pencil size={9}/> Editar
+                            </button>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                            desde {patient.startDate}
+                            {patient.primaryGoal && <span className="text-slate-600"> · {patient.primaryGoal}</span>}
+                        </p>
+                    </div>
+
+                    {/* Health score */}
+                    <div className="flex-shrink-0 text-right">
+                        <p className={`text-2xl font-black ${scoreColor}`}>{healthScore}</p>
+                        <p className="text-[9px] text-slate-600 uppercase tracking-wider">saúde</p>
+                    </div>
+                </div>
+
+                {/* Health score bar */}
+                <div className="space-y-1">
+                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${scoreBarColor}`} style={{ width: `${healthScore}%` }}/>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            {patient.streak > 0 && (
+                                <span className="flex items-center gap-1 text-[11px] text-orange-400">
+                                    <Flame size={11}/> {patient.streak}d
+                                </span>
+                            )}
+                            <span className="flex items-center gap-1 text-[11px] text-indigo-400">
+                                <Zap size={11}/> {patient.xp.toLocaleString('pt-BR')} XP
+                            </span>
+                            <span className="flex items-center gap-1 text-[11px] text-amber-400">
+                                🪙 {patient.coins}
+                            </span>
+                        </div>
+                        <p className="text-[10px] text-slate-600">Nível {patient.level} · {xpProgress}% para Nível {patient.level + 1}</p>
                     </div>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex gap-1 mt-4 bg-white/5 rounded-xl p-1 w-fit">
-                    {[['overview', 'Visão Geral'], ['history', 'Histórico'], ['health', 'Saúde']] .map(([id, label]) => (
+                <div className="flex gap-1 bg-white/5 rounded-xl p-1 w-fit">
+                    {[['overview', 'Visão Geral'], ['history', 'Histórico'], ['health', 'Saúde']].map(([id, label]) => (
                         <button key={id} onClick={() => setActiveTab(id as any)}
                             className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all
                                 ${activeTab === id ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
@@ -573,104 +595,178 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                 </div>
             </div>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {/* ── Content ────────────────────────────────────────────────────── */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
                 {activeTab === 'overview' && (
                     <>
-                        {/* AI summary */}
-                        <div className={`rounded-2xl p-4 border
-                            ${patient.riskLevel === 'high' ? 'bg-rose-500/10 border-rose-500/25'
-                            : patient.status === 'star' ? 'bg-amber-500/10 border-amber-500/25'
-                            : 'bg-indigo-500/10 border-indigo-500/25'}`}>
-                            <div className="flex items-start gap-3">
-                                <div className={`p-2 rounded-xl flex-shrink-0
-                                    ${patient.riskLevel === 'high' ? 'bg-rose-600/30' : patient.status === 'star' ? 'bg-amber-600/30' : 'bg-indigo-600/30'}`}>
-                                    <Sparkles size={16} className={patient.riskLevel === 'high' ? 'text-rose-400' : patient.status === 'star' ? 'text-amber-400' : 'text-indigo-400'}/>
+                        {/* Alert banner — only if there are causes */}
+                        {riskCauses.length > 0 && (
+                            <div className={`rounded-2xl p-4 border space-y-3
+                                ${patient.riskLevel === 'high' ? 'bg-rose-500/10 border-rose-500/25' : 'bg-amber-500/10 border-amber-500/25'}`}>
+                                <div className="flex items-center gap-2">
+                                    <AlertTriangle size={14} className={patient.riskLevel === 'high' ? 'text-rose-400' : 'text-amber-400'}/>
+                                    <p className="text-xs font-bold text-white">Por que está em risco?</p>
                                 </div>
-                                <div className="flex-1">
-                                    <p className="text-xs font-bold text-slate-400 mb-1">
-                                        {patient.hasCheckin ? 'Análise IA — check-in desta semana' : 'Score de engajamento'}
-                                    </p>
-                                    <p className="text-sm text-white leading-relaxed">"{patient.aiSummary}"</p>
-                                    {patient.aiSuggestion && (
-                                        <div className="mt-2 bg-white/5 rounded-xl px-3 py-2">
-                                            <p className="text-[10px] font-bold text-indigo-400 uppercase mb-0.5">Sugestão</p>
-                                            <p className="text-xs text-slate-300">{patient.aiSuggestion}</p>
-                                        </div>
-                                    )}
+                                <div className="flex flex-wrap gap-1.5">
+                                    {riskCauses.map(cause => (
+                                        <span key={cause} className={`text-[10px] font-bold px-2 py-0.5 rounded-full border
+                                            ${patient.riskLevel === 'high'
+                                                ? 'bg-rose-500/15 border-rose-500/20 text-rose-300'
+                                                : 'bg-amber-500/15 border-amber-500/20 text-amber-300'}`}>
+                                            {cause}
+                                        </span>
+                                    ))}
                                 </div>
-                            </div>
-
-                            {/* Action buttons based on status */}
-                            <div className="mt-3 flex flex-wrap gap-2">
-                                {patient.riskLevel === 'high' && (
-                                    <button onClick={() => quickAction('send-rescue', 'Mensagem de resgate')}
-                                        disabled={actionLoading === 'send-rescue'}
-                                        className="flex items-center gap-1.5 px-3 py-2 bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-300 rounded-xl text-xs font-bold transition-all disabled:opacity-50">
-                                        {actionLoading === 'send-rescue' ? <Loader2 size={11} className="animate-spin"/> : <Heart size={11}/>}
-                                        Enviar resgate
-                                    </button>
-                                )}
-                                {patient.status === 'star' && (
-                                    <button onClick={() => quickAction('send-congrats', 'Parabéns')}
-                                        disabled={actionLoading === 'send-congrats'}
-                                        className="flex items-center gap-1.5 px-3 py-2 bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/30 text-amber-300 rounded-xl text-xs font-bold transition-all disabled:opacity-50">
-                                        {actionLoading === 'send-congrats' ? <Loader2 size={11} className="animate-spin"/> : <Trophy size={11}/>}
-                                        Enviar parabéns
-                                    </button>
+                                {patient.aiSuggestion && (
+                                    <p className="text-[11px] text-slate-300 leading-relaxed">{patient.aiSuggestion}</p>
                                 )}
                             </div>
-                        </div>
+                        )}
 
-                        {/* Metrics grid */}
-                        <div className="grid grid-cols-2 gap-3">
-                            {[
-                                { label: 'Adesão 7d', value: `${patient.adherenceRate}%`, sub: 'últimos 7 dias', color: patient.adherenceRate < 50 ? 'text-rose-400' : 'text-emerald-400', icon: <Activity size={14}/> },
-                                { label: 'Check-in', value: patient.checkinScore !== null ? `${patient.checkinScore}/10` : '—', sub: patient.hasCheckin ? 'esta semana' : 'sem check-in', color: patient.checkinScore !== null ? (patient.checkinScore >= 7 ? 'text-emerald-400' : patient.checkinScore >= 5 ? 'text-amber-400' : 'text-rose-400') : 'text-slate-600', icon: <CheckCircle size={14}/> },
-                                { label: 'Streak', value: `${patient.streak}d`, sub: `recorde ${patient.longestStreak}d`, color: patient.streak > 0 ? 'text-orange-400' : 'text-slate-600', icon: <Flame size={14}/> },
-                                { label: 'Última atividade', value: patient.lastLogin, sub: patient.onboardingCompleted ? 'onboarding ✓' : 'onboarding pendente', color: 'text-white', icon: <Clock size={14}/> },
-                            ].map(m => (
-                                <div key={m.label} className="bg-white/5 border border-white/10 rounded-2xl p-4">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">{m.label}</span>
-                                        <span className="text-slate-600">{m.icon}</span>
+                        {/* AI summary (only when has checkin, otherwise not redundant) */}
+                        {patient.hasCheckin && (
+                            <div className="bg-indigo-500/10 border border-indigo-500/25 rounded-2xl p-4">
+                                <div className="flex items-start gap-3">
+                                    <div className="p-2 bg-indigo-600/30 rounded-xl flex-shrink-0">
+                                        <Sparkles size={14} className="text-indigo-400"/>
                                     </div>
-                                    <p className={`text-2xl font-bold ${m.color}`}>{m.value}</p>
-                                    <p className="text-[10px] text-slate-600 mt-1">{m.sub}</p>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1">Análise IA — check-in desta semana</p>
+                                        <p className="text-sm text-white leading-relaxed">"{patient.aiSummary}"</p>
+                                    </div>
                                 </div>
-                            ))}
+                            </div>
+                        )}
+
+                        {/* Primary action row */}
+                        <div className="flex gap-2">
+                            {patient.riskLevel === 'high' ? (
+                                <button onClick={() => quickAction('send-rescue', 'Mensagem de resgate')}
+                                    disabled={actionLoading === 'send-rescue'}
+                                    className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white text-sm font-bold rounded-2xl transition-all">
+                                    {actionLoading === 'send-rescue' ? <Loader2 size={13} className="animate-spin"/> : <Heart size={13}/>}
+                                    Resgatar
+                                </button>
+                            ) : patient.status === 'star' ? (
+                                <button onClick={() => quickAction('send-congrats', 'Parabéns')}
+                                    disabled={actionLoading === 'send-congrats'}
+                                    className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-sm font-bold rounded-2xl transition-all">
+                                    {actionLoading === 'send-congrats' ? <Loader2 size={13} className="animate-spin"/> : <Trophy size={13}/>}
+                                    Parabenizar
+                                </button>
+                            ) : (
+                                <button onClick={() => setShowMessageModal(true)}
+                                    className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-2xl transition-all">
+                                    <Send size={13}/> Mensagem
+                                </button>
+                            )}
+                            <button onClick={() => setShowMessageModal(true)}
+                                className="px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 text-sm font-bold rounded-2xl transition-all flex items-center gap-2">
+                                <Bell size={13}/> Inbox
+                            </button>
+                            {patient.phone && (
+                                <a href={`https://wa.me/55${patient.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener"
+                                    className="px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/30 text-emerald-400 text-sm font-bold rounded-2xl transition-all flex items-center gap-2">
+                                    <MessageCircle size={13}/>
+                                </a>
+                            )}
                         </div>
 
-                        {/* Protocol assignment */}
+                        {/* Metrics grid with context */}
+                        <div className="grid grid-cols-2 gap-3">
+                            {/* Adherence */}
+                            <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Adesão 7d</span>
+                                    <Activity size={12} className="text-slate-600"/>
+                                </div>
+                                <p className={`text-2xl font-bold ${patient.adherenceRate < 50 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                    {patient.adherenceRate}%
+                                </p>
+                                <p className="text-[10px] mt-1 text-slate-600">
+                                    {patient.adherenceRate === 0 ? 'sem histórico registrado'
+                                        : patient.adherenceRate < 50 ? 'abaixo do ideal (>70%)'
+                                        : 'dentro da meta'}
+                                </p>
+                            </div>
+
+                            {/* Check-in */}
+                            <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Check-in</span>
+                                    <CheckCircle size={12} className="text-slate-600"/>
+                                </div>
+                                <p className={`text-2xl font-bold ${patient.checkinScore !== null ? (patient.checkinScore >= 7 ? 'text-emerald-400' : patient.checkinScore >= 5 ? 'text-amber-400' : 'text-rose-400') : 'text-slate-600'}`}>
+                                    {patient.checkinScore !== null ? `${patient.checkinScore}/10` : '—'}
+                                </p>
+                                <p className="text-[10px] mt-1 text-slate-600">
+                                    {patient.hasCheckin ? 'check-in desta semana' : 'nenhum check-in enviado'}
+                                </p>
+                            </div>
+
+                            {/* Streak */}
+                            <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Streak</span>
+                                    <Flame size={12} className="text-slate-600"/>
+                                </div>
+                                <p className={`text-2xl font-bold ${patient.streak > 0 ? 'text-orange-400' : 'text-slate-600'}`}>
+                                    {patient.streak}d
+                                </p>
+                                <p className="text-[10px] mt-1 text-slate-600">
+                                    {patient.longestStreak > 0 ? `recorde: ${patient.longestStreak}d` : 'sem atividade contínua'}
+                                </p>
+                            </div>
+
+                            {/* Last activity */}
+                            <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Últ. atividade</span>
+                                    <Clock size={12} className="text-slate-600"/>
+                                </div>
+                                <p className={`text-lg font-bold leading-tight ${patient.lastLogin === 'Nunca' ? 'text-slate-600' : 'text-white'}`}>
+                                    {patient.lastLogin}
+                                </p>
+                                <p className="text-[10px] mt-1 text-slate-600">
+                                    {patient.onboardingCompleted ? 'onboarding concluído' : 'onboarding pendente'}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Protocol — with inline action */}
                         <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                             <div className="flex items-center justify-between mb-3">
                                 <p className="text-xs font-bold text-slate-400 flex items-center gap-1.5"><FileText size={13}/> Protocolo</p>
-                                <button onClick={() => setShowProtocolModal(true)}
-                                    className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors">
-                                    Alterar <ChevronRight size={11}/>
-                                </button>
+                                {patient.hasActiveProtocol && (
+                                    <button onClick={() => setShowProtocolModal(true)}
+                                        className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors">
+                                        Alterar <ChevronRight size={11}/>
+                                    </button>
+                                )}
                             </div>
                             {patient.hasActiveProtocol ? (
                                 <div className="flex items-center gap-2">
                                     <CheckCircle size={14} className="text-emerald-400 flex-shrink-0"/>
-                                    <span className="text-sm text-white font-bold">Protocolo ativo atribuído</span>
+                                    <span className="text-sm text-white font-bold">Protocolo ativo</span>
                                 </div>
                             ) : (
-                                <div className="flex items-center gap-2">
-                                    <AlertTriangle size={14} className="text-amber-400 flex-shrink-0"/>
-                                    <span className="text-sm text-amber-300">Nenhum protocolo atribuído</span>
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <AlertTriangle size={14} className="text-amber-400 flex-shrink-0"/>
+                                        <span className="text-sm text-amber-300">Nenhum protocolo atribuído</span>
+                                    </div>
                                     <button onClick={() => setShowProtocolModal(true)}
-                                        className="ml-auto text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-1 rounded-lg hover:bg-indigo-500/20 transition-all">
-                                        Atribuir
+                                        className="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded-xl transition-all">
+                                        Atribuir agora
                                     </button>
                                 </div>
                             )}
                         </div>
 
-                        {/* Contact */}
-                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Contato</p>
+                        {/* Acesso + Contato */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Contato & Acesso</p>
                             {patient.email && (
                                 <div className="flex items-center gap-2 text-sm text-slate-300">
                                     <Mail size={13} className="text-slate-500 flex-shrink-0"/> {patient.email}
@@ -681,17 +777,50 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                                     <Phone size={13} className="text-slate-500 flex-shrink-0"/> {patient.phone}
                                 </div>
                             )}
-                            {patient.primaryGoal && (
-                                <div className="flex items-center gap-2 text-sm text-slate-300">
-                                    <Target size={13} className="text-indigo-400 flex-shrink-0"/> {patient.primaryGoal}
-                                </div>
-                            )}
+                            <div className="flex gap-2 pt-1">
+                                <button onClick={sendCredentials} disabled={actionLoading === 'send-credentials'}
+                                    className="flex items-center gap-1.5 px-3 py-2 bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/30 text-amber-300 rounded-xl text-xs font-bold transition-all disabled:opacity-50">
+                                    {actionLoading === 'send-credentials' ? <Loader2 size={11} className="animate-spin"/> : <KeyRound size={11}/>}
+                                    Enviar acesso
+                                </button>
+                                <button onClick={copyAccess}
+                                    className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 rounded-xl text-xs font-bold transition-all">
+                                    <Copy size={11}/> Copiar
+                                </button>
+                            </div>
                         </div>
                     </>
                 )}
 
                 {activeTab === 'history' && (
                     <>
+                        {/* Activity timeline */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-4">Linha do tempo</p>
+                            <div className="space-y-0">
+                                {timelineEvents.map((ev, i) => (
+                                    <div key={ev.label} className="flex gap-3">
+                                        <div className="flex flex-col items-center">
+                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${ev.done ? 'bg-emerald-500/20 border border-emerald-500/40' : ev.urgent ? 'bg-rose-500/20 border border-rose-500/40' : 'bg-white/5 border border-white/10'}`}>
+                                                {ev.done
+                                                    ? <CheckCircle size={10} className="text-emerald-400"/>
+                                                    : <AlertTriangle size={10} className={ev.urgent ? 'text-rose-400' : 'text-slate-600'}/>}
+                                            </div>
+                                            {i < timelineEvents.length - 1 && (
+                                                <div className={`w-px flex-1 mt-1 mb-1 ${ev.done ? 'bg-emerald-500/20' : 'bg-white/5'}`} style={{ minHeight: '16px' }}/>
+                                            )}
+                                        </div>
+                                        <div className="pb-3">
+                                            <p className={`text-xs font-bold ${ev.done ? 'text-white' : ev.urgent ? 'text-rose-300' : 'text-slate-600'}`}>
+                                                {ev.label}
+                                            </p>
+                                            <p className="text-[10px] text-slate-600">{ev.sub}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
                         {/* Weight progress */}
                         {patient.weight.start > 0 && (
                             <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
@@ -708,7 +837,7 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                                         </div>
                                         {patient.weight.start > patient.weight.current && (
                                             <p className="text-[10px] text-emerald-400 font-bold text-center mt-1">
-                                                -{(patient.weight.start - patient.weight.current).toFixed(1)}kg 🎉
+                                                -{(patient.weight.start - patient.weight.current).toFixed(1)}kg
                                             </p>
                                         )}
                                     </div>
@@ -723,10 +852,10 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                         {/* Stats summary */}
                         <div className="grid grid-cols-2 gap-3">
                             {[
-                                { label: 'Protocolo', value: patient.hasActiveProtocol ? 'Ativo' : 'Não atribuído', color: patient.hasActiveProtocol ? 'text-emerald-400' : 'text-slate-500' },
                                 { label: 'Objetivo', value: patient.primaryGoal || 'Não informado', color: 'text-white' },
                                 { label: 'Maior streak', value: `${patient.longestStreak} dias`, color: 'text-orange-400' },
                                 { label: 'Nível atual', value: `Nível ${patient.level}`, color: 'text-indigo-400' },
+                                { label: 'NutriCoins', value: `${patient.coins}`, color: 'text-amber-400' },
                             ].map(s => (
                                 <div key={s.label} className="bg-white/5 border border-white/10 rounded-2xl p-4">
                                     <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-1">{s.label}</p>
@@ -736,7 +865,6 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                         </div>
                     </>
                 )}
-            </div>
 
                 {activeTab === 'health' && (
                     <div className="space-y-4">
@@ -770,6 +898,7 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                         </div>
                     </div>
                 )}
+            </div>
 
             {/* Modals */}
             <AnimatePresence>
