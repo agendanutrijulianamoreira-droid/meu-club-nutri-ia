@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { cookies } from 'next/headers'
-// @ts-ignore - pdf-parse types
-import pdf from 'pdf-parse'
+import { PDFParse } from 'pdf-parse'
 
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`
 
@@ -44,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     try {
       if (file.name.toLowerCase().endsWith('.pdf')) {
-        const pdfData = await pdf(buffer)
+        const pdfData = await new PDFParse({ data: buffer }).getText()
         extractedText = pdfData.text || ''
       } else {
         extractedText = buffer.toString('utf-8')
