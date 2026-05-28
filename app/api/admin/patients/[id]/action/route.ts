@@ -188,6 +188,28 @@ Retorne JSON: {"title": "...", "body": "..."}`
         return NextResponse.json({ success: true })
     }
 
+    // ── Update profile fields ─────────────────────────────────────────────────
+    if (action === 'update-profile') {
+        const { name, phone, current_plan, current_weight, primary_goal } = body
+        const updates: Record<string, unknown> = {}
+        if (name !== undefined && name !== '') updates.name = name
+        if (phone !== undefined) updates.phone = phone
+        if (current_plan !== undefined && current_plan !== '') updates.current_plan = current_plan
+        if (current_weight !== undefined && current_weight !== '') updates.current_weight = parseFloat(current_weight)
+        if (primary_goal !== undefined) updates.primary_goal = primary_goal
+
+        if (Object.keys(updates).length === 0) return NextResponse.json({ success: true })
+
+        const { error } = await supabase.from('profiles')
+            .update(updates)
+            .eq('user_id', patientId)
+            .eq('tenant_id', tenant.id)
+
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+        return NextResponse.json({ success: true })
+    }
+
     // ── Send credentials (magic link) ────────────────────────────────────────
     if (action === 'send-credentials') {
         if (!profile.email) return NextResponse.json({ error: 'Paciente sem e-mail cadastrado' }, { status: 400 })

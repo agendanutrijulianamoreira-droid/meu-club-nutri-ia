@@ -6,7 +6,7 @@ import {
     Activity, Star, Crown, Trophy, Flame, CheckCircle, Mail,
     Phone, Clock, Target, ChevronRight, Loader2, Sparkles,
     Heart, Plus, X, RefreshCw, Send, Shield, Users, FileText,
-    ToggleLeft, ToggleRight, Gift, Coins, Download, KeyRound, Copy
+    ToggleLeft, ToggleRight, Gift, Coins, Download, KeyRound, Copy, Pencil
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -316,6 +316,103 @@ function SendMessageModal({ patientId, patientName, onClose, onSuccess }: {
     )
 }
 
+// ─── Edit Patient Modal ───────────────────────────────────────────────────────
+function EditPatientModal({ patient, onClose, onSuccess }: {
+    patient: Patient
+    onClose: () => void
+    onSuccess: () => void
+}) {
+    const [form, setForm] = useState({
+        name: patient.name,
+        phone: patient.phone,
+        current_plan: patient.plan,
+        current_weight: patient.weight.current > 0 ? String(patient.weight.current) : '',
+        primary_goal: patient.primaryGoal,
+    })
+    const [saving, setSaving] = useState(false)
+    const [error, setError] = useState('')
+
+    const handleSave = async () => {
+        if (!form.name.trim()) { setError('Nome é obrigatório'); return }
+        setSaving(true); setError('')
+        try {
+            const res = await fetch(`/api/admin/patients/${patient.id}/action`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'update-profile', ...form })
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || 'Erro ao salvar')
+            onSuccess()
+        } catch (err: any) {
+            setError(err.message)
+        } finally { setSaving(false) }
+    }
+
+    const fields: { label: string; key: keyof typeof form; type: string; placeholder: string }[] = [
+        { label: 'Nome completo', key: 'name', type: 'text', placeholder: 'Nome da paciente' },
+        { label: 'WhatsApp', key: 'phone', type: 'tel', placeholder: '(11) 99999-9999' },
+        { label: 'Peso atual (kg)', key: 'current_weight', type: 'number', placeholder: 'ex: 68.5' },
+        { label: 'Objetivo principal', key: 'primary_goal', type: 'text', placeholder: 'ex: Perda de peso' },
+    ]
+
+    return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={onClose}>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                onClick={e => e.stopPropagation()}
+                className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4">
+
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h2 className="text-lg font-bold text-white">Editar Rainha</h2>
+                        <p className="text-xs text-slate-500 mt-0.5">{patient.email}</p>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl">
+                        <X size={16} className="text-slate-400"/>
+                    </button>
+                </div>
+
+                {fields.map(f => (
+                    <div key={f.key}>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">{f.label}</label>
+                        <input
+                            type={f.type} value={form[f.key]} placeholder={f.placeholder}
+                            onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50"/>
+                    </div>
+                ))}
+
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Plano</label>
+                    <select
+                        value={form.current_plan}
+                        onChange={e => setForm(f => ({ ...f, current_plan: e.target.value }))}
+                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50">
+                        {Object.entries(PLAN_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                </div>
+
+                {error && (
+                    <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">{error}</p>
+                )}
+
+                <div className="flex gap-3 pt-1">
+                    <button onClick={onClose}
+                        className="flex-1 py-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400 text-sm font-bold">
+                        Cancelar
+                    </button>
+                    <button onClick={handleSave} disabled={saving}
+                        className="flex-1 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-bold flex items-center justify-center gap-2 transition-all">
+                        {saving ? <Loader2 size={14} className="animate-spin"/> : <CheckCircle size={14}/>}
+                        Salvar
+                    </button>
+                </div>
+            </motion.div>
+        </motion.div>
+    )
+}
+
 // ─── Patient detail panel ─────────────────────────────────────────────────────
 const COMMON_RESTRICTIONS = ['Lactose', 'Glúten', 'Ovo', 'Frutos do mar', 'Amendoim', 'Soja', 'Nozes', 'Carne vermelha', 'Carne de porco', 'Vegetariana', 'Vegana']
 
@@ -327,6 +424,7 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     const [actionLoading, setActionLoading] = useState<string | null>(null)
     const [showProtocolModal, setShowProtocolModal] = useState(false)
     const [showMessageModal, setShowMessageModal] = useState(false)
+    const [showEditModal, setShowEditModal] = useState(false)
     const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'health'>('overview')
     const [restrictions, setRestrictions] = useState<string[]>([])
     const [customRestriction, setCustomRestriction] = useState('')
@@ -407,9 +505,15 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                                     {rm.label}
                                 </span>
                             </div>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                                {PLAN_LABELS[patient.plan] || patient.plan} · desde {patient.startDate}
-                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                <p className="text-xs text-slate-500">
+                                    {PLAN_LABELS[patient.plan] || patient.plan} · desde {patient.startDate}
+                                </p>
+                                <button onClick={() => setShowEditModal(true)}
+                                    className="flex items-center gap-1 text-[10px] font-bold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-lg transition-all">
+                                    <Pencil size={9}/> Editar
+                                </button>
+                            </div>
                             <div className="flex items-center gap-3 mt-2">
                                 {patient.streak > 0 && (
                                     <span className="flex items-center gap-1 text-xs text-orange-400">
@@ -669,6 +773,13 @@ function PatientDetail({ patient, onAction, onRefresh }: {
 
             {/* Modals */}
             <AnimatePresence>
+                {showEditModal && (
+                    <EditPatientModal
+                        patient={patient}
+                        onClose={() => setShowEditModal(false)}
+                        onSuccess={() => { setShowEditModal(false); onRefresh(); onAction('Dados salvos!') }}
+                    />
+                )}
                 {showProtocolModal && (
                     <AssignProtocolModal
                         patientId={patient.id}
