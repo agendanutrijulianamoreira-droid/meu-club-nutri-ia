@@ -6,7 +6,7 @@ import {
     Activity, Star, Crown, Trophy, Flame, CheckCircle, Mail,
     Phone, Clock, Target, ChevronRight, Loader2, Sparkles,
     Heart, Plus, X, RefreshCw, Send, Shield, Users, FileText,
-    ToggleLeft, ToggleRight, Gift, Coins, Download
+    ToggleLeft, ToggleRight, Gift, Coins, Download, KeyRound, Copy
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -34,13 +34,23 @@ const RISK_META: Record<string, { color: string; bg: string; label: string }> = 
 }
 
 // ─── Register Modal ────────────────────────────────────────────────────────────
-function RegisterModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+interface SuccessData { userId: string; email: string; name: string; password: string; emailSent: boolean }
+
+function RegisterModal({ onClose, onSuccess, onRegistered }: {
+    onClose: () => void
+    onSuccess: () => void
+    onRegistered?: () => void
+}) {
     const [form, setForm] = useState({ name: '', email: '', phone: '', password: 'ChangeMe123!', plan: 'tech_diet' })
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState('')
+    const [successData, setSuccessData] = useState<SuccessData | null>(null)
+    const [resending, setResending] = useState(false)
+    const [resendDone, setResendDone] = useState(false)
+    const [copied, setCopied] = useState(false)
 
     const handleSubmit = async () => {
-        if (!form.name || !form.email) { setError('Nome e email são obrigatórios'); return }
+        if (!form.name || !form.email) { setError('Nome e e-mail são obrigatórios'); return }
         setSaving(true); setError('')
         try {
             const res = await fetch('/api/admin/create-patient', {
@@ -49,12 +59,90 @@ function RegisterModal({ onClose, onSuccess }: { onClose: () => void; onSuccess:
             })
             const data = await res.json()
             if (!res.ok) throw new Error(data.error || 'Erro ao cadastrar')
-            onSuccess()
+            onRegistered?.()
+            setSuccessData({ userId: data.user_id, email: form.email, name: form.name, password: form.password, emailSent: data.email_sent || false })
         } catch (err: any) {
             setError(err.message)
         } finally { setSaving(false) }
     }
 
+    const handleResend = async () => {
+        if (!successData) return
+        setResending(true)
+        try {
+            await fetch(`/api/admin/patients/${successData.userId}/action`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'send-credentials' })
+            })
+            setResendDone(true)
+            setTimeout(() => setResendDone(false), 3000)
+        } finally { setResending(false) }
+    }
+
+    const handleCopy = async () => {
+        if (!successData) return
+        const loginUrl = typeof window !== 'undefined' ? window.location.origin + '/login' : '/login'
+        const firstName = successData.name.split(' ')[0]
+        const text = `Olá ${firstName}! Seu acesso foi liberado 🎉\n\n📧 E-mail: ${successData.email}\n🔑 Senha provisória: ${successData.password}\n🔗 Link: ${loginUrl}\n\nRecomendamos trocar a senha no primeiro acesso.`
+        try { await navigator.clipboard.writeText(text) } catch {}
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+    }
+
+    // ── Success screen ─────────────────────────────────────────────────────────
+    if (successData) {
+        const loginUrl = typeof window !== 'undefined' ? window.location.origin + '/login' : '/login'
+        const firstName = successData.name.split(' ')[0]
+        const credentialText = `Olá ${firstName}! Seu acesso foi liberado 🎉\n\n📧 E-mail: ${successData.email}\n🔑 Senha provisória: ${successData.password}\n🔗 Link: ${loginUrl}\n\nRecomendamos trocar a senha no primeiro acesso.`
+
+        return (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                    className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4">
+
+                    <div className="flex flex-col items-center text-center gap-2">
+                        <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                            <CheckCircle size={24} className="text-emerald-400"/>
+                        </div>
+                        <h2 className="text-lg font-bold text-white">Rainha cadastrada!</h2>
+                        <p className="text-xs text-slate-400 leading-relaxed max-w-xs">
+                            {successData.emailSent
+                                ? `E-mail com dados de acesso enviado para ${successData.email}`
+                                : `E-mail automático não configurado. Use o texto abaixo para enviar manualmente.`}
+                        </p>
+                    </div>
+
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Texto para enviar manualmente</label>
+                        <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                            <pre className="text-xs text-slate-300 whitespace-pre-wrap leading-relaxed font-sans">{credentialText}</pre>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                        <button onClick={handleCopy}
+                            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-xs font-bold text-slate-300 hover:border-white/20 transition-all">
+                            {copied ? <CheckCircle size={13} className="text-emerald-400"/> : <Copy size={13}/>}
+                            {copied ? 'Copiado!' : 'Copiar texto'}
+                        </button>
+                        <button onClick={handleResend} disabled={resending}
+                            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 text-xs font-bold text-indigo-300 hover:bg-indigo-600/30 transition-all disabled:opacity-50">
+                            {resending ? <Loader2 size={13} className="animate-spin"/> : <Mail size={13}/>}
+                            {resendDone ? 'Enviado!' : 'Reenviar e-mail'}
+                        </button>
+                    </div>
+
+                    <button onClick={onSuccess}
+                        className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold transition-all">
+                        Concluir
+                    </button>
+                </motion.div>
+            </motion.div>
+        )
+    }
+
+    // ── Registration form ──────────────────────────────────────────────────────
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
@@ -257,6 +345,26 @@ function PatientDetail({ patient, onAction, onRefresh }: {
         } finally { setActionLoading(null) }
     }
 
+    const sendCredentials = async () => {
+        setActionLoading('send-credentials')
+        try {
+            const res = await fetch(`/api/admin/patients/${patient.id}/action`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'send-credentials' })
+            })
+            const data = await res.json()
+            onAction(data.email_sent ? 'Dados de acesso enviados por e-mail!' : 'Acesso enviado para o app e WhatsApp')
+        } finally { setActionLoading(null) }
+    }
+
+    const copyAccess = async () => {
+        const loginUrl = typeof window !== 'undefined' ? window.location.origin + '/login' : '/login'
+        const firstName = patient.name.split(' ')[0]
+        const text = `Olá ${firstName}! Seu acesso:\n\n📧 E-mail: ${patient.email}\n🔗 Link: ${loginUrl}\n\nNa tela de login, clique em "Esqueci minha senha" para criar sua senha.`
+        try { await navigator.clipboard.writeText(text) } catch {}
+        onAction('Texto de acesso copiado!')
+    }
+
     const saveRestrictions = async () => {
         setSavingRestrictions(true)
         try {
@@ -329,6 +437,22 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                         <button onClick={() => setShowMessageModal(true)}
                             className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-500/30 text-indigo-400 rounded-xl text-xs font-bold transition-all">
                             <Bell size={12}/> Inbox
+                        </button>
+                        <button
+                            onClick={sendCredentials}
+                            disabled={actionLoading === 'send-credentials'}
+                            title={`Enviar e-mail de acesso para ${patient.email}`}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/30 text-amber-300 rounded-xl text-xs font-bold transition-all disabled:opacity-50">
+                            {actionLoading === 'send-credentials'
+                                ? <Loader2 size={12} className="animate-spin"/>
+                                : <KeyRound size={12}/>}
+                            Enviar Acesso
+                        </button>
+                        <button
+                            onClick={copyAccess}
+                            title="Copiar texto de acesso para área de transferência"
+                            className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 rounded-xl text-xs font-bold transition-all">
+                            <Copy size={12}/> Copiar acesso
                         </button>
                     </div>
                 </div>
@@ -754,7 +878,8 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                 {showRegister && (
                     <RegisterModal
                         onClose={() => setShowRegister(false)}
-                        onSuccess={() => { setShowRegister(false); refresh(); showToast('Rainha cadastrada com sucesso!') }}
+                        onRegistered={() => refresh()}
+                        onSuccess={() => { setShowRegister(false); showToast('Rainha cadastrada com sucesso!') }}
                     />
                 )}
             </AnimatePresence>

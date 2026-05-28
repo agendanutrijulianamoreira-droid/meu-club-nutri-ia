@@ -5,10 +5,12 @@ import { createClient } from '@supabase/supabase-js'
 import { getStripe } from '@/lib/stripe'
 import { PLAN_LABELS } from '@/lib/stripe'
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+function getSupabaseAdmin() {
+    return createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+}
 
 /**
  * GET /api/admin/billing
@@ -20,6 +22,7 @@ const supabaseAdmin = createClient(
  */
 export async function GET(request: NextRequest) {
     try {
+        const supabaseAdmin = getSupabaseAdmin()
         const supabase = createSupabaseServerClient(cookies())
         const { data: { user } } = await supabase.auth.getUser()
 
@@ -60,6 +63,7 @@ export async function GET(request: NextRequest) {
 }
 
 async function getBillingData(tenantId: string) {
+    const supabaseAdmin = getSupabaseAdmin()
     // 1. Get all subscriptions for this tenant
     const { data: subscriptions, error: subError } = await supabaseAdmin
         .from('subscriptions')

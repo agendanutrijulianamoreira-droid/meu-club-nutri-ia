@@ -22,6 +22,14 @@ export default function LoginPage() {
     const [successMsg, setSuccessMsg] = useState<string | null>(null);
     const [config, setConfig] = useState<any>(null);
 
+    // Mostra erro vindo do callback de auth (ex: link expirado)
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('error') === 'auth_failed') {
+            setError('Link inválido ou expirado. Solicite um novo link de redefinição de senha.');
+        }
+    }, []);
+
     // Fetch Public Settings for Login
     useEffect(() => {
         const loadConfig = async () => {
@@ -88,8 +96,7 @@ export default function LoginPage() {
                 formData.set('userType', userType);
                 const result = await signupUser(formData);
                 if (!result.success) throw new Error(result.error);
-                setSuccessMsg('Conta criada com sucesso! Faça login para continuar.');
-                setTimeout(() => setSuccessMsg(null), 4000);
+                setSuccessMsg('Conta criada com sucesso! Faça login agora.');
                 setIsSignUp(false);
             } else {
                 const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });

@@ -1,12 +1,13 @@
 "use client"
 
-import React, { useState, useCallback } from "react"
+import React, { useState, useCallback, useRef } from "react"
 import {
     Plus, Search, Flame, Clock, Edit3, Trash2,
     Utensils, Zap, X, Loader2, Brain, Sparkles,
     ShieldCheck, FileUp, Wand2, Save, RefreshCw,
     ToggleLeft, ToggleRight, ChevronRight, Image as ImageIcon,
-    BookOpen, Tag
+    BookOpen, Tag, Upload, CheckCircle2, AlertCircle,
+    ExternalLink, FileText, Package, ChefHat, Trophy, Bell
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useProtocols, Protocol } from "@/lib/hooks/useDatabase"
@@ -14,10 +15,19 @@ import { useStorage } from "@/lib/hooks/useStorage"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TABS = [
-    { id: 'recipes', label: 'Receitas',  icon: Utensils,   category: 'recipe'   },
-    { id: 'shots',   label: 'Shots Bio', icon: Zap,         category: 'shot'     },
-    { id: 'diets',   label: 'Protocolos',icon: ShieldCheck, category: 'protocol' },
+    { id: 'recipes', label: 'Receitas',   icon: Utensils,   category: 'recipe'   },
+    { id: 'shots',   label: 'Shots Bio',  icon: Zap,         category: 'shot'     },
+    { id: 'diets',   label: 'Protocolos', icon: ShieldCheck, category: 'protocol' },
+    { id: 'import',  label: 'Importar IA', icon: Upload,     category: 'import'   },
 ] as const
+
+const TABLE_META: Record<string, { label: string; icon: any; color: string }> = {
+    recipes:                { label: 'Receita',        icon: ChefHat,    color: 'text-amber-400'  },
+    protocols:              { label: 'Protocolo/Meta', icon: ShieldCheck, color: 'text-indigo-400' },
+    challenges:             { label: 'Desafio',        icon: Trophy,     color: 'text-emerald-400'},
+    meal_plans:             { label: 'Cardápio',       icon: Utensils,   color: 'text-violet-400' },
+    notification_templates: { label: 'Mensagem',       icon: Bell,       color: 'text-rose-400'   },
+}
 
 const DIETARY_TAGS = ["Low Carb","Vegetariana","Zero Açúcar","Sem Glúten","Zero Lactose","Detox","Cetogênica"]
 
@@ -337,10 +347,247 @@ function ItemForm({ item, tenantId, category, type, onClose, createItem, updateI
     )
 }
 
+// ─── Import Panel ─────────────────────────────────────────────────────────────
+interface ImportedDoc {
+  id: string
+  title: string
+  description?: string
+  user_hint?: string
+  file_name?: string
+  detected_type?: string
+  ai_summary?: string
+  ai_tags?: string[]
+  status: string
+  items_created?: Array<{ table: string; id: string; title: string }>
+  created_at: string
+}
+
+function ImportPanel({ tenantId }: { tenantId: string }) {
+    const fileRef = useRef<HTMLInputElement>(null)
+    const [file, setFile] = useState<File | null>(null)
+    const [hint, setHint] = useState('')
+    const [uploading, setUploading] = useState(false)
+    const [result, setResult] = useState<any | null>(null)
+    const [error, setError] = useState<string | null>(null)
+    const [history, setHistory] = useState<ImportedDoc[]>([])
+    const [loadingHistory, setLoadingHistory] = useState(true)
+    const [dragOver, setDragOver] = useState(false)
+
+    const loadHistory = useCallback(async () => {
+        setLoadingHistory(true)
+        try {
+            const res = await fetch('/api/admin/library/documents')
+            if (res.ok) {
+                const { documents } = await res.json()
+                setHistory(documents || [])
+            }
+        } finally { setLoadingHistory(false) }
+    }, [])
+
+    React.useEffect(() => { loadHistory() }, [loadHistory])
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault(); setDragOver(false)
+        const f = e.dataTransfer.files[0]
+        if (f) setFile(f)
+    }
+
+    const handleUpload = async () => {
+        if (!file) return
+        setUploading(true); setResult(null); setError(null)
+        try {
+            const fd = new FormData()
+            fd.append('file', file)
+            fd.append('hint', hint)
+            const res = await fetch('/api/admin/library/upload', { method: 'POST', body: fd })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || 'Erro desconhecido')
+            setResult(data)
+            setFile(null); setHint('')
+            if (fileRef.current) fileRef.current.value = ''
+            await loadHistory()
+        } catch (err: any) {
+            setError(err.message)
+        } finally { setUploading(false) }
+    }
+
+    const statusBadge = (status: string) => {
+        const map: Record<string, string> = {
+            distributed: 'bg-emerald-500/15 border-emerald-500/25 text-emerald-400',
+            processing:  'bg-amber-500/15 border-amber-500/25 text-amber-400',
+            error:       'bg-rose-500/15 border-rose-500/25 text-rose-400',
+            pending:     'bg-slate-500/15 border-slate-500/25 text-slate-400',
+        }
+        const label: Record<string, string> = {
+            distributed: 'Distribuído', processing: 'Processando', error: 'Erro', pending: 'Aguardando'
+        }
+        return (
+            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${map[status] || map.pending}`}>
+                {label[status] || status}
+            </span>
+        )
+    }
+
+    return (
+        <div className="space-y-6">
+            {/* Upload dropzone */}
+            <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-6 space-y-4">
+                <div>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Importar PDF ou TXT com IA</p>
+                    <p className="text-xs text-slate-500">A IA lê o arquivo, identifica o tipo de conteúdo (receita, protocolo, desafio, cardápio, mensagem) e distribui automaticamente para a tabela certa. Você só revisa e edita se quiser.</p>
+                </div>
+
+                <div
+                    onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={handleDrop}
+                    onClick={() => fileRef.current?.click()}
+                    className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all
+                        ${dragOver ? 'border-indigo-500/60 bg-indigo-500/10' : file ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-white/10 hover:border-indigo-500/30 hover:bg-white/5'}`}>
+                    <input ref={fileRef} type="file" className="hidden" accept=".pdf,.txt" onChange={e => setFile(e.target.files?.[0] || null)}/>
+                    {file ? (
+                        <div className="flex flex-col items-center gap-2">
+                            <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center">
+                                <FileText size={22} className="text-emerald-400"/>
+                            </div>
+                            <p className="text-sm font-bold text-white">{file.name}</p>
+                            <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(0)} KB · Clique para trocar</p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center gap-3 text-slate-600">
+                            <Upload size={32}/>
+                            <div>
+                                <p className="text-sm font-bold text-slate-400">Arraste o arquivo aqui ou clique para selecionar</p>
+                                <p className="text-xs text-slate-600 mt-1">Suporta PDF e TXT · Máx. 10MB</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">
+                        Me conte o que tem neste arquivo (opcional, mas ajuda a IA)
+                    </label>
+                    <textarea
+                        value={hint}
+                        onChange={e => setHint(e.target.value)}
+                        rows={2}
+                        placeholder='Ex: "São 5 receitas low carb que uso com pacientes em restrição de glúten" ou "Protocolo de 30 dias para TPM e ciclo menstrual"'
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 resize-none"/>
+                </div>
+
+                <button onClick={handleUpload} disabled={!file || uploading}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm rounded-2xl transition-all">
+                    {uploading ? <><Loader2 size={16} className="animate-spin"/> Analisando com IA...</> : <><Wand2 size={16}/> Enviar e Classificar com IA</>}
+                </button>
+            </div>
+
+            {/* Result */}
+            {result && (
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                    className="bg-emerald-500/10 border border-emerald-500/20 rounded-3xl p-5 space-y-4">
+                    <div className="flex items-start gap-3">
+                        <CheckCircle2 size={20} className="text-emerald-400 flex-shrink-0 mt-0.5"/>
+                        <div>
+                            <p className="font-bold text-white text-sm">Conteúdo importado com sucesso!</p>
+                            <p className="text-xs text-slate-400 mt-1 leading-relaxed">{result.ai_summary}</p>
+                        </div>
+                    </div>
+                    {result.ai_tags?.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                            {result.ai_tags.map((tag: string, i: number) => (
+                                <span key={i} className="text-[9px] font-bold px-2 py-0.5 rounded-lg bg-white/10 text-slate-300">{tag}</span>
+                            ))}
+                        </div>
+                    )}
+                    <div className="space-y-2">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">{result.items_created?.length} {result.items_created?.length === 1 ? 'item criado' : 'itens criados'}</p>
+                        {result.items_created?.map((item: any, i: number) => {
+                            const meta = TABLE_META[item.table] || { label: item.table, icon: Package, color: 'text-slate-400' }
+                            return (
+                                <div key={i} className="flex items-center gap-3 bg-white/5 rounded-xl px-3 py-2.5">
+                                    <meta.icon size={14} className={meta.color}/>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-white truncate">{item.title}</p>
+                                        <p className={`text-[10px] ${meta.color}`}>{meta.label}</p>
+                                    </div>
+                                    <CheckCircle2 size={13} className="text-emerald-400 flex-shrink-0"/>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </motion.div>
+            )}
+
+            {error && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex items-start gap-3">
+                    <AlertCircle size={16} className="text-rose-400 flex-shrink-0 mt-0.5"/>
+                    <p className="text-sm text-rose-300">{error}</p>
+                </motion.div>
+            )}
+
+            {/* History */}
+            <div>
+                <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Histórico de Importações</p>
+                    <button onClick={loadHistory} className="p-1.5 rounded-lg hover:bg-white/10 text-slate-600 hover:text-slate-400 transition-colors">
+                        <RefreshCw size={12} className={loadingHistory ? 'animate-spin' : ''}/>
+                    </button>
+                </div>
+
+                {loadingHistory ? (
+                    <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-slate-600"/></div>
+                ) : history.length === 0 ? (
+                    <div className="text-center py-10 bg-white/[0.02] border border-dashed border-white/10 rounded-2xl">
+                        <Upload size={24} className="text-slate-700 mx-auto mb-2"/>
+                        <p className="text-sm text-slate-600">Nenhuma importação ainda</p>
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        {history.map(doc => (
+                            <div key={doc.id} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-start gap-4">
+                                <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/15 flex items-center justify-center flex-shrink-0">
+                                    <FileText size={15} className="text-indigo-400"/>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="font-bold text-white text-sm truncate">{doc.title}</p>
+                                        {statusBadge(doc.status)}
+                                    </div>
+                                    {doc.ai_summary && (
+                                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">{doc.ai_summary}</p>
+                                    )}
+                                    {(doc.items_created?.length ?? 0) > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 mt-2">
+                                            {doc.items_created!.map((item, i) => {
+                                                const meta = TABLE_META[item.table]
+                                                return meta ? (
+                                                    <span key={i} className={`text-[9px] font-bold px-2 py-0.5 rounded-lg bg-white/10 ${meta.color}`}>
+                                                        {meta.label}: {item.title.substring(0, 25)}{item.title.length > 25 ? '…' : ''}
+                                                    </span>
+                                                ) : null
+                                            })}
+                                        </div>
+                                    )}
+                                    <p className="text-[10px] text-slate-700 mt-1">
+                                        {new Date(doc.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        {doc.file_name && ` · ${doc.file_name}`}
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export function LibraryView({ setView, tenantId = '' }: { setView: (v: any) => void; tenantId?: string }) {
     const { protocols, loading, createProtocol, updateProtocol, deleteProtocol, refresh } = useProtocols()
-    const [activeTab, setActiveTab] = useState<'recipes' | 'shots' | 'diets'>('recipes')
+    const [activeTab, setActiveTab] = useState<'recipes' | 'shots' | 'diets' | 'import'>('recipes')
     const [showForm, setShowForm] = useState(false)
     const [editingItem, setEditingItem] = useState<Protocol | null>(null)
     const [viewingItem, setViewingItem] = useState<Protocol | null>(null)
@@ -350,7 +597,7 @@ export function LibraryView({ setView, tenantId = '' }: { setView: (v: any) => v
     const tab = TABS.find(t => t.id === activeTab)!
 
     const filtered = protocols.filter(p => {
-        const correctType = p.category === tab.category
+        const correctType = activeTab !== 'import' && p.category === tab.category
         const matchSearch = !search || p.title.toLowerCase().includes(search.toLowerCase()) ||
             (p.description || '').toLowerCase().includes(search.toLowerCase())
         const itemTags: string[] = p.content_json?.find((c: any) => c.type === 'tags')?.content || []
@@ -376,10 +623,12 @@ export function LibraryView({ setView, tenantId = '' }: { setView: (v: any) => v
                     <p className="text-slate-500 text-sm mt-0.5">Receitas, shots bio-ativos e protocolos clínicos.</p>
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={() => refresh()} className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-slate-500">
-                        <RefreshCw size={15} className={loading ? 'animate-spin' : ''}/>
-                    </button>
-                    {!showForm && (
+                    {activeTab !== 'import' && (
+                        <button onClick={() => refresh()} className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-slate-500">
+                            <RefreshCw size={15} className={loading ? 'animate-spin' : ''}/>
+                        </button>
+                    )}
+                    {activeTab !== 'import' && !showForm && (
                         <button onClick={() => { setEditingItem(null); setShowForm(true) }}
                             className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-2xl transition-all">
                             <Plus size={15}/> Cadastrar
@@ -392,20 +641,27 @@ export function LibraryView({ setView, tenantId = '' }: { setView: (v: any) => v
             <div className="flex flex-col sm:flex-row gap-3">
                 <div className="flex bg-white/5 border border-white/10 rounded-2xl p-1 gap-1">
                     {TABS.map(t => (
-                        <button key={t.id} onClick={() => { setActiveTab(t.id); setSelectedTag(null) }}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all
-                                ${activeTab === t.id ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                        <button key={t.id} onClick={() => { setActiveTab(t.id as any); setSelectedTag(null) }}
+                            className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all
+                                ${activeTab === t.id
+                                    ? t.id === 'import' ? 'bg-violet-600 text-white' : 'bg-indigo-600 text-white'
+                                    : 'text-slate-500 hover:text-slate-300'}`}>
                             <t.icon size={14}/> {t.label}
                         </button>
                     ))}
                 </div>
-                <div className="relative flex-1">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600"/>
-                    <input value={search} onChange={e => setSearch(e.target.value)}
-                        placeholder={`Buscar ${tab.label.toLowerCase()}...`}
-                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-2.5 pl-9 pr-3 text-sm text-white focus:outline-none focus:border-indigo-500/50"/>
-                </div>
+                {activeTab !== 'import' && (
+                    <div className="relative flex-1">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600"/>
+                        <input value={search} onChange={e => setSearch(e.target.value)}
+                            placeholder={`Buscar ${tab.label.toLowerCase()}...`}
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-2.5 pl-9 pr-3 text-sm text-white focus:outline-none focus:border-indigo-500/50"/>
+                    </div>
+                )}
             </div>
+
+            {/* Import panel */}
+            {activeTab === 'import' && <ImportPanel tenantId={tenantId}/>}
 
             {/* Tag filter (recipes only) */}
             {activeTab === 'recipes' && (
@@ -426,22 +682,24 @@ export function LibraryView({ setView, tenantId = '' }: { setView: (v: any) => v
             )}
 
             {/* Form */}
+            {activeTab !== 'import' && (
             <AnimatePresence>
                 {(showForm || editingItem) && (
                     <ItemForm
                         item={editingItem}
                         tenantId={tenantId}
                         category={tab.category}
-                        type={activeTab}
+                        type={activeTab as 'recipes' | 'shots' | 'diets'}
                         onClose={() => { setShowForm(false); setEditingItem(null); refresh() }}
                         createItem={createProtocol}
                         updateItem={updateProtocol}
                     />
                 )}
             </AnimatePresence>
+            )}
 
-            {/* Grid */}
-            {loading ? (
+            {/* Grid (hidden on import tab) */}
+            {activeTab !== 'import' && (loading ? (
                 <div className="flex justify-center py-16"><Loader2 size={28} className="animate-spin text-slate-600"/></div>
             ) : filtered.length === 0 ? (
                 <div className="text-center py-20 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl">
@@ -532,7 +790,7 @@ export function LibraryView({ setView, tenantId = '' }: { setView: (v: any) => v
                         )
                     })}
                 </div>
-            )}
+            ))}
 
             {/* Detail modal */}
             <AnimatePresence>

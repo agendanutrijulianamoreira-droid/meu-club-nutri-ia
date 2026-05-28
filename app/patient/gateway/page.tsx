@@ -75,9 +75,9 @@ const TYPE_META = {
 } as const
 
 const PLAN_LABELS: Record<string, { label: string; color: string; icon: typeof Star }> = {
-  community: { label: 'Comunidade', color: 'text-slate-400', icon: Star },
-  tech_diet: { label: 'Tech Diet', color: 'text-indigo-400', icon: Zap },
-  vip: { label: 'VIP Premium', color: 'text-amber-400', icon: Crown },
+  community: { label: 'Clube', color: 'text-slate-400', icon: Star },
+  tech_diet: { label: 'Modo Paciente', color: 'text-indigo-400', icon: Zap },
+  vip: { label: 'Modo Paciente', color: 'text-amber-400', icon: Crown },
 }
 
 export default function PatientGatewayPage() {
@@ -344,19 +344,25 @@ export default function PatientGatewayPage() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="mt-6 bg-gradient-to-br from-amber-600/10 to-orange-600/5 border border-amber-500/20 rounded-3xl p-5"
+          className="mt-6 bg-gradient-to-br from-indigo-600/15 to-purple-600/5 border border-indigo-500/25 rounded-3xl p-5"
         >
           <div className="flex items-center gap-2 mb-2">
-            <Crown size={16} className="text-amber-400" />
-            <span className="text-[10px] font-black uppercase tracking-wider text-amber-500">Desbloqueie mais</span>
+            <Crown size={16} className="text-indigo-400" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400">Modo Paciente</span>
           </div>
-          <p className="text-white text-sm font-bold mb-1">Cardápio calculado + suporte VIP</p>
-          <p className="text-slate-400 text-xs mb-3">
-            No plano VIP você recebe cardápios personalizados com macros, substituições e acompanhamento próximo.
+          <p className="text-white text-sm font-bold mb-1">Dieta personalizada + IA + receitas</p>
+          <p className="text-slate-400 text-xs mb-4">
+            Desbloqueie cardápio com macros, receitas vinculadas ao seu protocolo, lista de compras calculada e muito mais.
           </p>
-          <div className="flex items-center gap-2 text-amber-400 text-xs font-bold">
-            <Lock size={12} />
-            Fale com sua nutricionista para fazer upgrade
+          <div className="flex items-center gap-3">
+            <a
+              href="/patient/upgrade"
+              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-2xl transition-all"
+            >
+              <Sparkles size={13} />
+              Ver planos
+            </a>
+            <span className="text-slate-500 text-xs">A partir de R$47/ano</span>
           </div>
         </motion.div>
       )}

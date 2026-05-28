@@ -12,6 +12,7 @@ export default function ClinicSettingsOverlay({ index }: { index: number }) {
     const { closeOverlay } = useOverlays()
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
+    const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
     const [tenant, setTenant] = useState<any>(null)
     const [formData, setFormData] = useState({
         brand_name: "",
@@ -63,11 +64,12 @@ export default function ClinicSettingsOverlay({ index }: { index: number }) {
         setSaving(true)
         const result = await updateClinicAction(formData)
         if (result.success) {
-            alert("Informações da clínica atualizadas! 🏥")
+            setToast({ type: 'success', msg: 'Informações da clínica atualizadas!' })
         } else {
-            alert("Erro ao salvar: " + result.error)
+            setToast({ type: 'error', msg: result.error || 'Erro ao salvar' })
         }
         setSaving(false)
+        setTimeout(() => setToast(null), 3500)
     }
 
     if (loading) return (
@@ -81,6 +83,11 @@ export default function ClinicSettingsOverlay({ index }: { index: number }) {
     return (
         <SlideOver id="clinic" title="Minha Clínica / Consultório" index={index}>
             <div className="space-y-10 pb-20">
+                {toast && (
+                    <div className={`px-4 py-3 rounded-2xl text-sm font-semibold ${toast.type === 'success' ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-400' : 'bg-rose-500/10 border border-rose-500/25 text-rose-400'}`}>
+                        {toast.msg}
+                    </div>
+                )}
                 {/* Branding Section */}
                 <section className="space-y-6">
                     <div className="flex items-center gap-2 text-indigo-400 ml-1">

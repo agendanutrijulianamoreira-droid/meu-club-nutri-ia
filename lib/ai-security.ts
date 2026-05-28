@@ -38,7 +38,7 @@ export function sanitizeForPrompt(input: unknown, maxLength = 500): string {
 
 export const ProtocolSchema = z.object({
   title: z.string().max(200),
-  description: z.string().max(1000),
+  description: z.string().max(1000).optional().default(''),
   days: z.array(z.object({
     day: z.number().int().positive(),
     title: z.string().max(200),
@@ -48,8 +48,8 @@ export const ProtocolSchema = z.object({
       item_type: z.enum(['meal', 'shot', 'water', 'exercise', 'habit']).optional(),
       description: z.string().max(1000).optional(),
       points: z.number().int().nonnegative().optional(),
-    })).max(50),
-  })).max(90),
+    })).max(50).optional().default([]),
+  })).max(90).optional().default([]),
 })
 
 export const ChallengeSchema = z.object({

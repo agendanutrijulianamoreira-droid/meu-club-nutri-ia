@@ -119,9 +119,15 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString(),
         })
 
-        OnboardingService.sendWelcomeMessages(userId, tenantId).catch(console.error)
+        let emailSent = false
+        try {
+            const result = await OnboardingService.sendWelcomeMessages(userId, tenantId, { password })
+            emailSent = result.emailSent
+        } catch (err) {
+            console.error('[create-patient] Onboarding error:', err)
+        }
 
-        return NextResponse.json({ success: true, user_id: userId, message: 'Sucesso!' })
+        return NextResponse.json({ success: true, user_id: userId, email_sent: emailSent, message: 'Sucesso!' })
 
     } catch (error: any) {
         return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 })

@@ -1,66 +1,56 @@
 'use server';
 
-import { createSupabaseServerClient } from "@/lib/supabase-server"
-import { cookies } from "next/headers"
-import { z } from "zod"
+import { createClient } from '@supabase/supabase-js'
 
-const signupSchema = z.object({
-    email: z.string().email('E-mail inválido'),
-    password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
-    fullName: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
-    userType: z.enum(['patient', 'nutritionist', 'admin']).default('patient')
-})
+function getAdminClient() {
+    return createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+}
 
-/**
- * Server Action para criar novo usuário
- * Cria no Auth + cria perfil na tabela profiles
- */
 export async function signupUser(formData: FormData) {
-    const supabase = createSupabaseServerClient(cookies())
+    const email = (formData.get('email') as string)?.trim()
+    const password = formData.get('password') as string
+    const fullName = (formData.get('fullName') as string)?.trim()
+    const userType = (formData.get('userType') as string) || 'patient'
 
-    const parsed = signupSchema.safeParse({
-        email: formData.get("email"),
-        password: formData.get("password"),
-        fullName: formData.get("fullName"),
-        userType: formData.get("userType") || "patient"
-    })
-
-    if (!parsed.success) {
-        return { success: false, error: parsed.error.issues[0]?.message || 'Dados inválidos' }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return { success: false, error: 'E-mail inválido' }
+    }
+    if (!password || password.length < 6) {
+        return { success: false, error: 'Senha deve ter no mínimo 6 caracteres' }
+    }
+    if (!fullName || fullName.length < 2) {
+        return { success: false, error: 'Nome deve ter no mínimo 2 caracteres' }
     }
 
-    const { email, password, fullName, userType } = parsed.data
-
-    console.log("Criando usuário:", email)
+    const supabaseAdmin = getAdminClient()
 
     try {
-        // 1. Criar no Auth
-        const { data: authData, error: authError } = await supabase.auth.signUp({
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email,
             password,
-            options: {
-                data: {
-                    full_name: fullName,
-                    user_type: userType,
-                },
+            email_confirm: true,
+            user_metadata: {
+                full_name: fullName,
+                user_type: userType,
             },
         })
 
         if (authError) throw authError
-        if (!authData.user) throw new Error("Falha ao criar usuário")
+        if (!authData.user) throw new Error('Falha ao criar usuário')
 
-        console.log("Usuário criado no Auth:", authData.user.id)
-        console.log("Perfil será criado automaticamente pelo trigger do banco.")
+        console.log('[signupUser] Usuário criado:', authData.user.id, 'tipo:', userType)
 
-        return {
-            success: true,
-            message: "Conta criada! Você ganhou 100 NutriCoins de boas-vindas! 🎉",
-        }
+        return { success: true, message: 'Conta criada com sucesso! Você já pode fazer login.' }
     } catch (error: any) {
-        console.error("Erro ao criar usuário:", error)
-        return {
-            success: false,
-            error: error.message || "Erro ao criar conta",
+        console.error('[signupUser]', error)
+
+        if (error.message?.includes('already registered') || error.message?.includes('already exists')) {
+            return { success: false, error: 'Este e-mail já está cadastrado.' }
         }
+        return { success: false, error: error.message || 'Erro ao criar conta. Tente novamente.' }
     }
 }
