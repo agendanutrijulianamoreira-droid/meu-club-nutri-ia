@@ -14,6 +14,7 @@ export interface Protocol {
     cover_image_url?: string | null
     duration_days: number
     content: any[]
+    content_json?: any[] | null
     category?: string
     status?: string
     is_active: boolean
