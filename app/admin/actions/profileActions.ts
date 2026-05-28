@@ -84,25 +84,11 @@ export async function updateClinicAction(data: z.infer<typeof clinicSchema>) {
     }
 
     try {
-        // Authenticate user via session
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) throw new Error("Não autorizado")
 
-        // Use admin client to bypass RLS
-        const adminClient = getAdminClient()
-
-        // Get profile to verify admin role
-        const { data: profile } = await adminClient
-            .from('profiles')
-            .select('tenant_id, role')
-            .eq('user_id', user.id)
-            .single()
-
-        if (!profile || profile.role !== 'admin') {
-            throw new Error("Apenas administradores podem alterar configurações da clínica.")
-        }
-
-        const { error } = await adminClient
+        // Update tenant directly by owner_id — RLS enforces ownership, no service role needed
+        const { error } = await supabase
             .from('tenants')
             .update({
                 brand_name: data.brand_name,
@@ -114,7 +100,7 @@ export async function updateClinicAction(data: z.infer<typeof clinicSchema>) {
                 logo_url: data.logo_url,
                 updated_at: new Date().toISOString()
             })
-            .eq('id', profile.tenant_id)
+            .eq('owner_id', user.id)
 
         if (error) throw error
         return { success: true }

@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase-server"
 import { createClient } from "@supabase/supabase-js"
 import { cookies } from 'next/headers'
 import { z } from "zod"
+import { sendPushToUser } from "@/lib/onesignal"
 
 // Use Service Role Client for processing (bypassing RLS for internal logic)
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -54,7 +55,7 @@ export async function processCampaignAction(campaignId: string) {
             .update({ status: 'sending' })
             .eq('id', campaignId)
             .in('status', ['draft', 'scheduled'])
-            .select('id, tenant_id, title, body, cta_label, cta_url, segment')
+            .select('id, tenant_id, title, body, cta_label, cta_url, segment, channels')
             .single()
 
         if (statusUpdateError || !updatedCampaign) {
@@ -120,11 +121,26 @@ export async function processCampaignAction(campaignId: string) {
                 status: 'unread'
             }))
 
-            // Run both batch operations
+            // Run inbox + recipients operations
             await Promise.all([
                 adminSupabase.from('campaign_recipients').upsert(recipientRecords, { onConflict: 'campaign_id,user_id' }),
                 adminSupabase.from('notifications').upsert(notificationRecords, { onConflict: 'user_id,campaign_id' })
             ])
+
+            // Send push via OneSignal when channel is enabled (fire-and-forget, non-blocking)
+            if (campaignData.channels?.push) {
+                await Promise.allSettled(
+                    userIds.map(uid =>
+                        sendPushToUser({
+                            externalUserId: uid,
+                            title: campaignData.title,
+                            message: campaignData.body,
+                            url: campaignData.cta_url || undefined,
+                            data: { campaign_id: campaignId },
+                        }).catch(err => console.error(`[Campaign] Push failed for ${uid}:`, err))
+                    )
+                )
+            }
 
             // --- H. FINALIZE ---
             await adminSupabase.from('campaigns')

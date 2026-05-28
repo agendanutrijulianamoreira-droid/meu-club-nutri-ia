@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getStripe } from '@/lib/stripe'
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+function getSupabaseAdmin() {
+    return createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+}
 
 /**
  * POST /api/checkout
@@ -22,6 +24,7 @@ const supabaseAdmin = createClient(
  */
 export async function POST(request: NextRequest) {
     try {
+        const supabaseAdmin = getSupabaseAdmin()
         const body = await request.json()
         const { planId, tenantSlug, userId, customerEmail, customerName } = body
 

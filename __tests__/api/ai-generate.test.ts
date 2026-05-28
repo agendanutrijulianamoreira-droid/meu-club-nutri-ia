@@ -117,8 +117,9 @@ describe('AI Generate – rate limiting integration', () => {
     assert.equal(limiter.check('user-a').allowed, false)
 
     // user-b should still be fine
-    assert.equal(limiter.check('user-b').allowed, true)
-    assert.equal(limiter.check('user-b').remaining, 9)
+    const rb = limiter.check('user-b')
+    assert.equal(rb.allowed, true)
+    assert.equal(rb.remaining, 9)
   })
 
   it('resets after window expires', async () => {
