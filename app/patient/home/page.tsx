@@ -14,6 +14,8 @@ import {
     Dumbbell,
     UtensilsCrossed,
     ChevronRight,
+    Crown,
+    Zap,
 } from "lucide-react"
 import { usePatientEngine } from "@/lib/hooks/usePatientEngine"
 import Link from "next/link"
@@ -39,6 +41,8 @@ export default function PatientHomePage() {
     const [quickTaps, setQuickTaps] = useState<{ water: boolean; meal: boolean; workout: boolean }>({ water: false, meal: false, workout: false })
     const [nextReward, setNextReward] = useState<{ name: string; cost: number; emoji: string } | null>(null)
     const [nutriCoins, setNutriCoins] = useState(0)
+    const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null)
+    const [currentPlan, setCurrentPlan] = useState<string>("community")
 
     useEffect(() => {
         const init = async () => {
@@ -48,12 +52,29 @@ export default function PatientHomePage() {
             // Load profile name + check if new member
             const { data: profile } = await supabase
                 .from('profiles')
-                .select('name, created_at')
+                .select('name, created_at, current_plan, plan_started_at, plan_expires_at')
                 .eq('user_id', session.user.id)
                 .single()
 
             if (profile?.name) {
                 setFirstName(profile.name.split(' ')[0])
+            }
+            if (profile?.current_plan) {
+                setCurrentPlan(profile.current_plan)
+            }
+            // Calculate trial days remaining for community plan users
+            if (profile?.current_plan === 'community') {
+                const ref = profile.plan_expires_at
+                    ? new Date(profile.plan_expires_at)
+                    : profile.plan_started_at
+                        ? new Date(new Date(profile.plan_started_at).getTime() + 15 * 24 * 60 * 60 * 1000)
+                        : profile.created_at
+                            ? new Date(new Date(profile.created_at).getTime() + 15 * 24 * 60 * 60 * 1000)
+                            : null
+                if (ref) {
+                    const diff = Math.ceil((ref.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                    setTrialDaysLeft(Math.max(0, diff))
+                }
             }
             // Show welcome tour for accounts created in last 48h
             if (profile?.created_at) {
@@ -219,6 +240,58 @@ export default function PatientHomePage() {
                     </div>
                 </div>
             </div>
+
+            {/* ─── Banner de Trial (Clube) ──────────────────────────────── */}
+            {currentPlan === 'community' && trialDaysLeft !== null && (
+                <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-5"
+                >
+                    <Link href="/patient/upgrade">
+                        <div className={`flex items-center gap-3 p-4 rounded-2xl border group transition-all ${
+                            trialDaysLeft <= 3
+                                ? 'bg-rose-500/10 border-rose-500/30 hover:border-rose-400/50'
+                                : trialDaysLeft <= 7
+                                    ? 'bg-amber-500/10 border-amber-500/30 hover:border-amber-400/50'
+                                    : 'bg-indigo-600/10 border-indigo-500/20 hover:border-indigo-500/40'
+                        }`}>
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                trialDaysLeft <= 3 ? 'bg-rose-500/20' : trialDaysLeft <= 7 ? 'bg-amber-500/20' : 'bg-indigo-600/20'
+                            }`}>
+                                {trialDaysLeft <= 7 ? (
+                                    <Flame size={18} className={trialDaysLeft <= 3 ? 'text-rose-400' : 'text-amber-400'} />
+                                ) : (
+                                    <Crown size={18} className="text-indigo-400" />
+                                )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                {trialDaysLeft === 0 ? (
+                                    <>
+                                        <p className="text-[9px] font-black uppercase tracking-[0.15em] text-rose-400 mb-0.5">Teste expirado</p>
+                                        <p className="text-white font-bold text-sm">Continue no Clube</p>
+                                        <p className="text-slate-400 text-xs">A partir de R$47/ano</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="text-[9px] font-black uppercase tracking-[0.15em] text-indigo-400 mb-0.5">Teste gratuito</p>
+                                        <p className="text-white font-bold text-sm">
+                                            {trialDaysLeft} dia{trialDaysLeft > 1 ? 's' : ''} restante{trialDaysLeft > 1 ? 's' : ''}
+                                        </p>
+                                        <p className="text-slate-400 text-xs">Ver planos · a partir de R$47/ano</p>
+                                    </>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                                <span className="text-[10px] font-black text-indigo-400 hidden group-hover:block">Ver planos</span>
+                                <ChevronRight size={16} className={`group-hover:translate-x-1 transition-transform ${
+                                    trialDaysLeft <= 3 ? 'text-rose-400' : trialDaysLeft <= 7 ? 'text-amber-400' : 'text-indigo-400'
+                                }`} />
+                            </div>
+                        </div>
+                    </Link>
+                </motion.div>
+            )}
 
             {/* ─── CTA: Check-in pendente ───────────────────────────────── */}
             {checkinPending && (

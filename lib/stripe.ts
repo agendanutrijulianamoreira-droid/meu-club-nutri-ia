@@ -20,11 +20,13 @@ export function getStripe(): Stripe {
     return _stripe
 }
 
-/**
- * Plan IDs → labels
- */
 export const PLAN_LABELS: Record<string, string> = {
-    community: 'Community (Grátis)',
-    tech_diet: 'Tech Diet',
-    vip: 'VIP Premium',
+    community: 'Clube',
+    tech_diet: 'Modo Paciente',
+    vip: 'Modo Paciente Premium',
 }
+
+export const PLAN_PRICES = {
+    annual: { amount_cents: 4700, label: 'R$47/ano', per_month: 'R$3,92/mês' },
+    monthly: { amount_cents: 9700, label: 'R$97/mês', per_month: 'R$97/mês' },
+} as const
