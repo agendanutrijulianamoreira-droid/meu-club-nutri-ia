@@ -133,6 +133,24 @@ Esquema de Retorno:
   "message": "Análise técnica rápida + sugestão de ação para o nutricionista (máx 200 caracteres)",
   "risk_impact": "low|medium|high"
 }`
+        } else if (task === 'email-marketing') {
+            const topic = sanitizeForPrompt(body.topic, 300)
+            const seg = body.segment || 'all'
+            const segLabel: Record<string, string> = { all: 'todas as pacientes', vip: 'pacientes VIP', active: 'pacientes ativas', inactive: 'pacientes inativas' }
+            systemInstruction += `
+Tarefa: Escrever um email de marketing para ${segLabel[seg] || 'todas as pacientes'} do clube ${brandName}.
+Tema solicitado: ${topic || 'Motivação e saúde'}
+Diretrizes:
+- Tom: ${personality === 'acolhedora' ? 'caloroso e acolhedor' : personality === 'tecnica' ? 'direto e informativo' : 'motivacional e energético'}
+- Use emojis com moderação
+- Máximo 200 palavras no corpo
+- Inclua uma frase de chamada para ação no final
+- O HTML deve ser simples: apenas <p>, <strong>, <br>, listas simples
+Retorne JSON:
+{
+  "subject": "Linha de assunto do email",
+  "html_body": "<p>Corpo do email em HTML simples...</p>"
+}`
         }
 
         const fullPrompt = prompt || `Gere um ${task} baseado no contexto: ${context}`
