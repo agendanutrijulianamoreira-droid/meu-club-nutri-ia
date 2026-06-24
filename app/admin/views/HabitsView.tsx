@@ -331,7 +331,7 @@ export function HabitsView({ setView, tenantId = '' }: HabitsViewProps) {
             .order('sort_order', { ascending: true })
             .order('created_at', { ascending: true })
 
-        setHabits(data ?? [])
+        setHabits((data ?? []) as Habit[])
         setLoading(false)
     }, [])
 
@@ -489,17 +489,16 @@ export function HabitsView({ setView, tenantId = '' }: HabitsViewProps) {
                     </div>
                 ) : (
                     <div className="space-y-2">
-                        <AnimatePresence>
-                            {habits.map(h => (
+                        {(habits as Habit[]).map((h: Habit) => (
+                            <AnimatePresence key={h.id}>
                                 <HabitRow
-                                    key={h.id}
                                     habit={h}
                                     onEdit={openEdit}
-                                    onDelete={handleDelete}
-                                    onToggle={handleToggle}
+                                    onDelete={(id) => { handleDelete(id) }}
+                                    onToggle={(id, active) => { handleToggle(id, active) }}
                                 />
-                            ))}
-                        </AnimatePresence>
+                            </AnimatePresence>
+                        ))}
 
                         {activeHabits < MAX_HABITS && (
                             <button
