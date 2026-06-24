@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
     Flame, Trophy, Star, Zap, Heart, Send, ChevronUp,
-    Sparkles, Crown, Target, Loader2, Users, Lock, MessageSquare
+    Sparkles, Crown, Target, Loader2, Users, Lock, MessageSquare,
+    Camera, Image, Globe
 } from "lucide-react"
 
 const EMOJIS = ["🔥", "💜", "👏", "💪", "⭐", "🎉"]
@@ -276,6 +277,14 @@ function ComposerBox({ onPost }: { onPost: (text: string) => Promise<void> }) {
     )
 }
 
+type Challenge = { id: string; title: string; emoji: string; start_date: string; end_date: string | null }
+type RankEntry = {
+    user_id: string; name: string; rank: number
+    total_xp?: number; current_streak: number; current_level: number
+    // challenge-specific
+    score?: number; camera_hits?: number; gallery_hits?: number; simple_hits?: number; engagement?: number
+}
+
 export default function FeedPage() {
     const [posts, setPosts] = useState<Post[]>([])
     const [loading, setLoading] = useState(true)
@@ -283,9 +292,12 @@ export default function FeedPage() {
     const [hasMore, setHasMore] = useState(false)
     const [nextCursor, setNextCursor] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<"feed" | "ranking">("feed")
-    const [ranking, setRanking] = useState<any[]>([])
+    const [ranking, setRanking] = useState<RankEntry[]>([])
     const [rankLoading, setRankLoading] = useState(false)
     const [myUserId, setMyUserId] = useState<string | null>(null)
+    const [challenges, setChallenges] = useState<Challenge[]>([])
+    const [selectedChallenge, setSelectedChallenge] = useState<string | null>(null)
+    const [activeChallengeMeta, setActiveChallengeMeta] = useState<Challenge | null>(null)
     const loaderRef = useRef<HTMLDivElement>(null)
 
     const loadFeed = useCallback(async (cursor?: string) => {
@@ -302,14 +314,27 @@ export default function FeedPage() {
         setNextCursor(data.nextCursor)
     }, [])
 
-    const loadRanking = useCallback(async () => {
+    const loadChallenges = useCallback(async () => {
+        const res = await fetch("/api/patient/ranking?mode=challenges")
+        if (res.ok) {
+            const data = await res.json()
+            setChallenges(data.challenges || [])
+        }
+    }, [])
+
+    const loadRanking = useCallback(async (challengeId?: string) => {
         setRankLoading(true)
         try {
-            const res = await fetch("/api/patient/ranking")
+            const url = challengeId
+                ? `/api/patient/ranking?challenge_id=${challengeId}`
+                : "/api/patient/ranking"
+            const res = await fetch(url)
             if (res.ok) {
                 const data = await res.json()
                 setRanking(data.ranking || [])
                 setMyUserId(data.myUserId)
+                if (data.challenge) setActiveChallengeMeta(data.challenge)
+                else setActiveChallengeMeta(null)
             }
         } finally {
             setRankLoading(false)
@@ -321,8 +346,17 @@ export default function FeedPage() {
     }, [loadFeed])
 
     useEffect(() => {
-        if (activeTab === "ranking" && ranking.length === 0) loadRanking()
-    }, [activeTab, ranking.length, loadRanking])
+        if (activeTab === "ranking") {
+            loadChallenges()
+            if (ranking.length === 0) loadRanking()
+        }
+    }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    const handleSelectChallenge = useCallback((id: string | null) => {
+        setSelectedChallenge(id)
+        setRanking([])
+        loadRanking(id ?? undefined)
+    }, [loadRanking])
 
     // Infinite scroll
     useEffect(() => {
@@ -453,9 +487,52 @@ export default function FeedPage() {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                         >
+                            {/* Challenge selector pills */}
+                            <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-none">
+                                <button
+                                    onClick={() => handleSelectChallenge(null)}
+                                    className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all
+                                        ${!selectedChallenge
+                                            ? "bg-indigo-600 border-indigo-500 text-white"
+                                            : "bg-white/5 border-white/10 text-slate-400 hover:text-white"}`}
+                                >
+                                    <Globe size={12} /> Geral
+                                </button>
+                                {challenges.map(c => (
+                                    <button
+                                        key={c.id}
+                                        onClick={() => handleSelectChallenge(c.id)}
+                                        className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all whitespace-nowrap
+                                            ${selectedChallenge === c.id
+                                                ? "bg-emerald-600 border-emerald-500 text-white"
+                                                : "bg-white/5 border-white/10 text-slate-400 hover:text-white"}`}
+                                    >
+                                        {c.emoji} {c.title}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Challenge header */}
+                            {activeChallengeMeta && (
+                                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 mb-4">
+                                    <p className="text-xs font-bold text-emerald-400">
+                                        {activeChallengeMeta.emoji} {activeChallengeMeta.title}
+                                    </p>
+                                    <p className="text-[10px] text-slate-500 mt-0.5">
+                                        Desempate: 📷 Câmera › 🖼️ Galeria › 💬 Engajamento
+                                    </p>
+                                </div>
+                            )}
+
                             {rankLoading ? (
                                 <div className="flex justify-center py-16">
                                     <Loader2 className="animate-spin text-slate-600" size={28} />
+                                </div>
+                            ) : ranking.length === 0 ? (
+                                <div className="text-center py-16">
+                                    <p className="text-4xl mb-3">🏆</p>
+                                    <p className="text-slate-400 font-bold">Nenhuma participante ainda</p>
+                                    <p className="text-slate-600 text-sm mt-1">Seja a primeira a entrar neste desafio!</p>
                                 </div>
                             ) : (
                                 <div className="space-y-2">
@@ -463,12 +540,15 @@ export default function FeedPage() {
                                     {ranking.slice(0, 3).length > 0 && (
                                         <div className="bg-gradient-to-br from-amber-950/40 to-yellow-950/20 border border-amber-500/20 rounded-3xl p-4 mb-4">
                                             <p className="text-[10px] font-black uppercase tracking-wider text-amber-500 mb-4 flex items-center gap-1">
-                                                <Crown size={12} /> Pódio desta semana
+                                                <Crown size={12} /> Pódio
                                             </p>
                                             <div className="flex items-end justify-center gap-3">
                                                 {[ranking[1], ranking[0], ranking[2]].map((p, i) => {
                                                     if (!p) return <div key={i} className="w-20" />
                                                     const isFirst = p.rank === 1
+                                                    const score = selectedChallenge
+                                                        ? (p.score || 0).toLocaleString('pt-BR')
+                                                        : `${(p.total_xp || 0).toLocaleString('pt-BR')} XP`
                                                     return (
                                                         <div key={p.user_id} className={`flex flex-col items-center ${isFirst ? "scale-110" : ""}`}>
                                                             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-bold text-white mb-1
@@ -480,9 +560,7 @@ export default function FeedPage() {
                                                             <span className="text-[10px] text-slate-400 font-bold truncate max-w-[60px] text-center">
                                                                 {p.name?.split(' ')[0]}
                                                             </span>
-                                                            <span className="text-[10px] text-indigo-400 font-black">
-                                                                {(p.total_xp || 0).toLocaleString('pt-BR')} XP
-                                                            </span>
+                                                            <span className="text-[10px] text-indigo-400 font-black">{score}</span>
                                                             <span className="text-base mt-0.5">
                                                                 {p.rank === 1 ? "🥇" : p.rank === 2 ? "🥈" : "🥉"}
                                                             </span>
@@ -503,7 +581,7 @@ export default function FeedPage() {
                                                     : "bg-white/[0.03] border-white/5"
                                                 }`}
                                         >
-                                            <span className={`w-7 text-center text-sm font-black
+                                            <span className={`w-7 text-center text-sm font-black flex-shrink-0
                                                 ${p.rank === 1 ? "text-yellow-400" :
                                                     p.rank === 2 ? "text-slate-400" :
                                                         p.rank === 3 ? "text-orange-600" : "text-slate-600"}`}>
@@ -517,12 +595,36 @@ export default function FeedPage() {
                                                 <p className="text-sm font-bold text-white truncate">
                                                     {p.user_id === myUserId ? "Você" : p.name?.split(' ')[0]}
                                                 </p>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-[10px] text-orange-400">🔥 {p.current_streak}d</span>
-                                                    <span className="text-[10px] text-slate-600">·</span>
-                                                    <span className="text-[10px] text-indigo-400">⚡ {(p.total_xp || 0).toLocaleString('pt-BR')} XP</span>
-                                                </div>
+                                                {selectedChallenge ? (
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className="text-[10px] text-indigo-400 font-bold">⚡ {p.score || 0} pts</span>
+                                                        {(p.camera_hits ?? 0) > 0 && (
+                                                            <span className="text-[10px] text-violet-400 flex items-center gap-0.5">
+                                                                <Camera size={9} /> {p.camera_hits}
+                                                            </span>
+                                                        )}
+                                                        {(p.gallery_hits ?? 0) > 0 && (
+                                                            <span className="text-[10px] text-sky-400 flex items-center gap-0.5">
+                                                                <Image size={9} /> {p.gallery_hits}
+                                                            </span>
+                                                        )}
+                                                        {(p.engagement ?? 0) > 0 && (
+                                                            <span className="text-[10px] text-emerald-400">💬 {p.engagement}</span>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] text-orange-400">🔥 {p.current_streak}d</span>
+                                                        <span className="text-[10px] text-slate-600">·</span>
+                                                        <span className="text-[10px] text-indigo-400">⚡ {(p.total_xp || 0).toLocaleString('pt-BR')} XP</span>
+                                                    </div>
+                                                )}
                                             </div>
+                                            {selectedChallenge && p.user_id === myUserId && (
+                                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/25 text-indigo-400 flex-shrink-0">
+                                                    Você
+                                                </span>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
