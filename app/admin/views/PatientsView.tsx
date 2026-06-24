@@ -425,10 +425,37 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     const [showProtocolModal, setShowProtocolModal] = useState(false)
     const [showMessageModal, setShowMessageModal] = useState(false)
     const [showEditModal, setShowEditModal] = useState(false)
-    const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'health'>('overview')
+    const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'health' | 'insights'>('overview')
     const [restrictions, setRestrictions] = useState<string[]>([])
     const [customRestriction, setCustomRestriction] = useState('')
     const [savingRestrictions, setSavingRestrictions] = useState(false)
+
+    // AI Insights state
+    const [insight, setInsight] = useState<{
+        behavioral_analysis: string
+        strengths: string[]
+        risks: string[]
+        action_suggestions: string[]
+        motivational_message: string
+        engagement_score: number
+    } | null>(null)
+    const [insightLoading, setInsightLoading] = useState(false)
+    const [insightError, setInsightError] = useState<string | null>(null)
+
+    const generateInsight = async () => {
+        setInsightLoading(true)
+        setInsightError(null)
+        try {
+            const res = await fetch(`/api/admin/patients/${patient.id}/insight`, { method: 'POST' })
+            const data = await res.json()
+            if (res.ok) setInsight(data.insight)
+            else setInsightError(data.error || 'Erro ao gerar insight')
+        } catch {
+            setInsightError('Erro de conexão')
+        } finally {
+            setInsightLoading(false)
+        }
+    }
 
     const rm = RISK_META[patient.riskLevel]
 
@@ -585,7 +612,7 @@ function PatientDetail({ patient, onAction, onRefresh }: {
 
                 {/* Tabs */}
                 <div className="flex gap-1 bg-white/5 rounded-xl p-1 w-fit">
-                    {[['overview', 'Visão Geral'], ['history', 'Histórico'], ['health', 'Saúde']].map(([id, label]) => (
+                    {[['overview', 'Visão Geral'], ['history', 'Histórico'], ['health', 'Saúde'], ['insights', '✨ IA']].map(([id, label]) => (
                         <button key={id} onClick={() => setActiveTab(id as any)}
                             className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all
                                 ${activeTab === id ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
@@ -864,6 +891,130 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                             ))}
                         </div>
                     </>
+                )}
+
+                {activeTab === 'insights' && (
+                    <div className="space-y-4">
+                        {/* Generate button */}
+                        {!insight && (
+                            <div className="bg-indigo-500/10 border border-indigo-500/25 rounded-2xl p-5 text-center space-y-4">
+                                <div className="w-12 h-12 bg-indigo-600/20 rounded-2xl flex items-center justify-center mx-auto">
+                                    <Sparkles size={22} className="text-indigo-400"/>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold text-white">Insight Profundo por IA</p>
+                                    <p className="text-xs text-slate-500 mt-1">Análise comportamental completa com pontos fortes, riscos e sugestões de ação personalizadas para {patient.name.split(' ')[0]}.</p>
+                                </div>
+                                {insightError && (
+                                    <p className="text-xs text-rose-400 font-bold">{insightError}</p>
+                                )}
+                                <button
+                                    onClick={generateInsight}
+                                    disabled={insightLoading}
+                                    className="flex items-center justify-center gap-2 mx-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-bold rounded-2xl transition-all">
+                                    {insightLoading ? <Loader2 size={15} className="animate-spin"/> : <Sparkles size={15}/>}
+                                    {insightLoading ? 'Analisando...' : 'Gerar Insight Agora'}
+                                </button>
+                            </div>
+                        )}
+
+                        {insight && (
+                            <>
+                                {/* Engagement score */}
+                                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Score de Engajamento IA</p>
+                                        <p className="text-xs text-slate-400 mt-0.5">Avaliação holística 0–100</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className={`text-3xl font-black ${insight.engagement_score >= 70 ? 'text-emerald-400' : insight.engagement_score >= 40 ? 'text-amber-400' : 'text-rose-400'}`}>
+                                            {insight.engagement_score}
+                                        </p>
+                                        <p className="text-[10px] text-slate-600">/100</p>
+                                    </div>
+                                </div>
+
+                                {/* Behavioral analysis */}
+                                <div className="bg-indigo-500/10 border border-indigo-500/25 rounded-2xl p-4 space-y-2">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                                        <Sparkles size={10}/> Análise Comportamental
+                                    </p>
+                                    <p className="text-sm text-slate-200 leading-relaxed">{insight.behavioral_analysis}</p>
+                                </div>
+
+                                {/* Strengths */}
+                                {insight.strengths.length > 0 && (
+                                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 space-y-2">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                                            <CheckCircle size={10}/> Pontos Fortes
+                                        </p>
+                                        <ul className="space-y-1.5">
+                                            {insight.strengths.map((s, i) => (
+                                                <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                                                    <span className="text-emerald-400 mt-0.5 flex-shrink-0">✓</span> {s}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Risks */}
+                                {insight.risks.length > 0 && (
+                                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 space-y-2">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                                            <AlertTriangle size={10}/> Pontos de Atenção
+                                        </p>
+                                        <ul className="space-y-1.5">
+                                            {insight.risks.map((r, i) => (
+                                                <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                                                    <span className="text-amber-400 mt-0.5 flex-shrink-0">⚠</span> {r}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Action suggestions */}
+                                {insight.action_suggestions.length > 0 && (
+                                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                            <Target size={10}/> Sugestões de Ação
+                                        </p>
+                                        <ul className="space-y-2">
+                                            {insight.action_suggestions.map((a, i) => (
+                                                <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                                                    <span className="text-indigo-400 font-bold flex-shrink-0">{i + 1}.</span> {a}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Motivational message */}
+                                {insight.motivational_message && (
+                                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Mensagem Motivacional</p>
+                                        <p className="text-sm text-slate-300 italic">"{insight.motivational_message}"</p>
+                                        <button
+                                            onClick={async () => {
+                                                try { await navigator.clipboard.writeText(insight.motivational_message) } catch {}
+                                                onAction('Mensagem copiada!')
+                                            }}
+                                            className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-bold transition-all">
+                                            <Copy size={12}/> Copiar para enviar
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Regenerate */}
+                                <button
+                                    onClick={() => { setInsight(null); setInsightError(null) }}
+                                    className="w-full py-2.5 bg-white/5 border border-white/10 text-slate-500 hover:text-slate-300 text-xs font-bold rounded-2xl transition-all">
+                                    Gerar novo insight
+                                </button>
+                            </>
+                        )}
+                    </div>
                 )}
 
                 {activeTab === 'health' && (
