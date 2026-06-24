@@ -75,7 +75,7 @@ export async function POST(
     const daysSinceJoin = Math.floor((Date.now() - new Date(profile.created_at).getTime()) / 86400000)
     const adherenceCount = (logs || []).filter(l => l.meal_plan_check || l.water_check || l.workout_check).length
     const adherenceRate = logs && logs.length > 0 ? Math.round((adherenceCount / 14) * 100) : 0
-    const protocol = assignment?.protocols as { title: string; description: string } | null
+    const protocol = assignment?.protocols as unknown as { title: string; description: string } | null
 
     const latestCheckin = checkins?.[0]
     const checkinTrend = checkins && checkins.length > 1
