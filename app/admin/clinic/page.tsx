@@ -84,7 +84,7 @@ export default function ClinicOnboardingPage() {
             router.refresh()
 
             setTimeout(() => {
-                window.location.assign('/admin')
+                window.location.assign('/setup')
             }, 2000)
 
         } catch (err: any) {
@@ -110,7 +110,7 @@ export default function ClinicOnboardingPage() {
                         Clínica Criada!
                     </h1>
                     <p className="text-slate-400 font-medium">
-                        Estamos preparando seu painel central. Prepare-se para decolar! 🚀
+                        Agora vamos configurar seu método e IA personalizada...
                     </p>
                 </motion.div>
             </div>
@@ -138,7 +138,7 @@ export default function ClinicOnboardingPage() {
                 <motion.div
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    className="glass-panel p-8 md:p-10 rounded-[2.5rem] border border-white/5 space-y-8 shadow-2xl relative overflow-hidden"
+                    className="bg-white/[0.03] p-8 md:p-10 rounded-[2.5rem] border border-white/10 space-y-8 shadow-2xl relative overflow-hidden"
                 >
                     <div className="absolute top-0 right-0 p-8 opacity-10">
                         <Sparkles size={120} className="text-indigo-400" />
