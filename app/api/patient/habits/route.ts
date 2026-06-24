@@ -106,22 +106,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Award XP
-    await supabase.rpc('increment_xp', { p_user_id: user.id, p_xp: xp }).catch(() => {
+    const { error: rpcError } = await supabase.rpc('increment_xp', { p_user_id: user.id, p_xp: xp })
+    if (rpcError) {
         // fallback manual increment if RPC doesn't exist
-        supabase
+        const { data: profileData } = await supabase
             .from('profiles')
             .select('total_xp')
             .eq('user_id', user.id)
             .single()
-            .then(({ data: profileData }: { data: { total_xp: number } | null }) => {
-                if (profileData) {
-                    supabase
-                        .from('profiles')
-                        .update({ total_xp: (profileData.total_xp || 0) + xp })
-                        .eq('user_id', user.id)
-                }
-            })
-    })
+        if (profileData) {
+            await supabase
+                .from('profiles')
+                .update({ total_xp: ((profileData as { total_xp: number }).total_xp || 0) + xp })
+                .eq('user_id', user.id)
+        }
+    }
 
     return NextResponse.json({ success: true, xp_awarded: xp })
 }
