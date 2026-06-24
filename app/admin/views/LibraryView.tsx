@@ -226,7 +226,7 @@ function ItemForm({ item, tenantId, category, type, onClose, createItem, updateI
             <div className="flex items-center justify-between">
                 <h2 className="font-bold text-white text-base">{isEditing ? 'Editar' : 'Novo'} {typeLabel}</h2>
                 <div className="flex items-center gap-3">
-                    <button onClick={() => setIsVip(v => !v)} className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-xl border transition-all ${isVip ? 'bg-amber-500/15 border-amber-500/30 text-amber-400' : 'bg-white/5 border-white/10 text-slate-600 hover:text-slate-400'}`}>
+                    <button onClick={() => setIsVip((v: boolean) => !v)} className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-xl border transition-all ${isVip ? 'bg-amber-500/15 border-amber-500/30 text-amber-400' : 'bg-white/5 border-white/10 text-slate-600 hover:text-slate-400'}`}>
                         <Crown size={13}/> {isVip ? 'VIP' : 'Grátis'}
                     </button>
                     <button onClick={() => setIsActive(v => !v)} className="flex items-center gap-1.5 text-xs font-bold transition-all">
