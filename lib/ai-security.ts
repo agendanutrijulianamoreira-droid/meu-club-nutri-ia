@@ -99,6 +99,7 @@ export type GenerateTask =
   | 'sales-copy'
   | 'marketing-suggestion'
   | 'checkin-analysis'
+  | 'email-marketing'
 
 const VALID_TASKS = new Set<GenerateTask>([
   'generate-protocol',
@@ -106,11 +107,17 @@ const VALID_TASKS = new Set<GenerateTask>([
   'sales-copy',
   'marketing-suggestion',
   'checkin-analysis',
+  'email-marketing',
 ])
 
 export function isValidTask(task: string): task is GenerateTask {
   return VALID_TASKS.has(task as GenerateTask)
 }
+
+const EmailMarketingSchema = z.object({
+  subject: z.string().min(1).max(200),
+  html_body: z.string().min(1).max(5000),
+})
 
 export function validateGenerateOutput(task: GenerateTask, data: unknown) {
   switch (task) {
@@ -119,5 +126,6 @@ export function validateGenerateOutput(task: GenerateTask, data: unknown) {
     case 'sales-copy':           return SalesCopySchema.parse(data)
     case 'marketing-suggestion': return MarketingSchema.parse(data)
     case 'checkin-analysis':     return CheckinAnalysisSchema.parse(data)
+    case 'email-marketing':      return EmailMarketingSchema.parse(data)
   }
 }

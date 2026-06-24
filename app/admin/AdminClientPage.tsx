@@ -74,6 +74,9 @@ import { ProductsView } from "./views/ProductsView"
 import { ApprovalsView } from "./views/ApprovalsView"
 import { RecipesView } from "./views/RecipesView"
 import { ManagerLearningView } from "./views/ManagerLearningView"
+import { HabitsView } from "./views/HabitsView"
+import { VipSettingsView } from "./views/VipSettingsView"
+import { EmailMarketingView } from "./views/EmailMarketingView"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -84,7 +87,7 @@ type ViewType =
     | 'agent-approvals' | 'agent-queue' | 'meal-plans' | 'meal-plans-premium'
     | 'appointments' | 'professionals' | 'product-gateway' | 'annual-planner'
     | 'strategic-planner' | 'content-planner' | 'analytics' | 'patient-journey'
-    | 'products' | 'approvals' | 'recipes' | 'manager-learning'
+    | 'products' | 'approvals' | 'recipes' | 'manager-learning' | 'habits' | 'vip-settings' | 'email-marketing'
 
 interface NavItem {
     id: ViewType
@@ -110,6 +113,7 @@ const navGroups: NavGroup[] = [
             { id: 'dashboard', label: 'Painel' },
             { id: 'analytics', label: 'Analytics' },
             { id: 'communication', label: 'Comunicação' },
+            { id: 'email-marketing', label: 'Email Marketing' },
         ],
     },
     {
@@ -130,6 +134,7 @@ const navGroups: NavGroup[] = [
         items: [
             { id: 'protocols', label: 'Protocolos' },
             { id: 'challenges', label: 'Desafios' },
+            { id: 'habits', label: 'Hábitos' },
             { id: 'meal-plans', label: 'Cardápios' },
             { id: 'recipes', label: 'Receitas' },
             { id: 'library', label: 'Biblioteca' },
@@ -142,6 +147,7 @@ const navGroups: NavGroup[] = [
         label: 'Clube',
         items: [
             { id: 'club-plan', label: 'Plano do Clube' },
+            { id: 'vip-settings', label: 'Área VIP' },
             { id: 'sales-page', label: 'Página de Vendas' },
             { id: 'product-gateway', label: 'Catálogo de Produtos' },
             { id: 'products', label: 'Produtos' },
@@ -263,6 +269,9 @@ export default function AdminDashboard({
             case 'products':           return <ProductsView setView={setActiveView} tenantId={tenantId} />
             case 'approvals':          return <ApprovalsView setView={setActiveView} tenantId={tenantId} />
             case 'recipes':            return <RecipesView setView={setActiveView} tenantId={tenantId} />
+            case 'habits':             return <HabitsView setView={setActiveView} tenantId={tenantId} />
+            case 'vip-settings':       return <VipSettingsView setView={setActiveView} tenantId={tenantId} />
+            case 'email-marketing':    return <EmailMarketingView setView={setActiveView} tenantId={tenantId} />
             case 'manager-learning':   return <ManagerLearningView setView={setActiveView} tenantId={tenantId} />
             case 'settings':           return <SettingsView {...props} />
             case 'settings-login':     return <SettingsLoginView />

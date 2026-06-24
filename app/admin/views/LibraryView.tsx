@@ -7,7 +7,7 @@ import {
     ShieldCheck, FileUp, Wand2, Save, RefreshCw,
     ToggleLeft, ToggleRight, ChevronRight, Image as ImageIcon,
     BookOpen, Tag, Upload, CheckCircle2, AlertCircle,
-    ExternalLink, FileText, Package, ChefHat, Trophy, Bell
+    ExternalLink, FileText, Package, ChefHat, Trophy, Bell, Crown, Lock
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useProtocols, Protocol } from "@/lib/hooks/useDatabase"
@@ -145,6 +145,7 @@ function ItemForm({ item, tenantId, category, type, onClose, createItem, updateI
     const [calories, setCalories] = useState(existingTags.find(t => t.includes('kcal'))?.replace(' kcal','') || '')
     const [mealType, setMealType] = useState(item?.content_json?.find((c: any) => c.type === 'meal_type')?.content || '')
     const [isActive, setIsActive] = useState(item?.is_active ?? true)
+    const [isVip, setIsVip] = useState((item as any)?.is_vip ?? false)
     const [saving, setSaving] = useState(false)
     const [parsing, setParsing] = useState(false)
     const [coverUrl, setCoverUrl] = useState<string | null>(item?.cover_image_url || null)
@@ -204,6 +205,7 @@ function ItemForm({ item, tenantId, category, type, onClose, createItem, updateI
                 category,
                 status: 'published',
                 is_active: isActive,
+                is_vip: isVip,
                 is_template: true,
                 tenant_id: tenantId || null,
             }
@@ -224,6 +226,9 @@ function ItemForm({ item, tenantId, category, type, onClose, createItem, updateI
             <div className="flex items-center justify-between">
                 <h2 className="font-bold text-white text-base">{isEditing ? 'Editar' : 'Novo'} {typeLabel}</h2>
                 <div className="flex items-center gap-3">
+                    <button onClick={() => setIsVip((v: boolean) => !v)} className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-xl border transition-all ${isVip ? 'bg-amber-500/15 border-amber-500/30 text-amber-400' : 'bg-white/5 border-white/10 text-slate-600 hover:text-slate-400'}`}>
+                        <Crown size={13}/> {isVip ? 'VIP' : 'Grátis'}
+                    </button>
                     <button onClick={() => setIsActive(v => !v)} className="flex items-center gap-1.5 text-xs font-bold transition-all">
                         {isActive ? <ToggleRight size={18} className="text-emerald-400"/> : <ToggleLeft size={18} className="text-slate-600"/>}
                         <span className={isActive ? 'text-emerald-400' : 'text-slate-600'}>{isActive ? 'Ativo' : 'Inativo'}</span>
@@ -593,6 +598,7 @@ export function LibraryView({ setView, tenantId = '' }: { setView: (v: any) => v
     const [viewingItem, setViewingItem] = useState<Protocol | null>(null)
     const [search, setSearch] = useState('')
     const [selectedTag, setSelectedTag] = useState<string | null>(null)
+    const [filterVip, setFilterVip] = useState<'all' | 'vip' | 'free'>('all')
 
     const tab = TABS.find(t => t.id === activeTab)!
 
@@ -602,11 +608,16 @@ export function LibraryView({ setView, tenantId = '' }: { setView: (v: any) => v
             (p.description || '').toLowerCase().includes(search.toLowerCase())
         const itemTags: string[] = p.content_json?.find((c: any) => c.type === 'tags')?.content || []
         const matchTag = !selectedTag || itemTags.includes(selectedTag)
-        return correctType && matchSearch && matchTag
+        const matchVip = filterVip === 'all' || (filterVip === 'vip' ? (p as any).is_vip : !(p as any).is_vip)
+        return correctType && matchSearch && matchTag && matchVip
     })
 
     const handleToggleActive = async (item: Protocol) => {
         await updateProtocol(item.id, { is_active: !item.is_active })
+    }
+
+    const handleToggleVip = async (item: Protocol) => {
+        await updateProtocol(item.id, { is_vip: !(item as any).is_vip } as any)
     }
 
     const handleDelete = async (item: Protocol) => {
@@ -663,21 +674,31 @@ export function LibraryView({ setView, tenantId = '' }: { setView: (v: any) => v
             {/* Import panel */}
             {activeTab === 'import' && <ImportPanel tenantId={tenantId}/>}
 
-            {/* Tag filter (recipes only) */}
-            {activeTab === 'recipes' && (
-                <div className="flex flex-wrap gap-2">
-                    <button onClick={() => setSelectedTag(null)}
-                        className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all
-                            ${!selectedTag ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300'}`}>
-                        Todos
-                    </button>
-                    {DIETARY_TAGS.map(tag => (
-                        <button key={tag} onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
-                            className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all
-                                ${selectedTag === tag ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300'}`}>
-                            {tag}
+            {/* Tag + VIP filter */}
+            {activeTab !== 'import' && (
+                <div className="flex flex-wrap gap-2 items-center">
+                    {/* VIP filter pills */}
+                    {(['all', 'free', 'vip'] as const).map(v => (
+                        <button key={v} onClick={() => setFilterVip(v)}
+                            className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1 ${filterVip === v
+                                ? v === 'vip' ? 'bg-amber-500/20 border-amber-500/30 text-amber-400' : 'bg-indigo-600 border-indigo-500 text-white'
+                                : 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300'}`}>
+                            {v === 'vip' && <Crown size={10}/>}
+                            {v === 'all' ? 'Todos' : v === 'vip' ? 'VIP' : 'Gratuitos'}
                         </button>
                     ))}
+                    {activeTab === 'recipes' && (
+                        <>
+                            <span className="text-slate-700 text-[10px]">|</span>
+                            {DIETARY_TAGS.map(tag => (
+                                <button key={tag} onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
+                                    className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border transition-all
+                                        ${selectedTag === tag ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300'}`}>
+                                    {tag}
+                                </button>
+                            ))}
+                        </>
+                    )}
                 </div>
             )}
 
@@ -725,13 +746,21 @@ export function LibraryView({ setView, tenantId = '' }: { setView: (v: any) => v
 
                         return (
                             <div key={item.id} className={`bg-white/5 border rounded-3xl p-5 group relative flex flex-col gap-3 transition-all ${item.is_active ? 'border-white/10 hover:border-indigo-500/25' : 'border-white/5 opacity-60'}`}>
+                                {/* VIP badge */}
+                                {(item as any).is_vip && (
+                                    <div className="absolute top-3 right-3">
+                                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-amber-500/15 border-amber-500/25 text-amber-400 flex items-center gap-1">
+                                            <Crown size={9}/> VIP
+                                        </span>
+                                    </div>
+                                )}
                                 {/* Icon + title */}
                                 <div className="flex items-start gap-3">
                                     <div className="w-11 h-11 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 flex-shrink-0">
                                         <tab.icon size={18}/>
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <h3 className="font-bold text-white text-sm truncate">{item.title}</h3>
+                                        <h3 className="font-bold text-white text-sm truncate pr-8">{item.title}</h3>
                                         <div className="flex items-center gap-2 mt-0.5">
                                             {mealType && <span className="text-[9px] text-slate-500">{mealType}</span>}
                                             {calories && <>
@@ -776,6 +805,12 @@ export function LibraryView({ setView, tenantId = '' }: { setView: (v: any) => v
                                     <button onClick={() => setViewingItem(item)}
                                         className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-indigo-600/15 hover:bg-indigo-600/30 text-indigo-300 text-xs font-bold transition-all">
                                         <BookOpen size={12}/> Ver ficha
+                                    </button>
+                                    <button
+                                        onClick={() => handleToggleVip(item)}
+                                        title={(item as any).is_vip ? 'Tornar gratuito' : 'Tornar VIP'}
+                                        className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${(item as any).is_vip ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30' : 'bg-white/5 text-slate-600 hover:text-amber-400 hover:bg-amber-500/10'}`}>
+                                        <Crown size={13}/>
                                     </button>
                                     <button onClick={() => { setEditingItem(item); setShowForm(false); }}
                                         className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-500 hover:text-white transition-all">

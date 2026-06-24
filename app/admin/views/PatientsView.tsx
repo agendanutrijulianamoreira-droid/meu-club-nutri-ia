@@ -6,7 +6,7 @@ import {
     Activity, Star, Crown, Trophy, Flame, CheckCircle, Mail,
     Phone, Clock, Target, ChevronRight, Loader2, Sparkles,
     Heart, Plus, X, RefreshCw, Send, Shield, Users, FileText,
-    ToggleLeft, ToggleRight, Gift, Coins, Download, KeyRound, Copy, Pencil
+    ToggleLeft, ToggleRight, Gift, Coins, Download, KeyRound, Copy, Pencil, Upload
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -425,10 +425,37 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     const [showProtocolModal, setShowProtocolModal] = useState(false)
     const [showMessageModal, setShowMessageModal] = useState(false)
     const [showEditModal, setShowEditModal] = useState(false)
-    const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'health'>('overview')
+    const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'health' | 'insights'>('overview')
     const [restrictions, setRestrictions] = useState<string[]>([])
     const [customRestriction, setCustomRestriction] = useState('')
     const [savingRestrictions, setSavingRestrictions] = useState(false)
+
+    // AI Insights state
+    const [insight, setInsight] = useState<{
+        behavioral_analysis: string
+        strengths: string[]
+        risks: string[]
+        action_suggestions: string[]
+        motivational_message: string
+        engagement_score: number
+    } | null>(null)
+    const [insightLoading, setInsightLoading] = useState(false)
+    const [insightError, setInsightError] = useState<string | null>(null)
+
+    const generateInsight = async () => {
+        setInsightLoading(true)
+        setInsightError(null)
+        try {
+            const res = await fetch(`/api/admin/patients/${patient.id}/insight`, { method: 'POST' })
+            const data = await res.json()
+            if (res.ok) setInsight(data.insight)
+            else setInsightError(data.error || 'Erro ao gerar insight')
+        } catch {
+            setInsightError('Erro de conexão')
+        } finally {
+            setInsightLoading(false)
+        }
+    }
 
     const rm = RISK_META[patient.riskLevel]
 
@@ -585,7 +612,7 @@ function PatientDetail({ patient, onAction, onRefresh }: {
 
                 {/* Tabs */}
                 <div className="flex gap-1 bg-white/5 rounded-xl p-1 w-fit">
-                    {[['overview', 'Visão Geral'], ['history', 'Histórico'], ['health', 'Saúde']].map(([id, label]) => (
+                    {[['overview', 'Visão Geral'], ['history', 'Histórico'], ['health', 'Saúde'], ['insights', '✨ IA']].map(([id, label]) => (
                         <button key={id} onClick={() => setActiveTab(id as any)}
                             className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all
                                 ${activeTab === id ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
@@ -866,6 +893,130 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                     </>
                 )}
 
+                {activeTab === 'insights' && (
+                    <div className="space-y-4">
+                        {/* Generate button */}
+                        {!insight && (
+                            <div className="bg-indigo-500/10 border border-indigo-500/25 rounded-2xl p-5 text-center space-y-4">
+                                <div className="w-12 h-12 bg-indigo-600/20 rounded-2xl flex items-center justify-center mx-auto">
+                                    <Sparkles size={22} className="text-indigo-400"/>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold text-white">Insight Profundo por IA</p>
+                                    <p className="text-xs text-slate-500 mt-1">Análise comportamental completa com pontos fortes, riscos e sugestões de ação personalizadas para {patient.name.split(' ')[0]}.</p>
+                                </div>
+                                {insightError && (
+                                    <p className="text-xs text-rose-400 font-bold">{insightError}</p>
+                                )}
+                                <button
+                                    onClick={generateInsight}
+                                    disabled={insightLoading}
+                                    className="flex items-center justify-center gap-2 mx-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-bold rounded-2xl transition-all">
+                                    {insightLoading ? <Loader2 size={15} className="animate-spin"/> : <Sparkles size={15}/>}
+                                    {insightLoading ? 'Analisando...' : 'Gerar Insight Agora'}
+                                </button>
+                            </div>
+                        )}
+
+                        {insight && (
+                            <>
+                                {/* Engagement score */}
+                                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Score de Engajamento IA</p>
+                                        <p className="text-xs text-slate-400 mt-0.5">Avaliação holística 0–100</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className={`text-3xl font-black ${insight.engagement_score >= 70 ? 'text-emerald-400' : insight.engagement_score >= 40 ? 'text-amber-400' : 'text-rose-400'}`}>
+                                            {insight.engagement_score}
+                                        </p>
+                                        <p className="text-[10px] text-slate-600">/100</p>
+                                    </div>
+                                </div>
+
+                                {/* Behavioral analysis */}
+                                <div className="bg-indigo-500/10 border border-indigo-500/25 rounded-2xl p-4 space-y-2">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                                        <Sparkles size={10}/> Análise Comportamental
+                                    </p>
+                                    <p className="text-sm text-slate-200 leading-relaxed">{insight.behavioral_analysis}</p>
+                                </div>
+
+                                {/* Strengths */}
+                                {insight.strengths.length > 0 && (
+                                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 space-y-2">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                                            <CheckCircle size={10}/> Pontos Fortes
+                                        </p>
+                                        <ul className="space-y-1.5">
+                                            {insight.strengths.map((s, i) => (
+                                                <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                                                    <span className="text-emerald-400 mt-0.5 flex-shrink-0">✓</span> {s}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Risks */}
+                                {insight.risks.length > 0 && (
+                                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 space-y-2">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                                            <AlertTriangle size={10}/> Pontos de Atenção
+                                        </p>
+                                        <ul className="space-y-1.5">
+                                            {insight.risks.map((r, i) => (
+                                                <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                                                    <span className="text-amber-400 mt-0.5 flex-shrink-0">⚠</span> {r}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Action suggestions */}
+                                {insight.action_suggestions.length > 0 && (
+                                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                            <Target size={10}/> Sugestões de Ação
+                                        </p>
+                                        <ul className="space-y-2">
+                                            {insight.action_suggestions.map((a, i) => (
+                                                <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                                                    <span className="text-indigo-400 font-bold flex-shrink-0">{i + 1}.</span> {a}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Motivational message */}
+                                {insight.motivational_message && (
+                                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Mensagem Motivacional</p>
+                                        <p className="text-sm text-slate-300 italic">"{insight.motivational_message}"</p>
+                                        <button
+                                            onClick={async () => {
+                                                try { await navigator.clipboard.writeText(insight.motivational_message) } catch {}
+                                                onAction('Mensagem copiada!')
+                                            }}
+                                            className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-bold transition-all">
+                                            <Copy size={12}/> Copiar para enviar
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Regenerate */}
+                                <button
+                                    onClick={() => { setInsight(null); setInsightError(null) }}
+                                    className="w-full py-2.5 bg-white/5 border border-white/10 text-slate-500 hover:text-slate-300 text-xs font-bold rounded-2xl transition-all">
+                                    Gerar novo insight
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
+
                 {activeTab === 'health' && (
                     <div className="space-y-4">
                         <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
@@ -931,6 +1082,243 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     )
 }
 
+// ─── Import CSV Modal ─────────────────────────────────────────────────────────
+interface ImportRow { name: string; email: string; phone?: string; plan?: string; primary_goal?: string }
+interface ImportResult { email: string; name: string; status: 'success' | 'error'; error?: string; temp_password?: string }
+
+function ImportCSVModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+    const [step, setStep] = useState<'upload' | 'preview' | 'importing' | 'results'>('upload')
+    const [rows, setRows] = useState<ImportRow[]>([])
+    const [results, setResults] = useState<ImportResult[]>([])
+    const [parseError, setParseError] = useState<string | null>(null)
+    const [progress, setProgress] = useState(0)
+
+    const parseCSV = (text: string) => {
+        setParseError(null)
+        const lines = text.split(/\r?\n/).filter(l => l.trim())
+        if (lines.length < 2) { setParseError('CSV deve ter pelo menos 1 linha de cabeçalho e 1 de dados'); return }
+
+        const header = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g, ''))
+        const nameIdx = header.findIndex(h => ['nome', 'name'].includes(h))
+        const emailIdx = header.findIndex(h => h === 'email')
+        const phoneIdx = header.findIndex(h => ['telefone', 'phone', 'celular'].includes(h))
+        const planIdx = header.findIndex(h => ['plano', 'plan'].includes(h))
+        const goalIdx = header.findIndex(h => ['objetivo', 'primary_goal', 'goal'].includes(h))
+
+        if (nameIdx === -1 || emailIdx === -1) {
+            setParseError('Colunas obrigatórias não encontradas. O CSV deve ter "nome" e "email".')
+            return
+        }
+
+        const parsed: ImportRow[] = []
+        for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''))
+            if (!cols[emailIdx] && !cols[nameIdx]) continue
+            parsed.push({
+                name: cols[nameIdx] || '',
+                email: cols[emailIdx] || '',
+                phone: phoneIdx >= 0 ? cols[phoneIdx] : undefined,
+                plan: planIdx >= 0 ? cols[planIdx] : undefined,
+                primary_goal: goalIdx >= 0 ? cols[goalIdx] : undefined,
+            })
+        }
+
+        if (parsed.length === 0) { setParseError('Nenhuma linha válida encontrada'); return }
+        if (parsed.length > 200) { setParseError('Máximo 200 linhas por importação'); return }
+        setRows(parsed)
+        setStep('preview')
+    }
+
+    const handleFile = (file: File) => {
+        const reader = new FileReader()
+        reader.onload = e => parseCSV(e.target?.result as string)
+        reader.readAsText(file, 'UTF-8')
+    }
+
+    const handleImport = async () => {
+        setStep('importing')
+        setProgress(0)
+        try {
+            const res = await fetch('/api/admin/patients/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rows }),
+            })
+            const data = await res.json()
+            setResults(data.results || [])
+            setProgress(100)
+            setStep('results')
+            onDone()
+        } catch {
+            setParseError('Erro de conexão ao importar')
+            setStep('preview')
+        }
+    }
+
+    const downloadTemplate = () => {
+        const csv = 'nome,email,telefone,plano,objetivo\nMaria Silva,maria@email.com,11999998888,community,Emagrecer\nAna Costa,ana@email.com,,,Ganhar saúde'
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url; a.download = 'modelo-importacao.csv'
+        document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    }
+
+    const successCount = results.filter(r => r.status === 'success').length
+    const errorCount = results.filter(r => r.status === 'error').length
+
+    return (
+        <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div className="bg-slate-900 border border-white/10 rounded-3xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden"
+                initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }}>
+
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/5 flex-shrink-0">
+                    <div>
+                        <h3 className="text-base font-bold text-white flex items-center gap-2">
+                            <Upload size={16} className="text-indigo-400"/> Importar Membros (CSV)
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                            {step === 'upload' && 'Faça upload de um arquivo CSV'}
+                            {step === 'preview' && `${rows.length} linha(s) detectada(s)`}
+                            {step === 'importing' && 'Importando...'}
+                            {step === 'results' && `${successCount} criadas · ${errorCount} com erro`}
+                        </p>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl text-slate-500 hover:text-white transition-all">
+                        <X size={16}/>
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+                    {step === 'upload' && (
+                        <>
+                            <label className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-white/10 hover:border-indigo-500/40 rounded-2xl p-10 cursor-pointer transition-all group">
+                                <div className="w-12 h-12 bg-indigo-600/20 rounded-2xl flex items-center justify-center group-hover:bg-indigo-600/30 transition-all">
+                                    <Upload size={22} className="text-indigo-400"/>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-sm font-bold text-white">Clique para escolher o arquivo</p>
+                                    <p className="text-xs text-slate-500 mt-1">Apenas arquivos .csv</p>
+                                </div>
+                                <input type="file" accept=".csv" className="hidden"
+                                    onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}/>
+                            </label>
+
+                            {parseError && (
+                                <p className="text-xs text-rose-400 font-bold text-center">{parseError}</p>
+                            )}
+
+                            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Colunas esperadas</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {[['nome', 'obrigatório'], ['email', 'obrigatório'], ['telefone', 'opcional'], ['plano', 'opcional'], ['objetivo', 'opcional']].map(([col, hint]) => (
+                                        <span key={col} className={`text-[10px] font-bold px-2 py-1 rounded-lg border ${hint === 'obrigatório' ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400' : 'bg-white/5 border-white/10 text-slate-500'}`}>
+                                            {col} <span className="opacity-60">({hint})</span>
+                                        </span>
+                                    ))}
+                                </div>
+                                <p className="text-[10px] text-slate-600">Planos válidos: community, tech_diet, vip</p>
+                            </div>
+
+                            <button onClick={downloadTemplate}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 bg-white/5 border border-white/10 hover:border-white/20 text-slate-400 text-xs font-bold rounded-2xl transition-all">
+                                <Download size={13}/> Baixar modelo CSV
+                            </button>
+                        </>
+                    )}
+
+                    {step === 'preview' && (
+                        <>
+                            <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                                <div className="grid grid-cols-3 gap-0 text-[10px] font-black uppercase tracking-wider text-slate-500 px-4 py-2 border-b border-white/5">
+                                    <span>Nome</span><span>Email</span><span>Plano</span>
+                                </div>
+                                <div className="max-h-48 overflow-y-auto">
+                                    {rows.map((r, i) => (
+                                        <div key={i} className="grid grid-cols-3 gap-0 px-4 py-2 border-b border-white/[0.03] text-xs">
+                                            <span className="text-white truncate pr-2">{r.name || <span className="text-rose-400">—</span>}</span>
+                                            <span className="text-slate-400 truncate pr-2">{r.email || <span className="text-rose-400">—</span>}</span>
+                                            <span className="text-slate-500 truncate">{r.plan || 'community'}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <p className="text-[11px] text-slate-500 text-center">
+                                Uma senha temporária será gerada para cada membro.
+                            </p>
+                            {parseError && (
+                                <p className="text-xs text-rose-400 font-bold text-center">{parseError}</p>
+                            )}
+                            <div className="flex gap-3">
+                                <button onClick={() => { setRows([]); setStep('upload') }}
+                                    className="flex-1 py-3 bg-white/5 border border-white/10 text-slate-400 text-sm font-bold rounded-2xl">
+                                    Voltar
+                                </button>
+                                <button onClick={handleImport}
+                                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-2xl transition-all">
+                                    Importar {rows.length} membro(s)
+                                </button>
+                            </div>
+                        </>
+                    )}
+
+                    {step === 'importing' && (
+                        <div className="flex flex-col items-center justify-center py-12 gap-4">
+                            <Loader2 size={32} className="animate-spin text-indigo-400"/>
+                            <p className="text-sm font-bold text-white">Criando {rows.length} conta(s)...</p>
+                            <p className="text-xs text-slate-500">Isso pode levar alguns segundos</p>
+                        </div>
+                    )}
+
+                    {step === 'results' && (
+                        <>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 text-center">
+                                    <p className="text-2xl font-black text-emerald-400">{successCount}</p>
+                                    <p className="text-[10px] text-slate-500 uppercase font-bold mt-0.5">Criadas</p>
+                                </div>
+                                <div className={`${errorCount > 0 ? 'bg-rose-500/10 border-rose-500/20' : 'bg-white/5 border-white/10'} border rounded-2xl p-4 text-center`}>
+                                    <p className={`text-2xl font-black ${errorCount > 0 ? 'text-rose-400' : 'text-slate-600'}`}>{errorCount}</p>
+                                    <p className="text-[10px] text-slate-500 uppercase font-bold mt-0.5">Com erro</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                                {results.map((r, i) => (
+                                    <div key={i} className={`flex items-start gap-3 p-3 rounded-xl border ${r.status === 'success' ? 'bg-emerald-500/5 border-emerald-500/15' : 'bg-rose-500/5 border-rose-500/15'}`}>
+                                        <span className={`text-sm flex-shrink-0 mt-0.5 ${r.status === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                            {r.status === 'success' ? '✓' : '✗'}
+                                        </span>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-bold text-white truncate">{r.name}</p>
+                                            <p className="text-[10px] text-slate-500 truncate">{r.email}</p>
+                                            {r.status === 'success' && r.temp_password && (
+                                                <p className="text-[10px] text-indigo-400 font-bold mt-0.5">Senha temp: {r.temp_password}</p>
+                                            )}
+                                            {r.status === 'error' && (
+                                                <p className="text-[10px] text-rose-400 mt-0.5">{r.error}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button onClick={onClose}
+                                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-2xl transition-all">
+                                Concluir
+                            </button>
+                        </>
+                    )}
+                </div>
+            </motion.div>
+        </motion.div>
+    )
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────────────
 export function PatientsView({ setView }: { setView: (v: any) => void }) {
     const [patients, setPatients] = useState<Patient[]>([])
@@ -939,6 +1327,7 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
     const [search, setSearch] = useState('')
     const [filter, setFilter] = useState<'all' | 'risk' | 'star' | 'active'>('all')
     const [showRegister, setShowRegister] = useState(false)
+    const [showImport, setShowImport] = useState(false)
     const [toast, setToast] = useState<string | null>(null)
 
     const refresh = useCallback(async () => {
@@ -1033,6 +1422,9 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                             <button onClick={exportCSV} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-600 hover:text-slate-400 transition-colors" title="Exportar CSV">
                                 <Download size={13}/>
                             </button>
+                            <button onClick={() => setShowImport(true)} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-600 hover:text-slate-400 transition-colors" title="Importar CSV">
+                                <Upload size={13}/>
+                            </button>
                             <button onClick={refresh} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-600 hover:text-slate-400 transition-colors" title="Atualizar">
                                 <RefreshCw size={13}/>
                             </button>
@@ -1120,6 +1512,12 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                         onClose={() => setShowRegister(false)}
                         onRegistered={() => refresh()}
                         onSuccess={() => { setShowRegister(false); showToast('Rainha cadastrada com sucesso!') }}
+                    />
+                )}
+                {showImport && (
+                    <ImportCSVModal
+                        onClose={() => setShowImport(false)}
+                        onDone={() => { refresh(); showToast('Importação concluída!') }}
                     />
                 )}
             </AnimatePresence>
