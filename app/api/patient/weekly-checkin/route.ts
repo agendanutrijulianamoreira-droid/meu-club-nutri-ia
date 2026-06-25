@@ -118,10 +118,10 @@ export async function GET(request: NextRequest) {
 
     const { data } = await supabase
         .from('weekly_checkin_responses')
-        .select('id, diet_score, ai_summary, created_at')
+        .select('id, diet_score, ai_summary, mood, created_at')
         .eq('user_id', user.id)
         .eq('week_start', weekStartStr)
         .single()
 
-    return NextResponse.json({ submitted: !!data, data })
+    return NextResponse.json({ submitted: !!data, checkin: data || null })
 }
