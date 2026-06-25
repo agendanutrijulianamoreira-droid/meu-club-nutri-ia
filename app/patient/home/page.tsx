@@ -16,6 +16,9 @@ import {
     ChevronRight,
     Crown,
     Zap,
+    Calendar,
+    Video,
+    MapPin,
 } from "lucide-react"
 import { usePatientEngine } from "@/lib/hooks/usePatientEngine"
 import Link from "next/link"
@@ -43,6 +46,7 @@ export default function PatientHomePage() {
     const [nutriCoins, setNutriCoins] = useState(0)
     const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null)
     const [currentPlan, setCurrentPlan] = useState<string>("community")
+    const [nextAppointment, setNextAppointment] = useState<{ scheduled_at: string; is_virtual: boolean; meeting_link?: string; appointment_type: string } | null>(null)
 
     useEffect(() => {
         const init = async () => {
@@ -117,6 +121,17 @@ export default function PatientHomePage() {
                 .order('cost', { ascending: true })
                 .limit(1)
             if (rewards && rewards.length > 0) setNextReward(rewards[0])
+
+            // Next upcoming appointment
+            const { data: appts } = await supabase
+                .from('appointments')
+                .select('scheduled_at, is_virtual, meeting_link, appointment_type')
+                .eq('patient_id', session.user.id)
+                .in('status', ['scheduled', 'confirmed'])
+                .gte('scheduled_at', new Date().toISOString())
+                .order('scheduled_at', { ascending: true })
+                .limit(1)
+            if (appts && appts.length > 0) setNextAppointment(appts[0])
         }
         init()
     }, [])
@@ -311,6 +326,31 @@ export default function PatientHomePage() {
                     </Link>
                 </motion.div>
             )}
+
+            {/* ─── Widget: Próxima Consulta ────────────────────────────── */}
+            {nextAppointment && (() => {
+                const d = new Date(nextAppointment.scheduled_at)
+                const typeLabel: Record<string, string> = { consultation: 'Consulta', followup: 'Retorno', initial_assessment: 'Avaliação', group_session: 'Grupo' }
+                const date = d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' })
+                const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
+                return (
+                    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
+                        <Link href="/patient/appointments">
+                            <div className="flex items-center gap-4 p-4 bg-teal-600/10 border border-teal-500/25 rounded-2xl group hover:border-teal-400/40 transition-all">
+                                <div className="w-11 h-11 rounded-xl bg-teal-600/20 border border-teal-500/25 flex items-center justify-center flex-shrink-0">
+                                    {nextAppointment.is_virtual ? <Video className="text-teal-300" size={18} /> : <MapPin className="text-teal-300" size={18} />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-400 mb-0.5">Próxima Consulta</p>
+                                    <p className="text-white font-bold text-sm">{typeLabel[nextAppointment.appointment_type] || 'Consulta'}</p>
+                                    <p className="text-slate-400 text-xs capitalize">{date} · {time}</p>
+                                </div>
+                                <ChevronRight className="text-teal-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
+                            </div>
+                        </Link>
+                    </motion.div>
+                )
+            })()}
 
             {/* ─── SEÇÃO 2: Protocolo Ativo — Missões do Dia ────────────── */}
             <div className="mb-5">

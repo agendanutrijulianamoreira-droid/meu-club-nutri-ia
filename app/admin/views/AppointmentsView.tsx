@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react'
 import {
   Calendar, Clock, Video, MapPin, Plus, Loader2, CheckCircle2, XCircle,
-  User, ChevronRight, AlertCircle, RefreshCw, Phone, ExternalLink, Trash2
+  User, ChevronRight, AlertCircle, RefreshCw, Phone, ExternalLink, Trash2,
+  ChevronLeft, LayoutGrid, List
 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
@@ -55,6 +56,8 @@ export function AppointmentsView({ setView, tenantId }: AppointmentsViewProps) {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [filter, setFilter] = useState<'upcoming' | 'all' | 'completed'>('upcoming')
+  const [view, setViewMode] = useState<'list' | 'week'>('list')
+  const [weekOffset, setWeekOffset] = useState(0)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
 
   // Form state
@@ -286,25 +289,113 @@ export function AppointmentsView({ setView, tenantId }: AppointmentsViewProps) {
         )}
       </AnimatePresence>
 
-      {/* Filters */}
-      <div className="flex gap-1 p-1 bg-slate-800/50 rounded-lg w-fit">
-        {([['upcoming', 'Próximas'], ['all', 'Todas'], ['completed', 'Realizadas']] as const).map(([f, label]) => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${filter === f ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
-            {label}
+      {/* Filters + View Toggle */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex gap-1 p-1 bg-slate-800/50 rounded-lg w-fit">
+          {([['upcoming', 'Próximas'], ['all', 'Todas'], ['completed', 'Realizadas']] as const).map(([f, label]) => (
+            <button key={f} onClick={() => { setFilter(f); setViewMode('list') }}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${filter === f && view === 'list' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1 p-1 bg-slate-800/50 rounded-lg">
+          <button onClick={() => setViewMode('list')} title="Lista"
+            className={`px-3 py-2 rounded-md transition-all ${view === 'list' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+            <List size={15} />
           </button>
-        ))}
+          <button onClick={() => setViewMode('week')} title="Semana"
+            className={`px-3 py-2 rounded-md transition-all ${view === 'week' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+            <LayoutGrid size={15} />
+          </button>
+        </div>
       </div>
 
+      {/* Week View */}
+      {view === 'week' && (() => {
+        const today = new Date()
+        const startOfWeek = new Date(today)
+        startOfWeek.setDate(today.getDate() - today.getDay() + 1 + weekOffset * 7) // Monday
+        startOfWeek.setHours(0, 0, 0, 0)
+        const endOfWeek = new Date(startOfWeek)
+        endOfWeek.setDate(startOfWeek.getDate() + 6)
+        endOfWeek.setHours(23, 59, 59, 999)
+
+        const days = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(startOfWeek)
+          d.setDate(startOfWeek.getDate() + i)
+          return d
+        })
+
+        const weekLabel = `${startOfWeek.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })} – ${endOfWeek.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}`
+
+        const apptsByDay = (dayDate: Date) => appointments.filter(a => {
+          const d = new Date(a.scheduled_at)
+          return d.toDateString() === dayDate.toDateString()
+        })
+
+        return (
+          <div className="space-y-4">
+            {/* Week nav */}
+            <div className="flex items-center justify-between">
+              <button onClick={() => setWeekOffset(w => w - 1)} className="p-2 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors">
+                <ChevronLeft size={18} />
+              </button>
+              <div className="text-center">
+                <p className="text-white font-semibold text-sm">{weekLabel}</p>
+                {weekOffset === 0 && <p className="text-xs text-indigo-400">Esta semana</p>}
+                {weekOffset > 0 && <button onClick={() => setWeekOffset(0)} className="text-xs text-slate-500 hover:text-slate-300">Voltar à semana atual</button>}
+              </div>
+              <button onClick={() => setWeekOffset(w => w + 1)} className="p-2 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors">
+                <ChevronRight size={18} />
+              </button>
+            </div>
+
+            {/* Day columns */}
+            <div className="grid grid-cols-7 gap-2">
+              {days.map((dayDate, di) => {
+                const isToday = dayDate.toDateString() === today.toDateString()
+                const dayAppts = apptsByDay(dayDate)
+                const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+                return (
+                  <div key={di} className={`rounded-xl border p-2 min-h-[120px] ${isToday ? 'border-indigo-500/40 bg-indigo-600/5' : 'border-slate-700/50 bg-slate-800/20'}`}>
+                    <div className={`text-center mb-2 ${isToday ? 'text-indigo-400' : 'text-slate-500'}`}>
+                      <p className="text-[10px] font-black uppercase">{WEEKDAYS[di]}</p>
+                      <p className={`text-lg font-black ${isToday ? 'text-indigo-400' : 'text-slate-400'}`}>{dayDate.getDate()}</p>
+                    </div>
+                    <div className="space-y-1">
+                      {dayAppts.map(appt => {
+                        const time = new Date(appt.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
+                        const status = STATUS_STYLES[appt.status] || STATUS_STYLES.scheduled
+                        return (
+                          <div key={appt.id} className={`px-1.5 py-1 rounded-lg text-[10px] ${status.bg} border border-white/5`}>
+                            <p className={`font-black ${status.text}`}>{time}</p>
+                            <p className="text-white font-medium truncate">{appt.patient?.name || 'Paciente'}</p>
+                          </div>
+                        )
+                      })}
+                      {dayAppts.length === 0 && (
+                        <p className="text-[10px] text-slate-700 text-center mt-2">—</p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Appointments List */}
-      {loading ? (
-        <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-indigo-400" size={32} /></div>
-      ) : appointments.length === 0 ? (
-        <div className="text-center py-16">
-          <Calendar size={48} className="mx-auto text-slate-600 mb-4" />
-          <p className="text-slate-400">{filter === 'upcoming' ? 'Nenhuma consulta agendada.' : 'Nenhuma consulta encontrada.'}</p>
-        </div>
-      ) : (
+      {view === 'list' && (
+        loading ? (
+          <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-indigo-400" size={32} /></div>
+        ) : appointments.length === 0 ? (
+          <div className="text-center py-16">
+            <Calendar size={48} className="mx-auto text-slate-600 mb-4" />
+            <p className="text-slate-400">{filter === 'upcoming' ? 'Nenhuma consulta agendada.' : 'Nenhuma consulta encontrada.'}</p>
+          </div>
+        ) : (
         <div className="space-y-3">
           {appointments.map((appt, i) => {
             const { date, time } = formatDateTime(appt.scheduled_at)
@@ -373,6 +464,7 @@ export function AppointmentsView({ setView, tenantId }: AppointmentsViewProps) {
             )
           })}
         </div>
+        )
       )}
     </div>
   )
