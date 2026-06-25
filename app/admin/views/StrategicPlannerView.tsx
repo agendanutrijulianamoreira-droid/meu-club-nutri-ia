@@ -405,7 +405,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
         currentMonth.getFullYear() === new Date().getFullYear()
 
     return (
-        <div className="flex h-[calc(100vh-80px)] bg-[#0a0a16] text-white overflow-hidden">
+        <div className="flex h-[calc(100vh-80px)] bg-slate-950 text-white overflow-hidden">
 
             {/* ===== MAIN AREA (CALENDAR) ===== */}
             <div className="flex-1 p-6 overflow-y-auto">
@@ -463,7 +463,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                         onClick={() => handleDayClick(day)}
                                         onDragOver={handleDragOver}
                                         onDrop={(e) => handleDrop(e, day)}
-                                        className={`min-h-[120px] glass-panel rounded-xl p-2 cursor-pointer transition-all group relative ${isToday ? 'ring-2 ring-purple-500 bg-purple-500/5' : 'hover:border-purple-500/30'
+                                        className={`min-h-[120px] bg-white/[0.03] border border-white/10 rounded-xl p-2 cursor-pointer transition-all group relative ${isToday ? 'ring-2 ring-purple-500 bg-purple-500/5' : 'hover:border-purple-500/30'
                                             }`}
                                     >
                                         {/* Day Number */}
@@ -522,7 +522,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                 </div>
 
                 {/* AI Push Suggestion */}
-                <div className="glass-panel p-4 rounded-xl border border-yellow-500/20 mb-6">
+                <div className="bg-white/[0.03] border border-white/10 p-4 rounded-xl border border-yellow-500/20 mb-6">
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2 text-yellow-400 font-bold text-sm">
                             <Sparkles size={16} />
@@ -549,7 +549,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                 </div>
 
                 {/* Templates Rápidos */}
-                <div className="glass-panel p-4 rounded-xl border border-purple-500/20 mb-6">
+                <div className="bg-white/[0.03] border border-white/10 p-4 rounded-xl border border-purple-500/20 mb-6">
                     <div className="flex items-center justify-between mb-3">
                         <span className="text-xs font-bold text-purple-400 uppercase">Templates Rápidos</span>
                         <Star size={14} className="text-purple-400" />
@@ -582,7 +582,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                 </div>
 
                 {/* Quick Stats */}
-                <div className="glass-panel p-4 rounded-xl border border-white/5 mb-6">
+                <div className="bg-white/[0.03] border border-white/10 p-4 rounded-xl border border-white/5 mb-6">
                     <h4 className="text-xs font-bold text-gray-500 uppercase mb-3">Este Mês</h4>
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">
