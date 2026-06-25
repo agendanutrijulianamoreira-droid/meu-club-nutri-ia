@@ -78,6 +78,10 @@ function ChallengeBuilderContent() {
     const [activeTab, setActiveTab] = useState<'setup' | 'missions' | 'feed'>('missions')
     const [saving, setSaving] = useState(false)
     const [loading, setLoading] = useState(!!challengeId)
+    const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+    const showToast = (msg: string, type: 'success' | 'error' = 'error') => {
+        setToast({ type, msg }); setTimeout(() => setToast(null), 3500)
+    }
 
     // Challenge Info
     const [challengeInfo, setChallengeInfo] = useState({
@@ -323,7 +327,7 @@ function ChallengeBuilderContent() {
             router.push('/admin?view=challenges')
         } catch (error) {
             console.error('Erro ao salvar:', error)
-            alert('Erro ao salvar desafio')
+            showToast('Erro ao salvar desafio')
         } finally {
             setSaving(false)
         }
@@ -336,16 +340,24 @@ function ChallengeBuilderContent() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-[#0a0a16] flex items-center justify-center">
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
                 <Loader2 className="animate-spin text-purple-400" size={48} />
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen bg-[#0a0a16] text-white">
+        <div className="min-h-screen bg-slate-950 text-white">
+            <AnimatePresence>
+                {toast && (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                        className={`fixed top-4 left-1/2 -translate-x-1/2 z-[200] px-5 py-3 rounded-2xl text-sm font-bold shadow-xl border ${toast.type === 'error' ? 'bg-rose-500/20 border-rose-500/30 text-rose-300' : 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300'}`}>
+                        {toast.msg}
+                    </motion.div>
+                )}
+            </AnimatePresence>
             {/* Header */}
-            <header className="border-b border-gray-800 bg-[#0a0a16]/80 backdrop-blur-xl sticky top-0 z-50">
+            <header className="border-b border-gray-800 bg-slate-950/80 backdrop-blur-xl sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-6 py-4">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-4">
@@ -412,7 +424,7 @@ function ChallengeBuilderContent() {
             </header>
 
             {/* Tabs */}
-            <div className="border-b border-gray-800 bg-[#0a0a16]">
+            <div className="border-b border-gray-800 bg-slate-950">
                 <div className="max-w-7xl mx-auto px-6">
                     <div className="flex gap-8 text-sm font-bold text-gray-400">
                         <button
@@ -446,7 +458,7 @@ function ChallengeBuilderContent() {
                 {/* TAB: Setup */}
                 {activeTab === 'setup' && (
                     <div className="max-w-2xl space-y-6">
-                        <div className="glass-panel p-6 rounded-2xl border border-white/5 space-y-6">
+                        <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/5 space-y-6">
                             <h3 className="font-bold text-lg flex items-center gap-2">
                                 <Trophy className="text-purple-400" size={20} />
                                 Informações do Desafio
@@ -529,7 +541,7 @@ function ChallengeBuilderContent() {
 
                         {/* Sidebar: Mission Templates */}
                         <div className="lg:col-span-1">
-                            <div className="glass-panel p-6 rounded-2xl border border-white/5 sticky top-32">
+                            <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/5 sticky top-32">
                                 <h3 className="font-bold text-gray-300 mb-4 flex items-center gap-2">
                                     <Zap size={18} className="text-purple-400" />
                                     Banco de Missões
@@ -580,7 +592,7 @@ function ChallengeBuilderContent() {
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: dayIndex * 0.05 }}
-                                    className="glass-panel rounded-2xl border border-white/5 overflow-hidden"
+                                    className="bg-white/[0.03] rounded-2xl border border-white/5 overflow-hidden"
                                 >
                                     {/* Day Header */}
                                     <div className="bg-white/[0.02] p-4 flex justify-between items-center border-b border-white/5">
@@ -705,7 +717,7 @@ function ChallengeBuilderContent() {
                 {/* TAB: Feed */}
                 {activeTab === 'feed' && (
                     <div className="max-w-3xl mx-auto">
-                        <div className="text-center py-12 glass-panel rounded-2xl border border-white/5">
+                        <div className="text-center py-12 bg-white/[0.03] rounded-2xl border border-white/5">
                             <Rocket size={64} className="mx-auto text-purple-500 mb-6" />
                             <h3 className="text-2xl font-bold mb-3">Piloto Automático de Conteúdo</h3>
                             <p className="text-gray-400 max-w-md mx-auto mb-8">
@@ -744,7 +756,7 @@ function ChallengeBuilderContent() {
 export default function ChallengeBuilderPage() {
     return (
         <Suspense fallback={
-            <div className="min-h-screen bg-[#0a0a16] flex items-center justify-center">
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
                 <Loader2 className="animate-spin text-purple-400" size={48} />
             </div>
         }>

@@ -6,7 +6,7 @@ import Link from "next/link"
 
 export default function ProtocolosPage() {
     return (
-        <div className="min-h-screen bg-[#0a0a16] text-white pb-36">
+        <div className="min-h-screen bg-slate-950 text-white pb-36">
             <div className="max-w-2xl mx-auto px-6 py-12">
                 {/* Header */}
                 <div className="mb-10 pt-4">
@@ -15,14 +15,14 @@ export default function ProtocolosPage() {
                 </div>
 
                 {/* Componente de Protocolos */}
-                <div className="glass-panel rounded-3xl overflow-hidden border border-white/5 bg-white/[0.02] p-2">
+                <div className="bg-white/[0.03] rounded-3xl overflow-hidden border border-white/5 bg-white/[0.02] p-2">
                     <MeusProtocolos />
                 </div>
             </div>
 
             {/* Bottom Nav Bar */}
             <div className="fixed bottom-6 left-6 right-6 z-50">
-                <div className="glass-panel p-2 rounded-[2rem] border border-white/10 bg-[#131320]/90 backdrop-blur-xl shadow-2xl flex justify-around items-center">
+                <div className="bg-white/[0.03] p-2 rounded-[2rem] border border-white/10 bg-slate-900/90 backdrop-blur-xl shadow-2xl flex justify-around items-center">
                     <Link href="/" className="p-4 rounded-full text-gray-600">
                         <Home size={22} />
                     </Link>

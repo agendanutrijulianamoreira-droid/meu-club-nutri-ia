@@ -63,7 +63,7 @@ export default function ProfilePage() {
     }, [])
 
     return (
-        <div className="min-h-screen bg-[#0a0a16] text-white pb-36">
+        <div className="min-h-screen bg-slate-950 text-white pb-36">
 
             {/* Profile Header */}
             <div className="p-8 pt-16 bg-gradient-to-b from-purple-900/20 to-transparent flex flex-col items-center">
@@ -79,11 +79,11 @@ export default function ProfilePage() {
                 <p className="text-purple-400 text-xs font-bold uppercase tracking-[0.2em] mt-1">{user.plan}</p>
 
                 <div className="flex gap-4 mt-8 w-full max-w-sm">
-                    <div className="flex-1 glass-panel p-4 rounded-2xl border border-white/5 bg-white/[0.02] text-center">
+                    <div className="flex-1 bg-white/[0.03] p-4 rounded-2xl border border-white/5 bg-white/[0.02] text-center">
                         <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">XP Atual</p>
                         <p className="text-xl font-black text-yellow-500">{user.xp}</p>
                     </div>
-                    <div className="flex-1 glass-panel p-4 rounded-2xl border border-white/5 bg-white/[0.02] text-center">
+                    <div className="flex-1 bg-white/[0.03] p-4 rounded-2xl border border-white/5 bg-white/[0.02] text-center">
                         <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Nível</p>
                         <p className="text-xl font-black text-purple-400">{user.level}</p>
                     </div>
@@ -96,7 +96,7 @@ export default function ProfilePage() {
                     <Activity size={16} /> Meus Dados & Evolução
                 </h2>
 
-                <div className="glass-panel p-5 rounded-3xl border border-white/5 bg-white/[0.02] flex items-center justify-between group cursor-pointer hover:border-white/20 transition">
+                <div className="bg-white/[0.03] p-5 rounded-3xl border border-white/5 bg-white/[0.02] flex items-center justify-between group cursor-pointer hover:border-white/20 transition">
                     <div className="flex items-center gap-4">
                         <div className="h-12 w-12 rounded-2xl bg-white/5 flex items-center justify-center text-green-400">
                             <Scale size={24} />
@@ -109,7 +109,7 @@ export default function ProfilePage() {
                     <ChevronRight className="text-gray-600" size={20} />
                 </div>
 
-                <div className="glass-panel p-5 rounded-3xl border border-white/5 bg-white/[0.02] flex items-center justify-between group cursor-pointer hover:border-white/20 transition">
+                <div className="bg-white/[0.03] p-5 rounded-3xl border border-white/5 bg-white/[0.02] flex items-center justify-between group cursor-pointer hover:border-white/20 transition">
                     <div className="flex items-center gap-4">
                         <div className="h-12 w-12 rounded-2xl bg-white/5 flex items-center justify-center text-pink-400">
                             <Camera size={24} />
@@ -122,7 +122,7 @@ export default function ProfilePage() {
                     <ChevronRight className="text-gray-600" size={20} />
                 </div>
 
-                <div className="glass-panel p-5 rounded-3xl border border-white/5 bg-white/[0.02] flex items-center justify-between group cursor-pointer hover:border-white/20 transition opacity-60">
+                <div className="bg-white/[0.03] p-5 rounded-3xl border border-white/5 bg-white/[0.02] flex items-center justify-between group cursor-pointer hover:border-white/20 transition opacity-60">
                     <div className="flex items-center gap-4">
                         <div className="h-12 w-12 rounded-2xl bg-white/5 flex items-center justify-center text-blue-400">
                             <History size={24} />
@@ -140,7 +140,7 @@ export default function ProfilePage() {
             <div className="px-6 mt-10 space-y-4">
                 <h2 className="text-sm font-black text-gray-500 uppercase tracking-widest pl-2 mb-2">Conta</h2>
 
-                <div className="glass-panel p-4 rounded-2xl border border-white/5 flex items-center justify-between text-gray-400">
+                <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 flex items-center justify-between text-gray-400">
                     <div className="flex items-center gap-3">
                         <Settings size={18} />
                         <span className="text-sm font-medium">Configurações do App</span>
@@ -148,7 +148,7 @@ export default function ProfilePage() {
                     <ChevronRight size={16} />
                 </div>
 
-                <div className="glass-panel p-4 rounded-2xl border border-white/5 flex items-center justify-between text-red-400">
+                <div className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 flex items-center justify-between text-red-400">
                     <div className="flex items-center gap-3">
                         <LogOut size={18} />
                         <span className="text-sm font-medium">Sair da Conta</span>
@@ -158,7 +158,7 @@ export default function ProfilePage() {
 
             {/* Bottom Nav Bar */}
             <div className="fixed bottom-6 left-6 right-6 z-50">
-                <div className="glass-panel p-2 rounded-[2rem] border border-white/10 bg-[#131320]/90 backdrop-blur-xl shadow-2xl flex justify-around items-center">
+                <div className="bg-white/[0.03] p-2 rounded-[2rem] border border-white/10 bg-slate-900/90 backdrop-blur-xl shadow-2xl flex justify-around items-center">
                     <Link href="/" className="p-4 rounded-full text-gray-600">
                         <Home size={22} />
                     </Link>
