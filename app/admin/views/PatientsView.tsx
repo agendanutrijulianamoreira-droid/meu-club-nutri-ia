@@ -436,6 +436,8 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     const [loadingAppointments, setLoadingAppointments] = useState(false)
     const [patientQuestionnaireResponses, setPatientQuestionnaireResponses] = useState<any[]>([])
     const [loadingQRs, setLoadingQRs] = useState(false)
+    const [checkinHistory, setCheckinHistory] = useState<any[]>([])
+    const [loadingCheckins, setLoadingCheckins] = useState(false)
 
     // AI Insights state
     const [insight, setInsight] = useState<{
@@ -467,6 +469,19 @@ function PatientDetail({ patient, onAction, onRefresh }: {
             .then(d => setPatientAppointments(d.appointments || []))
             .catch(() => {})
             .finally(() => setLoadingAppointments(false))
+
+        setLoadingCheckins(true)
+        ;(async () => {
+            try {
+                const { data } = await supabase.from('weekly_checkin_responses')
+                    .select('id, created_at, week_start, diet_score, mood, bowel, had_binge, main_difficulty, ai_risk_level')
+                    .eq('user_id', patient.id)
+                    .order('week_start', { ascending: false })
+                    .limit(8)
+                setCheckinHistory(data || [])
+            } catch {}
+            finally { setLoadingCheckins(false) }
+        })()
 
         setLoadingQRs(true)
         ;(async () => {
@@ -915,6 +930,48 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                                 </div>
                             </div>
                         )}
+
+                        {/* Weekly check-in history */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Histórico de Check-ins</p>
+                            {loadingCheckins ? (
+                                <div className="flex justify-center py-3"><Loader2 size={16} className="animate-spin text-slate-500"/></div>
+                            ) : checkinHistory.length === 0 ? (
+                                <p className="text-xs text-slate-600">Nenhum check-in enviado.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {checkinHistory.map((c: any) => {
+                                        const riskColor: Record<string, string> = { low: 'text-emerald-400', medium: 'text-amber-400', high: 'text-rose-400' }
+                                        const moodEmoji: Record<string, string> = { 'Ótimo': '🌟', 'Bom': '😊', 'Regular': '😐', 'Ruim': '😟' }
+                                        return (
+                                            <div key={c.id} className="flex items-start justify-between py-2 border-b border-white/5 last:border-0 gap-3">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-xs text-slate-400">
+                                                            Semana de {new Date(c.week_start + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}
+                                                        </p>
+                                                        {c.mood && <span className="text-xs">{moodEmoji[c.mood] || c.mood}</span>}
+                                                    </div>
+                                                    {c.main_difficulty && (
+                                                        <p className="text-[10px] text-slate-600 truncate mt-0.5">"{c.main_difficulty}"</p>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2 flex-shrink-0">
+                                                    {c.diet_score != null && (
+                                                        <span className={`text-xs font-black ${c.diet_score >= 7 ? 'text-emerald-400' : c.diet_score >= 5 ? 'text-amber-400' : 'text-rose-400'}`}>
+                                                            {c.diet_score}/10
+                                                        </span>
+                                                    )}
+                                                    <span className={`text-[10px] font-bold uppercase ${riskColor[c.ai_risk_level] || 'text-slate-500'}`}>
+                                                        {c.ai_risk_level || 'low'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
 
                         {/* Stats summary */}
                         <div className="grid grid-cols-2 gap-3">

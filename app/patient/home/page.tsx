@@ -43,6 +43,9 @@ export default function PatientHomePage() {
     const [showWelcomeTour, setShowWelcomeTour] = useState(false)
     const [checkinPending, setCheckinPending] = useState(false)
     const [quickTaps, setQuickTaps] = useState<{ water: boolean; meal: boolean; workout: boolean }>({ water: false, meal: false, workout: false })
+    const [dailyVictory, setDailyVictory] = useState('')
+    const [savedVictory, setSavedVictory] = useState('')
+    const [savingVictory, setSavingVictory] = useState(false)
     const [nextReward, setNextReward] = useState<{ name: string; cost: number; emoji: string } | null>(null)
     const [nutriCoins, setNutriCoins] = useState(0)
     const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null)
@@ -156,12 +159,12 @@ export default function PatientHomePage() {
                 setPendingQuestionnaires(pending)
             }
 
-            // Load today's daily log to restore quick taps state
+            // Load today's daily log to restore quick taps state and daily victory
             const today = new Date()
             const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
             const { data: todayLog } = await supabase
                 .from('daily_logs')
-                .select('water_check, meal_plan_check, workout_check')
+                .select('water_check, meal_plan_check, workout_check, daily_victory')
                 .eq('user_id', session.user.id)
                 .eq('log_date', todayStr)
                 .single()
@@ -171,10 +174,31 @@ export default function PatientHomePage() {
                     meal: todayLog.meal_plan_check || false,
                     workout: todayLog.workout_check || false,
                 })
+                if (todayLog.daily_victory) {
+                    setSavedVictory(todayLog.daily_victory)
+                    setDailyVictory(todayLog.daily_victory)
+                }
             }
         }
         init()
     }, [])
+
+    const saveVictory = async () => {
+        if (!dailyVictory.trim() || dailyVictory === savedVictory) return
+        setSavingVictory(true)
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+            const today = new Date()
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+            await supabase.from('daily_logs').upsert({
+                user_id: session.user.id,
+                log_date: todayStr,
+                daily_victory: dailyVictory.trim(),
+            }, { onConflict: 'user_id,log_date' })
+            setSavedVictory(dailyVictory.trim())
+        }
+        setSavingVictory(false)
+    }
 
     const handleQuickTap = async (key: 'water' | 'meal' | 'workout') => {
         const newValue = !quickTaps[key]
@@ -579,6 +603,40 @@ export default function PatientHomePage() {
                             </motion.button>
                         )
                     })}
+                </div>
+            </div>
+
+            {/* ─── Vitória do Dia ──────────────────────────────────────── */}
+            <div className="mb-5">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3">Vitória do Dia ✨</p>
+                <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+                    {savedVictory ? (
+                        <div className="space-y-2">
+                            <p className="text-sm text-white italic">"{savedVictory}"</p>
+                            <button onClick={() => setSavedVictory('')}
+                                className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors">
+                                editar
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            <textarea
+                                value={dailyVictory}
+                                onChange={e => setDailyVictory(e.target.value)}
+                                onBlur={saveVictory}
+                                rows={2}
+                                placeholder="Qual foi sua maior conquista hoje? Pode ser pequena..."
+                                className="w-full bg-transparent text-sm text-white placeholder-slate-600 resize-none outline-none leading-relaxed"
+                            />
+                            {dailyVictory.trim() && dailyVictory !== savedVictory && (
+                                <button onClick={saveVictory} disabled={savingVictory}
+                                    className="flex items-center gap-1 text-[10px] font-black text-emerald-400 hover:text-emerald-300 transition-colors">
+                                    {savingVictory ? <Loader2 size={10} className="animate-spin" /> : null}
+                                    salvar
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
