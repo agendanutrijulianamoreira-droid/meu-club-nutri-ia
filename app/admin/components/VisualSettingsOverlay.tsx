@@ -13,6 +13,7 @@ export default function VisualSettingsOverlay({ index }: { index: number }) {
     const [saving, setSaving] = useState(false)
     const [theme, setTheme] = useState("dark")
     const [glassIntensity, setGlassIntensity] = useState(80)
+    const [savedMsg, setSavedMsg] = useState(false)
 
     useEffect(() => {
         // Mock loading for now as appearance might be local or in settings JSON
@@ -27,7 +28,8 @@ export default function VisualSettingsOverlay({ index }: { index: number }) {
 
         setTimeout(() => {
             setSaving(false)
-            alert("Preferências visuais salvas! ✨")
+            setSavedMsg(true)
+            setTimeout(() => setSavedMsg(false), 3000)
         }, 1000)
     }
 
@@ -42,6 +44,11 @@ export default function VisualSettingsOverlay({ index }: { index: number }) {
     return (
         <SlideOver id="visual" title="Customização Profissional" index={index}>
             <div className="space-y-10 pb-20">
+                {savedMsg && (
+                    <div className="flex items-center gap-2 px-4 py-3 bg-emerald-500/10 border border-emerald-500/25 rounded-2xl text-sm font-bold text-emerald-300">
+                        Preferências visuais salvas!
+                    </div>
+                )}
                 {/* Theme Section */}
                 <section className="space-y-6">
                     <div className="flex items-center gap-2 text-indigo-400 ml-1">

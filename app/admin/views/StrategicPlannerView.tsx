@@ -68,6 +68,11 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
         suggestedPush: "Faltam 5 dias para a folia! Já garantiu seu shot de imunidade hoje? 💉"
     })
     const [isGeneratingPush, setIsGeneratingPush] = useState(false)
+    const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+    const showToast = (msg: string, type: 'success' | 'error' = 'error') => {
+        setToast({ type, msg })
+        setTimeout(() => setToast(null), 3500)
+    }
 
     const refreshAISuggestion = async () => {
         setIsGeneratingPush(true)
@@ -281,7 +286,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                 msg = "O banco de dados precisa ser atualizado para suportar eventos repetidos. Por favor, execute o script 'supabase/add_recurrence_id.sql' no seu painel do Supabase."
             }
 
-            alert(`❌ ${msg}`)
+            showToast(msg)
         } finally {
             setSaving(false)
         }
@@ -309,7 +314,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
             await updateEvent(eventId, { scheduled_date: dateStr })
         } catch (error: any) {
             console.error('Error dropping event:', error)
-            alert('Erro ao mover evento: ' + error.message)
+            showToast('Erro ao mover evento: ' + error.message)
         }
     }
 
@@ -335,7 +340,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
             setSelectedEvent(null)
         } catch (error) {
             console.error('Error deleting event:', error)
-            alert('Erro ao deletar evento. Tente novamente.')
+            showToast('Erro ao deletar evento. Tente novamente.')
         }
     }
 
@@ -347,7 +352,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
 
         const day = parseInt(newDate)
         if (isNaN(day) || day < 1 || day > getDaysInMonth(currentMonth)) {
-            alert('Data inválida!')
+            showToast('Data inválida!')
             return
         }
 
@@ -357,7 +362,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
             setShowModal(false)
         } catch (error) {
             console.error('Error duplicating event:', error)
-            alert('Erro ao duplicar evento. Tente novamente.')
+            showToast('Erro ao duplicar evento. Tente novamente.')
         }
     }
 
@@ -383,7 +388,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
             setShowModal(true)
         } catch (error: any) {
             console.error('Error using template:', error)
-            alert(`Erro ao carregar template: ${error.message || 'Tente novamente.'}`)
+            showToast(`Erro ao carregar template: ${error.message || 'Tente novamente.'}`)
         }
     }
 
@@ -405,7 +410,17 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
         currentMonth.getFullYear() === new Date().getFullYear()
 
     return (
-        <div className="flex h-[calc(100vh-80px)] bg-slate-950 text-white overflow-hidden">
+        <div className="flex h-[calc(100vh-80px)] bg-slate-950 text-white overflow-hidden relative">
+
+            {/* Toast */}
+            <AnimatePresence>
+                {toast && (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                        className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-2xl text-sm font-bold shadow-xl border ${toast.type === 'error' ? 'bg-rose-500/20 border-rose-500/30 text-rose-300' : 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300'}`}>
+                        {toast.msg}
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* ===== MAIN AREA (CALENDAR) ===== */}
             <div className="flex-1 p-6 overflow-y-auto">

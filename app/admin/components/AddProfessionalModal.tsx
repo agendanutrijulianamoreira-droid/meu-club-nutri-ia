@@ -59,7 +59,6 @@ export function AddProfessionalModal({ isOpen, onClose, onSuccess }: AddProfessi
             }
 
             // Sucesso!
-            alert('✅ Profissional cadastrado com sucesso!')
             onSuccess()
             onClose()
 

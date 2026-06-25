@@ -196,6 +196,7 @@ export default function PatientStorePage() {
     const [successItem, setSuccessItem] = useState<RewardItem | null>(null)
     const [activeTab, setActiveTab] = useState<"loja" | "meus">("loja")
     const [filterType, setFilterType] = useState<string | null>(null)
+    const [redeemError, setRedeemError] = useState<string | null>(null)
 
     const loadStore = useCallback(async () => {
         try {
@@ -220,7 +221,7 @@ export default function PatientStorePage() {
                 body: JSON.stringify({ item_id: selectedItem.id }),
             })
             const data = await res.json()
-            if (!res.ok) { alert(data.error); return }
+            if (!res.ok) { setRedeemError(data.error || 'Erro ao resgatar'); setTimeout(() => setRedeemError(null), 3500); return }
             setCoins(data.newBalance)
             setSuccessItem(selectedItem)
             setSelectedItem(null)
@@ -437,6 +438,12 @@ export default function PatientStorePage() {
             </div>
 
             <AnimatePresence>
+                {redeemError && (
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                        className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-5 py-3 bg-rose-500/20 border border-rose-500/30 rounded-2xl text-sm font-bold text-rose-300 shadow-xl">
+                        {redeemError}
+                    </motion.div>
+                )}
                 {selectedItem && (
                     <RedeemModal item={selectedItem} coins={coins}
                         onConfirm={handleRedeem} onClose={() => setSelectedItem(null)} loading={redeeming}/>

@@ -171,7 +171,7 @@ export function ContentPlannerView() {
                                     <div className="space-y-3">
                                         <h3 className="text-xl font-bold group-hover:text-white transition-colors leading-tight">{month.title}</h3>
                                         <div className="flex gap-2">
-                                            <Sparkles size={14} className="text-gray-600 shrink-0 mt-1 group-hover:text-queen-pink" />
+                                            <Sparkles size={14} className="text-gray-600 shrink-0 mt-1 group-hover:text-indigo-400" />
                                             <p className="text-sm italic text-gray-400 group-hover:text-gray-300 transition-colors line-clamp-2 leading-relaxed">
                                                 {month.marketing_hook}
                                             </p>

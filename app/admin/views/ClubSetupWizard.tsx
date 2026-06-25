@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { AnimatePresence } from "framer-motion"
 import { Sparkles, Save, Loader2, Target, Heart, Zap, Megaphone, Repeat, LayoutList, Rocket } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
@@ -17,6 +18,10 @@ export default function ClubSetupWizard({ tenantId, onComplete, onClose }: Wizar
     const [isGenerating, setIsGenerating] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [saved, setSaved] = useState(false)
+    const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+    const showToast = (msg: string, type: 'success' | 'error' = 'error') => {
+        setToast({ type, msg }); setTimeout(() => setToast(null), 3500)
+    }
 
     const [formData, setFormData] = useState({
         niche: "",
@@ -68,7 +73,7 @@ export default function ClubSetupWizard({ tenantId, onComplete, onClose }: Wizar
     const handlePreFillWithAI = async () => {
         const nicheToUse = formData.niche.trim() || "Nutrição Saúde da Mulher (Exemplo)"
         if (!formData.niche.trim()) {
-            alert("Preencha o nicho para uma geração mais precisa! Usando exemplo base... 🚀")
+            showToast("Preencha o nicho para uma geração mais precisa! Usando exemplo base...", 'error')
         }
         setIsGenerating(true)
         try {
@@ -83,7 +88,7 @@ export default function ClubSetupWizard({ tenantId, onComplete, onClose }: Wizar
                     ...result.data
                 }))
             } else {
-                alert("Erro ao gerar: " + (result.error || "Tente novamente."))
+                showToast("Erro ao gerar: " + (result.error || "Tente novamente."))
             }
         } catch (error) {
             console.error("Erro na geração:", error)
@@ -136,6 +141,14 @@ export default function ClubSetupWizard({ tenantId, onComplete, onClose }: Wizar
             className="max-w-4xl mx-auto mt-6 p-10 bg-slate-900/80 backdrop-blur-xl rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden"
         >
             <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/10 blur-[100px] -z-10" />
+            <AnimatePresence>
+                {toast && (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                        className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-2xl text-sm font-bold shadow-xl border ${toast.type === 'error' ? 'bg-rose-500/20 border-rose-500/30 text-rose-300' : 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300'}`}>
+                        {toast.msg}
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
                 <div>
