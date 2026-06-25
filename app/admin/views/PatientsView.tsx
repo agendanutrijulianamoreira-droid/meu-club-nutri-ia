@@ -7,7 +7,7 @@ import {
     Activity, Star, Crown, Trophy, Flame, CheckCircle, Mail,
     Phone, Clock, Target, ChevronRight, Loader2, Sparkles,
     Heart, Plus, X, RefreshCw, Send, Shield, Users, FileText,
-    ToggleLeft, ToggleRight, Gift, Coins, Download, KeyRound, Copy, Pencil, Upload
+    ToggleLeft, ToggleRight, Gift, Coins, Download, KeyRound, Copy, Pencil, Upload, CalendarPlus
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -427,6 +427,7 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     const [showMessageModal, setShowMessageModal] = useState(false)
     const [showEditModal, setShowEditModal] = useState(false)
     const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'health' | 'insights'>('overview')
+    const [showScheduleModal, setShowScheduleModal] = useState(false)
     const [restrictions, setRestrictions] = useState<string[]>([])
     const [customRestriction, setCustomRestriction] = useState('')
     const [savingRestrictions, setSavingRestrictions] = useState(false)
@@ -746,6 +747,10 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                             <button onClick={() => setShowMessageModal(true)}
                                 className="px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 text-sm font-bold rounded-2xl transition-all flex items-center gap-2">
                                 <Bell size={13}/> Inbox
+                            </button>
+                            <button onClick={() => setShowScheduleModal(true)}
+                                className="px-4 py-2.5 bg-teal-600/20 hover:bg-teal-600/40 border border-teal-500/30 text-teal-400 text-sm font-bold rounded-2xl transition-all flex items-center gap-2">
+                                <CalendarPlus size={13}/>
                             </button>
                             {patient.phone && (
                                 <a href={`https://wa.me/55${patient.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener"
@@ -1287,8 +1292,148 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                         onSuccess={() => { setShowMessageModal(false); onAction('Mensagem enviada!') }}
                     />
                 )}
+                {showScheduleModal && (
+                    <QuickScheduleModal
+                        patientId={patient.id}
+                        patientName={patient.name}
+                        onClose={() => setShowScheduleModal(false)}
+                        onSuccess={() => { setShowScheduleModal(false); onAction('Consulta agendada!') }}
+                    />
+                )}
             </AnimatePresence>
         </div>
+    )
+}
+
+// ─── Quick Schedule Modal ─────────────────────────────────────────────────────
+function QuickScheduleModal({ patientId, patientName, onClose, onSuccess }: {
+    patientId: string; patientName: string; onClose: () => void; onSuccess: () => void
+}) {
+    const [saving, setSaving] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1)
+    const defaultDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,'0')}-${String(tomorrow.getDate()).padStart(2,'0')}`
+    const [form, setForm] = useState({
+        date: defaultDate,
+        time: '10:00',
+        duration: '60',
+        type: 'consultation',
+        is_virtual: true,
+        meeting_link: '',
+        notes: '',
+    })
+
+    const handleSave = async () => {
+        setSaving(true); setError(null)
+        try {
+            const scheduled_at = new Date(`${form.date}T${form.time}:00`).toISOString()
+            const res = await fetch('/api/admin/appointments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patient_id: patientId,
+                    scheduled_at,
+                    duration_minutes: parseInt(form.duration),
+                    appointment_type: form.type,
+                    is_virtual: form.is_virtual,
+                    meeting_link: form.meeting_link || undefined,
+                    notes: form.notes || undefined,
+                    status: 'scheduled',
+                }),
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || 'Erro ao agendar')
+            onSuccess()
+        } catch (e: any) {
+            setError(e.message)
+        } finally { setSaving(false) }
+    }
+
+    const firstName = patientName.split(' ')[0]
+
+    return (
+        <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div className="bg-slate-900 border border-white/10 rounded-3xl w-full max-w-sm"
+                initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }}>
+                <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-white/5">
+                    <div>
+                        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                            <CalendarPlus size={15} className="text-teal-400"/> Agendar Consulta
+                        </h3>
+                        <p className="text-[10px] text-slate-500 mt-0.5">com {firstName}</p>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl text-slate-500"><X size={15}/></button>
+                </div>
+
+                <div className="p-5 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Data</label>
+                            <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500/50"/>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Hora</label>
+                            <input type="time" value={form.time} onChange={e => setForm(p => ({ ...p, time: e.target.value }))}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500/50"/>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Tipo</label>
+                            <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
+                                className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500/50">
+                                <option value="consultation">Consulta</option>
+                                <option value="followup">Retorno</option>
+                                <option value="initial_assessment">Avaliação</option>
+                                <option value="group_session">Grupo</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Duração</label>
+                            <select value={form.duration} onChange={e => setForm(p => ({ ...p, duration: e.target.value }))}
+                                className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500/50">
+                                <option value="30">30 min</option>
+                                <option value="45">45 min</option>
+                                <option value="60">60 min</option>
+                                <option value="90">90 min</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl">
+                        <span className="text-sm text-slate-300">Online (videochamada)</span>
+                        <button onClick={() => setForm(p => ({ ...p, is_virtual: !p.is_virtual }))}
+                            className={`relative w-10 h-5 rounded-full transition-colors ${form.is_virtual ? 'bg-teal-600' : 'bg-white/10'}`}>
+                            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.is_virtual ? 'left-5' : 'left-0.5'}`}/>
+                        </button>
+                    </div>
+
+                    {form.is_virtual && (
+                        <input value={form.meeting_link} onChange={e => setForm(p => ({ ...p, meeting_link: e.target.value }))}
+                            placeholder="Link da videochamada (opcional)"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-teal-500/50"/>
+                    )}
+
+                    <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+                        rows={2} placeholder="Observações (opcional)"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 resize-none focus:outline-none focus:border-teal-500/50"/>
+
+                    {error && <p className="text-xs text-rose-400 font-bold">{error}</p>}
+
+                    <div className="flex gap-2 pt-1">
+                        <button onClick={onClose} className="flex-1 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-slate-400 text-sm font-bold">Cancelar</button>
+                        <button onClick={handleSave} disabled={saving}
+                            className="flex-1 py-2.5 rounded-2xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2 transition-all">
+                            {saving ? <Loader2 size={14} className="animate-spin"/> : <CalendarPlus size={14}/>}
+                            Agendar
+                        </button>
+                    </div>
+                </div>
+            </motion.div>
+        </motion.div>
     )
 }
 
