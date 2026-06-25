@@ -429,6 +429,10 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     const [restrictions, setRestrictions] = useState<string[]>([])
     const [customRestriction, setCustomRestriction] = useState('')
     const [savingRestrictions, setSavingRestrictions] = useState(false)
+    const [measurements, setMeasurements] = useState<any[]>([])
+    const [loadingMeasurements, setLoadingMeasurements] = useState(false)
+    const [patientAppointments, setPatientAppointments] = useState<any[]>([])
+    const [loadingAppointments, setLoadingAppointments] = useState(false)
 
     // AI Insights state
     const [insight, setInsight] = useState<{
@@ -441,6 +445,26 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     } | null>(null)
     const [insightLoading, setInsightLoading] = useState(false)
     const [insightError, setInsightError] = useState<string | null>(null)
+
+    useEffect(() => {
+        if (activeTab !== 'health') return
+        setLoadingMeasurements(true)
+        fetch(`/api/admin/measurements?patient_id=${patient.id}`)
+            .then(r => r.json())
+            .then(d => setMeasurements(d.measurements || []))
+            .catch(() => {})
+            .finally(() => setLoadingMeasurements(false))
+    }, [activeTab, patient.id])
+
+    useEffect(() => {
+        if (activeTab !== 'history') return
+        setLoadingAppointments(true)
+        fetch(`/api/admin/appointments?patient_id=${patient.id}`)
+            .then(r => r.json())
+            .then(d => setPatientAppointments(d.appointments || []))
+            .catch(() => {})
+            .finally(() => setLoadingAppointments(false))
+    }, [activeTab, patient.id])
 
     const generateInsight = async () => {
         setInsightLoading(true)
@@ -890,6 +914,46 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                                 </div>
                             ))}
                         </div>
+
+                        {/* Appointments history */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Consultas</p>
+                            {loadingAppointments ? (
+                                <div className="flex justify-center py-3"><Loader2 size={16} className="animate-spin text-slate-500"/></div>
+                            ) : patientAppointments.length === 0 ? (
+                                <p className="text-xs text-slate-600">Nenhuma consulta registrada.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {patientAppointments.slice(0, 5).map((appt: any) => {
+                                        const d = new Date(appt.scheduled_at)
+                                        const statusColor: Record<string, string> = {
+                                            scheduled: 'text-blue-400', confirmed: 'text-emerald-400',
+                                            completed: 'text-slate-400', cancelled: 'text-rose-400', no_show: 'text-amber-400'
+                                        }
+                                        const statusLabel: Record<string, string> = {
+                                            scheduled: 'Agendada', confirmed: 'Confirmada',
+                                            completed: 'Realizada', cancelled: 'Cancelada', no_show: 'Ausente'
+                                        }
+                                        return (
+                                            <div key={appt.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+                                                <div>
+                                                    <p className="text-xs text-white font-bold">
+                                                        {d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })} às {d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-500">{appt.duration_minutes}min · {appt.is_virtual ? 'Online' : 'Presencial'}</p>
+                                                </div>
+                                                <span className={`text-[10px] font-bold ${statusColor[appt.status] || 'text-slate-500'}`}>
+                                                    {statusLabel[appt.status] || appt.status}
+                                                </span>
+                                            </div>
+                                        )
+                                    })}
+                                    {patientAppointments.length > 5 && (
+                                        <p className="text-[10px] text-slate-600 text-center">+{patientAppointments.length - 5} mais</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </>
                 )}
 
@@ -1019,6 +1083,55 @@ function PatientDetail({ patient, onAction, onRefresh }: {
 
                 {activeTab === 'health' && (
                     <div className="space-y-4">
+                        {/* Body measurements */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Medidas Corporais</p>
+                            {loadingMeasurements ? (
+                                <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-slate-500"/></div>
+                            ) : measurements.length === 0 ? (
+                                <p className="text-xs text-slate-600">Nenhuma medida registrada ainda.</p>
+                            ) : (() => {
+                                const latest = measurements[0]
+                                const previous = measurements[1]
+                                const MFIELDS = [
+                                    { key: 'weight_kg', label: 'Peso', unit: 'kg' },
+                                    { key: 'waist_cm', label: 'Cintura', unit: 'cm' },
+                                    { key: 'abdomen_cm', label: 'Abdômen', unit: 'cm' },
+                                    { key: 'hip_cm', label: 'Quadril', unit: 'cm' },
+                                    { key: 'chest_cm', label: 'Busto', unit: 'cm' },
+                                    { key: 'arm_cm', label: 'Braço', unit: 'cm' },
+                                    { key: 'thigh_cm', label: 'Coxa', unit: 'cm' },
+                                ] as const
+                                return (
+                                    <>
+                                        <p className="text-[10px] text-slate-500">
+                                            Última medição: {new Date(latest.measured_at + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                            {measurements.length > 1 && ` · ${measurements.length} registros`}
+                                        </p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {MFIELDS.filter(f => latest[f.key] != null).map(f => {
+                                                const curr = latest[f.key] as number
+                                                const prev = previous ? previous[f.key] as number | null : null
+                                                const diff = curr != null && prev != null ? curr - prev : null
+                                                return (
+                                                    <div key={f.key} className="bg-white/[0.03] border border-white/8 rounded-xl p-2.5">
+                                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{f.label}</p>
+                                                        <p className="text-white font-black text-base">{curr}<span className="text-slate-500 text-xs font-normal ml-0.5">{f.unit}</span></p>
+                                                        {diff != null && diff !== 0 && (
+                                                            <p className={`text-[10px] font-bold ${diff < 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                                {diff > 0 ? '+' : ''}{diff.toFixed(1)}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                        {latest.notes && <p className="text-xs text-slate-500 italic">"{latest.notes}"</p>}
+                                    </>
+                                )
+                            })()}
+                        </div>
+
                         <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
                             <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Restrições Alimentares</p>
                             <p className="text-xs text-slate-400">Selecione as restrições para personalizar o cardápio e o chat com IA</p>

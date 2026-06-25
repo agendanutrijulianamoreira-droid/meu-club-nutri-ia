@@ -264,6 +264,63 @@ export default function MeasurementsPage() {
                             </div>
                         </div>
 
+                        {/* Weight chart */}
+                        {(() => {
+                            const weightPoints = [...measurements].reverse().filter(m => m.weight_kg != null)
+                            if (weightPoints.length < 2) return null
+                            const W = 320, H = 80, PAD = 8
+                            const vals = weightPoints.map(m => m.weight_kg as number)
+                            const minV = Math.min(...vals) - 0.5
+                            const maxV = Math.max(...vals) + 0.5
+                            const toX = (i: number) => PAD + (i / (weightPoints.length - 1)) * (W - PAD * 2)
+                            const toY = (v: number) => PAD + (1 - (v - minV) / (maxV - minV)) * (H - PAD * 2)
+                            const points = weightPoints.map((m, i) => `${toX(i)},${toY(m.weight_kg as number)}`).join(' ')
+                            const first = vals[0], last = vals[vals.length - 1]
+                            const down = last <= first
+                            return (
+                                <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-5">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Evolução do Peso</p>
+                                        <span className={`text-xs font-bold ${down ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                            {down ? '▼' : '▲'} {Math.abs(last - first).toFixed(1)} kg
+                                        </span>
+                                    </div>
+                                    <svg viewBox={`0 0 ${W} ${H}`} className="w-full overflow-visible">
+                                        {/* Grid line */}
+                                        <line x1={PAD} y1={H/2} x2={W-PAD} y2={H/2} stroke="rgba(255,255,255,0.05)" strokeWidth="1"/>
+                                        {/* Gradient fill under line */}
+                                        <defs>
+                                            <linearGradient id="wgrad" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="0%" stopColor={down ? '#10b981' : '#f43f5e'} stopOpacity="0.3"/>
+                                                <stop offset="100%" stopColor={down ? '#10b981' : '#f43f5e'} stopOpacity="0"/>
+                                            </linearGradient>
+                                        </defs>
+                                        <polygon
+                                            points={`${PAD},${H-PAD} ${points} ${W-PAD},${H-PAD}`}
+                                            fill="url(#wgrad)"
+                                        />
+                                        <polyline points={points} fill="none" stroke={down ? '#10b981' : '#f43f5e'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        {/* Dots */}
+                                        {weightPoints.map((m, i) => (
+                                            <circle key={i} cx={toX(i)} cy={toY(m.weight_kg as number)} r="3"
+                                                fill={down ? '#10b981' : '#f43f5e'} stroke="#020617" strokeWidth="1.5"/>
+                                        ))}
+                                        {/* Labels: first and last */}
+                                        <text x={PAD} y={H+4} fill="rgba(100,116,139,0.8)" fontSize="8" textAnchor="middle">
+                                            {new Date(weightPoints[0].measured_at + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                        </text>
+                                        <text x={W-PAD} y={H+4} fill="rgba(100,116,139,0.8)" fontSize="8" textAnchor="middle">
+                                            {new Date(weightPoints[weightPoints.length-1].measured_at + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                        </text>
+                                    </svg>
+                                    <div className="flex justify-between mt-4 text-xs">
+                                        <span className="text-slate-500">Início: <span className="text-white font-bold">{first} kg</span></span>
+                                        <span className="text-slate-500">Atual: <span className={`font-bold ${down ? 'text-emerald-400' : 'text-rose-400'}`}>{last} kg</span></span>
+                                    </div>
+                                </div>
+                            )
+                        })()}
+
                         {/* History */}
                         {measurements.length > 1 && (
                             <div>
