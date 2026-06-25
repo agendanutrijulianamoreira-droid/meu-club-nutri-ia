@@ -77,6 +77,7 @@ import { ManagerLearningView } from "./views/ManagerLearningView"
 import { HabitsView } from "./views/HabitsView"
 import { VipSettingsView } from "./views/VipSettingsView"
 import { EmailMarketingView } from "./views/EmailMarketingView"
+import { QuestionnairesView } from "./views/QuestionnairesView"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -88,6 +89,7 @@ type ViewType =
     | 'appointments' | 'professionals' | 'product-gateway' | 'annual-planner'
     | 'strategic-planner' | 'content-planner' | 'analytics' | 'patient-journey'
     | 'products' | 'approvals' | 'recipes' | 'manager-learning' | 'habits' | 'vip-settings' | 'email-marketing'
+    | 'questionnaires'
 
 interface NavItem {
     id: ViewType
@@ -139,6 +141,7 @@ const navGroups: NavGroup[] = [
             { id: 'recipes', label: 'Receitas' },
             { id: 'library', label: 'Biblioteca' },
             { id: 'rewards', label: 'Recompensas' },
+            { id: 'questionnaires', label: 'Questionários' },
         ],
     },
     {
@@ -273,6 +276,7 @@ export default function AdminDashboard({
             case 'vip-settings':       return <VipSettingsView setView={setActiveView} tenantId={tenantId} />
             case 'email-marketing':    return <EmailMarketingView setView={setActiveView} tenantId={tenantId} />
             case 'manager-learning':   return <ManagerLearningView setView={setActiveView} tenantId={tenantId} />
+            case 'questionnaires':     return <QuestionnairesView setView={setActiveView} tenantId={tenantId} />
             case 'settings':           return <SettingsView {...props} />
             case 'settings-login':     return <SettingsLoginView />
             case 'club-plan':          return <ClubPlanView {...props} />
