@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import {
   Calendar, Clock, Video, MapPin, Plus, Loader2, CheckCircle2, XCircle,
   User, ChevronRight, AlertCircle, RefreshCw, Phone, ExternalLink, Trash2,
-  ChevronLeft, LayoutGrid, List
+  ChevronLeft, LayoutGrid, List, Settings, Save
 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
@@ -72,12 +72,59 @@ export function AppointmentsView({ setView, tenantId }: AppointmentsViewProps) {
   const [formSyncGcal, setFormSyncGcal] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
+  // Availability settings
+  const [showSettings, setShowSettings] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [availSettings, setAvailSettings] = useState({
+    work_days: [1, 2, 3, 4, 5] as number[],
+    work_hours_start: '08:00',
+    work_hours_end: '18:00',
+    slot_duration_minutes: 60,
+    buffer_minutes: 10,
+    default_meeting_link: '',
+  })
+
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3000)
   }
 
   useEffect(() => { loadData() }, [filter])
+
+  useEffect(() => {
+    fetch('/api/admin/availability')
+      .then(r => r.json())
+      .then(d => {
+        if (d.settings) setAvailSettings(prev => ({ ...prev, ...d.settings }))
+      })
+      .catch(() => {})
+  }, [])
+
+  const saveAvailability = async () => {
+    setSavingSettings(true)
+    try {
+      const res = await fetch('/api/admin/availability', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ calendar_settings: availSettings }),
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error)
+      showToast('Disponibilidade salva!')
+      setShowSettings(false)
+    } catch (err: any) {
+      showToast(err.message || 'Erro ao salvar', 'error')
+    } finally { setSavingSettings(false) }
+  }
+
+  const toggleWorkDay = (day: number) => {
+    setAvailSettings(prev => ({
+      ...prev,
+      work_days: prev.work_days.includes(day)
+        ? prev.work_days.filter(d => d !== day)
+        : [...prev.work_days, day].sort(),
+    }))
+  }
 
   const loadData = async () => {
     setLoading(true)
@@ -181,10 +228,104 @@ export function AppointmentsView({ setView, tenantId }: AppointmentsViewProps) {
           </h1>
           <p className="text-slate-400 mt-1">Agende consultas e sincronize com Google Calendar</p>
         </div>
-        <Button onClick={() => setShowForm(!showForm)} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2">
-          <Plus size={16} /> Nova consulta
-        </Button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowSettings(!showSettings)}
+            className={`p-2.5 rounded-xl border transition-all ${showSettings ? 'bg-slate-700 border-slate-600 text-white' : 'bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600'}`}
+            title="Configurar disponibilidade">
+            <Settings size={16} />
+          </button>
+          <Button onClick={() => setShowForm(!showForm)} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2">
+            <Plus size={16} /> Nova consulta
+          </Button>
+        </div>
       </div>
+
+      {/* Availability Settings Panel */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden">
+            <div className="bg-slate-800/40 rounded-xl border border-teal-500/20 p-6 space-y-5">
+              <p className="text-white font-semibold flex items-center gap-2 text-sm">
+                <Settings size={15} className="text-teal-400" /> Disponibilidade & Configurações
+              </p>
+
+              {/* Work days */}
+              <div>
+                <label className="text-xs text-slate-400 mb-2 block">Dias disponíveis</label>
+                <div className="flex gap-2 flex-wrap">
+                  {[['Seg', 1], ['Ter', 2], ['Qua', 3], ['Qui', 4], ['Sex', 5], ['Sáb', 6], ['Dom', 0]].map(([label, day]) => (
+                    <button key={day} onClick={() => toggleWorkDay(day as number)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        availSettings.work_days.includes(day as number)
+                          ? 'bg-teal-600 text-white'
+                          : 'bg-slate-700/50 text-slate-400 hover:bg-slate-700'
+                      }`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Work hours */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Início</label>
+                  <input type="time" value={availSettings.work_hours_start}
+                    onChange={e => setAvailSettings(prev => ({ ...prev, work_hours_start: e.target.value }))}
+                    className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Fim</label>
+                  <input type="time" value={availSettings.work_hours_end}
+                    onChange={e => setAvailSettings(prev => ({ ...prev, work_hours_end: e.target.value }))}
+                    className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Duração padrão</label>
+                  <select value={availSettings.slot_duration_minutes}
+                    onChange={e => setAvailSettings(prev => ({ ...prev, slot_duration_minutes: Number(e.target.value) }))}
+                    className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm">
+                    <option value={30}>30 min</option>
+                    <option value={45}>45 min</option>
+                    <option value={60}>1 hora</option>
+                    <option value={90}>1h30</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Intervalo entre consultas</label>
+                  <select value={availSettings.buffer_minutes}
+                    onChange={e => setAvailSettings(prev => ({ ...prev, buffer_minutes: Number(e.target.value) }))}
+                    className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm">
+                    <option value={0}>Sem intervalo</option>
+                    <option value={10}>10 min</option>
+                    <option value={15}>15 min</option>
+                    <option value={30}>30 min</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Default meeting link */}
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Link padrão de videochamada</label>
+                <input value={availSettings.default_meeting_link}
+                  onChange={e => setAvailSettings(prev => ({ ...prev, default_meeting_link: e.target.value }))}
+                  placeholder="https://meet.google.com/seu-link..."
+                  className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm" />
+                <p className="text-xs text-slate-600 mt-1">Preenchido automaticamente ao agendar consultas online</p>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowSettings(false)} className="border-slate-600 text-slate-400">Cancelar</Button>
+                <Button onClick={saveAvailability} disabled={savingSettings} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
+                  {savingSettings ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  Salvar disponibilidade
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* New Appointment Form */}
       <AnimatePresence>
