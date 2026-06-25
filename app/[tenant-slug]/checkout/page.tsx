@@ -20,6 +20,7 @@ function CheckoutContent({ params }: { params: { 'tenant-slug': string } }) {
     const tenantSlug = params['tenant-slug']
     const searchParams = useSearchParams()
     const selectedPlan = searchParams.get('plan') || 'tech_diet'
+    const refCode = searchParams.get('ref') || null
     const cancelled = searchParams.get('cancelled') === 'true'
 
     const [loading, setLoading] = useState(true)
@@ -127,6 +128,7 @@ function CheckoutContent({ params }: { params: { 'tenant-slug': string } }) {
                 userId,
                 customerEmail: email.trim(),
                 customerName: name.trim(),
+                referralCode: refCode,
             }),
         })
 
