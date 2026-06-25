@@ -250,6 +250,7 @@ export default function PatientProfilePage() {
                     { href: '/patient/chat', icon: Sparkles, label: 'Chat com Nutri IA', color: 'text-emerald-400' },
                     { href: '/patient/appointments', icon: Calendar, label: 'Minhas Consultas', color: 'text-teal-400' },
                     { href: '/patient/measurements', icon: Scale, label: 'Minhas Medidas', color: 'text-violet-400' },
+                    { href: '/patient/questionnaires', icon: ShieldCheck, label: 'Questionários', color: 'text-violet-400' },
                     { href: '/patient/inbox', icon: Bell, label: 'Mensagens da Nutri IA', color: 'text-indigo-400' },
                 ].map(({ href, icon: Icon, label, color }) => (
                     <Link key={href} href={href} className="w-full flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-colors">

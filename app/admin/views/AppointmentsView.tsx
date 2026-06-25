@@ -95,7 +95,17 @@ export function AppointmentsView({ setView, tenantId }: AppointmentsViewProps) {
     fetch('/api/admin/availability')
       .then(r => r.json())
       .then(d => {
-        if (d.settings) setAvailSettings(prev => ({ ...prev, ...d.settings }))
+        if (d.settings) {
+          setAvailSettings(prev => ({ ...prev, ...d.settings }))
+          // Pre-fill default meeting link in new appointment form
+          if (d.settings.default_meeting_link) {
+            setFormMeetingLink(d.settings.default_meeting_link)
+          }
+          // Pre-fill default duration
+          if (d.settings.slot_duration_minutes) {
+            setFormDuration(d.settings.slot_duration_minutes)
+          }
+        }
       })
       .catch(() => {})
   }, [])
