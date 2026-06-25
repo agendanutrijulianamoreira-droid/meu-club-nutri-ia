@@ -247,6 +247,7 @@ export default function PatientProfilePage() {
                 <h2 className="text-xs font-bold uppercase text-slate-500 tracking-wider mb-3">Acesso rápido</h2>
                 {[
                     { href: '/patient/diet', icon: Utensils, label: 'Meu Plano Alimentar', color: 'text-emerald-400' },
+                    { href: '/patient/chat', icon: Sparkles, label: 'Chat com Nutri IA', color: 'text-emerald-400' },
                     { href: '/patient/appointments', icon: Calendar, label: 'Minhas Consultas', color: 'text-teal-400' },
                     { href: '/patient/inbox', icon: Bell, label: 'Mensagens da Nutri IA', color: 'text-indigo-400' },
                 ].map(({ href, icon: Icon, label, color }) => (
