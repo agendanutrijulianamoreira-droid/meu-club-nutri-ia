@@ -317,7 +317,7 @@ function NutricionistaLoginContent() {
         if (!email) { setError('Digite seu e-mail antes de solicitar redefinição.'); return; }
         setLoading(true); setError(null); setSuccessMsg(null);
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${window.location.origin}/auth/callback?next=/admin/reset-password`,
+            redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password`,
         });
         setLoading(false);
         if (resetError) setError(resetError.message);
