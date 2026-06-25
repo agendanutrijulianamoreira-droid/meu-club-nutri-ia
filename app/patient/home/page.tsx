@@ -155,9 +155,44 @@ export default function PatientHomePage() {
                 const pending = (activeQs || []).filter((q: any) => !answeredIds.has(q.id))
                 setPendingQuestionnaires(pending)
             }
+
+            // Load today's daily log to restore quick taps state
+            const today = new Date()
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+            const { data: todayLog } = await supabase
+                .from('daily_logs')
+                .select('water_check, meal_plan_check, workout_check')
+                .eq('user_id', session.user.id)
+                .eq('log_date', todayStr)
+                .single()
+            if (todayLog) {
+                setQuickTaps({
+                    water: todayLog.water_check || false,
+                    meal: todayLog.meal_plan_check || false,
+                    workout: todayLog.workout_check || false,
+                })
+            }
         }
         init()
     }, [])
+
+    const handleQuickTap = async (key: 'water' | 'meal' | 'workout') => {
+        const newValue = !quickTaps[key]
+        setQuickTaps(prev => ({ ...prev, [key]: newValue }))
+
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) return
+
+        const today = new Date()
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+        const colMap: Record<string, string> = { water: 'water_check', meal: 'meal_plan_check', workout: 'workout_check' }
+
+        await supabase.from('daily_logs').upsert({
+            user_id: session.user.id,
+            log_date: todayStr,
+            [colMap[key]]: newValue,
+        }, { onConflict: 'user_id,log_date' })
+    }
 
     if (loading) {
         return (
@@ -531,7 +566,7 @@ export default function PatientHomePage() {
                             <motion.button
                                 key={key}
                                 whileTap={{ scale: 0.92 }}
-                                onClick={() => setQuickTaps(prev => ({ ...prev, [key]: !prev[key as keyof typeof quickTaps] }))}
+                                onClick={() => handleQuickTap(key as 'water' | 'meal' | 'workout')}
                                 className={`flex flex-col items-center gap-2 py-4 px-2 rounded-2xl border transition-all ${done ? activeBg : bg}`}
                             >
                                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${done ? 'bg-white/10' : 'bg-white/5'}`}>

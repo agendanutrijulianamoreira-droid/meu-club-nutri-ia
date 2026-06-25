@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback } from "react"
+import { supabase } from "@/lib/supabase-browser"
 import {
     Search, Bell, Zap, TrendingUp, AlertTriangle, MessageCircle,
     Activity, Star, Crown, Trophy, Flame, CheckCircle, Mail,
@@ -433,6 +434,8 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     const [loadingMeasurements, setLoadingMeasurements] = useState(false)
     const [patientAppointments, setPatientAppointments] = useState<any[]>([])
     const [loadingAppointments, setLoadingAppointments] = useState(false)
+    const [patientQuestionnaireResponses, setPatientQuestionnaireResponses] = useState<any[]>([])
+    const [loadingQRs, setLoadingQRs] = useState(false)
 
     // AI Insights state
     const [insight, setInsight] = useState<{
@@ -464,6 +467,19 @@ function PatientDetail({ patient, onAction, onRefresh }: {
             .then(d => setPatientAppointments(d.appointments || []))
             .catch(() => {})
             .finally(() => setLoadingAppointments(false))
+
+        setLoadingQRs(true)
+        ;(async () => {
+            try {
+                const { data } = await supabase.from('questionnaire_responses')
+                    .select('id, created_at, completed_at, questionnaire:questionnaires(name)')
+                    .eq('patient_id', patient.id)
+                    .order('created_at', { ascending: false })
+                    .limit(10)
+                setPatientQuestionnaireResponses(data || [])
+            } catch {}
+            finally { setLoadingQRs(false) }
+        })()
     }, [activeTab, patient.id])
 
     const generateInsight = async () => {
@@ -951,6 +967,30 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                                     {patientAppointments.length > 5 && (
                                         <p className="text-[10px] text-slate-600 text-center">+{patientAppointments.length - 5} mais</p>
                                     )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Questionnaire responses */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Questionários Respondidos</p>
+                            {loadingQRs ? (
+                                <div className="flex justify-center py-3"><Loader2 size={16} className="animate-spin text-slate-500"/></div>
+                            ) : patientQuestionnaireResponses.length === 0 ? (
+                                <p className="text-xs text-slate-600">Nenhum questionário respondido.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {patientQuestionnaireResponses.map((r: any) => (
+                                        <div key={r.id} className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0">
+                                            <div>
+                                                <p className="text-xs text-white font-bold">{(r.questionnaire as any)?.name || 'Questionário'}</p>
+                                                <p className="text-[10px] text-slate-500">
+                                                    {new Date(r.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                </p>
+                                            </div>
+                                            <span className="text-[10px] font-bold text-emerald-400">✓ Respondido</span>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
