@@ -1,6 +1,7 @@
 'use client'
 
-import { DollarSign, TrendingUp, Users, Calendar, Copy, Share2, QrCode, AlertCircle } from 'lucide-react'
+import { useState } from 'react'
+import { DollarSign, TrendingUp, Users, Calendar, Copy, Share2, QrCode, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { Button } from '@/components/ui/button'
 import { useProfessionalProfile } from '@/lib/hooks/useProfessionalProfile'
@@ -11,12 +12,14 @@ export default function NutritionistDashboard() {
     const { profile, loading: profileLoading } = useProfessionalProfile()
     const { summary, commissions, loading: commissionsLoading } = useCommissions(profile?.user_id)
     const { patients, loading: patientsLoading } = useLinkedPatients(profile?.user_id)
+    const [copied, setCopied] = useState(false)
 
     const copyReferralCode = () => {
         if (!profile?.referral_code) return
         const link = `${window.location.origin}/signup?ref=${profile.referral_code}`
         navigator.clipboard.writeText(link)
-        alert('🎉 Link de indicação copiado!')
+        setCopied(true)
+        setTimeout(() => setCopied(false), 3000)
     }
 
     if (profileLoading) {
@@ -141,10 +144,10 @@ export default function NutritionistDashboard() {
                                 </div>
                                 <Button
                                     onClick={copyReferralCode}
-                                    className="bg-purple-600 hover:bg-purple-500 h-12 px-6"
+                                    className={`h-12 px-6 transition-all ${copied ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-indigo-600 hover:bg-indigo-500'}`}
                                 >
-                                    <Copy size={18} className="mr-2" />
-                                    Copiar Link
+                                    {copied ? <CheckCircle2 size={18} className="mr-2"/> : <Copy size={18} className="mr-2" />}
+                                    {copied ? 'Copiado!' : 'Copiar Link'}
                                 </Button>
                                 <Button
                                     variant="outline"
