@@ -19,6 +19,7 @@ import {
     Calendar,
     Video,
     MapPin,
+    ClipboardList,
 } from "lucide-react"
 import { usePatientEngine } from "@/lib/hooks/usePatientEngine"
 import Link from "next/link"
@@ -47,6 +48,7 @@ export default function PatientHomePage() {
     const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null)
     const [currentPlan, setCurrentPlan] = useState<string>("community")
     const [nextAppointment, setNextAppointment] = useState<{ scheduled_at: string; is_virtual: boolean; meeting_link?: string; appointment_type: string } | null>(null)
+    const [pendingQuestionnaires, setPendingQuestionnaires] = useState<{ id: string; name: string }[]>([])
 
     useEffect(() => {
         const init = async () => {
@@ -132,6 +134,27 @@ export default function PatientHomePage() {
                 .order('scheduled_at', { ascending: true })
                 .limit(1)
             if (appts && appts.length > 0) setNextAppointment(appts[0])
+
+            // Pending questionnaires (active ones not yet answered by this patient)
+            const { data: profileForTenant } = await supabase
+                .from('profiles')
+                .select('tenant_id')
+                .eq('user_id', session.user.id)
+                .single()
+            if (profileForTenant?.tenant_id) {
+                const { data: activeQs } = await supabase
+                    .from('questionnaires')
+                    .select('id, name')
+                    .eq('tenant_id', profileForTenant.tenant_id)
+                    .eq('is_active', true)
+                const { data: answered } = await supabase
+                    .from('questionnaire_responses')
+                    .select('questionnaire_id')
+                    .eq('patient_id', session.user.id)
+                const answeredIds = new Set((answered || []).map((r: any) => r.questionnaire_id))
+                const pending = (activeQs || []).filter((q: any) => !answeredIds.has(q.id))
+                setPendingQuestionnaires(pending)
+            }
         }
         init()
     }, [])
@@ -350,6 +373,29 @@ export default function PatientHomePage() {
                     </motion.div>
                 )
             })()}
+
+            {/* ─── Widget: Questionários Pendentes ─────────────────────── */}
+            {pendingQuestionnaires.length > 0 && (
+                <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
+                    <Link href={pendingQuestionnaires.length === 1 ? `/patient/questionnaire/${pendingQuestionnaires[0].id}` : '#'}>
+                        <div className="flex items-center gap-4 p-4 bg-violet-600/10 border border-violet-500/25 rounded-2xl group hover:border-violet-400/40 transition-all">
+                            <div className="w-11 h-11 rounded-xl bg-violet-600/20 border border-violet-500/25 flex items-center justify-center flex-shrink-0">
+                                <ClipboardList className="text-violet-300" size={18} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-violet-400 mb-0.5">Questionário Pendente</p>
+                                <p className="text-white font-bold text-sm truncate">
+                                    {pendingQuestionnaires.length === 1
+                                        ? pendingQuestionnaires[0].name
+                                        : `${pendingQuestionnaires.length} questionários para responder`}
+                                </p>
+                                <p className="text-slate-400 text-xs">Ajude sua nutri a te conhecer melhor</p>
+                            </div>
+                            <ChevronRight className="text-violet-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
+                        </div>
+                    </Link>
+                </motion.div>
+            )}
 
             {/* ─── SEÇÃO 2: Protocolo Ativo — Missões do Dia ────────────── */}
             <div className="mb-5">
