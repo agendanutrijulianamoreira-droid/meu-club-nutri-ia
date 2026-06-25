@@ -335,6 +335,33 @@ export default function PatientHomePage() {
                         <span className="ml-auto text-[9px] text-slate-600 uppercase font-black tracking-widest">Total</span>
                     </div>
                 </div>
+
+                {/* Level progress bar */}
+                {(() => {
+                    const xp = stats.totalPoints
+                    let level = 1
+                    while (level * level * 500 <= xp) level++
+                    const minCurrent = (level - 1) * (level - 1) * 500
+                    const minNext = level * level * 500
+                    const pct = Math.round(((xp - minCurrent) / (minNext - minCurrent)) * 100)
+                    return (
+                        <div className="mt-3 flex items-center gap-3">
+                            <span className="text-[10px] font-black text-slate-500 whitespace-nowrap">Nv {level - 1}</span>
+                            <div className="flex-1 relative">
+                                <div className="h-1.5 bg-white/8 rounded-full overflow-hidden">
+                                    <motion.div
+                                        className="h-full bg-gradient-to-r from-yellow-500 to-amber-400 rounded-full"
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${pct}%` }}
+                                        transition={{ duration: 1, ease: 'easeOut' }}
+                                    />
+                                </div>
+                            </div>
+                            <span className="text-[10px] font-black text-yellow-400 whitespace-nowrap">Nv {level}</span>
+                            <span className="text-[9px] text-slate-600 whitespace-nowrap">{xp - minCurrent}/{minNext - minCurrent} XP</span>
+                        </div>
+                    )
+                })()}
             </div>
 
             {/* ─── Banner de Trial (Clube) ──────────────────────────────── */}

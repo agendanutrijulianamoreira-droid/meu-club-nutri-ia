@@ -1684,6 +1684,7 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
     const [showRegister, setShowRegister] = useState(false)
     const [showImport, setShowImport] = useState(false)
     const [toast, setToast] = useState<string | null>(null)
+    const [remindingCheckin, setRemindingCheckin] = useState(false)
 
     const refresh = useCallback(async () => {
         setLoading(true)
@@ -1703,6 +1704,17 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
     const showToast = (msg: string) => {
         setToast(msg)
         setTimeout(() => setToast(null), 3500)
+    }
+
+    const sendCheckinReminders = async () => {
+        setRemindingCheckin(true)
+        try {
+            const res = await fetch('/api/admin/patients/remind-checkin', { method: 'POST' })
+            const data = await res.json()
+            showToast(data.message || `Lembretes enviados!`)
+        } catch {
+            showToast('Erro ao enviar lembretes')
+        } finally { setRemindingCheckin(false) }
     }
 
     const exportCSV = () => {
@@ -1774,6 +1786,10 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                             <span className="text-[10px] bg-white/10 text-slate-400 px-1.5 py-0.5 rounded-md font-bold">{patients.length}</span>
                         </h2>
                         <div className="flex gap-1">
+                            <button onClick={sendCheckinReminders} disabled={remindingCheckin}
+                                className="p-1.5 hover:bg-white/10 rounded-lg text-slate-600 hover:text-amber-400 transition-colors disabled:opacity-40" title="Lembrar check-in pendente">
+                                {remindingCheckin ? <Loader2 size={13} className="animate-spin"/> : <Bell size={13}/>}
+                            </button>
                             <button onClick={exportCSV} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-600 hover:text-slate-400 transition-colors" title="Exportar CSV">
                                 <Download size={13}/>
                             </button>
