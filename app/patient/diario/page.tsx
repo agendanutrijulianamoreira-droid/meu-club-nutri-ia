@@ -160,7 +160,7 @@ export default function DiarioAlimentarPage() {
   }
 
   const registrosPorRefeicao = (key: string) =>
-    registros.filter(r => r.r === key || r.nome_refeicao === key)
+    registros.filter(r => r.nome_refeicao === key)
 
   const caloriasRefeicao = (key: string) =>
     registros
