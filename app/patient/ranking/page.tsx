@@ -45,7 +45,7 @@ export default function PatientRankingPage() {
         if (rank === 1) return "from-yellow-500 to-orange-500"
         if (rank === 2) return "from-slate-300 to-slate-400"
         if (rank === 3) return "from-orange-600 to-orange-700"
-        return "from-indigo-600 to-purple-600"
+        return "from-indigo-600 to-indigo-700"
     }
 
     const getRankIcon = (rank: number) => {
@@ -176,9 +176,9 @@ export default function PatientRankingPage() {
             </div>
 
             {/* Achievement Hint */}
-            <div className="mt-8 p-4 bg-gradient-to-r from-purple-600/10 to-pink-600/10 border border-purple-500/20 rounded-2xl">
+            <div className="mt-8 p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl">
                 <p className="text-xs text-center text-slate-400">
-                    💡 <span className="font-bold text-purple-400">Dica:</span> Complete suas missões diárias para ganhar mais XP e subir no ranking!
+                    💡 <span className="font-bold text-indigo-400">Dica:</span> Complete suas missões diárias para ganhar mais XP e subir no ranking!
                 </p>
             </div>
         </div>

@@ -26,12 +26,12 @@ export default function ProtocolosPage() {
                     <Link href="/" className="p-4 rounded-full text-gray-600">
                         <Home size={22} />
                     </Link>
-                    <Link href="/protocolo" className="p-4 rounded-full bg-purple-600/20 text-purple-400">
+                    <Link href="/protocolo" className="p-4 rounded-full bg-indigo-600/20 text-indigo-400">
                         <Apple size={22} fill="currentColor" />
                     </Link>
 
                     <div className="relative -top-8">
-                        <button className="relative bg-gradient-to-tr from-purple-600 to-pink-600 w-16 h-16 rounded-full flex items-center justify-center shadow-xl shadow-purple-900/50 border-4 border-[#131320]">
+                        <button className="relative bg-indigo-600 w-16 h-16 rounded-full flex items-center justify-center shadow-xl shadow-indigo-900/50 border-4 border-slate-950">
                             <Camera className="text-white" size={28} />
                         </button>
                     </div>

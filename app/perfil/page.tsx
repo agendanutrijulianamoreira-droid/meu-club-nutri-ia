@@ -66,17 +66,17 @@ export default function ProfilePage() {
         <div className="min-h-screen bg-slate-950 text-white pb-36">
 
             {/* Profile Header */}
-            <div className="p-8 pt-16 bg-gradient-to-b from-purple-900/20 to-transparent flex flex-col items-center">
+            <div className="p-8 pt-16 bg-gradient-to-b from-indigo-900/20 to-transparent flex flex-col items-center">
                 <div className="relative mb-4">
-                    <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-purple-600 to-pink-600 p-1">
+                    <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-indigo-600 to-emerald-600 p-1">
                         <img src={user.avatar} className="w-full h-full rounded-full bg-black" />
                     </div>
-                    <button className="absolute bottom-0 right-0 bg-purple-600 p-2 rounded-full border-4 border-[#0a0a16]">
+                    <button className="absolute bottom-0 right-0 bg-indigo-600 p-2 rounded-full border-4 border-slate-950">
                         <Camera size={14} />
                     </button>
                 </div>
                 <h1 className="text-2xl font-black italic">{user.name}</h1>
-                <p className="text-purple-400 text-xs font-bold uppercase tracking-[0.2em] mt-1">{user.plan}</p>
+                <p className="text-indigo-400 text-xs font-bold uppercase tracking-[0.2em] mt-1">{user.plan}</p>
 
                 <div className="flex gap-4 mt-8 w-full max-w-sm">
                     <div className="flex-1 bg-white/[0.03] p-4 rounded-2xl border border-white/5 bg-white/[0.02] text-center">
@@ -85,7 +85,7 @@ export default function ProfilePage() {
                     </div>
                     <div className="flex-1 bg-white/[0.03] p-4 rounded-2xl border border-white/5 bg-white/[0.02] text-center">
                         <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Nível</p>
-                        <p className="text-xl font-black text-purple-400">{user.level}</p>
+                        <p className="text-xl font-black text-indigo-400">{user.level}</p>
                     </div>
                 </div>
             </div>
@@ -167,7 +167,7 @@ export default function ProfilePage() {
                     </Link>
 
                     <div className="relative -top-8">
-                        <button className="relative bg-gradient-to-tr from-purple-600 to-pink-600 w-16 h-16 rounded-full flex items-center justify-center shadow-xl shadow-purple-900/50 border-4 border-[#131320]">
+                        <button className="relative bg-indigo-600 w-16 h-16 rounded-full flex items-center justify-center shadow-xl shadow-indigo-900/50 border-4 border-slate-950">
                             <Camera className="text-white" size={28} />
                         </button>
                     </div>
@@ -175,7 +175,7 @@ export default function ProfilePage() {
                     <Link href="/ranking" className="p-4 rounded-full text-gray-600">
                         <Trophy size={22} />
                     </Link>
-                    <Link href="/perfil" className="p-4 rounded-full bg-purple-600/20 text-purple-400">
+                    <Link href="/perfil" className="p-4 rounded-full bg-indigo-600/20 text-indigo-400">
                         <User size={22} fill="currentColor" />
                     </Link>
                 </div>

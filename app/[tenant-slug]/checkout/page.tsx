@@ -306,7 +306,7 @@ function CheckoutContent({ params }: { params: { 'tenant-slug': string } }) {
                                 <div className="text-center">
                                     <Button
                                         onClick={handleSelectPlan}
-                                        className="h-16 px-12 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 font-black uppercase tracking-widest text-sm shadow-2xl shadow-indigo-900/40 border-none gap-3"
+                                        className="h-16 px-12 rounded-2xl bg-indigo-600 hover:bg-indigo-500 font-black uppercase tracking-widest text-sm shadow-2xl shadow-indigo-900/40 border-none gap-3"
                                     >
                                         Continuar
                                         <ArrowRight size={20} />
@@ -413,7 +413,7 @@ function CheckoutContent({ params }: { params: { 'tenant-slug': string } }) {
                                 <Button
                                     onClick={handleSignupAndCheckout}
                                     disabled={processing}
-                                    className="w-full h-16 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 font-black uppercase tracking-widest text-sm shadow-2xl shadow-indigo-900/40 border-none gap-3"
+                                    className="w-full h-16 rounded-2xl bg-indigo-600 hover:bg-indigo-500 font-black uppercase tracking-widest text-sm shadow-2xl shadow-indigo-900/40 border-none gap-3"
                                 >
                                     {processing ? (
                                         <>
