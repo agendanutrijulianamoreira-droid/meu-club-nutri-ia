@@ -15,7 +15,7 @@ export async function GET() {
     const { data: posts } = await supabase
         .from('community_posts')
         .select(`
-            id, type, body, meta, is_pinned, created_at, user_id,
+            id, type, body, meta, is_pinned, oculto, nivel_minimo, created_at, user_id,
             community_reactions(count)
         `)
         .eq('tenant_id', tenant.id)
@@ -77,11 +77,27 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ deleted: true })
     }
 
+    if (body.action === 'ocultar') {
+        const { data: post } = await supabase
+            .from('community_posts')
+            .select('oculto')
+            .eq('id', body.post_id)
+            .eq('tenant_id', tenant.id)
+            .single()
+        if (!post) return NextResponse.json({ error: 'Post not found' }, { status: 404 })
+        await supabase.from('community_posts')
+            .update({ oculto: !post.oculto })
+            .eq('id', body.post_id)
+        return NextResponse.json({ oculto: !post.oculto })
+    }
+
     // Default: create system announcement
     const text = (body.body || '').trim()
     if (!text || text.length > 1000) {
         return NextResponse.json({ error: 'Texto inválido' }, { status: 400 })
     }
+
+    const nivelMinimo = Number(body.nivel_minimo) || 1
 
     const { data: post, error } = await supabase
         .from('community_posts')
@@ -92,6 +108,8 @@ export async function POST(request: NextRequest) {
             body: text,
             meta: body.meta || {},
             is_pinned: body.is_pinned || false,
+            nivel_minimo: nivelMinimo,
+            oculto: false,
         })
         .select()
         .single()

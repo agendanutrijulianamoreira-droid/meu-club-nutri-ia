@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import {
     Users, Send, Pin, Trash2, Loader2, Sparkles,
     MessageSquare, Flame, Trophy, Star, RefreshCw,
-    Crown, AlertCircle
+    Crown, AlertCircle, EyeOff, Eye, Lock
 } from "lucide-react"
 
 const TYPE_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
@@ -35,6 +35,7 @@ export function CommunityView() {
     const [postType, setPostType] = useState<"system" | "victory">("system")
     const [pinPost, setPinPost] = useState(false)
     const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+    const [nivelMinimo, setNivelMinimo] = useState(1)
     const [stats, setStats] = useState({ total: 0, today: 0, reactions: 0, types: {} as Record<string, number> })
 
     const loadPosts = useCallback(async () => {
@@ -68,7 +69,7 @@ export function CommunityView() {
             const res = await fetch("/api/admin/community", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ body: text.trim(), type: postType, is_pinned: pinPost }),
+                body: JSON.stringify({ body: text.trim(), type: postType, is_pinned: pinPost, nivel_minimo: nivelMinimo }),
             })
             if (res.ok) {
                 setText("")
@@ -85,6 +86,15 @@ export function CommunityView() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "pin", post_id: postId }),
+        })
+        await loadPosts()
+    }
+
+    const handleOcultar = async (postId: string) => {
+        await fetch("/api/admin/community", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "ocultar", post_id: postId }),
         })
         await loadPosts()
     }
@@ -150,6 +160,32 @@ export function CommunityView() {
                             className="w-full bg-white/5 border border-white/10 text-sm text-slate-200 placeholder-slate-600 resize-none px-4 py-3 rounded-2xl focus:outline-none focus:border-indigo-500/50 min-h-[120px]"
                             rows={5}
                         />
+
+                        {/* Nível de acesso */}
+                        <div className="mt-3 mb-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1">
+                                <Lock size={10} /> Acesso mínimo
+                            </p>
+                            <div className="flex gap-1.5">
+                                {[
+                                    { id: 1, label: "Básico", color: "bg-slate-600 border-slate-500" },
+                                    { id: 2, label: "Plus", color: "bg-violet-600 border-violet-500" },
+                                    { id: 3, label: "VIP", color: "bg-amber-600 border-amber-500" },
+                                    { id: 4, label: "Consulta", color: "bg-emerald-600 border-emerald-500" },
+                                ].map(n => (
+                                    <button
+                                        key={n.id}
+                                        onClick={() => setNivelMinimo(n.id)}
+                                        className={`flex-1 py-1.5 rounded-xl text-[10px] font-bold border transition-all
+                                            ${nivelMinimo === n.id
+                                                ? `${n.color} text-white`
+                                                : "bg-white/5 border-white/10 text-slate-500 hover:text-slate-300"}`}
+                                    >
+                                        {n.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
 
                         <div className="flex items-center justify-between mt-3">
                             <label className="flex items-center gap-2 cursor-pointer">
@@ -228,9 +264,17 @@ export function CommunityView() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1 flex-wrap">
                                                 {post.is_pinned && <Crown size={11} className="text-amber-400" />}
+                                                {post.oculto && <EyeOff size={11} className="text-slate-600" />}
                                                 <span className={`text-[10px] font-bold ${typeMeta.color}`}>
                                                     {typeMeta.emoji} {typeMeta.label}
                                                 </span>
+                                                {post.nivel_minimo > 1 && (
+                                                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md border bg-white/5 border-white/10
+                                                        ${post.nivel_minimo === 2 ? "text-violet-400" : post.nivel_minimo === 3 ? "text-amber-400" : "text-emerald-400"}`}>
+                                                        <Lock size={8} className="inline mr-0.5" />
+                                                        {post.nivel_minimo === 2 ? "Plus" : post.nivel_minimo === 3 ? "VIP" : "Consulta"}
+                                                    </span>
+                                                )}
                                                 <span className="text-[10px] text-slate-600">·</span>
                                                 <span className="text-[10px] text-slate-500 font-bold">{post.author_name.split(' ')[0]}</span>
                                                 <span className="text-[10px] text-slate-600">·</span>
@@ -252,6 +296,14 @@ export function CommunityView() {
                                                     ${post.is_pinned ? "bg-amber-500/20 text-amber-400" : "bg-white/5 text-slate-600 hover:text-amber-400"}`}
                                             >
                                                 <Pin size={11} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleOcultar(post.id)}
+                                                title={post.oculto ? "Exibir" : "Ocultar"}
+                                                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all
+                                                    ${post.oculto ? "bg-slate-500/20 text-slate-400" : "bg-white/5 text-slate-600 hover:text-slate-400"}`}
+                                            >
+                                                {post.oculto ? <Eye size={11} /> : <EyeOff size={11} />}
                                             </button>
                                             <button
                                                 onClick={() => setConfirmDelete(post.id)}
