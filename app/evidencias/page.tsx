@@ -90,7 +90,7 @@ export default function EvidencePage() {
                                     {analyzing && (
                                         <div className="absolute inset-0 bg-indigo-500/10 z-10">
                                             <motion.div
-                                                className="w-full h-1 bg-gradient-to-r from-transparent via-queen-pink to-transparent shadow-[0_0_15px_#FF1493]"
+                                                className="w-full h-1 bg-gradient-to-r from-transparent via-indigo-400 to-transparent shadow-[0_0_15px_rgba(99,102,241,0.8)]"
                                                 animate={{ top: ["0%", "100%", "0%"] }}
                                                 transition={{ duration: 2, ease: "linear", repeat: Infinity }}
                                                 style={{ position: 'absolute' }}
