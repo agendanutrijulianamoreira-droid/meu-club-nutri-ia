@@ -15,7 +15,7 @@ const BLOCK_TYPES = [
     { type: 'meal', label: 'Refeição', icon: Utensils, color: 'from-green-500 to-emerald-600' },
     { type: 'shot', label: 'Shot', icon: Coffee, color: 'from-orange-500 to-red-600' },
     { type: 'workout', label: 'Treino', icon: Dumbbell, color: 'from-blue-500 to-cyan-600' },
-    { type: 'content', label: 'Conteúdo', icon: FileText, color: 'from-purple-500 to-pink-600' },
+    { type: 'content', label: 'Conteúdo', icon: FileText, color: 'from-indigo-500 to-indigo-700' },
     { type: 'water', label: 'Hidratação', icon: Droplet, color: 'from-cyan-400 to-blue-500' },
 ]
 
@@ -307,7 +307,7 @@ function ProtocolBuilderContent() {
                             <div className="flex items-center justify-between mb-6">
                                 <div>
                                     <h2 className="text-2xl font-bold flex items-center gap-2">
-                                        <Wand2 className="text-purple-400" />
+                                        <Wand2 className="text-indigo-400" />
                                         Magic Protocol Generator ✨
                                     </h2>
                                     <p className="text-gray-400 text-sm mt-1">
@@ -329,7 +329,7 @@ function ProtocolBuilderContent() {
                                     </label>
                                     <textarea
                                         placeholder="Ex: Protocolo detox pós-festas de 3 dias, focado em desinflamação intestinal, sem glúten e sem lactose, com shots matinais"
-                                        className="w-full bg-black/20 border border-white/10 rounded-xl p-4 text-white h-32 resize-none focus:outline-none focus:border-purple-500"
+                                        className="w-full bg-black/20 border border-white/10 rounded-xl p-4 text-white h-32 resize-none focus:outline-none focus:border-indigo-500"
                                         value={magicPrompt}
                                         onChange={e => setMagicPrompt(e.target.value)}
                                         disabled={generatingProtocol}
@@ -358,8 +358,8 @@ function ProtocolBuilderContent() {
                                     </div>
                                 </div>
 
-                                <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
-                                    <p className="text-sm text-purple-200">
+                                <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4">
+                                    <p className="text-sm text-indigo-200">
                                         💡 <strong>Dica:</strong> Seja específico! Mencione alimentos, tipos de refeição, objetivos (emagrecer, desinflamar, energizar), restrições alimentares, etc.
                                     </p>
                                 </div>
@@ -437,7 +437,7 @@ function ProtocolBuilderContent() {
                                         variant="ghost"
                                         onClick={handleAIGenerate}
                                         disabled={generating || !formData.title}
-                                        className="text-purple-400 hover:text-purple-300"
+                                        className="text-indigo-400 hover:text-indigo-300"
                                     >
                                         <Sparkles size={14} className={generating ? "animate-spin mr-1" : "mr-1"} />
                                         IA

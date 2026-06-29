@@ -35,7 +35,7 @@ export default function ChallengesPage() {
 
             <div className="space-y-8 relative">
                 {/* Connecting Line (Absolute centered) */}
-                <div className="absolute left-[27px] top-10 bottom-0 w-0.5 bg-gradient-to-b from-indigo-500 via-purple-500 to-transparent opacity-30 z-0" />
+                <div className="absolute left-[27px] top-10 bottom-0 w-0.5 bg-gradient-to-b from-indigo-500 to-transparent opacity-30 z-0" />
 
                 {weeks.map((week, wIndex) => (
                     <div key={wIndex} className="relative z-10 mb-10">

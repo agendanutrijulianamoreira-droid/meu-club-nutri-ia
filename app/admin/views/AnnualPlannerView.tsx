@@ -93,7 +93,7 @@ const ITEM_META: Record<string, { label: string; icon: any; color: string; bg: s
   protocol:     { label: 'Protocolo', icon: FileText, color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
   promotion:    { label: 'Promoção', icon: Gift, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
   push_campaign:{ label: 'Push', icon: Bell, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
-  special_event:{ label: 'Upsell', icon: Star, color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
+  special_event:{ label: 'Upsell', icon: Star, color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
 }
 
 const FOCUS_COLORS: Record<string, string> = {
