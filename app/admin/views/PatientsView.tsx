@@ -440,6 +440,60 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     const [checkinHistory, setCheckinHistory] = useState<any[]>([])
     const [loadingCheckins, setLoadingCheckins] = useState(false)
 
+    // REINO phase state
+    const [faseAtual, setFaseAtual] = useState<{ fase: number; nome_fase: string; inicio: string } | null | undefined>(undefined)
+    const [faseSelecionada, setFaseSelecionada] = useState<number>(1)
+    const [salvandoFase, setSalvandoFase] = useState(false)
+    const [enviandoNotif, setEnviandoNotif] = useState(false)
+    const [faseToast, setFaseToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+
+    useEffect(() => {
+        fetch(`/api/admin/patients/${patient.id}/fase`)
+            .then(r => r.json())
+            .then(d => {
+                setFaseAtual(d.fase ?? null)
+                if (d.fase) setFaseSelecionada(d.fase.fase)
+            })
+            .catch(() => setFaseAtual(null))
+    }, [patient.id])
+
+    const salvarFase = async () => {
+        setSalvandoFase(true)
+        try {
+            const res = await fetch(`/api/admin/patients/${patient.id}/fase`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fase: faseSelecionada })
+            })
+            const d = await res.json()
+            if (res.ok) {
+                setFaseAtual(d.fase)
+                setFaseToast({ type: 'success', msg: 'Fase atualizada!' })
+            } else {
+                setFaseToast({ type: 'error', msg: d.error || 'Erro ao salvar fase' })
+            }
+        } catch { setFaseToast({ type: 'error', msg: 'Erro de conexão' }) }
+        finally {
+            setSalvandoFase(false)
+            setTimeout(() => setFaseToast(null), 3500)
+        }
+    }
+
+    const testarNotificacao = async (tipo: string) => {
+        setEnviandoNotif(true)
+        try {
+            const res = await fetch('/api/admin/notificacoes/testar', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paciente_id: patient.id, tipo })
+            })
+            const d = await res.json()
+            setFaseToast({ type: res.ok ? 'success' : 'error', msg: res.ok ? 'Push enviado!' : (d.error || 'Erro ao enviar') })
+        } catch { setFaseToast({ type: 'error', msg: 'Erro de conexão' }) }
+        finally {
+            setEnviandoNotif(false)
+            setTimeout(() => setFaseToast(null), 3500)
+        }
+    }
+
     // AI Insights state
     const [insight, setInsight] = useState<{
         behavioral_analysis: string
@@ -847,6 +901,57 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                                         className="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded-xl transition-all">
                                         Atribuir agora
                                     </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Fase do REINO */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Fase do Método REINO</p>
+                            {faseToast && (
+                                <div className={`text-xs px-3 py-2 rounded-xl font-medium ${faseToast.type === 'success' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'}`}>
+                                    {faseToast.msg}
+                                </div>
+                            )}
+                            {faseAtual === undefined ? (
+                                <div className="text-xs text-slate-500">Carregando...</div>
+                            ) : faseAtual ? (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-indigo-500/15 border-indigo-500/25 text-indigo-400">
+                                        Fase {faseAtual.fase}
+                                    </span>
+                                    <span className="text-sm text-white font-medium">{faseAtual.nome_fase}</span>
+                                    <span className="text-xs text-slate-500">desde {new Date(faseAtual.inicio + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                                </div>
+                            ) : (
+                                <p className="text-xs text-slate-500">Nenhuma fase atribuída</p>
+                            )}
+                            <div className="flex items-center gap-2 pt-1">
+                                <select value={faseSelecionada} onChange={e => setFaseSelecionada(Number(e.target.value))}
+                                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50">
+                                    <option value={1}>1 — Anti-inflamatória</option>
+                                    <option value={2}>2 — Intestinal</option>
+                                    <option value={3}>3 — Hormonal</option>
+                                    <option value={4}>4 — Metabólica</option>
+                                    <option value={5}>5 — Composição Corporal</option>
+                                    <option value={6}>6 — Manutenção</option>
+                                </select>
+                                <button onClick={salvarFase} disabled={salvandoFase}
+                                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
+                                    {salvandoFase ? <Loader2 size={12} className="animate-spin"/> : 'Salvar'}
+                                </button>
+                            </div>
+                            {faseAtual && (
+                                <div className="pt-1">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Testar notificação</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {(['lembrete_refeicao', 'hidratacao', 'checkin', 'motivacao'] as const).map(tipo => (
+                                            <button key={tipo} onClick={() => testarNotificacao(tipo)} disabled={enviandoNotif}
+                                                className="text-[10px] font-bold px-2.5 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 rounded-lg transition-all disabled:opacity-50">
+                                                {tipo === 'lembrete_refeicao' ? 'Refeição' : tipo === 'hidratacao' ? 'Hidratação' : tipo === 'checkin' ? 'Check-in' : 'Motivação'}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>
