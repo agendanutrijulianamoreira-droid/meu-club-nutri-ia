@@ -11,7 +11,7 @@ export function UserHeaderStats() {
     }
 
     return (
-        <div className="glass-panel p-6 rounded-3xl border border-white/10">
+        <div className="bg-white/5 p-6 rounded-3xl border border-white/10">
             <div className="grid grid-cols-3 gap-4">
                 {/* Streak */}
                 <div className="text-center">
@@ -33,7 +33,7 @@ export function UserHeaderStats() {
 
                 {/* Level */}
                 <div className="text-center">
-                    <div className="h-12 w-12 mx-auto rounded-2xl bg-gradient-to-br from-queen-pink to-purple-600 flex items-center justify-center mb-2 shadow-lg">
+                    <div className="h-12 w-12 mx-auto rounded-2xl bg-gradient-to-br from-indigo-600 to-emerald-600 flex items-center justify-center mb-2 shadow-lg">
                         <Target size={24} className="text-white" />
                     </div>
                     <p className="text-2xl font-bold text-white">Nv {stats.level}</p>
@@ -49,7 +49,7 @@ export function UserHeaderStats() {
                 </div>
                 <div className="h-2 bg-white/10 rounded-full overflow-hidden">
                     <div
-                        className="h-full bg-gradient-to-r from-queen-pink to-purple-600 rounded-full transition-all duration-500"
+                        className="h-full bg-gradient-to-r from-indigo-600 to-emerald-500 rounded-full transition-all duration-500"
                         style={{ width: '67%' }}
                     />
                 </div>

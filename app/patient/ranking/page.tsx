@@ -69,7 +69,7 @@ export default function PatientRankingPage() {
             </div>
 
             {/* Your Stats Card */}
-            <div className="mb-6 bg-gradient-to-br from-indigo-600/20 to-purple-600/20 backdrop-blur-xl border border-indigo-500/30 rounded-3xl p-6">
+            <div className="mb-6 bg-gradient-to-br from-indigo-600/20 to-indigo-600/15 backdrop-blur-xl border border-indigo-500/30 rounded-3xl p-6">
                 <div className="flex items-center justify-between mb-4">
                     <div>
                         <p className="text-[10px] font-bold uppercase text-indigo-400 tracking-wider mb-1">Sua Posição</p>

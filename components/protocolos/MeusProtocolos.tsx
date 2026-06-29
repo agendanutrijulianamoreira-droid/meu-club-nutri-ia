@@ -134,7 +134,7 @@ export function MeusProtocolos() {
     return (
         <div className="space-y-6">
             {/* Header do Protocolo */}
-            <div className="glass-panel p-6 rounded-2xl border border-queen-pink/30 bg-gradient-to-r from-queen-pink/10 to-purple-600/10">
+            <div className="bg-white/5 p-6 rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 to-indigo-600/5">
                 <div className="flex items-start justify-between">
                     <div>
                         <h1 className="text-2xl font-bold mb-2">{activeProtocol.title}</h1>
