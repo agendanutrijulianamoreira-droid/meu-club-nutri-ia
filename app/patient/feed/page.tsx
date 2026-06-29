@@ -5,10 +5,17 @@ import { motion, AnimatePresence } from "framer-motion"
 import {
     Flame, Trophy, Star, Zap, Heart, Send, ChevronUp,
     Sparkles, Crown, Target, Loader2, Users, Lock, MessageSquare,
-    Camera, Image, Globe
+    Camera, Image, Globe, X, ChevronDown
 } from "lucide-react"
 
 const EMOJIS = ["🔥", "💜", "👏", "💪", "⭐", "🎉"]
+
+const NIVEL_LABELS: Record<number, { label: string; color: string }> = {
+    1: { label: "Básico", color: "text-slate-400" },
+    2: { label: "Plus", color: "text-indigo-400" },
+    3: { label: "VIP", color: "text-amber-400" },
+    4: { label: "Consulta", color: "text-violet-400" },
+}
 
 type Reaction = { emoji: string; count: number; reacted: boolean }
 type Post = {
@@ -19,8 +26,19 @@ type Post = {
     is_pinned: boolean
     created_at: string
     is_own: boolean
+    nivel_minimo: number
+    locked: boolean
+    comentario_count: number
     author: { name: string; initials: string; streak: number; level: number }
     reactions: Reaction[]
+}
+type Comentario = {
+    id: string
+    corpo: string
+    criado_em: string
+    is_own: boolean
+    author_name: string
+    author_initials: string
 }
 
 const TYPE_STYLES: Record<string, { bg: string; border: string; badge: string; icon: JSX.Element }> = {
@@ -77,15 +95,16 @@ function timeAgo(dateStr: string) {
     return `${Math.floor(h / 24)}d`
 }
 
-function Avatar({ initials, streak }: { initials: string; streak: number }) {
+function Avatar({ initials, streak, size = "md" }: { initials: string; streak: number; size?: "sm" | "md" }) {
     const hasFire = streak >= 7
+    const dim = size === "sm" ? "w-8 h-8 text-xs rounded-xl" : "w-10 h-10 text-sm rounded-2xl"
     return (
         <div className="relative flex-shrink-0">
-            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-sm font-bold text-white
+            <div className={`${dim} flex items-center justify-center font-bold text-white
                 ${hasFire ? "bg-gradient-to-br from-orange-500 to-rose-600" : "bg-gradient-to-br from-indigo-600 to-violet-700"}`}>
                 {initials}
             </div>
-            {hasFire && (
+            {hasFire && size === "md" && (
                 <div className="absolute -bottom-1 -right-1 bg-slate-950 rounded-full w-4 h-4 flex items-center justify-center text-[9px]">
                     🔥
                 </div>
@@ -94,12 +113,195 @@ function Avatar({ initials, streak }: { initials: string; streak: number }) {
     )
 }
 
-function PostCard({ post, onReact }: { post: Post; onReact: (postId: string, emoji: string) => unknown; key?: string }) {
+function LockedPostCard({ post }: { post: Post }) {
+    const nivelInfo = NIVEL_LABELS[post.nivel_minimo] || NIVEL_LABELS[1]
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white/[0.03] border border-white/8 rounded-3xl p-4 relative overflow-hidden"
+        >
+            <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-10 rounded-3xl flex flex-col items-center justify-center gap-2">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+                    <Lock size={18} className="text-amber-400" />
+                </div>
+                <p className="text-xs font-bold text-white">Conteúdo exclusivo</p>
+                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border bg-amber-500/15 border-amber-500/25 ${nivelInfo.color}`}>
+                    Plano {nivelInfo.label}
+                </span>
+            </div>
+
+            {/* Ghost content below the blur */}
+            <div className="flex items-start gap-3 mb-3 opacity-30">
+                <div className="w-10 h-10 rounded-2xl bg-white/10" />
+                <div className="flex-1 space-y-2">
+                    <div className="h-3 bg-white/10 rounded-full w-24" />
+                    <div className="h-2 bg-white/5 rounded-full w-12" />
+                </div>
+            </div>
+            <div className="space-y-2 opacity-20">
+                <div className="h-2.5 bg-white/10 rounded-full" />
+                <div className="h-2.5 bg-white/10 rounded-full w-4/5" />
+                <div className="h-2.5 bg-white/10 rounded-full w-3/5" />
+            </div>
+        </motion.div>
+    )
+}
+
+function CommentsDrawer({
+    post,
+    onClose,
+}: {
+    post: Post
+    onClose: () => void
+}) {
+    const [comentarios, setComentarios] = useState<Comentario[]>([])
+    const [loading, setLoading] = useState(true)
+    const [texto, setTexto] = useState("")
+    const [sending, setSending] = useState(false)
+    const inputRef = useRef<HTMLTextAreaElement>(null)
+
+    useEffect(() => {
+        fetch(`/api/patient/feed/${post.id}/comentar`)
+            .then(r => r.json())
+            .then(d => setComentarios(d.comentarios || []))
+            .finally(() => setLoading(false))
+    }, [post.id])
+
+    const handleSend = async () => {
+        if (!texto.trim() || sending) return
+        setSending(true)
+        try {
+            const res = await fetch(`/api/patient/feed/${post.id}/comentar`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ corpo: texto.trim() }),
+            })
+            if (res.ok) {
+                const data = await res.json()
+                setComentarios(prev => [...prev, {
+                    id: data.comentario.id,
+                    corpo: texto.trim(),
+                    criado_em: data.comentario.criado_em,
+                    is_own: true,
+                    author_name: "Você",
+                    author_initials: "VC",
+                }])
+                setTexto("")
+            }
+        } finally {
+            setSending(false)
+        }
+    }
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end"
+            onClick={onClose}
+        >
+            <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                onClick={e => e.stopPropagation()}
+                className="w-full max-w-lg mx-auto bg-slate-900 border border-white/10 rounded-t-3xl overflow-hidden"
+                style={{ maxHeight: "80vh" }}
+            >
+                {/* Handle */}
+                <div className="flex justify-center pt-3 pb-1">
+                    <div className="w-10 h-1 bg-white/20 rounded-full" />
+                </div>
+
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-3 border-b border-white/8">
+                    <div>
+                        <p className="text-sm font-bold text-white">Comentários</p>
+                        <p className="text-[10px] text-slate-600 mt-0.5 line-clamp-1">{post.body || "Post"}</p>
+                    </div>
+                    <button onClick={onClose} className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-slate-500 hover:text-white transition-colors">
+                        <X size={14} />
+                    </button>
+                </div>
+
+                {/* Comments list */}
+                <div className="overflow-y-auto flex-1 px-4 py-3 space-y-3" style={{ maxHeight: "calc(80vh - 160px)" }}>
+                    {loading ? (
+                        <div className="flex justify-center py-8">
+                            <Loader2 className="animate-spin text-slate-600" size={20} />
+                        </div>
+                    ) : comentarios.length === 0 ? (
+                        <div className="text-center py-8">
+                            <p className="text-2xl mb-2">💬</p>
+                            <p className="text-slate-600 text-sm">Nenhum comentário ainda. Seja a primeira!</p>
+                        </div>
+                    ) : (
+                        comentarios.map(c => (
+                            <div key={c.id} className="flex gap-2.5">
+                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold text-white flex-shrink-0
+                                    ${c.is_own ? "bg-indigo-600" : "bg-slate-700"}`}>
+                                    {c.author_initials}
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-xs font-bold text-white">
+                                            {c.is_own ? "Você" : c.author_name.split(" ")[0]}
+                                        </span>
+                                        <span className="text-[10px] text-slate-700">{timeAgo(c.criado_em)}</span>
+                                    </div>
+                                    <p className="text-sm text-slate-300 mt-0.5 leading-relaxed">{c.corpo}</p>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                {/* Input */}
+                <div className="px-4 py-3 border-t border-white/8">
+                    <div className="flex gap-2 items-end">
+                        <textarea
+                            ref={inputRef}
+                            value={texto}
+                            onChange={e => setTexto(e.target.value.slice(0, 500))}
+                            placeholder="Escreva um comentário..."
+                            rows={1}
+                            className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-3 py-2.5 text-sm text-slate-200 placeholder-slate-600 resize-none focus:outline-none focus:border-indigo-500/50 min-h-[42px] max-h-24"
+                            style={{ height: "auto" }}
+                            onInput={e => {
+                                const t = e.target as HTMLTextAreaElement
+                                t.style.height = "auto"
+                                t.style.height = Math.min(t.scrollHeight, 96) + "px"
+                            }}
+                        />
+                        <button
+                            onClick={handleSend}
+                            disabled={!texto.trim() || sending}
+                            className="w-10 h-10 rounded-2xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 flex items-center justify-center text-white transition-all flex-shrink-0"
+                        >
+                            {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                        </button>
+                    </div>
+                </div>
+            </motion.div>
+        </motion.div>
+    )
+}
+
+function PostCard({
+    post,
+    onReact,
+    onOpenComments,
+}: {
+    post: Post
+    onReact: (postId: string, emoji: string) => void | Promise<void>
+    onOpenComments: (post: Post) => void
+}) {
     const [showEmojis, setShowEmojis] = useState(false)
     const style = TYPE_STYLES[post.type] || TYPE_STYLES.text
-
     const totalReactions = post.reactions.reduce((acc, r) => acc + r.count, 0)
-    const topReaction = post.reactions.sort((a, b) => b.count - a.count)[0]
 
     return (
         <motion.div
@@ -130,7 +332,7 @@ function PostCard({ post, onReact }: { post: Post; onReact: (postId: string, emo
             </div>
 
             {/* Body */}
-            <p className="text-sm text-slate-200 leading-relaxed mb-3 pl-0">{post.body}</p>
+            <p className="text-sm text-slate-200 leading-relaxed mb-3">{post.body}</p>
 
             {/* Meta badges */}
             {post.meta && Object.keys(post.meta).length > 0 && (
@@ -153,7 +355,7 @@ function PostCard({ post, onReact }: { post: Post; onReact: (postId: string, emo
                 </div>
             )}
 
-            {/* Reactions */}
+            {/* Reactions + Comments */}
             <div className="flex items-center gap-2 mt-1">
                 <div className="flex items-center gap-1.5 flex-1 flex-wrap">
                     {post.reactions.filter(r => r.count > 0).map(r => (
@@ -173,6 +375,15 @@ function PostCard({ post, onReact }: { post: Post; onReact: (postId: string, emo
                         <span className="text-[11px] text-slate-700">Seja o primeiro a reagir</span>
                     )}
                 </div>
+
+                {/* Comment button */}
+                <button
+                    onClick={() => onOpenComments(post)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-500 hover:text-slate-300 hover:bg-white/10 transition-all text-xs font-bold"
+                >
+                    <MessageSquare size={11} />
+                    {post.comentario_count > 0 && <span>{post.comentario_count}</span>}
+                </button>
 
                 {/* Emoji picker trigger */}
                 <div className="relative">
@@ -259,7 +470,6 @@ function ComposerBox({ onPost }: { onPost: (text: string) => Promise<void> }) {
                 </div>
             </div>
 
-            {/* Quick suggestions */}
             {!text && (
                 <div className="mt-3 flex flex-wrap gap-2">
                     {suggestions.map(s => (
@@ -281,7 +491,6 @@ type Challenge = { id: string; title: string; emoji: string; start_date: string;
 type RankEntry = {
     user_id: string; name: string; rank: number
     total_xp?: number; current_streak: number; current_level: number
-    // challenge-specific
     score?: number; camera_hits?: number; gallery_hits?: number; simple_hits?: number; engagement?: number
 }
 
@@ -298,6 +507,8 @@ export default function FeedPage() {
     const [challenges, setChallenges] = useState<Challenge[]>([])
     const [selectedChallenge, setSelectedChallenge] = useState<string | null>(null)
     const [activeChallengeMeta, setActiveChallengeMeta] = useState<Challenge | null>(null)
+    const [patientNivel, setPatientNivel] = useState(1)
+    const [commentPost, setCommentPost] = useState<Post | null>(null)
     const loaderRef = useRef<HTMLDivElement>(null)
 
     const loadFeed = useCallback(async (cursor?: string) => {
@@ -305,6 +516,7 @@ export default function FeedPage() {
         const res = await fetch(url)
         if (!res.ok) return
         const data = await res.json()
+        if (data.patientNivel) setPatientNivel(data.patientNivel)
         if (cursor) {
             setPosts(prev => [...prev, ...data.posts])
         } else {
@@ -377,13 +589,10 @@ export default function FeedPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ body: text }),
         })
-        if (res.ok) {
-            await loadFeed()  // refresh
-        }
+        if (res.ok) await loadFeed()
     }
 
     const handleReact = async (postId: string, emoji: string) => {
-        // Optimistic update
         setPosts(prev => prev.map(p => {
             if (p.id !== postId) return p
             const existing = p.reactions.find(r => r.emoji === emoji)
@@ -413,6 +622,16 @@ export default function FeedPage() {
         })
     }
 
+    const handleOpenComments = (post: Post) => {
+        setCommentPost(post)
+    }
+
+    const handleCloseComments = () => {
+        setCommentPost(null)
+        // Refresh feed to get updated comment count
+        loadFeed()
+    }
+
     return (
         <div className="min-h-screen pb-28">
             {/* Header */}
@@ -423,7 +642,14 @@ export default function FeedPage() {
                             <Users size={20} className="text-indigo-400" />
                             Comunidade
                         </h1>
-                        <p className="text-[11px] text-slate-600 mt-0.5">Sua tribo de rainhas 👑</p>
+                        <p className="text-[11px] text-slate-600 mt-0.5">
+                            Sua tribo de rainhas 👑
+                            {patientNivel > 1 && (
+                                <span className={`ml-1.5 font-bold ${NIVEL_LABELS[patientNivel]?.color}`}>
+                                    · {NIVEL_LABELS[patientNivel]?.label}
+                                </span>
+                            )}
+                        </p>
                     </div>
                 </div>
                 {/* Tabs */}
@@ -466,9 +692,14 @@ export default function FeedPage() {
                                 </div>
                             ) : (
                                 <div className="space-y-3">
-                                    {posts.map((post: Post) => {
-                                        return <PostCard key={post.id} post={post} onReact={handleReact} />
-                                    })}
+                                    {posts.map((post: Post) => (
+                                        <div key={post.id}>
+                                            {post.locked
+                                                ? <LockedPostCard post={post} />
+                                                : <PostCard post={post} onReact={handleReact} onOpenComments={handleOpenComments} />
+                                            }
+                                        </div>
+                                    ))}
                                     <div ref={loaderRef} className="py-4 flex justify-center">
                                         {loadingMore && <Loader2 className="animate-spin text-slate-700" size={20} />}
                                         {!hasMore && posts.length > 0 && (
@@ -512,7 +743,6 @@ export default function FeedPage() {
                                 ))}
                             </div>
 
-                            {/* Challenge header */}
                             {activeChallengeMeta && (
                                 <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 mb-4">
                                     <p className="text-xs font-bold text-emerald-400">
@@ -536,7 +766,6 @@ export default function FeedPage() {
                                 </div>
                             ) : (
                                 <div className="space-y-2">
-                                    {/* Podium top 3 */}
                                     {ranking.slice(0, 3).length > 0 && (
                                         <div className="bg-gradient-to-br from-amber-950/40 to-yellow-950/20 border border-amber-500/20 rounded-3xl p-4 mb-4">
                                             <p className="text-[10px] font-black uppercase tracking-wider text-amber-500 mb-4 flex items-center gap-1">
@@ -571,7 +800,6 @@ export default function FeedPage() {
                                         </div>
                                     )}
 
-                                    {/* Full list */}
                                     {ranking.map((p) => (
                                         <div
                                             key={p.user_id}
@@ -633,6 +861,13 @@ export default function FeedPage() {
                     )}
                 </AnimatePresence>
             </div>
+
+            {/* Comments Drawer */}
+            <AnimatePresence>
+                {commentPost && (
+                    <CommentsDrawer post={commentPost} onClose={handleCloseComments} />
+                )}
+            </AnimatePresence>
         </div>
     )
 }

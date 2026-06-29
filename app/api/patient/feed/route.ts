@@ -14,15 +14,24 @@ export async function GET(request: NextRequest) {
         .single()
     if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
+    // Fetch patient's nivel (default 1 if not set)
+    const { data: nivelRow } = await supabase
+        .from('nivel_paciente')
+        .select('nivel')
+        .eq('user_id', user.id)
+        .single()
+    const patientNivel = nivelRow?.nivel ?? 1
+
     const url = new URL(request.url)
     const cursor = url.searchParams.get('cursor')  // created_at for pagination
     const limit = 20
 
-    // Fetch posts
+    // Fetch posts (include nivel_minimo so frontend can show lock UI)
     let q = supabase
         .from('community_posts')
-        .select('id, type, body, meta, is_pinned, created_at, user_id')
+        .select('id, type, body, meta, is_pinned, created_at, user_id, nivel_minimo')
         .eq('tenant_id', profile.tenant_id)
+        .eq('oculto', false)
         .order('is_pinned', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(limit)
@@ -47,6 +56,18 @@ export async function GET(request: NextRequest) {
 
     const authorMap: Record<string, any> = {}
     for (const a of authors || []) authorMap[a.user_id] = a
+
+    // Fetch comment counts per post
+    const { data: commentCounts } = await supabase
+        .from('comentarios_comunidade')
+        .select('post_id')
+        .in('post_id', postIds)
+        .eq('oculto', false)
+
+    const commentCountMap: Record<string, number> = {}
+    for (const c of commentCounts || []) {
+        commentCountMap[c.post_id] = (commentCountMap[c.post_id] || 0) + 1
+    }
 
     // Fetch reactions per post
     const { data: reactions } = await supabase
@@ -79,28 +100,33 @@ export async function GET(request: NextRequest) {
     const enriched = posts.map(p => {
         const author = authorMap[p.user_id]
         const name = author?.name || 'Rainha'
+        const nivelMinimo = (p as any).nivel_minimo ?? 1
+        const locked = nivelMinimo > patientNivel
         return {
             id: p.id,
             type: p.type,
-            body: p.body,
-            meta: p.meta,
+            body: locked ? '' : p.body,
+            meta: locked ? {} : p.meta,
             is_pinned: p.is_pinned,
             created_at: p.created_at,
             is_own: p.user_id === user.id,
+            nivel_minimo: nivelMinimo,
+            locked,
+            comentario_count: commentCountMap[p.id] || 0,
             author: {
                 name,
                 initials: name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase(),
                 streak: author?.current_streak || 0,
                 level: author?.current_level || 1,
             },
-            reactions: reactionsByPost[p.id] || [],
+            reactions: locked ? [] : (reactionsByPost[p.id] || []),
         }
     })
 
     const hasMore = posts.length === limit
     const nextCursor = hasMore ? posts[posts.length - 1].created_at : null
 
-    return NextResponse.json({ posts: enriched, hasMore, nextCursor })
+    return NextResponse.json({ posts: enriched, hasMore, nextCursor, patientNivel })
 }
 
 export async function POST(request: NextRequest) {

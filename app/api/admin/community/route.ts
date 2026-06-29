@@ -15,7 +15,7 @@ export async function GET() {
     const { data: posts } = await supabase
         .from('community_posts')
         .select(`
-            id, type, body, meta, is_pinned, created_at, user_id,
+            id, type, body, meta, is_pinned, oculto, nivel_minimo, created_at, user_id,
             community_reactions(count)
         `)
         .eq('tenant_id', tenant.id)
@@ -29,11 +29,22 @@ export async function GET() {
     const authorMap: Record<string, any> = {}
     for (const a of authors || []) authorMap[a.user_id] = a
 
+    // Fetch comment counts
+    const postIds = (posts || []).map(p => p.id)
+    const { data: commentCounts } = postIds.length > 0
+        ? await supabase.from('comentarios_comunidade').select('post_id').in('post_id', postIds)
+        : { data: [] }
+    const commentCountMap: Record<string, number> = {}
+    for (const c of commentCounts || []) {
+        commentCountMap[c.post_id] = (commentCountMap[c.post_id] || 0) + 1
+    }
+
     const enriched = (posts || []).map(p => ({
         ...p,
         author_name: authorMap[p.user_id]?.name || 'Rainha',
         author_role: authorMap[p.user_id]?.role || 'patient',
         reaction_count: (p as any).community_reactions?.[0]?.count || 0,
+        comentario_count: commentCountMap[p.id] || 0,
     }))
 
     return NextResponse.json({ posts: enriched })
@@ -52,21 +63,31 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
 
     if (body.action === 'pin') {
-        // Toggle pin on a post
         const { data: post } = await supabase
             .from('community_posts')
             .select('is_pinned')
             .eq('id', body.post_id)
             .eq('tenant_id', tenant.id)
             .single()
-
         if (!post) return NextResponse.json({ error: 'Post not found' }, { status: 404 })
-
         await supabase.from('community_posts')
             .update({ is_pinned: !post.is_pinned })
             .eq('id', body.post_id)
-
         return NextResponse.json({ pinned: !post.is_pinned })
+    }
+
+    if (body.action === 'toggle_oculto') {
+        const { data: post } = await supabase
+            .from('community_posts')
+            .select('oculto')
+            .eq('id', body.post_id)
+            .eq('tenant_id', tenant.id)
+            .single()
+        if (!post) return NextResponse.json({ error: 'Post not found' }, { status: 404 })
+        await supabase.from('community_posts')
+            .update({ oculto: !post.oculto })
+            .eq('id', body.post_id)
+        return NextResponse.json({ oculto: !post.oculto })
     }
 
     if (body.action === 'delete') {
@@ -92,6 +113,7 @@ export async function POST(request: NextRequest) {
             body: text,
             meta: body.meta || {},
             is_pinned: body.is_pinned || false,
+            nivel_minimo: body.nivel_minimo || 1,
         })
         .select()
         .single()
