@@ -21,7 +21,7 @@ export async function POST(
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { data: tenant } = await supabase
-        .from('tenants').select('id, brand_name, method_name, gpt_system_prompt')
+        .from('tenants').select('id, name, method_name, gpt_system_prompt')
         .eq('owner_id', user.id).single()
     if (!tenant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
@@ -86,7 +86,7 @@ export async function POST(
         'Você é uma nutricionista especialista em comportamento alimentar e saúde feminina.'
 
     const userPrompt = `
-Você é a IA analítica do clube de saúde "${(tenant as any).brand_name}". Gere um insight profundo e personalizado sobre esta paciente.
+Você é a IA analítica do clube de saúde "${tenant.name}". Gere um insight profundo e personalizado sobre esta paciente.
 
 DADOS DA PACIENTE:
 - Nome: ${profile.name}
