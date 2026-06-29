@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   const supabase = createSupabaseServerClient(cookies())
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { data: tenant } = await supabase.from('tenants').select('id, name, method_name, gpt_system_prompt').eq('owner_id', user.id).single()
+  const { data: tenant } = await supabase.from('tenants').select('id, brand_name, method_name, gpt_system_prompt').eq('owner_id', user.id).single()
   if (!tenant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { year, questionnaire } = await request.json()
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     totalPatients: patientCount ?? 0,
     planDistribution: planCounts,
     checkinsLast30d: checkinStats?.length ?? 0,
-    clubName: tenant.name,
+    clubName: tenant.brand_name,
     methodName: (tenant as any).method_name,
   }
 

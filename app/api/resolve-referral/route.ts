@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     const { data: tenant } = await supabase
         .from("tenants")
-        .select("slug, name, brand_color, logo_url")
+        .select("slug, brand_name, brand_color, logo_url")
         .eq("id", profile.tenant_id)
         .single()
 
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
         tenant_slug: tenant.slug,
-        tenant_name: tenant.name,
+        tenant_name: tenant.brand_name,
         nutritionist_name: profile.name,
         referral_code: code.toUpperCase(),
     })

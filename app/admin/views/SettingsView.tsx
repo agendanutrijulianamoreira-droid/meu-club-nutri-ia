@@ -120,7 +120,7 @@ export function SettingsView({ setView, tenantId }: { setView: (v: any) => void;
 
     useEffect(() => {
         if (tenant) {
-            setClubName(tenant.name || '')
+            setClubName(tenant.brand_name || '')
             setBrandColor(tenant.brand_color || '#6366f1')
             setLogoUrl(tenant.logo_url)
             if (tenant.settings?.notifications) {
@@ -136,7 +136,7 @@ export function SettingsView({ setView, tenantId }: { setView: (v: any) => void;
         setIsSaving(true)
         try {
             const { error } = await updateTenant(tenant.id, {
-                name: clubName,
+                brand_name: clubName,
                 brand_color: brandColor,
                 logo_url: logoUrl,
                 settings: { ...(tenant.settings || {}), notifications },
