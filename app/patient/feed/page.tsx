@@ -11,14 +11,22 @@ import {
 const EMOJIS = ["🔥", "💜", "👏", "💪", "⭐", "🎉"]
 
 type Reaction = { emoji: string; count: number; reacted: boolean }
+const NIVEL_LABELS: Record<number, { label: string; color: string }> = {
+    2: { label: "Plus", color: "text-violet-400" },
+    3: { label: "VIP", color: "text-amber-400" },
+    4: { label: "Consulta", color: "text-emerald-400" },
+}
+
 type Post = {
     id: string
     type: string
-    body: string
+    body: string | null
     meta: any
     is_pinned: boolean
     created_at: string
     is_own: boolean
+    locked?: boolean
+    nivel_minimo?: number
     author: { name: string; initials: string; streak: number; level: number }
     reactions: Reaction[]
 }
@@ -205,6 +213,29 @@ function PostCard({ post, onReact }: { post: Post; onReact: (postId: string, emo
                 </div>
             </div>
         </motion.div>
+    )
+}
+
+function LockedPostCard({ post }: { post: Post }) {
+    const nivelInfo = NIVEL_LABELS[post.nivel_minimo ?? 2]
+    return (
+        <div className="bg-white/[0.03] border border-white/8 rounded-3xl p-4 relative overflow-hidden">
+            <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+                    <Lock size={16} className="text-slate-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                        <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border bg-white/5 border-white/10 ${nivelInfo?.color ?? "text-slate-500"}`}>
+                            {nivelInfo?.label ?? "Exclusivo"}
+                        </span>
+                    </div>
+                    <p className="text-xs text-slate-600 mt-1">Conteúdo exclusivo para membros {nivelInfo?.label ?? "de nível superior"}</p>
+                </div>
+                <p className="text-[10px] text-slate-700 flex-shrink-0">{timeAgo(post.created_at)}</p>
+            </div>
+            <div className="mt-3 h-8 bg-white/[0.03] rounded-xl blur-sm" />
+        </div>
     )
 }
 
@@ -467,6 +498,7 @@ export default function FeedPage() {
                             ) : (
                                 <div className="space-y-3">
                                     {posts.map((post: Post) => {
+                                        if (post.locked) return <LockedPostCard key={post.id} post={post} />
                                         return <PostCard key={post.id} post={post} onReact={handleReact} />
                                     })}
                                     <div ref={loaderRef} className="py-4 flex justify-center">
