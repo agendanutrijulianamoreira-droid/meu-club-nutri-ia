@@ -77,6 +77,7 @@ import { ManagerLearningView } from "./views/ManagerLearningView"
 import { HabitsView } from "./views/HabitsView"
 import { VipSettingsView } from "./views/VipSettingsView"
 import { EmailMarketingView } from "./views/EmailMarketingView"
+import { BillingView } from "./views/BillingView"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,7 +88,7 @@ type ViewType =
     | 'agent-approvals' | 'agent-queue' | 'meal-plans' | 'meal-plans-premium'
     | 'appointments' | 'professionals' | 'product-gateway' | 'annual-planner'
     | 'strategic-planner' | 'content-planner' | 'analytics' | 'patient-journey'
-    | 'products' | 'approvals' | 'recipes' | 'manager-learning' | 'habits' | 'vip-settings' | 'email-marketing'
+    | 'products' | 'approvals' | 'recipes' | 'manager-learning' | 'habits' | 'vip-settings' | 'email-marketing' | 'billing'
 
 interface NavItem {
     id: ViewType
@@ -146,6 +147,7 @@ const navGroups: NavGroup[] = [
         groupIcon: Crown,
         label: 'Clube',
         items: [
+            { id: 'billing', label: 'Faturamento' },
             { id: 'club-plan', label: 'Plano do Clube' },
             { id: 'vip-settings', label: 'Área VIP' },
             { id: 'sales-page', label: 'Página de Vendas' },
@@ -271,6 +273,7 @@ export default function AdminDashboard({
             case 'recipes':            return <RecipesView setView={setActiveView} tenantId={tenantId} />
             case 'habits':             return <HabitsView setView={setActiveView} tenantId={tenantId} />
             case 'vip-settings':       return <VipSettingsView setView={setActiveView} tenantId={tenantId} />
+            case 'billing':            return <BillingView setView={setActiveView} tenantId={tenantId} />
             case 'email-marketing':    return <EmailMarketingView setView={setActiveView} tenantId={tenantId} />
             case 'manager-learning':   return <ManagerLearningView setView={setActiveView} tenantId={tenantId} />
             case 'settings':           return <SettingsView {...props} />
