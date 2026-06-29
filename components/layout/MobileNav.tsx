@@ -22,7 +22,7 @@ export function MobileNav() {
 
     return (
         <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-4 pt-0">
-            <nav className="glass-panel mx-auto flex h-16 max-w-md items-center justify-around rounded-2xl border-white/10 px-2 shadow-2xl backdrop-blur-xl">
+            <nav className="bg-slate-900/90 backdrop-blur-xl mx-auto flex h-16 max-w-md items-center justify-around rounded-2xl border border-white/10 px-2 shadow-2xl">
                 {navItems.map(({ href, label, icon: Icon }) => {
                     const isActive = pathname === href
                     return (
@@ -31,7 +31,7 @@ export function MobileNav() {
                             href={href}
                             className={cn(
                                 "relative flex flex-col items-center justify-center gap-1 rounded-xl px-3 py-1 transition-all",
-                                isActive ? "text-queen-pink" : "text-gray-400 hover:text-white"
+                                isActive ? "text-indigo-400" : "text-gray-400 hover:text-white"
                             )}
                         >
                             {isActive && (

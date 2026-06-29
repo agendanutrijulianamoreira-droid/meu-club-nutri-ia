@@ -120,11 +120,11 @@ export function ProtocolCalendar() {
     }
 
     return (
-        <div className="glass-panel p-6 rounded-2xl border border-white/10">
+        <div className="bg-white/5 p-6 rounded-2xl border border-white/10">
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                    <Calendar className="text-queen-pink" size={24} />
+                    <Calendar className="text-indigo-400" size={24} />
                     <h2 className="text-xl font-bold">Calendário de Protocolos</h2>
                 </div>
                 <div className="flex items-center gap-2">
@@ -177,12 +177,12 @@ export function ProtocolCalendar() {
                             className={`
                                 h-24 p-2 rounded-lg border cursor-pointer transition-all
                                 ${isToday(day)
-                                    ? 'border-queen-pink bg-queen-pink/10'
+                                    ? 'border-indigo-500 bg-indigo-500/10'
                                     : 'border-white/10 hover:border-white/20'}
                                 ${hasProtocols ? 'bg-white/5' : ''}
                             `}
                         >
-                            <div className={`text-sm font-bold mb-1 ${isToday(day) ? 'text-queen-pink' : 'text-white'}`}>
+                            <div className={`text-sm font-bold mb-1 ${isToday(day) ? 'text-indigo-400' : 'text-white'}`}>
                                 {day}
                             </div>
                             <div className="space-y-1 overflow-hidden">

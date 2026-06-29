@@ -108,7 +108,7 @@ export function MeusProtocolos() {
         return (
             <div className="flex items-center justify-center h-64">
                 <div className="text-center">
-                    <div className="w-12 h-12 border-4 border-queen-pink border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                     <p className="text-gray-400">Carregando seu protocolo...</p>
                 </div>
             </div>
@@ -117,7 +117,7 @@ export function MeusProtocolos() {
 
     if (!activeProtocol) {
         return (
-            <div className="glass-panel p-8 rounded-2xl border border-white/10 text-center">
+            <div className="bg-white/5 p-8 rounded-2xl border border-white/10 text-center">
                 <Sparkles className="w-16 h-16 text-gray-500 mx-auto mb-4" />
                 <h2 className="text-xl font-bold mb-2">Nenhum protocolo ativo</h2>
                 <p className="text-gray-400">
@@ -142,7 +142,7 @@ export function MeusProtocolos() {
                     </div>
                     <div className="text-right">
                         <div className="text-sm text-gray-400">Progresso</div>
-                        <div className="text-3xl font-bold text-queen-pink">{progress}%</div>
+                        <div className="text-3xl font-bold text-indigo-400">{progress}%</div>
                     </div>
                 </div>
 
@@ -150,7 +150,7 @@ export function MeusProtocolos() {
                 <div className="mt-4">
                     <div className="h-2 bg-white/10 rounded-full overflow-hidden">
                         <motion.div
-                            className="h-full bg-gradient-to-r from-queen-pink to-purple-500"
+                            className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600"
                             initial={{ width: 0 }}
                             animate={{ width: `${progress}%` }}
                             transition={{ duration: 1, ease: "easeOut" }}
@@ -170,7 +170,7 @@ export function MeusProtocolos() {
                         key={day.day_number}
                         onClick={() => setCurrentDayNumber(day.day_number)}
                         className={`px-4 py-2 rounded-xl whitespace-nowrap transition-all flex items-center gap-2 ${day.day_number === currentDayNumber
-                            ? 'bg-queen-pink text-white'
+                            ? 'bg-indigo-600 text-white'
                             : day.day_number < currentDayNumber
                                 ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                                 : 'bg-white/5 text-gray-400 border border-white/10'
@@ -191,10 +191,10 @@ export function MeusProtocolos() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
-                        className="glass-panel p-6 rounded-2xl border border-white/10"
+                        className="bg-white/5 p-6 rounded-2xl border border-white/10"
                     >
                         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                            <Calendar className="text-queen-pink" />
+                            <Calendar className="text-indigo-400" />
                             {currentDay.title}
                         </h2>
 
@@ -206,11 +206,11 @@ export function MeusProtocolos() {
                                         initial={{ opacity: 0, x: -20 }}
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ delay: idx * 0.1 }}
-                                        className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10 hover:border-queen-pink/50 transition-all cursor-pointer"
+                                        className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10 hover:border-indigo-500/50 transition-all cursor-pointer"
                                     >
-                                        <button className="w-8 h-8 rounded-full border-2 border-queen-pink/50 flex items-center justify-center hover:bg-queen-pink/20 transition-all">
+                                        <button className="w-8 h-8 rounded-full border-2 border-indigo-500/50 flex items-center justify-center hover:bg-indigo-500/20 transition-all">
                                             {item.is_completed ? (
-                                                <CheckCircle className="text-queen-pink" size={20} />
+                                                <CheckCircle className="text-indigo-400" size={20} />
                                             ) : (
                                                 <Circle className="text-gray-500" size={20} />
                                             )}
