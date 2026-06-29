@@ -38,7 +38,7 @@ export class OnboardingService {
                 return { emailSent: false }
             }
 
-            const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://vitaclub.app'}/login`
+            const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://vitaclub.app'}/login/paciente`
             const patientName = profile.name || 'Paciente'
 
             if (process.env.RESEND_API_KEY) {
