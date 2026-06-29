@@ -523,7 +523,7 @@ function ChallengeBuilderContent() {
                         <Button
                             onClick={generateDaysWithAI}
                             disabled={saving}
-                            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 py-6 font-bold"
+                            className="w-full bg-indigo-600 hover:bg-indigo-500 py-6 font-bold"
                         >
                             {saving ? (
                                 <Loader2 size={20} className="animate-spin mr-2" />
@@ -597,7 +597,7 @@ function ChallengeBuilderContent() {
                                     {/* Day Header */}
                                     <div className="bg-white/[0.02] p-4 flex justify-between items-center border-b border-white/5">
                                         <div className="flex items-center gap-3">
-                                            <div className="bg-purple-600 w-10 h-10 rounded-full flex items-center justify-center font-bold text-white">
+                                            <div className="bg-indigo-600 w-10 h-10 rounded-full flex items-center justify-center font-bold text-white">
                                                 {day.dayNumber}
                                             </div>
                                             <input
@@ -726,7 +726,7 @@ function ChallengeBuilderContent() {
 
                             <Button
                                 disabled={saving}
-                                className="bg-gradient-to-r from-purple-600 to-pink-600 px-8 py-6 font-bold text-lg"
+                                className="bg-indigo-600 hover:bg-indigo-500 px-8 py-6 font-bold text-lg"
                             >
                                 <Sparkles size={20} className="mr-2" />
                                 Gerar Posts com IA

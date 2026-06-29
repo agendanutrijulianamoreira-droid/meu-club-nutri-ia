@@ -491,7 +491,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
 
                                             {/* Add Button (on hover) */}
                                             <button
-                                                className="opacity-0 group-hover:opacity-100 bg-purple-600/50 hover:bg-purple-600 text-white p-1 rounded-md transition-all hover:scale-110"
+                                                className="opacity-0 group-hover:opacity-100 bg-indigo-600/50 hover:bg-indigo-600 text-white p-1 rounded-md transition-all hover:scale-110"
                                                 onClick={(e) => { e.stopPropagation(); handleDayClick(day) }}
                                             >
                                                 <Plus size={12} />
@@ -810,7 +810,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                         <button
                                             onClick={() => setModalType('content')}
                                             className={`flex-1 py-3 text-sm font-bold rounded-lg transition flex items-center justify-center gap-2 ${modalType === 'content'
-                                                ? 'bg-purple-600 text-white'
+                                                ? 'bg-indigo-600 text-white'
                                                 : 'text-gray-400 hover:text-white'
                                                 }`}
                                         >
@@ -854,7 +854,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                                                         setShowDatePicker(false)
                                                                     }}
                                                                     className={`w-8 h-8 rounded-lg text-xs transition-all ${isSelected
-                                                                        ? 'bg-purple-600 text-white font-bold'
+                                                                        ? 'bg-indigo-600 text-white font-bold'
                                                                         : 'text-gray-400 hover:bg-white/5'
                                                                         }`}
                                                                 >
@@ -954,7 +954,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                                                 setFormData({ ...formData, recurrenceDays: newDays })
                                                             }}
                                                             className={`w-9 h-9 rounded-full text-xs font-bold transition-all border ${isSelected
-                                                                ? 'bg-purple-600 border-purple-400 text-white shadow-[0_0_15px_rgba(168,85,247,0.4)]'
+                                                                ? 'bg-indigo-600 border-indigo-400 text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]'
                                                                 : 'bg-black/40 border-white/10 text-gray-500 hover:border-gray-500'
                                                                 }`}
                                                         >
@@ -1055,7 +1055,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                             >
                                                 <div className="flex justify-between items-center mb-1">
                                                     <span className="text-[9px] font-bold text-gray-600 flex items-center gap-1">
-                                                        <div className="w-3 h-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded" />
+                                                        <div className="w-3 h-3 bg-indigo-600 rounded" />
                                                         Reino da Nutri
                                                     </span>
                                                     <span className="text-[8px] text-gray-400">Agora</span>
@@ -1107,7 +1107,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                 <Button
                                     onClick={handleSaveEvent}
                                     disabled={saving || !formData.title}
-                                    className="bg-gradient-to-r from-purple-600 to-pink-600 font-bold"
+                                    className="bg-indigo-600 hover:bg-indigo-500 font-bold"
                                 >
                                     {saving ? (
                                         <Loader2 size={16} className="animate-spin mr-2" />

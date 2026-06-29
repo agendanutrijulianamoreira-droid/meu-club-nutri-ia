@@ -277,7 +277,7 @@ function ProtocolBuilderContent() {
                     <div className="flex gap-3">
                         <Button
                             onClick={openMagicModal}
-                            className="bg-gradient-to-r from-purple-600 to-pink-600 border-0"
+                            className="bg-indigo-600 hover:bg-indigo-500 border-0"
                         >
                             <Wand2 size={18} className="mr-2" />
                             ✨ Gerar com IA
@@ -285,7 +285,7 @@ function ProtocolBuilderContent() {
                         <Button
                             onClick={handleSave}
                             disabled={saving || !formData.title}
-                            className="bg-gradient-to-r from-indigo-500 to-purple-600 border-0"
+                            className="bg-indigo-600 hover:bg-indigo-500 border-0"
                         >
                             <Save size={18} className="mr-2" />
                             {saving ? 'Salvando...' : 'Salvar Protocolo'}
@@ -348,7 +348,7 @@ function ProtocolBuilderContent() {
                                                 disabled={generatingProtocol}
                                                 className={`p-4 rounded-xl border transition-all
                                                     ${magicDuration === d
-                                                        ? 'bg-purple-600 text-white border-purple-500'
+                                                        ? 'bg-indigo-600 text-white border-indigo-500'
                                                         : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
                                             >
                                                 <div className="text-2xl font-bold">{d}</div>
@@ -376,7 +376,7 @@ function ProtocolBuilderContent() {
                                     <Button
                                         onClick={handleMagicGenerate}
                                         disabled={!magicPrompt.trim() || generatingProtocol}
-                                        className="bg-gradient-to-r from-purple-600 to-pink-600 border-0"
+                                        className="bg-indigo-600 hover:bg-indigo-500 border-0"
                                     >
                                         {generatingProtocol ? (
                                             <>
