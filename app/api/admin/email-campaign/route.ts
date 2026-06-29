@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { data: tenant } = await supabase
-        .from('tenants').select('id, name').eq('owner_id', user.id).single()
+        .from('tenants').select('id, brand_name').eq('owner_id', user.id).single()
     if (!tenant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const supabaseAdmin = createClient(
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     }).select().single()
 
     // Send
-    const result = await sendEmailViaResend(emails, subject, html_body, tenant.name)
+    const result = await sendEmailViaResend(emails, subject, html_body, (tenant as any).brand_name || 'VitaClub')
 
     const finalStatus = result.ok || result.simulated ? 'sent' : 'failed'
     if (campaign) {

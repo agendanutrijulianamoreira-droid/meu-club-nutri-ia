@@ -164,10 +164,44 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
     console.log(`[Webhook] Subscription activated: ${userId} → ${verifiedPlan}`)
 
-    // 4. Enviar boas-vindas (Email/WhatsApp)
+    // 4. Registrar comissão se veio por referral
+    const referralCode = session.metadata?.referral_code
+    if (referralCode && amountCents) {
+        try {
+            const { data: professional } = await supabaseAdmin
+                .from('professional_profiles')
+                .select('user_id, commission_rate')
+                .eq('referral_code', referralCode.toUpperCase())
+                .eq('status', 'active')
+                .single()
+
+            if (professional) {
+                const amountBrl = amountCents / 100
+                const rate = professional.commission_rate || 10
+                await supabaseAdmin.from('sales').insert({
+                    patient_id: userId,
+                    professional_id: professional.user_id,
+                    plan_type: verifiedPlan,
+                    amount: amountBrl,
+                    commission_rate: rate,
+                    commission_amount: (amountBrl * rate / 100),
+                    referral_code: referralCode.toUpperCase(),
+                    payment_status: 'paid',
+                    payment_method: 'credit_card',
+                    transaction_id: session.id,
+                    paid_at: new Date().toISOString(),
+                })
+                console.log(`[Webhook] Commission recorded: ${professional.user_id} → R$${(amountBrl * rate / 100).toFixed(2)}`)
+            }
+        } catch (commErr) {
+            console.error('[Webhook] Commission tracking failed (non-fatal):', commErr)
+        }
+    }
+
+    // 6. Enviar boas-vindas (Email/WhatsApp)
     await OnboardingService.sendWelcomeMessages(userId, tenantId)
 
-    // 5. Trigger agent orchestrator → Onboarding Agent (3 mensagens personalizadas no inbox)
+    // 7. Trigger agent orchestrator → Onboarding Agent (3 mensagens personalizadas no inbox)
     triggerOrchestrator('stripe_webhook', tenantId, userId, { plan: verifiedPlan, subscription_id: subscriptionId })
 }
 

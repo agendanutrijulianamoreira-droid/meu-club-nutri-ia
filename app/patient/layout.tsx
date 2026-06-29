@@ -1,6 +1,6 @@
 "use client"
 
-import { ReactNode, useEffect } from "react"
+import { ReactNode, useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Home, Utensils, Users, User, Activity } from "lucide-react"
@@ -10,6 +10,7 @@ import { useOneSignal } from "@/lib/hooks/useOneSignal"
 export default function PatientLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname()
     const router = useRouter()
+    const [unreadInbox, setUnreadInbox] = useState(0)
 
     // Registrar token OneSignal para push notifications (lembretes e agentes)
     useOneSignal()
@@ -46,6 +47,15 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
         checkAccess()
     }, [router, pathname])
 
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (!session) return
+            supabase.from('inbox_messages').select('*', { count: 'exact', head: true })
+                .eq('user_id', session.user.id).eq('status', 'unread')
+                .then(({ count }) => setUnreadInbox(count || 0))
+        })
+    }, [pathname])
+
     const navItems = [
         { href: "/patient/home",   label: "Início",  icon: Home },
         { href: "/patient/habits", label: "Hábitos", icon: Activity },
@@ -72,12 +82,19 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
                             <Link
                                 key={item.href}
                                 href={item.href}
-                                className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all ${isActive
+                                className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all relative ${isActive
                                     ? "bg-emerald-600/20 text-emerald-400"
                                     : "text-slate-500 hover:text-white"
                                     }`}
                             >
-                                <Icon size={20} className={isActive ? "text-emerald-400" : ""} />
+                                <div className="relative">
+                                    <Icon size={20} className={isActive ? "text-emerald-400" : ""} />
+                                    {item.href === '/patient/profile' && unreadInbox > 0 && (
+                                        <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 rounded-full flex items-center justify-center text-[8px] font-black text-white">
+                                            {unreadInbox > 9 ? '9+' : unreadInbox}
+                                        </span>
+                                    )}
+                                </div>
                                 <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? "text-emerald-400" : ""
                                     }`}>
                                     {item.label}

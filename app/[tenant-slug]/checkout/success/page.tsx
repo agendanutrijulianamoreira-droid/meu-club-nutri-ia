@@ -3,9 +3,28 @@
 import { motion } from "framer-motion"
 import { CheckCircle, ArrowRight, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase-browser"
 
 export default function CheckoutSuccessPage({ params }: { params: { 'tenant-slug': string } }) {
+    const router = useRouter()
+    const [checking, setChecking] = useState(true)
+
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+                setTimeout(() => router.push('/patient/home'), 3000)
+            }
+            setChecking(false)
+        })
+    }, [router])
+
+    const handleContinue = async () => {
+        const { data: { session } } = await supabase.auth.getSession()
+        router.push(session ? '/patient/home' : '/login/paciente')
+    }
+
     return (
         <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
             <motion.div
@@ -36,22 +55,23 @@ export default function CheckoutSuccessPage({ params }: { params: { 'tenant-slug
                     </div>
 
                     <h1 className="text-3xl font-bold mb-4">
-                        Bem-vinda ao <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">Reino!</span> 👑
+                        Bem-vinda ao <span className="bg-gradient-to-r from-indigo-400 to-emerald-400 bg-clip-text text-transparent">Reino!</span> 👑
                     </h1>
 
                     <p className="text-slate-400 mb-8 leading-relaxed">
                         Sua assinatura foi ativada com sucesso!
-                        Acesse o app para completar seu perfil e começar
-                        sua jornada de transformação.
+                        {checking ? ' Redirecionando...' : ' Acesse o app para completar seu perfil e começar sua jornada de transformação.'}
                     </p>
 
                     <div className="space-y-4">
-                        <Link href="/login" className="block">
-                            <Button className="w-full h-14 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 font-black uppercase tracking-widest text-xs border-none shadow-2xl shadow-indigo-900/40 gap-3">
-                                Acessar Meu Clube
-                                <ArrowRight size={18} />
-                            </Button>
-                        </Link>
+                        <Button
+                            onClick={handleContinue}
+                            disabled={checking}
+                            className="w-full h-14 rounded-2xl bg-indigo-600 hover:bg-indigo-500 font-black uppercase tracking-widest text-xs border-none shadow-2xl shadow-indigo-900/40 gap-3"
+                        >
+                            Acessar Meu Clube
+                            <ArrowRight size={18} />
+                        </Button>
 
                         <p className="text-[10px] text-slate-600 uppercase tracking-wider">
                             Verifique seu e-mail para instruções de acesso
@@ -62,7 +82,7 @@ export default function CheckoutSuccessPage({ params }: { params: { 'tenant-slug
                 {/* Confetti-like decoration */}
                 <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden -z-10">
                     <div className="absolute top-20 left-10 w-3 h-3 bg-indigo-500/30 rounded-full animate-pulse" />
-                    <div className="absolute top-32 right-16 w-2 h-2 bg-purple-500/30 rounded-full animate-pulse" style={{ animationDelay: '0.5s' }} />
+                    <div className="absolute top-32 right-16 w-2 h-2 bg-emerald-500/30 rounded-full animate-pulse" style={{ animationDelay: '0.5s' }} />
                     <div className="absolute bottom-32 left-20 w-4 h-4 bg-green-500/20 rounded-full animate-pulse" style={{ animationDelay: '1s' }} />
                     <div className="absolute bottom-20 right-10 w-2 h-2 bg-amber-500/30 rounded-full animate-pulse" style={{ animationDelay: '1.5s' }} />
                 </div>

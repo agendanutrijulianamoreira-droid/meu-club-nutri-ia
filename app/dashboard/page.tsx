@@ -157,14 +157,14 @@ export default function DashboardPage() {
 
                 {/* Info sobre Plano */}
                 {plan === 'community' && (
-                    <GlassCard className="p-6 bg-gradient-to-r from-violet-500/10 to-purple-500/10 border-violet-500/20">
-                        <h3 className="text-lg font-bold text-violet-300 mb-2">
+                    <GlassCard className="p-6 bg-indigo-500/10 border-indigo-500/20">
+                        <h3 className="text-lg font-bold text-indigo-300 mb-2">
                             ✨ Upgrade para Tech Diet ou VIP
                         </h3>
                         <p className="text-gray-300 text-sm mb-4">
                             Desbloqueie cardápios personalizados com IA, chat ilimitado e muito mais!
                         </p>
-                        <button className="px-6 py-2 rounded-lg bg-gradient-to-r from-violet-500 to-purple-600 text-white font-semibold hover:shadow-lg transition-all">
+                        <button className="px-6 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-all">
                             Ver Planos
                         </button>
                     </GlassCard>

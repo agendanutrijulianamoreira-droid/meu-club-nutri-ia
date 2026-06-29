@@ -22,8 +22,8 @@ import Link from "next/link"
 
 export default function RecipesPage() {
     const [activeCategory, setActiveCategory] = useState("Todas")
-
     const [bookmarked, setBookmarked] = useState<number[]>([])
+    const [flashMsg, setFlashMsg] = useState<string | null>(null)
 
     const toggleBookmark = (id: number) => {
         setBookmarked(prev =>
@@ -32,7 +32,8 @@ export default function RecipesPage() {
     }
 
     const handleActivateProtocol = () => {
-        alert('Protocolo Bio-Gastronômico ativado! Seus ingredientes foram adicionados à lista de compras. ✨')
+        setFlashMsg('Protocolo Bio-Gastronômico ativado! Ingredientes adicionados à lista de compras.')
+        setTimeout(() => setFlashMsg(null), 3500)
     }
 
     const categories = [
@@ -89,6 +90,14 @@ export default function RecipesPage() {
 
     return (
         <div className="min-h-screen bg-[#020617] text-slate-200 pb-40 overflow-x-hidden">
+            <AnimatePresence>
+                {flashMsg && (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                        className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 bg-emerald-500/20 border border-emerald-500/30 rounded-2xl text-sm font-bold text-emerald-300 shadow-xl">
+                        {flashMsg}
+                    </motion.div>
+                )}
+            </AnimatePresence>
             {/* --- PREMIUM BACKGROUND --- */}
             <div className="fixed inset-0 bg-gradient-to-br from-[#020617] via-[#0f172a] to-[#1e1b4b] -z-10" />
 
@@ -138,7 +147,7 @@ export default function RecipesPage() {
                 <motion.div
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="relative glass-panel p-8 rounded-[2.5rem] border border-indigo-500/20 bg-gradient-to-br from-indigo-500/10 to-violet-500/10 overflow-hidden shadow-2xl"
+                    className="relative bg-white/[0.03] p-8 rounded-[2.5rem] border border-indigo-500/20 bg-gradient-to-br from-indigo-500/10 to-violet-500/10 overflow-hidden shadow-2xl"
                 >
                     <div className="absolute -top-16 -right-16 w-56 h-56 bg-indigo-500/20 blur-[100px] rounded-full" />
                     <div className="relative z-10">
@@ -204,7 +213,7 @@ export default function RecipesPage() {
 
             {/* Bottom Nav Bar Premium */}
             <div className="fixed bottom-8 left-6 right-6 z-50">
-                <div className="max-w-md mx-auto glass-panel p-2.5 rounded-[2.5rem] border border-white/10 bg-slate-950/80 backdrop-blur-2xl shadow-2xl flex justify-around items-center">
+                <div className="max-w-md mx-auto bg-white/[0.03] p-2.5 rounded-[2.5rem] border border-white/10 bg-slate-950/80 backdrop-blur-2xl shadow-2xl flex justify-around items-center">
                     <Link href="/" className="p-4 rounded-2xl text-slate-500 transition-all hover:text-indigo-400">
                         <HomeIcon size={24} />
                     </Link>

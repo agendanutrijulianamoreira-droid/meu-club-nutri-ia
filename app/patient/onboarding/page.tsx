@@ -60,7 +60,7 @@ export default function OnboardingPage() {
                     {/* Barra de Progresso */}
                     <div className="absolute top-0 left-0 w-full h-1 bg-slate-800">
                         <motion.div
-                            className="h-full bg-gradient-to-r from-indigo-500 to-purple-500"
+                            className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600"
                             initial={{ width: '33%' }}
                             animate={{ width: `${(step / 2) * 100}%` }}
                         />
@@ -172,7 +172,7 @@ export default function OnboardingPage() {
                                         <Button
                                             type="submit"
                                             disabled={isSubmitting || selectedPains.length === 0}
-                                            className="h-12 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold flex-1 flex items-center justify-center gap-2"
+                                            className="h-12 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-bold flex-1 flex items-center justify-center gap-2"
                                         >
                                             {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : "Finalizar"}
                                         </Button>

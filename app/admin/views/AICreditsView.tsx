@@ -35,6 +35,8 @@ export function AICreditsView({ setView, tenantId }: AICreditsViewProps) {
     const [isRefilling, setIsRefilling] = useState(false)
     const [refillAmount, setRefillAmount] = useState(10)
     const [showRefillModal, setShowRefillModal] = useState(false)
+    const [refillError, setRefillError] = useState<string | null>(null)
+    const showError = (msg: string) => { setRefillError(msg); setTimeout(() => setRefillError(null), 3500) }
 
     const handleRefill = async () => {
         if (!tenantId) return
@@ -45,10 +47,10 @@ export function AICreditsView({ setView, tenantId }: AICreditsViewProps) {
                 refresh()
                 setShowRefillModal(false)
             } else {
-                alert('Erro: ' + (result.error || 'Falha ao recarregar'))
+                showError('Erro: ' + (result.error || 'Falha ao recarregar'))
             }
         } catch {
-            alert('Erro inesperado ao recarregar créditos.')
+            showError('Erro inesperado ao recarregar créditos.')
         } finally {
             setIsRefilling(false)
         }
@@ -315,6 +317,11 @@ export function AICreditsView({ setView, tenantId }: AICreditsViewProps) {
                                 <Zap className="text-amber-400" size={28} />
                                 Recarregar Créditos
                             </h2>
+                            {refillError && (
+                                <div className="mb-4 px-4 py-3 bg-rose-500/10 border border-rose-500/25 rounded-xl text-xs font-bold text-rose-300">
+                                    {refillError}
+                                </div>
+                            )}
                             <p className="text-slate-400 mb-8 font-medium">
                                 Adicione créditos extras ao seu saldo para continuar gerando conteúdo com IA.
                             </p>

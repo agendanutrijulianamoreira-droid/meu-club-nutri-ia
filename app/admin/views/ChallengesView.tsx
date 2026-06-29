@@ -175,6 +175,8 @@ function ChallengeForm({ editingData, tenantId, onSave, onUpdate, onClose }: {
     const [generating, setGenerating] = useState(false)
     const [saving, setSaving] = useState(false)
     const [aiError, setAiError] = useState('')
+    const [formError, setFormError] = useState<string | null>(null)
+    const showError = (msg: string) => { setFormError(msg); setTimeout(() => setFormError(null), 3500) }
 
     // Auto-calc end_date from start_date + duration
     const calcEndDate = () => {
@@ -237,13 +239,22 @@ function ChallengeForm({ editingData, tenantId, onSave, onUpdate, onClose }: {
             ? await onUpdate(editingData.id, payload)
             : await onSave(payload)
         setSaving(false)
-        if (result?.error) { alert('Erro: ' + result.error); return }
+        if (result?.error) { showError('Erro: ' + result.error); return }
         onClose()
     }
 
     return (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
             className="bg-white/5 border border-white/10 rounded-3xl p-6">
+
+            <AnimatePresence>
+                {formError && (
+                    <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                        className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/25 rounded-xl px-4 py-3 mb-4">
+                        <span className="text-xs text-rose-300">{formError}</span>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <div className="flex items-center justify-between mb-5">
                 <h2 className="text-lg font-bold text-white">{isEditing ? 'Editar Desafio' : 'Novo Desafio'}</h2>

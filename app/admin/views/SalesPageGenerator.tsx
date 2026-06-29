@@ -223,7 +223,7 @@ export function SalesPageGenerator({ setView, tenantId }: { setView: (v: any) =>
     const pageUrl = tenant?.slug ? `${typeof window !== 'undefined' ? window.location.origin : ''}/vender/${tenant.slug}` : null
 
     const handleSave = async () => {
-        if (!tenant) { alert('Tenant não carregado ainda.'); return }
+        if (!tenant) return
         setIsSaving(true)
         setSaveToast(null)
         try {
@@ -259,7 +259,7 @@ export function SalesPageGenerator({ setView, tenantId }: { setView: (v: any) =>
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     task: 'sales-copy',
-                    context: `Clube de nutrição "${tenant?.name || 'Meu Club Nutri'}". Headline atual: "${data.headline}". Benefícios: ${data.benefits.join(', ')}.`,
+                    context: `Clube de nutrição "${tenant?.brand_name || 'Meu Club Nutri'}". Headline atual: "${data.headline}". Benefícios: ${data.benefits.join(', ')}.`,
                     prompt: field === 'headline' ? 'Gere apenas uma nova headline de alta conversão.'
                         : field === 'subheadline' ? 'Gere apenas um novo subheadline de apoio.'
                         : 'Gere headline, subheadline, benefits e cta.'
@@ -301,12 +301,12 @@ export function SalesPageGenerator({ setView, tenantId }: { setView: (v: any) =>
         const files = e.target.files; if (!files) return
         for (let i = 0; i < files.length; i++) {
             const { url, error } = await uploadImage(files[i], 'social-proof')
-            if (error) alert('Erro ao subir print: ' + error)
+            if (error) { setSaveToast('error'); setTimeout(() => setSaveToast(null), 3500) }
             else if (url) setProofUrls(prev => [...prev, url])
         }
     }
 
-    const brandName = tenant?.name || 'Meu Clube'
+    const brandName = tenant?.brand_name || 'Meu Clube'
 
     if (loadingTenant) return (
         <div className="flex justify-center items-center h-64">

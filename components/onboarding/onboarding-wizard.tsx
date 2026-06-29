@@ -294,7 +294,7 @@ function Step2({ formData, onNext }: any) {
                         initial={{ scale: 0, rotate: -180 }}
                         animate={{ scale: 1, rotate: 0 }}
                         transition={{ delay: 0.2, type: 'spring' }}
-                        className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center"
+                        className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-indigo-600 to-emerald-600 flex items-center justify-center"
                     >
                         <Sparkles className="w-8 h-8 text-white" />
                     </motion.div>
@@ -308,8 +308,8 @@ function Step2({ formData, onNext }: any) {
                 </div>
 
                 {/* Insight Card */}
-                <div className="mb-8 p-6 rounded-2xl bg-gradient-to-br from-violet-500/10 to-purple-500/10 border border-violet-500/20">
-                    <h3 className="text-lg font-semibold text-violet-300 mb-3 flex items-center gap-2">
+                <div className="mb-8 p-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20">
+                    <h3 className="text-lg font-semibold text-indigo-300 mb-3 flex items-center gap-2">
                         <Target className="w-5 h-5" />
                         {insight.title}
                     </h3>
@@ -325,14 +325,7 @@ function Step2({ formData, onNext }: any) {
 
                 <button
                     onClick={onNext}
-                    className="
-            w-full px-6 py-4 rounded-xl
-            bg-gradient-to-r from-violet-500 to-purple-600
-            text-white font-semibold
-            hover:shadow-lg hover:shadow-violet-500/50
-            transition-all
-            flex items-center justify-center gap-2
-          "
+                    className="w-full px-6 py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-all flex items-center justify-center gap-2"
                 >
                     Quero começar agora!
                     <ChevronRight className="w-5 h-5" />

@@ -13,7 +13,7 @@ interface PlanUpgradePromptProps {
 export function PlanUpgradePrompt({ feature, benefit, onCtaClick }: PlanUpgradePromptProps) {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      className="bg-gradient-to-br from-indigo-600/20 to-purple-600/10 border border-indigo-500/30 rounded-3xl p-5 text-center">
+      className="bg-indigo-500/10 border border-indigo-500/30 rounded-3xl p-5 text-center">
       <div className="w-10 h-10 bg-indigo-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3">
         <Lock className="w-5 h-5 text-indigo-400" />
       </div>

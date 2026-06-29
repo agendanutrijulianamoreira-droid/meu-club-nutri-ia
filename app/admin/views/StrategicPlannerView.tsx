@@ -68,6 +68,11 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
         suggestedPush: "Faltam 5 dias para a folia! Já garantiu seu shot de imunidade hoje? 💉"
     })
     const [isGeneratingPush, setIsGeneratingPush] = useState(false)
+    const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+    const showToast = (msg: string, type: 'success' | 'error' = 'error') => {
+        setToast({ type, msg })
+        setTimeout(() => setToast(null), 3500)
+    }
 
     const refreshAISuggestion = async () => {
         setIsGeneratingPush(true)
@@ -173,7 +178,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
     const getEventStyle = (type: string) => {
         switch (type) {
             case 'push': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-            case 'content': return 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+            case 'content': return 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30'
             case 'challenge': return 'bg-green-500/20 text-green-400 border-green-500/30'
             default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
         }
@@ -281,7 +286,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                 msg = "O banco de dados precisa ser atualizado para suportar eventos repetidos. Por favor, execute o script 'supabase/add_recurrence_id.sql' no seu painel do Supabase."
             }
 
-            alert(`❌ ${msg}`)
+            showToast(msg)
         } finally {
             setSaving(false)
         }
@@ -309,7 +314,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
             await updateEvent(eventId, { scheduled_date: dateStr })
         } catch (error: any) {
             console.error('Error dropping event:', error)
-            alert('Erro ao mover evento: ' + error.message)
+            showToast('Erro ao mover evento: ' + error.message)
         }
     }
 
@@ -335,7 +340,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
             setSelectedEvent(null)
         } catch (error) {
             console.error('Error deleting event:', error)
-            alert('Erro ao deletar evento. Tente novamente.')
+            showToast('Erro ao deletar evento. Tente novamente.')
         }
     }
 
@@ -347,7 +352,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
 
         const day = parseInt(newDate)
         if (isNaN(day) || day < 1 || day > getDaysInMonth(currentMonth)) {
-            alert('Data inválida!')
+            showToast('Data inválida!')
             return
         }
 
@@ -357,7 +362,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
             setShowModal(false)
         } catch (error) {
             console.error('Error duplicating event:', error)
-            alert('Erro ao duplicar evento. Tente novamente.')
+            showToast('Erro ao duplicar evento. Tente novamente.')
         }
     }
 
@@ -383,7 +388,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
             setShowModal(true)
         } catch (error: any) {
             console.error('Error using template:', error)
-            alert(`Erro ao carregar template: ${error.message || 'Tente novamente.'}`)
+            showToast(`Erro ao carregar template: ${error.message || 'Tente novamente.'}`)
         }
     }
 
@@ -405,7 +410,17 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
         currentMonth.getFullYear() === new Date().getFullYear()
 
     return (
-        <div className="flex h-[calc(100vh-80px)] bg-[#0a0a16] text-white overflow-hidden">
+        <div className="flex h-[calc(100vh-80px)] bg-slate-950 text-white overflow-hidden relative">
+
+            {/* Toast */}
+            <AnimatePresence>
+                {toast && (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                        className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-2xl text-sm font-bold shadow-xl border ${toast.type === 'error' ? 'bg-rose-500/20 border-rose-500/30 text-rose-300' : 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300'}`}>
+                        {toast.msg}
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* ===== MAIN AREA (CALENDAR) ===== */}
             <div className="flex-1 p-6 overflow-y-auto">
@@ -414,7 +429,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                 <div className="flex justify-between items-center mb-6">
                     <div>
                         <h1 className="text-3xl font-bold flex items-center gap-3">
-                            <Calendar className="text-purple-400" />
+                            <Calendar className="text-indigo-400" />
                             {monthNames[currentMonth.getMonth()]}
                             <span className="text-gray-500 font-normal">{currentMonth.getFullYear()}</span>
                         </h1>
@@ -432,7 +447,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
 
                 {loading && (
                     <div className="flex items-center justify-center py-20">
-                        <Loader2 className="animate-spin text-purple-400" size={40} />
+                        <Loader2 className="animate-spin text-indigo-400" size={40} />
                     </div>
                 )}
 
@@ -463,12 +478,12 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                         onClick={() => handleDayClick(day)}
                                         onDragOver={handleDragOver}
                                         onDrop={(e) => handleDrop(e, day)}
-                                        className={`min-h-[120px] glass-panel rounded-xl p-2 cursor-pointer transition-all group relative ${isToday ? 'ring-2 ring-purple-500 bg-purple-500/5' : 'hover:border-purple-500/30'
+                                        className={`min-h-[120px] bg-white/[0.03] border border-white/10 rounded-xl p-2 cursor-pointer transition-all group relative ${isToday ? 'ring-2 ring-indigo-500 bg-indigo-500/5' : 'hover:border-indigo-500/30'
                                             }`}
                                     >
                                         {/* Day Number */}
                                         <div className="flex justify-between items-start mb-2 text-gray-400 group-hover:text-gray-200">
-                                            <span className={`text-sm font-bold ${isToday ? 'text-purple-400 font-black scale-110' :
+                                            <span className={`text-sm font-bold ${isToday ? 'text-indigo-400 font-black scale-110' :
                                                 dayEvents.length > 0 ? 'text-white' : 'text-gray-500'
                                                 }`}>
                                                 {day}
@@ -476,7 +491,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
 
                                             {/* Add Button (on hover) */}
                                             <button
-                                                className="opacity-0 group-hover:opacity-100 bg-purple-600/50 hover:bg-purple-600 text-white p-1 rounded-md transition-all hover:scale-110"
+                                                className="opacity-0 group-hover:opacity-100 bg-indigo-600/50 hover:bg-indigo-600 text-white p-1 rounded-md transition-all hover:scale-110"
                                                 onClick={(e) => { e.stopPropagation(); handleDayClick(day) }}
                                             >
                                                 <Plus size={12} />
@@ -517,12 +532,12 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                 {/* Strategy from Setup */}
                 <div className="mb-8">
                     <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Estratégia do Mês</span>
-                    <h3 className="text-lg font-bold mt-2 text-purple-400">{strategy.name}</h3>
+                    <h3 className="text-lg font-bold mt-2 text-indigo-400">{strategy.name}</h3>
                     <p className="text-sm text-gray-400 mt-2 leading-relaxed">{strategy.description}</p>
                 </div>
 
                 {/* AI Push Suggestion */}
-                <div className="glass-panel p-4 rounded-xl border border-yellow-500/20 mb-6">
+                <div className="bg-white/[0.03] border border-white/10 p-4 rounded-xl border border-yellow-500/20 mb-6">
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2 text-yellow-400 font-bold text-sm">
                             <Sparkles size={16} />
@@ -549,10 +564,10 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                 </div>
 
                 {/* Templates Rápidos */}
-                <div className="glass-panel p-4 rounded-xl border border-purple-500/20 mb-6">
+                <div className="bg-white/[0.03] border border-white/10 p-4 rounded-xl border border-indigo-500/20 mb-6">
                     <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-bold text-purple-400 uppercase">Templates Rápidos</span>
-                        <Star size={14} className="text-purple-400" />
+                        <span className="text-xs font-bold text-indigo-400 uppercase">Templates Rápidos</span>
+                        <Star size={14} className="text-indigo-400" />
                     </div>
                     <div className="space-y-2">
                         {popular.slice(0, 3).map((template) => (
@@ -582,7 +597,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                 </div>
 
                 {/* Quick Stats */}
-                <div className="glass-panel p-4 rounded-xl border border-white/5 mb-6">
+                <div className="bg-white/[0.03] border border-white/10 p-4 rounded-xl border border-white/5 mb-6">
                     <h4 className="text-xs font-bold text-gray-500 uppercase mb-3">Este Mês</h4>
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">
@@ -596,10 +611,10 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                         </div>
                         <div className="flex items-center justify-between">
                             <span className="text-sm text-gray-400 flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-purple-500" />
+                                <div className="w-2 h-2 rounded-full bg-indigo-500" />
                                 Conteúdos
                             </span>
-                            <span className="font-bold text-purple-400">
+                            <span className="font-bold text-indigo-400">
                                 {events.filter(e => e.event_type === 'content').length}
                             </span>
                         </div>
@@ -619,8 +634,8 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                 <div className="mt-auto">
                     <h4 className="text-xs font-bold text-gray-500 mb-3 uppercase">Legenda</h4>
                     <div className="space-y-2 text-sm">
-                        <div className="flex items-center gap-2 text-purple-300">
-                            <div className="w-3 h-3 rounded-full bg-purple-500" />
+                        <div className="flex items-center gap-2 text-indigo-300">
+                            <div className="w-3 h-3 rounded-full bg-indigo-500" />
                             <FileText size={12} />
                             Conteúdo (App)
                         </div>
@@ -657,7 +672,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                             <div className="bg-white/[0.02] p-6 border-b border-white/5 flex justify-between items-center">
                                 <div>
                                     <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                        <Star className="text-purple-400" />
+                                        <Star className="text-indigo-400" />
                                         Templates Rápidos
                                     </h3>
                                     <p className="text-sm text-gray-400 mt-1">Escolha um template para começar rapidamente</p>
@@ -677,7 +692,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                         <button
                                             key={template.id}
                                             onClick={() => handleUseTemplate(template)}
-                                            className="text-left p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-500/30 transition group"
+                                            className="text-left p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-indigo-500/30 transition group"
                                         >
                                             <div className="flex items-start justify-between mb-2">
                                                 <span className="text-2xl">{template.emoji}</span>
@@ -687,7 +702,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                             <p className="text-xs text-gray-400 line-clamp-2">{template.title}</p>
                                             <div className="mt-2 flex items-center gap-2">
                                                 {template.event_type === 'push' && <Bell size={12} className="text-yellow-400" />}
-                                                {template.event_type === 'content' && <FileText size={12} className="text-purple-400" />}
+                                                {template.event_type === 'content' && <FileText size={12} className="text-indigo-400" />}
                                                 {template.event_type === 'challenge' && <Trophy size={12} className="text-green-400" />}
                                                 <span className="text-xs text-gray-500">{template.event_type}</span>
                                             </div>
@@ -719,7 +734,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                             <div className="bg-white/[0.02] p-6 border-b border-white/5 flex justify-between items-center">
                                 <div>
                                     <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                        <Calendar className="text-purple-400" size={20} />
+                                        <Calendar className="text-indigo-400" size={20} />
                                         {selectedEvent ? 'Editar Evento' : `Agendar para Dia ${selectedDate}`}
                                     </h3>
                                     <p className="text-sm text-gray-400 mt-1">
@@ -731,7 +746,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                         <>
                                             <button
                                                 onClick={handleDuplicateEvent}
-                                                className="text-purple-400 hover:text-purple-300 p-2 hover:bg-white/5 rounded-lg transition"
+                                                className="text-indigo-400 hover:text-indigo-300 p-2 hover:bg-white/5 rounded-lg transition"
                                                 title="Duplicar evento"
                                             >
                                                 <Copy size={18} />
@@ -795,7 +810,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                         <button
                                             onClick={() => setModalType('content')}
                                             className={`flex-1 py-3 text-sm font-bold rounded-lg transition flex items-center justify-center gap-2 ${modalType === 'content'
-                                                ? 'bg-purple-600 text-white'
+                                                ? 'bg-indigo-600 text-white'
                                                 : 'text-gray-400 hover:text-white'
                                                 }`}
                                         >
@@ -812,7 +827,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                             </label>
                                             <button
                                                 onClick={() => setShowDatePicker(!showDatePicker)}
-                                                className="w-full bg-black/40 border border-white/10 rounded-xl p-3 pl-10 text-[13px] text-white flex items-center gap-2 hover:border-purple-500 transition-all text-left"
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl p-3 pl-10 text-[13px] text-white flex items-center gap-2 hover:border-indigo-500 transition-all text-left"
                                             >
                                                 <Calendar className="absolute left-3 text-gray-500" size={14} />
                                                 <span>Dia {selectedDate}</span>
@@ -839,7 +854,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                                                         setShowDatePicker(false)
                                                                     }}
                                                                     className={`w-8 h-8 rounded-lg text-xs transition-all ${isSelected
-                                                                        ? 'bg-purple-600 text-white font-bold'
+                                                                        ? 'bg-indigo-600 text-white font-bold'
                                                                         : 'text-gray-400 hover:bg-white/5'
                                                                         }`}
                                                                 >
@@ -861,7 +876,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                                     type="time"
                                                     value={formData.time}
                                                     onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 pl-9 text-[13px] text-white focus:border-purple-500 outline-none"
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 pl-9 text-[13px] text-white focus:border-indigo-500 outline-none"
                                                 />
                                             </div>
                                         </div>
@@ -885,7 +900,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
 
                                                         setFormData({ ...formData, recurrence: newVal, recurrenceDays: newDays });
                                                     }}
-                                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 pl-9 text-[13px] text-white focus:border-purple-500 outline-none appearance-none"
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 pl-9 text-[13px] text-white focus:border-indigo-500 outline-none appearance-none"
                                                 >
                                                     <option value="none">Não repetir</option>
                                                     <option value="daily">Todo dia</option>
@@ -909,7 +924,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                                     type="date"
                                                     value={formData.repeatUntil}
                                                     onChange={(e) => setFormData({ ...formData, repeatUntil: e.target.value })}
-                                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 pl-9 text-[13px] text-white focus:border-purple-500 outline-none"
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 pl-9 text-[13px] text-white focus:border-indigo-500 outline-none"
                                                 />
                                             </div>
                                             <p className="text-[10px] text-gray-500 mt-2 italic">
@@ -939,7 +954,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                                                 setFormData({ ...formData, recurrenceDays: newDays })
                                                             }}
                                                             className={`w-9 h-9 rounded-full text-xs font-bold transition-all border ${isSelected
-                                                                ? 'bg-purple-600 border-purple-400 text-white shadow-[0_0_15px_rgba(168,85,247,0.4)]'
+                                                                ? 'bg-indigo-600 border-indigo-400 text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]'
                                                                 : 'bg-black/40 border-white/10 text-gray-500 hover:border-gray-500'
                                                                 }`}
                                                         >
@@ -959,7 +974,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                         <input
                                             value={formData.title}
                                             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                            className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white focus:border-purple-500 outline-none"
+                                            className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white focus:border-indigo-500 outline-none"
                                             placeholder={modalType === 'push' ? "Ex: Hora de beber água!" : "Ex: Receita de Shot Matinal"}
                                         />
                                     </div>
@@ -973,7 +988,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                             <textarea
                                                 value={formData.message}
                                                 onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                                                className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white focus:border-purple-500 outline-none h-24 resize-none"
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white focus:border-indigo-500 outline-none h-24 resize-none"
                                                 placeholder="Digite a notificação que aparecerá na tela da paciente..."
                                             />
                                         </div>
@@ -996,7 +1011,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                                         key={item.id}
                                                         onClick={() => setFormData({ ...formData, contentType: item.id })}
                                                         className={`p-4 rounded-xl border transition flex flex-col items-center gap-2 ${formData.contentType === item.id
-                                                            ? 'border-purple-500 bg-purple-500/10 text-purple-400'
+                                                            ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400'
                                                             : 'border-white/10 text-gray-400 hover:border-white/20'
                                                             }`}
                                                     >
@@ -1020,7 +1035,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                     {/* Phone Mockup */}
                                     <div className="w-full max-w-[200px] bg-black border-4 border-gray-800 rounded-[2rem] h-[360px] relative overflow-hidden shadow-2xl">
                                         {/* Wallpaper */}
-                                        <div className="absolute inset-0 bg-gradient-to-b from-purple-900/40 to-black" />
+                                        <div className="absolute inset-0 bg-gradient-to-b from-indigo-900/40 to-black" />
 
                                         {/* Status Bar */}
                                         <div className="absolute top-2 left-4 right-4 flex justify-between text-[8px] text-white/60">
@@ -1040,7 +1055,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                             >
                                                 <div className="flex justify-between items-center mb-1">
                                                     <span className="text-[9px] font-bold text-gray-600 flex items-center gap-1">
-                                                        <div className="w-3 h-3 bg-gradient-to-r from-purple-600 to-pink-600 rounded" />
+                                                        <div className="w-3 h-3 bg-indigo-600 rounded" />
                                                         Reino da Nutri
                                                     </span>
                                                     <span className="text-[8px] text-gray-400">Agora</span>
@@ -1059,9 +1074,9 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                             <div className="absolute inset-0 pt-14 px-3">
                                                 <h4 className="text-white font-bold text-sm mb-3">Novo Conteúdo</h4>
                                                 <div className="bg-white/10 p-3 rounded-xl border border-white/10">
-                                                    <div className="w-full h-16 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-lg mb-2 flex items-center justify-center">
+                                                    <div className="w-full h-16 bg-gradient-to-br from-indigo-500/20 to-pink-500/20 rounded-lg mb-2 flex items-center justify-center">
                                                         {formData.contentType === 'diet' && <Apple className="text-green-400" />}
-                                                        {formData.contentType === 'recipe' && <FileText className="text-purple-400" />}
+                                                        {formData.contentType === 'recipe' && <FileText className="text-indigo-400" />}
                                                         {formData.contentType === 'video' && <Video className="text-blue-400" />}
                                                         {formData.contentType === 'pdf' && <Image className="text-orange-400" />}
                                                     </div>
@@ -1092,7 +1107,7 @@ export function StrategicPlannerView({ setView }: { setView: (v: any) => void })
                                 <Button
                                     onClick={handleSaveEvent}
                                     disabled={saving || !formData.title}
-                                    className="bg-gradient-to-r from-purple-600 to-pink-600 font-bold"
+                                    className="bg-indigo-600 hover:bg-indigo-500 font-bold"
                                 >
                                     {saving ? (
                                         <Loader2 size={16} className="animate-spin mr-2" />

@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     try {
         const supabaseAdmin = getSupabaseAdmin()
         const body = await request.json()
-        const { planId, tenantSlug, userId, customerEmail, customerName } = body
+        const { planId, tenantSlug, userId, customerEmail, customerName, referralCode } = body
 
         if (!planId || !tenantSlug || !userId) {
             return NextResponse.json(
@@ -114,12 +114,14 @@ export async function POST(request: NextRequest) {
                 tenant_slug: tenantSlug,
                 plan: planId,
                 user_id: userId,
+                ...(referralCode ? { referral_code: referralCode } : {}),
             },
             subscription_data: {
                 metadata: {
                     tenant_id: tenant.id,
                     plan: planId,
                     user_id: userId,
+                    ...(referralCode ? { referral_code: referralCode } : {}),
                 },
             },
             allow_promotion_codes: true,

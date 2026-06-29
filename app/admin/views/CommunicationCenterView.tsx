@@ -179,6 +179,11 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
     const [aiLoading, setAiLoading] = useState(false)
     const [aiTone, setAiTone] = useState<'motivadora' | 'acolhedora' | 'tecnica'>('motivadora')
     const [aiGoal, setAiGoal] = useState('reengage')
+    const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+    const showToast = (msg: string, type: 'success' | 'error' = 'error') => {
+        setToast({ type, msg })
+        setTimeout(() => setToast(null), 3500)
+    }
 
     const globalFetch = typeof window !== 'undefined' ? window.fetch.bind(window) : fetch
 
@@ -259,7 +264,7 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
     }
 
     const handleSubmit = async () => {
-        if (!form.title || !form.body) { alert("Título e mensagem são obrigatórios"); return }
+        if (!form.title || !form.body) { showToast("Título e mensagem são obrigatórios"); return }
         setIsSaving(true)
         try {
             const { data: { session } } = await supabase.auth.getSession()
@@ -293,7 +298,7 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
             setViewMode('list')
             loadCampaigns()
         } catch (err: any) {
-            alert("Erro: " + err.message)
+            showToast("Erro: " + err.message)
         } finally { setIsSaving(false) }
     }
 
@@ -505,7 +510,7 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                         </div>
 
                         <button
-                            onClick={() => { if (!form.title || !form.body) { alert('Título e mensagem são obrigatórios'); return } setShowConfirm(true) }}
+                            onClick={() => { if (!form.title || !form.body) { showToast('Título e mensagem são obrigatórios'); return } setShowConfirm(true) }}
                             className="w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all">
                             <Send size={16} />
                             {form.scheduleType === 'now' ? 'Revisar e enviar' : 'Revisar e agendar'}
@@ -568,7 +573,15 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
 
     // ─── LIST VIEW ────────────────────────────────────────────────────────────
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 relative">
+            <AnimatePresence>
+                {toast && (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                        className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-2xl text-sm font-bold shadow-xl border ${toast.type === 'error' ? 'bg-rose-500/20 border-rose-500/30 text-rose-300' : 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300'}`}>
+                        {toast.msg}
+                    </motion.div>
+                )}
+            </AnimatePresence>
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-white">Central de Comunicação</h1>

@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react'
 import {
   Calendar, Clock, Video, MapPin, Plus, Loader2, CheckCircle2, XCircle,
-  User, ChevronRight, AlertCircle, RefreshCw, Phone, ExternalLink, Trash2
+  User, ChevronRight, AlertCircle, RefreshCw, Phone, ExternalLink, Trash2,
+  ChevronLeft, LayoutGrid, List, Settings, Save
 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
@@ -55,6 +56,8 @@ export function AppointmentsView({ setView, tenantId }: AppointmentsViewProps) {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [filter, setFilter] = useState<'upcoming' | 'all' | 'completed'>('upcoming')
+  const [view, setViewMode] = useState<'list' | 'week'>('list')
+  const [weekOffset, setWeekOffset] = useState(0)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
 
   // Form state
@@ -69,12 +72,69 @@ export function AppointmentsView({ setView, tenantId }: AppointmentsViewProps) {
   const [formSyncGcal, setFormSyncGcal] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
+  // Availability settings
+  const [showSettings, setShowSettings] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [availSettings, setAvailSettings] = useState({
+    work_days: [1, 2, 3, 4, 5] as number[],
+    work_hours_start: '08:00',
+    work_hours_end: '18:00',
+    slot_duration_minutes: 60,
+    buffer_minutes: 10,
+    default_meeting_link: '',
+  })
+
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3000)
   }
 
   useEffect(() => { loadData() }, [filter])
+
+  useEffect(() => {
+    fetch('/api/admin/availability')
+      .then(r => r.json())
+      .then(d => {
+        if (d.settings) {
+          setAvailSettings(prev => ({ ...prev, ...d.settings }))
+          // Pre-fill default meeting link in new appointment form
+          if (d.settings.default_meeting_link) {
+            setFormMeetingLink(d.settings.default_meeting_link)
+          }
+          // Pre-fill default duration
+          if (d.settings.slot_duration_minutes) {
+            setFormDuration(d.settings.slot_duration_minutes)
+          }
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const saveAvailability = async () => {
+    setSavingSettings(true)
+    try {
+      const res = await fetch('/api/admin/availability', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ calendar_settings: availSettings }),
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error)
+      showToast('Disponibilidade salva!')
+      setShowSettings(false)
+    } catch (err: any) {
+      showToast(err.message || 'Erro ao salvar', 'error')
+    } finally { setSavingSettings(false) }
+  }
+
+  const toggleWorkDay = (day: number) => {
+    setAvailSettings(prev => ({
+      ...prev,
+      work_days: prev.work_days.includes(day)
+        ? prev.work_days.filter(d => d !== day)
+        : [...prev.work_days, day].sort(),
+    }))
+  }
 
   const loadData = async () => {
     setLoading(true)
@@ -178,10 +238,104 @@ export function AppointmentsView({ setView, tenantId }: AppointmentsViewProps) {
           </h1>
           <p className="text-slate-400 mt-1">Agende consultas e sincronize com Google Calendar</p>
         </div>
-        <Button onClick={() => setShowForm(!showForm)} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2">
-          <Plus size={16} /> Nova consulta
-        </Button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowSettings(!showSettings)}
+            className={`p-2.5 rounded-xl border transition-all ${showSettings ? 'bg-slate-700 border-slate-600 text-white' : 'bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-white hover:border-slate-600'}`}
+            title="Configurar disponibilidade">
+            <Settings size={16} />
+          </button>
+          <Button onClick={() => setShowForm(!showForm)} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2">
+            <Plus size={16} /> Nova consulta
+          </Button>
+        </div>
       </div>
+
+      {/* Availability Settings Panel */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden">
+            <div className="bg-slate-800/40 rounded-xl border border-teal-500/20 p-6 space-y-5">
+              <p className="text-white font-semibold flex items-center gap-2 text-sm">
+                <Settings size={15} className="text-teal-400" /> Disponibilidade & Configurações
+              </p>
+
+              {/* Work days */}
+              <div>
+                <label className="text-xs text-slate-400 mb-2 block">Dias disponíveis</label>
+                <div className="flex gap-2 flex-wrap">
+                  {[['Seg', 1], ['Ter', 2], ['Qua', 3], ['Qui', 4], ['Sex', 5], ['Sáb', 6], ['Dom', 0]].map(([label, day]) => (
+                    <button key={day} onClick={() => toggleWorkDay(day as number)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        availSettings.work_days.includes(day as number)
+                          ? 'bg-teal-600 text-white'
+                          : 'bg-slate-700/50 text-slate-400 hover:bg-slate-700'
+                      }`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Work hours */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Início</label>
+                  <input type="time" value={availSettings.work_hours_start}
+                    onChange={e => setAvailSettings(prev => ({ ...prev, work_hours_start: e.target.value }))}
+                    className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Fim</label>
+                  <input type="time" value={availSettings.work_hours_end}
+                    onChange={e => setAvailSettings(prev => ({ ...prev, work_hours_end: e.target.value }))}
+                    className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Duração padrão</label>
+                  <select value={availSettings.slot_duration_minutes}
+                    onChange={e => setAvailSettings(prev => ({ ...prev, slot_duration_minutes: Number(e.target.value) }))}
+                    className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm">
+                    <option value={30}>30 min</option>
+                    <option value={45}>45 min</option>
+                    <option value={60}>1 hora</option>
+                    <option value={90}>1h30</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Intervalo entre consultas</label>
+                  <select value={availSettings.buffer_minutes}
+                    onChange={e => setAvailSettings(prev => ({ ...prev, buffer_minutes: Number(e.target.value) }))}
+                    className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm">
+                    <option value={0}>Sem intervalo</option>
+                    <option value={10}>10 min</option>
+                    <option value={15}>15 min</option>
+                    <option value={30}>30 min</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Default meeting link */}
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Link padrão de videochamada</label>
+                <input value={availSettings.default_meeting_link}
+                  onChange={e => setAvailSettings(prev => ({ ...prev, default_meeting_link: e.target.value }))}
+                  placeholder="https://meet.google.com/seu-link..."
+                  className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm" />
+                <p className="text-xs text-slate-600 mt-1">Preenchido automaticamente ao agendar consultas online</p>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowSettings(false)} className="border-slate-600 text-slate-400">Cancelar</Button>
+                <Button onClick={saveAvailability} disabled={savingSettings} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
+                  {savingSettings ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  Salvar disponibilidade
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* New Appointment Form */}
       <AnimatePresence>
@@ -286,25 +440,113 @@ export function AppointmentsView({ setView, tenantId }: AppointmentsViewProps) {
         )}
       </AnimatePresence>
 
-      {/* Filters */}
-      <div className="flex gap-1 p-1 bg-slate-800/50 rounded-lg w-fit">
-        {([['upcoming', 'Próximas'], ['all', 'Todas'], ['completed', 'Realizadas']] as const).map(([f, label]) => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${filter === f ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
-            {label}
+      {/* Filters + View Toggle */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex gap-1 p-1 bg-slate-800/50 rounded-lg w-fit">
+          {([['upcoming', 'Próximas'], ['all', 'Todas'], ['completed', 'Realizadas']] as const).map(([f, label]) => (
+            <button key={f} onClick={() => { setFilter(f); setViewMode('list') }}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${filter === f && view === 'list' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1 p-1 bg-slate-800/50 rounded-lg">
+          <button onClick={() => setViewMode('list')} title="Lista"
+            className={`px-3 py-2 rounded-md transition-all ${view === 'list' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+            <List size={15} />
           </button>
-        ))}
+          <button onClick={() => setViewMode('week')} title="Semana"
+            className={`px-3 py-2 rounded-md transition-all ${view === 'week' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+            <LayoutGrid size={15} />
+          </button>
+        </div>
       </div>
 
+      {/* Week View */}
+      {view === 'week' && (() => {
+        const today = new Date()
+        const startOfWeek = new Date(today)
+        startOfWeek.setDate(today.getDate() - today.getDay() + 1 + weekOffset * 7) // Monday
+        startOfWeek.setHours(0, 0, 0, 0)
+        const endOfWeek = new Date(startOfWeek)
+        endOfWeek.setDate(startOfWeek.getDate() + 6)
+        endOfWeek.setHours(23, 59, 59, 999)
+
+        const days = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(startOfWeek)
+          d.setDate(startOfWeek.getDate() + i)
+          return d
+        })
+
+        const weekLabel = `${startOfWeek.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })} – ${endOfWeek.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}`
+
+        const apptsByDay = (dayDate: Date) => appointments.filter(a => {
+          const d = new Date(a.scheduled_at)
+          return d.toDateString() === dayDate.toDateString()
+        })
+
+        return (
+          <div className="space-y-4">
+            {/* Week nav */}
+            <div className="flex items-center justify-between">
+              <button onClick={() => setWeekOffset(w => w - 1)} className="p-2 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors">
+                <ChevronLeft size={18} />
+              </button>
+              <div className="text-center">
+                <p className="text-white font-semibold text-sm">{weekLabel}</p>
+                {weekOffset === 0 && <p className="text-xs text-indigo-400">Esta semana</p>}
+                {weekOffset > 0 && <button onClick={() => setWeekOffset(0)} className="text-xs text-slate-500 hover:text-slate-300">Voltar à semana atual</button>}
+              </div>
+              <button onClick={() => setWeekOffset(w => w + 1)} className="p-2 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white transition-colors">
+                <ChevronRight size={18} />
+              </button>
+            </div>
+
+            {/* Day columns */}
+            <div className="grid grid-cols-7 gap-2">
+              {days.map((dayDate, di) => {
+                const isToday = dayDate.toDateString() === today.toDateString()
+                const dayAppts = apptsByDay(dayDate)
+                const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+                return (
+                  <div key={di} className={`rounded-xl border p-2 min-h-[120px] ${isToday ? 'border-indigo-500/40 bg-indigo-600/5' : 'border-slate-700/50 bg-slate-800/20'}`}>
+                    <div className={`text-center mb-2 ${isToday ? 'text-indigo-400' : 'text-slate-500'}`}>
+                      <p className="text-[10px] font-black uppercase">{WEEKDAYS[di]}</p>
+                      <p className={`text-lg font-black ${isToday ? 'text-indigo-400' : 'text-slate-400'}`}>{dayDate.getDate()}</p>
+                    </div>
+                    <div className="space-y-1">
+                      {dayAppts.map(appt => {
+                        const time = new Date(appt.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
+                        const status = STATUS_STYLES[appt.status] || STATUS_STYLES.scheduled
+                        return (
+                          <div key={appt.id} className={`px-1.5 py-1 rounded-lg text-[10px] ${status.bg} border border-white/5`}>
+                            <p className={`font-black ${status.text}`}>{time}</p>
+                            <p className="text-white font-medium truncate">{appt.patient?.name || 'Paciente'}</p>
+                          </div>
+                        )
+                      })}
+                      {dayAppts.length === 0 && (
+                        <p className="text-[10px] text-slate-700 text-center mt-2">—</p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Appointments List */}
-      {loading ? (
-        <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-indigo-400" size={32} /></div>
-      ) : appointments.length === 0 ? (
-        <div className="text-center py-16">
-          <Calendar size={48} className="mx-auto text-slate-600 mb-4" />
-          <p className="text-slate-400">{filter === 'upcoming' ? 'Nenhuma consulta agendada.' : 'Nenhuma consulta encontrada.'}</p>
-        </div>
-      ) : (
+      {view === 'list' && (
+        loading ? (
+          <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-indigo-400" size={32} /></div>
+        ) : appointments.length === 0 ? (
+          <div className="text-center py-16">
+            <Calendar size={48} className="mx-auto text-slate-600 mb-4" />
+            <p className="text-slate-400">{filter === 'upcoming' ? 'Nenhuma consulta agendada.' : 'Nenhuma consulta encontrada.'}</p>
+          </div>
+        ) : (
         <div className="space-y-3">
           {appointments.map((appt, i) => {
             const { date, time } = formatDateTime(appt.scheduled_at)
@@ -373,6 +615,7 @@ export function AppointmentsView({ setView, tenantId }: AppointmentsViewProps) {
             )
           })}
         </div>
+        )
       )}
     </div>
   )

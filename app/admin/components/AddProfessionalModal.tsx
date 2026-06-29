@@ -59,7 +59,6 @@ export function AddProfessionalModal({ isOpen, onClose, onSuccess }: AddProfessi
             }
 
             // Sucesso!
-            alert('✅ Profissional cadastrado com sucesso!')
             onSuccess()
             onClose()
 
@@ -256,7 +255,7 @@ export function AddProfessionalModal({ isOpen, onClose, onSuccess }: AddProfessi
                         <Button
                             type="submit"
                             disabled={loading}
-                            className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white"
+                            className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white"
                         >
                             {loading ? (
                                 <>

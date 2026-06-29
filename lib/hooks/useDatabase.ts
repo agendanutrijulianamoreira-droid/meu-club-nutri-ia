@@ -412,7 +412,7 @@ export function usePatients() {
 
 export interface Tenant {
     id: string
-    name: string
+    brand_name: string
     slug: string
     brand_color: string
     method_name?: string

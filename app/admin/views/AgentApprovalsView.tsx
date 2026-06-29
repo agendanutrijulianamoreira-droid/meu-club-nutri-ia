@@ -33,7 +33,7 @@ const AGENT_META: Record<string, { label: string; color: string; bg: string }> =
   'retention':        { label: 'Retenção',           color: 'text-amber-400',  bg: 'bg-amber-500/10 border-amber-500/20'   },
   'onboarding':       { label: 'Onboarding',         color: 'text-emerald-400',bg: 'bg-emerald-500/10 border-emerald-500/20'},
   'protocol':         { label: 'Protocolo',          color: 'text-blue-400',   bg: 'bg-blue-500/10 border-blue-500/20'     },
-  'community':        { label: 'Comunidade',         color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
+  'community':        { label: 'Comunidade',         color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
   'sabotage':         { label: 'Detecção de Risco',  color: 'text-rose-400',   bg: 'bg-rose-500/10 border-rose-500/20'     },
   'meals':            { label: 'Alimentação',        color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20' },
   'moderation':       { label: 'Moderação',          color: 'text-slate-400',  bg: 'bg-white/5 border-white/10'            },

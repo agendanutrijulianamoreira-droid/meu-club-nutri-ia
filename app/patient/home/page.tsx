@@ -16,6 +16,10 @@ import {
     ChevronRight,
     Crown,
     Zap,
+    Calendar,
+    Video,
+    MapPin,
+    ClipboardList,
 } from "lucide-react"
 import { usePatientEngine } from "@/lib/hooks/usePatientEngine"
 import Link from "next/link"
@@ -39,10 +43,15 @@ export default function PatientHomePage() {
     const [showWelcomeTour, setShowWelcomeTour] = useState(false)
     const [checkinPending, setCheckinPending] = useState(false)
     const [quickTaps, setQuickTaps] = useState<{ water: boolean; meal: boolean; workout: boolean }>({ water: false, meal: false, workout: false })
+    const [dailyVictory, setDailyVictory] = useState('')
+    const [savedVictory, setSavedVictory] = useState('')
+    const [savingVictory, setSavingVictory] = useState(false)
     const [nextReward, setNextReward] = useState<{ name: string; cost: number; emoji: string } | null>(null)
     const [nutriCoins, setNutriCoins] = useState(0)
     const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null)
     const [currentPlan, setCurrentPlan] = useState<string>("community")
+    const [nextAppointment, setNextAppointment] = useState<{ scheduled_at: string; is_virtual: boolean; meeting_link?: string; appointment_type: string } | null>(null)
+    const [pendingQuestionnaires, setPendingQuestionnaires] = useState<{ id: string; name: string }[]>([])
 
     useEffect(() => {
         const init = async () => {
@@ -117,9 +126,97 @@ export default function PatientHomePage() {
                 .order('cost', { ascending: true })
                 .limit(1)
             if (rewards && rewards.length > 0) setNextReward(rewards[0])
+
+            // Next upcoming appointment
+            const { data: appts } = await supabase
+                .from('appointments')
+                .select('scheduled_at, is_virtual, meeting_link, appointment_type')
+                .eq('patient_id', session.user.id)
+                .in('status', ['scheduled', 'confirmed'])
+                .gte('scheduled_at', new Date().toISOString())
+                .order('scheduled_at', { ascending: true })
+                .limit(1)
+            if (appts && appts.length > 0) setNextAppointment(appts[0])
+
+            // Pending questionnaires (active ones not yet answered by this patient)
+            const { data: profileForTenant } = await supabase
+                .from('profiles')
+                .select('tenant_id')
+                .eq('user_id', session.user.id)
+                .single()
+            if (profileForTenant?.tenant_id) {
+                const { data: activeQs } = await supabase
+                    .from('questionnaires')
+                    .select('id, name')
+                    .eq('tenant_id', profileForTenant.tenant_id)
+                    .eq('is_active', true)
+                const { data: answered } = await supabase
+                    .from('questionnaire_responses')
+                    .select('questionnaire_id')
+                    .eq('patient_id', session.user.id)
+                const answeredIds = new Set((answered || []).map((r: any) => r.questionnaire_id))
+                const pending = (activeQs || []).filter((q: any) => !answeredIds.has(q.id))
+                setPendingQuestionnaires(pending)
+            }
+
+            // Load today's daily log to restore quick taps state and daily victory
+            const today = new Date()
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+            const { data: todayLog } = await supabase
+                .from('daily_logs')
+                .select('water_check, meal_plan_check, workout_check, daily_victory')
+                .eq('user_id', session.user.id)
+                .eq('log_date', todayStr)
+                .single()
+            if (todayLog) {
+                setQuickTaps({
+                    water: todayLog.water_check || false,
+                    meal: todayLog.meal_plan_check || false,
+                    workout: todayLog.workout_check || false,
+                })
+                if (todayLog.daily_victory) {
+                    setSavedVictory(todayLog.daily_victory)
+                    setDailyVictory(todayLog.daily_victory)
+                }
+            }
         }
         init()
     }, [])
+
+    const saveVictory = async () => {
+        if (!dailyVictory.trim() || dailyVictory === savedVictory) return
+        setSavingVictory(true)
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+            const today = new Date()
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+            await supabase.from('daily_logs').upsert({
+                user_id: session.user.id,
+                log_date: todayStr,
+                daily_victory: dailyVictory.trim(),
+            }, { onConflict: 'user_id,log_date' })
+            setSavedVictory(dailyVictory.trim())
+        }
+        setSavingVictory(false)
+    }
+
+    const handleQuickTap = async (key: 'water' | 'meal' | 'workout') => {
+        const newValue = !quickTaps[key]
+        setQuickTaps(prev => ({ ...prev, [key]: newValue }))
+
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) return
+
+        const today = new Date()
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+        const colMap: Record<string, string> = { water: 'water_check', meal: 'meal_plan_check', workout: 'workout_check' }
+
+        await supabase.from('daily_logs').upsert({
+            user_id: session.user.id,
+            log_date: todayStr,
+            [colMap[key]]: newValue,
+        }, { onConflict: 'user_id,log_date' })
+    }
 
     if (loading) {
         return (
@@ -160,8 +257,7 @@ export default function PatientHomePage() {
                     { emoji: '🍽️', title: 'Cardápio personalizado', desc: 'Veja seu plano alimentar na aba Dieta', href: '/patient/diet' },
                     { emoji: '🏆', title: 'Missões e Desafios', desc: 'Complete missões diárias e ganhe XP', href: null },
                     { emoji: '💧', title: 'Lembretes inteligentes', desc: 'Configure alertas de água e refeições', href: null },
-                    { emoji: '💬', title: 'Chat com IA nutricionista', desc: 'Tire dúvidas a qualquer hora', href: null },
-                    { emoji: '🌟', title: 'Comunidade e Ranking', desc: 'Conecte-se com outras mulheres', href: '/patient/feed' },
+                    { emoji: '💬', title: 'Chat com IA nutricionista', desc: 'Tire dúvidas a qualquer hora', href: '/patient/chat' },
                     { emoji: '🌟', title: 'Comunidade e Ranking', desc: 'Conecte-se com outras mulheres', href: '/patient/feed' },
                   ].map((item, i) => (
                     <div key={i} className="flex items-center gap-3 bg-white/5 border border-white/5 rounded-2xl px-4 py-3">
@@ -239,6 +335,33 @@ export default function PatientHomePage() {
                         <span className="ml-auto text-[9px] text-slate-600 uppercase font-black tracking-widest">Total</span>
                     </div>
                 </div>
+
+                {/* Level progress bar */}
+                {(() => {
+                    const xp = stats.totalPoints
+                    let level = 1
+                    while (level * level * 500 <= xp) level++
+                    const minCurrent = (level - 1) * (level - 1) * 500
+                    const minNext = level * level * 500
+                    const pct = Math.round(((xp - minCurrent) / (minNext - minCurrent)) * 100)
+                    return (
+                        <div className="mt-3 flex items-center gap-3">
+                            <span className="text-[10px] font-black text-slate-500 whitespace-nowrap">Nv {level - 1}</span>
+                            <div className="flex-1 relative">
+                                <div className="h-1.5 bg-white/8 rounded-full overflow-hidden">
+                                    <motion.div
+                                        className="h-full bg-gradient-to-r from-yellow-500 to-amber-400 rounded-full"
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${pct}%` }}
+                                        transition={{ duration: 1, ease: 'easeOut' }}
+                                    />
+                                </div>
+                            </div>
+                            <span className="text-[10px] font-black text-yellow-400 whitespace-nowrap">Nv {level}</span>
+                            <span className="text-[9px] text-slate-600 whitespace-nowrap">{xp - minCurrent}/{minNext - minCurrent} XP</span>
+                        </div>
+                    )
+                })()}
             </div>
 
             {/* ─── Banner de Trial (Clube) ──────────────────────────────── */}
@@ -307,6 +430,54 @@ export default function PatientHomePage() {
                                 <p className="text-slate-400 text-xs">Responda em 2 min e ganhe +20 XP</p>
                             </div>
                             <ChevronRight className="text-emerald-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
+                        </div>
+                    </Link>
+                </motion.div>
+            )}
+
+            {/* ─── Widget: Próxima Consulta ────────────────────────────── */}
+            {nextAppointment && (() => {
+                const d = new Date(nextAppointment.scheduled_at)
+                const typeLabel: Record<string, string> = { consultation: 'Consulta', followup: 'Retorno', initial_assessment: 'Avaliação', group_session: 'Grupo' }
+                const date = d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' })
+                const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
+                return (
+                    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
+                        <Link href="/patient/appointments">
+                            <div className="flex items-center gap-4 p-4 bg-teal-600/10 border border-teal-500/25 rounded-2xl group hover:border-teal-400/40 transition-all">
+                                <div className="w-11 h-11 rounded-xl bg-teal-600/20 border border-teal-500/25 flex items-center justify-center flex-shrink-0">
+                                    {nextAppointment.is_virtual ? <Video className="text-teal-300" size={18} /> : <MapPin className="text-teal-300" size={18} />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-400 mb-0.5">Próxima Consulta</p>
+                                    <p className="text-white font-bold text-sm">{typeLabel[nextAppointment.appointment_type] || 'Consulta'}</p>
+                                    <p className="text-slate-400 text-xs capitalize">{date} · {time}</p>
+                                </div>
+                                <ChevronRight className="text-teal-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
+                            </div>
+                        </Link>
+                    </motion.div>
+                )
+            })()}
+
+            {/* ─── Widget: Questionários Pendentes ─────────────────────── */}
+            {pendingQuestionnaires.length > 0 && (
+                <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
+                    <Link href={pendingQuestionnaires.length === 1 ? `/patient/questionnaire/${pendingQuestionnaires[0].id}` : '/patient/questionnaires'}>
+                        <div className="flex items-center gap-4 p-4 bg-violet-600/10 border border-violet-500/25 rounded-2xl group hover:border-violet-400/40 transition-all">
+                            <div className="w-11 h-11 rounded-xl bg-violet-600/20 border border-violet-500/25 flex items-center justify-center flex-shrink-0">
+                                <ClipboardList className="text-violet-300" size={18} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-violet-400 mb-0.5">Questionário Pendente</p>
+                                <p className="text-white font-bold text-sm truncate">
+                                    {pendingQuestionnaires.length === 1
+                                        ? pendingQuestionnaires[0].name
+                                        : `${pendingQuestionnaires.length} questionários para responder`}
+                                </p>
+                                <p className="text-slate-400 text-xs">Ajude sua nutri a te conhecer melhor</p>
+                            </div>
+                            <ChevronRight className="text-violet-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
                         </div>
                     </Link>
                 </motion.div>
@@ -446,7 +617,7 @@ export default function PatientHomePage() {
                             <motion.button
                                 key={key}
                                 whileTap={{ scale: 0.92 }}
-                                onClick={() => setQuickTaps(prev => ({ ...prev, [key]: !prev[key as keyof typeof quickTaps] }))}
+                                onClick={() => handleQuickTap(key as 'water' | 'meal' | 'workout')}
                                 className={`flex flex-col items-center gap-2 py-4 px-2 rounded-2xl border transition-all ${done ? activeBg : bg}`}
                             >
                                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${done ? 'bg-white/10' : 'bg-white/5'}`}>
@@ -459,6 +630,40 @@ export default function PatientHomePage() {
                             </motion.button>
                         )
                     })}
+                </div>
+            </div>
+
+            {/* ─── Vitória do Dia ──────────────────────────────────────── */}
+            <div className="mb-5">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3">Vitória do Dia ✨</p>
+                <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+                    {savedVictory ? (
+                        <div className="space-y-2">
+                            <p className="text-sm text-white italic">"{savedVictory}"</p>
+                            <button onClick={() => setSavedVictory('')}
+                                className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors">
+                                editar
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            <textarea
+                                value={dailyVictory}
+                                onChange={e => setDailyVictory(e.target.value)}
+                                onBlur={saveVictory}
+                                rows={2}
+                                placeholder="Qual foi sua maior conquista hoje? Pode ser pequena..."
+                                className="w-full bg-transparent text-sm text-white placeholder-slate-600 resize-none outline-none leading-relaxed"
+                            />
+                            {dailyVictory.trim() && dailyVictory !== savedVictory && (
+                                <button onClick={saveVictory} disabled={savingVictory}
+                                    className="flex items-center gap-1 text-[10px] font-black text-emerald-400 hover:text-emerald-300 transition-colors">
+                                    {savingVictory ? <Loader2 size={10} className="animate-spin" /> : null}
+                                    salvar
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 

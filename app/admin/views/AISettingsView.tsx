@@ -241,7 +241,7 @@ export function AISettingsView({ setView, tenantId }: { setView: (v: any) => voi
     useEffect(() => {
         if (tenant) {
             setMethodName(tenant.method_name || '')
-            setBrandName(tenant.name || '')
+            setBrandName(tenant.brand_name || '')
             setSystemPrompt(tenant.gpt_system_prompt || 'Você é uma nutricionista dedicada e empática. Use linguagem acessível, alimentos reais e foque na adesão de longo prazo.')
             const ai = tenant.settings?.ai || {}
             if (ai.tone) setTone(ai.tone)
@@ -384,7 +384,7 @@ export function AISettingsView({ setView, tenantId }: { setView: (v: any) => voi
                     {/* Phone preview */}
                     <div className="space-y-3">
                         <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-2"><Smartphone size={12}/> Preview em tempo real</p>
-                        <PhonePreview tone={tone} brandName={brandName || tenant?.name || 'Clube'}/>
+                        <PhonePreview tone={tone} brandName={brandName || tenant?.brand_name || 'Clube'}/>
                         <p className="text-center text-[10px] text-slate-700 uppercase tracking-widest">Assim sua IA fala com as rainhas</p>
                     </div>
                 </div>

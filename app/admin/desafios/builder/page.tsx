@@ -78,6 +78,10 @@ function ChallengeBuilderContent() {
     const [activeTab, setActiveTab] = useState<'setup' | 'missions' | 'feed'>('missions')
     const [saving, setSaving] = useState(false)
     const [loading, setLoading] = useState(!!challengeId)
+    const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+    const showToast = (msg: string, type: 'success' | 'error' = 'error') => {
+        setToast({ type, msg }); setTimeout(() => setToast(null), 3500)
+    }
 
     // Challenge Info
     const [challengeInfo, setChallengeInfo] = useState({
@@ -173,7 +177,7 @@ function ChallengeBuilderContent() {
 
     const getMissionColor = (type: string) => {
         const colors: Record<string, string> = {
-            photo: 'bg-purple-900/50 text-purple-400',
+            photo: 'bg-indigo-900/50 text-indigo-400',
             water: 'bg-blue-900/50 text-blue-400',
             exercise: 'bg-orange-900/50 text-orange-400',
             sleep: 'bg-indigo-900/50 text-indigo-400',
@@ -323,7 +327,7 @@ function ChallengeBuilderContent() {
             router.push('/admin?view=challenges')
         } catch (error) {
             console.error('Erro ao salvar:', error)
-            alert('Erro ao salvar desafio')
+            showToast('Erro ao salvar desafio')
         } finally {
             setSaving(false)
         }
@@ -336,16 +340,24 @@ function ChallengeBuilderContent() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-[#0a0a16] flex items-center justify-center">
-                <Loader2 className="animate-spin text-purple-400" size={48} />
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <Loader2 className="animate-spin text-indigo-400" size={48} />
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen bg-[#0a0a16] text-white">
+        <div className="min-h-screen bg-slate-950 text-white">
+            <AnimatePresence>
+                {toast && (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                        className={`fixed top-4 left-1/2 -translate-x-1/2 z-[200] px-5 py-3 rounded-2xl text-sm font-bold shadow-xl border ${toast.type === 'error' ? 'bg-rose-500/20 border-rose-500/30 text-rose-300' : 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300'}`}>
+                        {toast.msg}
+                    </motion.div>
+                )}
+            </AnimatePresence>
             {/* Header */}
-            <header className="border-b border-gray-800 bg-[#0a0a16]/80 backdrop-blur-xl sticky top-0 z-50">
+            <header className="border-b border-gray-800 bg-slate-950/80 backdrop-blur-xl sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-6 py-4">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-4">
@@ -366,7 +378,7 @@ function ChallengeBuilderContent() {
                                     <input
                                         value={challengeInfo.title}
                                         onChange={(e) => setChallengeInfo({ ...challengeInfo, title: e.target.value })}
-                                        className="text-2xl font-bold bg-transparent outline-none focus:text-purple-400 transition"
+                                        className="text-2xl font-bold bg-transparent outline-none focus:text-indigo-400 transition"
                                         placeholder="Nome do Desafio"
                                     />
                                 </div>
@@ -377,7 +389,7 @@ function ChallengeBuilderContent() {
                             {/* Stats */}
                             <div className="hidden md:flex items-center gap-6 text-sm mr-4">
                                 <div className="text-center">
-                                    <p className="text-2xl font-bold text-purple-400">{days.length}</p>
+                                    <p className="text-2xl font-bold text-indigo-400">{days.length}</p>
                                     <p className="text-xs text-gray-500">Dias</p>
                                 </div>
                                 <div className="text-center">
@@ -412,26 +424,26 @@ function ChallengeBuilderContent() {
             </header>
 
             {/* Tabs */}
-            <div className="border-b border-gray-800 bg-[#0a0a16]">
+            <div className="border-b border-gray-800 bg-slate-950">
                 <div className="max-w-7xl mx-auto px-6">
                     <div className="flex gap-8 text-sm font-bold text-gray-400">
                         <button
                             onClick={() => setActiveTab('setup')}
-                            className={`py-4 border-b-2 transition ${activeTab === 'setup' ? 'text-white border-purple-500' : 'border-transparent hover:text-gray-300'
+                            className={`py-4 border-b-2 transition ${activeTab === 'setup' ? 'text-white border-indigo-500' : 'border-transparent hover:text-gray-300'
                                 }`}
                         >
                             1. Configurações
                         </button>
                         <button
                             onClick={() => setActiveTab('missions')}
-                            className={`py-4 border-b-2 transition ${activeTab === 'missions' ? 'text-white border-purple-500' : 'border-transparent hover:text-gray-300'
+                            className={`py-4 border-b-2 transition ${activeTab === 'missions' ? 'text-white border-indigo-500' : 'border-transparent hover:text-gray-300'
                                 }`}
                         >
                             2. Missões Diárias
                         </button>
                         <button
                             onClick={() => setActiveTab('feed')}
-                            className={`py-4 border-b-2 transition ${activeTab === 'feed' ? 'text-white border-purple-500' : 'border-transparent hover:text-gray-300'
+                            className={`py-4 border-b-2 transition ${activeTab === 'feed' ? 'text-white border-indigo-500' : 'border-transparent hover:text-gray-300'
                                 }`}
                         >
                             3. Piloto Automático
@@ -446,9 +458,9 @@ function ChallengeBuilderContent() {
                 {/* TAB: Setup */}
                 {activeTab === 'setup' && (
                     <div className="max-w-2xl space-y-6">
-                        <div className="glass-panel p-6 rounded-2xl border border-white/5 space-y-6">
+                        <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/5 space-y-6">
                             <h3 className="font-bold text-lg flex items-center gap-2">
-                                <Trophy className="text-purple-400" size={20} />
+                                <Trophy className="text-indigo-400" size={20} />
                                 Informações do Desafio
                             </h3>
 
@@ -459,7 +471,7 @@ function ChallengeBuilderContent() {
                                         value={challengeInfo.description}
                                         onChange={(e) => setChallengeInfo({ ...challengeInfo, description: e.target.value })}
                                         rows={3}
-                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-purple-500 resize-none"
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-indigo-500 resize-none"
                                         placeholder="Descreva o objetivo do desafio..."
                                     />
                                 </div>
@@ -472,7 +484,7 @@ function ChallengeBuilderContent() {
                                         max={90}
                                         value={challengeInfo.durationDays}
                                         onChange={(e) => setChallengeInfo({ ...challengeInfo, durationDays: parseInt(e.target.value) || 21 })}
-                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-center font-bold focus:outline-none focus:border-purple-500"
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white text-center font-bold focus:outline-none focus:border-indigo-500"
                                     />
                                 </div>
 
@@ -482,7 +494,7 @@ function ChallengeBuilderContent() {
                                         type="date"
                                         value={challengeInfo.startDate}
                                         onChange={(e) => setChallengeInfo({ ...challengeInfo, startDate: e.target.value })}
-                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-purple-500"
+                                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-indigo-500"
                                     />
                                 </div>
                             </div>
@@ -511,7 +523,7 @@ function ChallengeBuilderContent() {
                         <Button
                             onClick={generateDaysWithAI}
                             disabled={saving}
-                            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 py-6 font-bold"
+                            className="w-full bg-indigo-600 hover:bg-indigo-500 py-6 font-bold"
                         >
                             {saving ? (
                                 <Loader2 size={20} className="animate-spin mr-2" />
@@ -529,9 +541,9 @@ function ChallengeBuilderContent() {
 
                         {/* Sidebar: Mission Templates */}
                         <div className="lg:col-span-1">
-                            <div className="glass-panel p-6 rounded-2xl border border-white/5 sticky top-32">
+                            <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/5 sticky top-32">
                                 <h3 className="font-bold text-gray-300 mb-4 flex items-center gap-2">
-                                    <Zap size={18} className="text-purple-400" />
+                                    <Zap size={18} className="text-indigo-400" />
                                     Banco de Missões
                                 </h3>
                                 <p className="text-xs text-gray-500 mb-4">Clique para adicionar ao dia selecionado.</p>
@@ -545,7 +557,7 @@ function ChallengeBuilderContent() {
                                                     addMissionToDay(days[0].id, template)
                                                 }
                                             }}
-                                            className="w-full bg-white/5 p-3 rounded-xl border border-white/10 hover:border-purple-500/50 transition flex items-center gap-3 text-left group"
+                                            className="w-full bg-white/5 p-3 rounded-xl border border-white/10 hover:border-indigo-500/50 transition flex items-center gap-3 text-left group"
                                         >
                                             <div className={`p-2 rounded-lg ${getMissionColor(template.type)}`}>
                                                 {getMissionIcon(template.type)}
@@ -554,7 +566,7 @@ function ChallengeBuilderContent() {
                                                 <p className="text-sm font-medium text-white truncate">{template.title}</p>
                                                 <p className="text-xs text-yellow-400 font-bold">+{template.points}xp</p>
                                             </div>
-                                            <Plus size={16} className="text-gray-600 group-hover:text-purple-400 transition" />
+                                            <Plus size={16} className="text-gray-600 group-hover:text-indigo-400 transition" />
                                         </button>
                                     ))}
                                 </div>
@@ -580,18 +592,18 @@ function ChallengeBuilderContent() {
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: dayIndex * 0.05 }}
-                                    className="glass-panel rounded-2xl border border-white/5 overflow-hidden"
+                                    className="bg-white/[0.03] rounded-2xl border border-white/5 overflow-hidden"
                                 >
                                     {/* Day Header */}
                                     <div className="bg-white/[0.02] p-4 flex justify-between items-center border-b border-white/5">
                                         <div className="flex items-center gap-3">
-                                            <div className="bg-purple-600 w-10 h-10 rounded-full flex items-center justify-center font-bold text-white">
+                                            <div className="bg-indigo-600 w-10 h-10 rounded-full flex items-center justify-center font-bold text-white">
                                                 {day.dayNumber}
                                             </div>
                                             <input
                                                 value={day.title}
                                                 onChange={(e) => updateDayTitle(day.id, e.target.value)}
-                                                className="bg-transparent text-lg font-bold outline-none placeholder-gray-600 focus:text-purple-400 transition"
+                                                className="bg-transparent text-lg font-bold outline-none placeholder-gray-600 focus:text-indigo-400 transition"
                                                 placeholder="Tema do dia..."
                                             />
                                         </div>
@@ -600,7 +612,7 @@ function ChallengeBuilderContent() {
                                                 variant="ghost"
                                                 size="sm"
                                                 onClick={() => duplicateDay(day.id)}
-                                                className="text-gray-500 hover:text-purple-400"
+                                                className="text-gray-500 hover:text-indigo-400"
                                             >
                                                 <Copy size={16} />
                                             </Button>
@@ -693,7 +705,7 @@ function ChallengeBuilderContent() {
                             {/* Add New Day */}
                             <button
                                 onClick={addNewDay}
-                                className="w-full py-6 border-2 border-dashed border-white/10 rounded-2xl text-gray-500 font-bold hover:border-purple-500 hover:text-purple-400 transition flex items-center justify-center gap-2"
+                                className="w-full py-6 border-2 border-dashed border-white/10 rounded-2xl text-gray-500 font-bold hover:border-indigo-500 hover:text-indigo-400 transition flex items-center justify-center gap-2"
                             >
                                 <Plus size={20} />
                                 Adicionar Dia {days.length + 1}
@@ -705,8 +717,8 @@ function ChallengeBuilderContent() {
                 {/* TAB: Feed */}
                 {activeTab === 'feed' && (
                     <div className="max-w-3xl mx-auto">
-                        <div className="text-center py-12 glass-panel rounded-2xl border border-white/5">
-                            <Rocket size={64} className="mx-auto text-purple-500 mb-6" />
+                        <div className="text-center py-12 bg-white/[0.03] rounded-2xl border border-white/5">
+                            <Rocket size={64} className="mx-auto text-indigo-500 mb-6" />
                             <h3 className="text-2xl font-bold mb-3">Piloto Automático de Conteúdo</h3>
                             <p className="text-gray-400 max-w-md mx-auto mb-8">
                                 Configure as mensagens que o "Robô do Desafio" vai postar na comunidade todos os dias para motivar as Rainhas.
@@ -714,7 +726,7 @@ function ChallengeBuilderContent() {
 
                             <Button
                                 disabled={saving}
-                                className="bg-gradient-to-r from-purple-600 to-pink-600 px-8 py-6 font-bold text-lg"
+                                className="bg-indigo-600 hover:bg-indigo-500 px-8 py-6 font-bold text-lg"
                             >
                                 <Sparkles size={20} className="mr-2" />
                                 Gerar Posts com IA
@@ -724,7 +736,7 @@ function ChallengeBuilderContent() {
                                 {feedPosts.map((post) => (
                                     <div key={post.id} className="bg-white/[0.02] p-4 rounded-xl border border-white/5">
                                         <div className="flex items-center gap-2 mb-2">
-                                            <span className="bg-purple-500/20 text-purple-400 text-xs px-2 py-1 rounded font-bold">
+                                            <span className="bg-indigo-500/20 text-indigo-400 text-xs px-2 py-1 rounded font-bold">
                                                 Dia {post.dayNumber}
                                             </span>
                                             <span className="text-gray-500 text-xs">{post.time}</span>
@@ -744,8 +756,8 @@ function ChallengeBuilderContent() {
 export default function ChallengeBuilderPage() {
     return (
         <Suspense fallback={
-            <div className="min-h-screen bg-[#0a0a16] flex items-center justify-center">
-                <Loader2 className="animate-spin text-purple-400" size={48} />
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <Loader2 className="animate-spin text-indigo-400" size={48} />
             </div>
         }>
             <ChallengeBuilderContent />

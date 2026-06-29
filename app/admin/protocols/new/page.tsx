@@ -15,7 +15,7 @@ const BLOCK_TYPES = [
     { type: 'meal', label: 'Refeição', icon: Utensils, color: 'from-green-500 to-emerald-600' },
     { type: 'shot', label: 'Shot', icon: Coffee, color: 'from-orange-500 to-red-600' },
     { type: 'workout', label: 'Treino', icon: Dumbbell, color: 'from-blue-500 to-cyan-600' },
-    { type: 'content', label: 'Conteúdo', icon: FileText, color: 'from-purple-500 to-pink-600' },
+    { type: 'content', label: 'Conteúdo', icon: FileText, color: 'from-indigo-500 to-indigo-700' },
     { type: 'water', label: 'Hidratação', icon: Droplet, color: 'from-cyan-400 to-blue-500' },
 ]
 
@@ -61,6 +61,10 @@ function ProtocolBuilderContent() {
     const [magicPrompt, setMagicPrompt] = useState("")
     const [magicDuration, setMagicDuration] = useState(7)
     const [generatingProtocol, setGeneratingProtocol] = useState(false)
+    const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+    const showToast = (msg: string, type: 'success' | 'error' = 'error') => {
+        setToast({ type, msg }); setTimeout(() => setToast(null), 3500)
+    }
 
     // Sync protocol data quando carregar do banco (para edição)
     useEffect(() => {
@@ -85,7 +89,7 @@ function ProtocolBuilderContent() {
     // Magic AI Generator Function (Server Action — sem CORS, sem timeout)
     const handleMagicGenerate = async () => {
         if (!magicPrompt.trim()) {
-            alert('Digite o objetivo do protocolo!')
+            showToast('Digite o objetivo do protocolo!')
             return
         }
 
@@ -117,9 +121,9 @@ function ProtocolBuilderContent() {
             setShowMagicModal(false)
             setMagicPrompt("")
 
-            alert('✨ Protocolo gerado! Revise e edite antes de salvar.')
+            showToast('Protocolo gerado! Revise e edite antes de salvar.', 'success')
         } else {
-            alert('Erro ao gerar protocolo: ' + (result.error || 'Tente novamente'))
+            showToast('Erro ao gerar protocolo: ' + (result.error || 'Tente novamente'))
         }
     }
 
@@ -152,7 +156,7 @@ function ProtocolBuilderContent() {
     // AI Writer
     const handleAIGenerate = async () => {
         if (!formData.title) {
-            alert('Digite um título primeiro!')
+            showToast('Digite um título primeiro!')
             return
         }
         const description = await generateDescription(formData.title, formData.category)
@@ -194,7 +198,7 @@ function ProtocolBuilderContent() {
     // Salvar
     const handleSave = async () => {
         if (!formData.title) {
-            alert('Título é obrigatório!')
+            showToast('Título é obrigatório!')
             return
         }
 
@@ -213,7 +217,7 @@ function ProtocolBuilderContent() {
         if (result.success) {
             router.push('/admin?view=protocols')
         } else {
-            alert('Erro ao salvar: ' + result.error)
+            showToast('Erro ao salvar: ' + result.error)
         }
     }
 
@@ -222,7 +226,7 @@ function ProtocolBuilderContent() {
         return (
             <div className="min-h-screen bg-gradient-to-br from-[#0f0c29] via-[#1a1744] to-[#0f0c29] text-white flex items-center justify-center">
                 <div className="text-center">
-                    <Loader2 className="animate-spin text-queen-pink mx-auto mb-4" size={48} />
+                    <Loader2 className="animate-spin text-indigo-400 mx-auto mb-4" size={48} />
                     <p className="text-gray-400">Carregando protocolo...</p>
                 </div>
             </div>
@@ -240,6 +244,14 @@ function ProtocolBuilderContent() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-[#0f0c29] via-[#1a1744] to-[#0f0c29] text-white pb-10">
+            <AnimatePresence>
+                {toast && (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                        className={`fixed top-4 left-1/2 -translate-x-1/2 z-[200] px-5 py-3 rounded-2xl text-sm font-bold shadow-xl border ${toast.type === 'error' ? 'bg-rose-500/20 border-rose-500/30 text-rose-300' : 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300'}`}>
+                        {toast.msg}
+                    </motion.div>
+                )}
+            </AnimatePresence>
             {/* Header */}
             <div className="border-b border-white/10 bg-black/20 backdrop-blur-sm sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -265,7 +277,7 @@ function ProtocolBuilderContent() {
                     <div className="flex gap-3">
                         <Button
                             onClick={openMagicModal}
-                            className="bg-gradient-to-r from-purple-600 to-pink-600 border-0"
+                            className="bg-indigo-600 hover:bg-indigo-500 border-0"
                         >
                             <Wand2 size={18} className="mr-2" />
                             ✨ Gerar com IA
@@ -273,7 +285,7 @@ function ProtocolBuilderContent() {
                         <Button
                             onClick={handleSave}
                             disabled={saving || !formData.title}
-                            className="bg-gradient-to-r from-queen-pink to-purple-600 border-0"
+                            className="bg-indigo-600 hover:bg-indigo-500 border-0"
                         >
                             <Save size={18} className="mr-2" />
                             {saving ? 'Salvando...' : 'Salvar Protocolo'}
@@ -290,12 +302,12 @@ function ProtocolBuilderContent() {
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}
-                            className="glass-panel max-w-2xl w-full p-8 rounded-2xl border border-white/20"
+                            className="bg-white/[0.03] max-w-2xl w-full p-8 rounded-2xl border border-white/20"
                         >
                             <div className="flex items-center justify-between mb-6">
                                 <div>
                                     <h2 className="text-2xl font-bold flex items-center gap-2">
-                                        <Wand2 className="text-purple-400" />
+                                        <Wand2 className="text-indigo-400" />
                                         Magic Protocol Generator ✨
                                     </h2>
                                     <p className="text-gray-400 text-sm mt-1">
@@ -317,7 +329,7 @@ function ProtocolBuilderContent() {
                                     </label>
                                     <textarea
                                         placeholder="Ex: Protocolo detox pós-festas de 3 dias, focado em desinflamação intestinal, sem glúten e sem lactose, com shots matinais"
-                                        className="w-full bg-black/20 border border-white/10 rounded-xl p-4 text-white h-32 resize-none focus:outline-none focus:border-purple-500"
+                                        className="w-full bg-black/20 border border-white/10 rounded-xl p-4 text-white h-32 resize-none focus:outline-none focus:border-indigo-500"
                                         value={magicPrompt}
                                         onChange={e => setMagicPrompt(e.target.value)}
                                         disabled={generatingProtocol}
@@ -336,7 +348,7 @@ function ProtocolBuilderContent() {
                                                 disabled={generatingProtocol}
                                                 className={`p-4 rounded-xl border transition-all
                                                     ${magicDuration === d
-                                                        ? 'bg-purple-600 text-white border-purple-500'
+                                                        ? 'bg-indigo-600 text-white border-indigo-500'
                                                         : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
                                             >
                                                 <div className="text-2xl font-bold">{d}</div>
@@ -346,8 +358,8 @@ function ProtocolBuilderContent() {
                                     </div>
                                 </div>
 
-                                <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
-                                    <p className="text-sm text-purple-200">
+                                <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4">
+                                    <p className="text-sm text-indigo-200">
                                         💡 <strong>Dica:</strong> Seja específico! Mencione alimentos, tipos de refeição, objetivos (emagrecer, desinflamar, energizar), restrições alimentares, etc.
                                     </p>
                                 </div>
@@ -364,7 +376,7 @@ function ProtocolBuilderContent() {
                                     <Button
                                         onClick={handleMagicGenerate}
                                         disabled={!magicPrompt.trim() || generatingProtocol}
-                                        className="bg-gradient-to-r from-purple-600 to-pink-600 border-0"
+                                        className="bg-indigo-600 hover:bg-indigo-500 border-0"
                                     >
                                         {generatingProtocol ? (
                                             <>
@@ -390,14 +402,14 @@ function ProtocolBuilderContent() {
                     {/* LEFT SIDE: Settings */}
                     <div className="col-span-4 space-y-6">
                         {/* Cover Image */}
-                        <div className="glass-panel p-6 rounded-2xl border border-white/10">
+                        <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/10">
                             <label className="text-sm font-bold text-gray-300 mb-3 block">Capa do Protocolo</label>
-                            <div className="aspect-video bg-white/5 rounded-xl border-2 border-dashed border-white/20 flex items-center justify-center hover:border-queen-pink/50 transition-all cursor-pointer group">
+                            <div className="aspect-video bg-white/5 rounded-xl border-2 border-dashed border-white/20 flex items-center justify-center hover:border-indigo-500/50 transition-all cursor-pointer group">
                                 {formData.coverImage ? (
                                     <img src={formData.coverImage} alt="Cover" className="w-full h-full object-cover rounded-xl" />
                                 ) : (
                                     <div className="text-center">
-                                        <Upload size={32} className="mx-auto mb-2 text-gray-400 group-hover:text-queen-pink transition-colors" />
+                                        <Upload size={32} className="mx-auto mb-2 text-gray-400 group-hover:text-indigo-400 transition-colors" />
                                         <p className="text-sm text-gray-400">Clique para enviar</p>
                                     </div>
                                 )}
@@ -405,13 +417,13 @@ function ProtocolBuilderContent() {
                         </div>
 
                         {/* Basic Info */}
-                        <div className="glass-panel p-6 rounded-2xl border border-white/10 space-y-4">
+                        <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/10 space-y-4">
                             <div>
                                 <label className="text-sm font-bold text-gray-300 mb-2 block">Título do Protocolo *</label>
                                 <input
                                     type="text"
                                     placeholder="Ex: Protocolo Detox Primavera"
-                                    className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-queen-pink"
+                                    className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500"
                                     value={formData.title}
                                     onChange={e => setFormData({ ...formData, title: e.target.value })}
                                 />
@@ -425,7 +437,7 @@ function ProtocolBuilderContent() {
                                         variant="ghost"
                                         onClick={handleAIGenerate}
                                         disabled={generating || !formData.title}
-                                        className="text-purple-400 hover:text-purple-300"
+                                        className="text-indigo-400 hover:text-indigo-300"
                                     >
                                         <Sparkles size={14} className={generating ? "animate-spin mr-1" : "mr-1"} />
                                         IA
@@ -433,7 +445,7 @@ function ProtocolBuilderContent() {
                                 </div>
                                 <textarea
                                     placeholder="O que suas Rainhas vão conquistar?"
-                                    className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white h-32 resize-none focus:outline-none focus:border-queen-pink"
+                                    className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white h-32 resize-none focus:outline-none focus:border-indigo-500"
                                     value={formData.description}
                                     onChange={e => setFormData({ ...formData, description: e.target.value })}
                                 />
@@ -448,7 +460,7 @@ function ProtocolBuilderContent() {
                                             onClick={() => setFormData({ ...formData, category: cat.value })}
                                             className={`w-full p-3 rounded-xl border transition-all text-left
                                                 ${formData.category === cat.value
-                                                    ? 'bg-queen-pink/20 border-queen-pink'
+                                                    ? 'bg-indigo-500/20 border-indigo-500'
                                                     : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
                                         >
                                             <div className="font-medium text-sm">{cat.label}</div>
@@ -467,7 +479,7 @@ function ProtocolBuilderContent() {
                                             onClick={() => handleDurationChange(d)}
                                             className={`p-3 rounded-xl border transition-all
                                                 ${formData.duration === d
-                                                    ? 'bg-queen-pink text-white border-queen-pink'
+                                                    ? 'bg-indigo-500 text-white border-indigo-500'
                                                     : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
                                         >
                                             <div className="text-xl font-bold">{d}</div>
@@ -481,9 +493,9 @@ function ProtocolBuilderContent() {
 
                     {/* Scheduling Section */}
                     <div className="col-span-4">
-                        <div className="glass-panel p-6 rounded-2xl border border-white/10 space-y-4">
+                        <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/10 space-y-4">
                             <div className="flex items-center gap-2 mb-4">
-                                <Calendar size={20} className="text-queen-pink" />
+                                <Calendar size={20} className="text-indigo-400" />
                                 <h3 className="font-bold text-lg">Agendamento</h3>
                             </div>
 
@@ -494,7 +506,7 @@ function ProtocolBuilderContent() {
                                     </label>
                                     <input
                                         type="date"
-                                        className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-queen-pink"
+                                        className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500"
                                         value={formData.startDate}
                                         onChange={e => setFormData({ ...formData, startDate: e.target.value })}
                                     />
@@ -509,7 +521,7 @@ function ProtocolBuilderContent() {
                                     </label>
                                     <input
                                         type="time"
-                                        className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-queen-pink"
+                                        className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500"
                                         value={formData.startTime}
                                         onChange={e => setFormData({ ...formData, startTime: e.target.value })}
                                     />
@@ -529,7 +541,7 @@ function ProtocolBuilderContent() {
                                 </div>
 
                                 {formData.startDate && (
-                                    <div className="bg-queen-pink/10 border border-queen-pink/30 rounded-xl p-4">
+                                    <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4">
                                         <p className="text-sm text-white/90">
                                             📅 <strong>Período Ativo:</strong><br />
                                             <span className="text-green-400">De:</span> {new Date(formData.startDate + 'T00:00').toLocaleDateString('pt-BR')} às {formData.startTime}<br />
@@ -543,7 +555,7 @@ function ProtocolBuilderContent() {
 
                     {/* RIGHT SIDE: Content Builder */}
                     <div className="col-span-8">
-                        <div className="glass-panel p-6 rounded-2xl border border-white/10">
+                        <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/10">
                             <h3 className="font-bold text-lg mb-4">Estrutura do Protocolo</h3>
 
                             {/* Days Tabs */}
@@ -554,7 +566,7 @@ function ProtocolBuilderContent() {
                                         onClick={() => setSelectedDay(idx)}
                                         className={`px-4 py-2 rounded-lg whitespace-nowrap transition-all
                                             ${selectedDay === idx
-                                                ? 'bg-queen-pink text-white'
+                                                ? 'bg-indigo-500 text-white'
                                                 : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
                                     >
                                         Day {day.day_number}
@@ -571,7 +583,7 @@ function ProtocolBuilderContent() {
                                     <label className="text-sm font-bold text-gray-300 mb-2 block">Título do Dia</label>
                                     <input
                                         type="text"
-                                        className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-queen-pink"
+                                        className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500"
                                         value={days[selectedDay].title}
                                         onChange={e => {
                                             const newDays = [...days]
@@ -692,7 +704,7 @@ export default function ProtocolBuilderPage() {
         <Suspense fallback={
             <div className="min-h-screen bg-gradient-to-br from-[#0f0c29] via-[#1a1744] to-[#0f0c29] text-white flex items-center justify-center">
                 <div className="text-center">
-                    <Loader2 className="animate-spin text-queen-pink mx-auto mb-4" size={48} />
+                    <Loader2 className="animate-spin text-indigo-400 mx-auto mb-4" size={48} />
                     <p className="text-gray-400">Carregando construtor...</p>
                 </div>
             </div>

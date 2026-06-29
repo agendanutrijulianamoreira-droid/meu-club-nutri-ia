@@ -1,12 +1,13 @@
 "use client"
 
 import React, { useState, useEffect, useCallback } from "react"
+import { supabase } from "@/lib/supabase-browser"
 import {
     Search, Bell, Zap, TrendingUp, AlertTriangle, MessageCircle,
     Activity, Star, Crown, Trophy, Flame, CheckCircle, Mail,
     Phone, Clock, Target, ChevronRight, Loader2, Sparkles,
     Heart, Plus, X, RefreshCw, Send, Shield, Users, FileText,
-    ToggleLeft, ToggleRight, Gift, Coins, Download, KeyRound, Copy, Pencil, Upload
+    ToggleLeft, ToggleRight, Gift, Coins, Download, KeyRound, Copy, Pencil, Upload, CalendarPlus
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -426,9 +427,18 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     const [showMessageModal, setShowMessageModal] = useState(false)
     const [showEditModal, setShowEditModal] = useState(false)
     const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'health' | 'insights'>('overview')
+    const [showScheduleModal, setShowScheduleModal] = useState(false)
     const [restrictions, setRestrictions] = useState<string[]>([])
     const [customRestriction, setCustomRestriction] = useState('')
     const [savingRestrictions, setSavingRestrictions] = useState(false)
+    const [measurements, setMeasurements] = useState<any[]>([])
+    const [loadingMeasurements, setLoadingMeasurements] = useState(false)
+    const [patientAppointments, setPatientAppointments] = useState<any[]>([])
+    const [loadingAppointments, setLoadingAppointments] = useState(false)
+    const [patientQuestionnaireResponses, setPatientQuestionnaireResponses] = useState<any[]>([])
+    const [loadingQRs, setLoadingQRs] = useState(false)
+    const [checkinHistory, setCheckinHistory] = useState<any[]>([])
+    const [loadingCheckins, setLoadingCheckins] = useState(false)
 
     // AI Insights state
     const [insight, setInsight] = useState<{
@@ -441,6 +451,52 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     } | null>(null)
     const [insightLoading, setInsightLoading] = useState(false)
     const [insightError, setInsightError] = useState<string | null>(null)
+
+    useEffect(() => {
+        if (activeTab !== 'health') return
+        setLoadingMeasurements(true)
+        fetch(`/api/admin/measurements?patient_id=${patient.id}`)
+            .then(r => r.json())
+            .then(d => setMeasurements(d.measurements || []))
+            .catch(() => {})
+            .finally(() => setLoadingMeasurements(false))
+    }, [activeTab, patient.id])
+
+    useEffect(() => {
+        if (activeTab !== 'history') return
+        setLoadingAppointments(true)
+        fetch(`/api/admin/appointments?patient_id=${patient.id}`)
+            .then(r => r.json())
+            .then(d => setPatientAppointments(d.appointments || []))
+            .catch(() => {})
+            .finally(() => setLoadingAppointments(false))
+
+        setLoadingCheckins(true)
+        ;(async () => {
+            try {
+                const { data } = await supabase.from('weekly_checkin_responses')
+                    .select('id, created_at, week_start, diet_score, mood, bowel, had_binge, main_difficulty, ai_risk_level')
+                    .eq('user_id', patient.id)
+                    .order('week_start', { ascending: false })
+                    .limit(8)
+                setCheckinHistory(data || [])
+            } catch {}
+            finally { setLoadingCheckins(false) }
+        })()
+
+        setLoadingQRs(true)
+        ;(async () => {
+            try {
+                const { data } = await supabase.from('questionnaire_responses')
+                    .select('id, created_at, completed_at, questionnaire:questionnaires(name)')
+                    .eq('patient_id', patient.id)
+                    .order('created_at', { ascending: false })
+                    .limit(10)
+                setPatientQuestionnaireResponses(data || [])
+            } catch {}
+            finally { setLoadingQRs(false) }
+        })()
+    }, [activeTab, patient.id])
 
     const generateInsight = async () => {
         setInsightLoading(true)
@@ -692,6 +748,10 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                                 className="px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 text-sm font-bold rounded-2xl transition-all flex items-center gap-2">
                                 <Bell size={13}/> Inbox
                             </button>
+                            <button onClick={() => setShowScheduleModal(true)}
+                                className="px-4 py-2.5 bg-teal-600/20 hover:bg-teal-600/40 border border-teal-500/30 text-teal-400 text-sm font-bold rounded-2xl transition-all flex items-center gap-2">
+                                <CalendarPlus size={13}/>
+                            </button>
                             {patient.phone && (
                                 <a href={`https://wa.me/55${patient.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener"
                                     className="px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/30 text-emerald-400 text-sm font-bold rounded-2xl transition-all flex items-center gap-2">
@@ -876,6 +936,48 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                             </div>
                         )}
 
+                        {/* Weekly check-in history */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Histórico de Check-ins</p>
+                            {loadingCheckins ? (
+                                <div className="flex justify-center py-3"><Loader2 size={16} className="animate-spin text-slate-500"/></div>
+                            ) : checkinHistory.length === 0 ? (
+                                <p className="text-xs text-slate-600">Nenhum check-in enviado.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {checkinHistory.map((c: any) => {
+                                        const riskColor: Record<string, string> = { low: 'text-emerald-400', medium: 'text-amber-400', high: 'text-rose-400' }
+                                        const moodEmoji: Record<string, string> = { 'Ótimo': '🌟', 'Bom': '😊', 'Regular': '😐', 'Ruim': '😟' }
+                                        return (
+                                            <div key={c.id} className="flex items-start justify-between py-2 border-b border-white/5 last:border-0 gap-3">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-xs text-slate-400">
+                                                            Semana de {new Date(c.week_start + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}
+                                                        </p>
+                                                        {c.mood && <span className="text-xs">{moodEmoji[c.mood] || c.mood}</span>}
+                                                    </div>
+                                                    {c.main_difficulty && (
+                                                        <p className="text-[10px] text-slate-600 truncate mt-0.5">"{c.main_difficulty}"</p>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2 flex-shrink-0">
+                                                    {c.diet_score != null && (
+                                                        <span className={`text-xs font-black ${c.diet_score >= 7 ? 'text-emerald-400' : c.diet_score >= 5 ? 'text-amber-400' : 'text-rose-400'}`}>
+                                                            {c.diet_score}/10
+                                                        </span>
+                                                    )}
+                                                    <span className={`text-[10px] font-bold uppercase ${riskColor[c.ai_risk_level] || 'text-slate-500'}`}>
+                                                        {c.ai_risk_level || 'low'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
                         {/* Stats summary */}
                         <div className="grid grid-cols-2 gap-3">
                             {[
@@ -889,6 +991,70 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                                     <p className={`font-bold text-sm ${s.color}`}>{s.value}</p>
                                 </div>
                             ))}
+                        </div>
+
+                        {/* Appointments history */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Consultas</p>
+                            {loadingAppointments ? (
+                                <div className="flex justify-center py-3"><Loader2 size={16} className="animate-spin text-slate-500"/></div>
+                            ) : patientAppointments.length === 0 ? (
+                                <p className="text-xs text-slate-600">Nenhuma consulta registrada.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {patientAppointments.slice(0, 5).map((appt: any) => {
+                                        const d = new Date(appt.scheduled_at)
+                                        const statusColor: Record<string, string> = {
+                                            scheduled: 'text-blue-400', confirmed: 'text-emerald-400',
+                                            completed: 'text-slate-400', cancelled: 'text-rose-400', no_show: 'text-amber-400'
+                                        }
+                                        const statusLabel: Record<string, string> = {
+                                            scheduled: 'Agendada', confirmed: 'Confirmada',
+                                            completed: 'Realizada', cancelled: 'Cancelada', no_show: 'Ausente'
+                                        }
+                                        return (
+                                            <div key={appt.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+                                                <div>
+                                                    <p className="text-xs text-white font-bold">
+                                                        {d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })} às {d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-500">{appt.duration_minutes}min · {appt.is_virtual ? 'Online' : 'Presencial'}</p>
+                                                </div>
+                                                <span className={`text-[10px] font-bold ${statusColor[appt.status] || 'text-slate-500'}`}>
+                                                    {statusLabel[appt.status] || appt.status}
+                                                </span>
+                                            </div>
+                                        )
+                                    })}
+                                    {patientAppointments.length > 5 && (
+                                        <p className="text-[10px] text-slate-600 text-center">+{patientAppointments.length - 5} mais</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Questionnaire responses */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Questionários Respondidos</p>
+                            {loadingQRs ? (
+                                <div className="flex justify-center py-3"><Loader2 size={16} className="animate-spin text-slate-500"/></div>
+                            ) : patientQuestionnaireResponses.length === 0 ? (
+                                <p className="text-xs text-slate-600">Nenhum questionário respondido.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {patientQuestionnaireResponses.map((r: any) => (
+                                        <div key={r.id} className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0">
+                                            <div>
+                                                <p className="text-xs text-white font-bold">{(r.questionnaire as any)?.name || 'Questionário'}</p>
+                                                <p className="text-[10px] text-slate-500">
+                                                    {new Date(r.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                </p>
+                                            </div>
+                                            <span className="text-[10px] font-bold text-emerald-400">✓ Respondido</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </>
                 )}
@@ -1019,6 +1185,55 @@ function PatientDetail({ patient, onAction, onRefresh }: {
 
                 {activeTab === 'health' && (
                     <div className="space-y-4">
+                        {/* Body measurements */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Medidas Corporais</p>
+                            {loadingMeasurements ? (
+                                <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-slate-500"/></div>
+                            ) : measurements.length === 0 ? (
+                                <p className="text-xs text-slate-600">Nenhuma medida registrada ainda.</p>
+                            ) : (() => {
+                                const latest = measurements[0]
+                                const previous = measurements[1]
+                                const MFIELDS = [
+                                    { key: 'weight_kg', label: 'Peso', unit: 'kg' },
+                                    { key: 'waist_cm', label: 'Cintura', unit: 'cm' },
+                                    { key: 'abdomen_cm', label: 'Abdômen', unit: 'cm' },
+                                    { key: 'hip_cm', label: 'Quadril', unit: 'cm' },
+                                    { key: 'chest_cm', label: 'Busto', unit: 'cm' },
+                                    { key: 'arm_cm', label: 'Braço', unit: 'cm' },
+                                    { key: 'thigh_cm', label: 'Coxa', unit: 'cm' },
+                                ] as const
+                                return (
+                                    <>
+                                        <p className="text-[10px] text-slate-500">
+                                            Última medição: {new Date(latest.measured_at + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                            {measurements.length > 1 && ` · ${measurements.length} registros`}
+                                        </p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {MFIELDS.filter(f => latest[f.key] != null).map(f => {
+                                                const curr = latest[f.key] as number
+                                                const prev = previous ? previous[f.key] as number | null : null
+                                                const diff = curr != null && prev != null ? curr - prev : null
+                                                return (
+                                                    <div key={f.key} className="bg-white/[0.03] border border-white/8 rounded-xl p-2.5">
+                                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{f.label}</p>
+                                                        <p className="text-white font-black text-base">{curr}<span className="text-slate-500 text-xs font-normal ml-0.5">{f.unit}</span></p>
+                                                        {diff != null && diff !== 0 && (
+                                                            <p className={`text-[10px] font-bold ${diff < 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                                {diff > 0 ? '+' : ''}{diff.toFixed(1)}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                        {latest.notes && <p className="text-xs text-slate-500 italic">"{latest.notes}"</p>}
+                                    </>
+                                )
+                            })()}
+                        </div>
+
                         <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
                             <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Restrições Alimentares</p>
                             <p className="text-xs text-slate-400">Selecione as restrições para personalizar o cardápio e o chat com IA</p>
@@ -1077,8 +1292,148 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                         onSuccess={() => { setShowMessageModal(false); onAction('Mensagem enviada!') }}
                     />
                 )}
+                {showScheduleModal && (
+                    <QuickScheduleModal
+                        patientId={patient.id}
+                        patientName={patient.name}
+                        onClose={() => setShowScheduleModal(false)}
+                        onSuccess={() => { setShowScheduleModal(false); onAction('Consulta agendada!') }}
+                    />
+                )}
             </AnimatePresence>
         </div>
+    )
+}
+
+// ─── Quick Schedule Modal ─────────────────────────────────────────────────────
+function QuickScheduleModal({ patientId, patientName, onClose, onSuccess }: {
+    patientId: string; patientName: string; onClose: () => void; onSuccess: () => void
+}) {
+    const [saving, setSaving] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1)
+    const defaultDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,'0')}-${String(tomorrow.getDate()).padStart(2,'0')}`
+    const [form, setForm] = useState({
+        date: defaultDate,
+        time: '10:00',
+        duration: '60',
+        type: 'consultation',
+        is_virtual: true,
+        meeting_link: '',
+        notes: '',
+    })
+
+    const handleSave = async () => {
+        setSaving(true); setError(null)
+        try {
+            const scheduled_at = new Date(`${form.date}T${form.time}:00`).toISOString()
+            const res = await fetch('/api/admin/appointments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patient_id: patientId,
+                    scheduled_at,
+                    duration_minutes: parseInt(form.duration),
+                    appointment_type: form.type,
+                    is_virtual: form.is_virtual,
+                    meeting_link: form.meeting_link || undefined,
+                    notes: form.notes || undefined,
+                    status: 'scheduled',
+                }),
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || 'Erro ao agendar')
+            onSuccess()
+        } catch (e: any) {
+            setError(e.message)
+        } finally { setSaving(false) }
+    }
+
+    const firstName = patientName.split(' ')[0]
+
+    return (
+        <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div className="bg-slate-900 border border-white/10 rounded-3xl w-full max-w-sm"
+                initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }}>
+                <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-white/5">
+                    <div>
+                        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                            <CalendarPlus size={15} className="text-teal-400"/> Agendar Consulta
+                        </h3>
+                        <p className="text-[10px] text-slate-500 mt-0.5">com {firstName}</p>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl text-slate-500"><X size={15}/></button>
+                </div>
+
+                <div className="p-5 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Data</label>
+                            <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500/50"/>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Hora</label>
+                            <input type="time" value={form.time} onChange={e => setForm(p => ({ ...p, time: e.target.value }))}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500/50"/>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Tipo</label>
+                            <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
+                                className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500/50">
+                                <option value="consultation">Consulta</option>
+                                <option value="followup">Retorno</option>
+                                <option value="initial_assessment">Avaliação</option>
+                                <option value="group_session">Grupo</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Duração</label>
+                            <select value={form.duration} onChange={e => setForm(p => ({ ...p, duration: e.target.value }))}
+                                className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500/50">
+                                <option value="30">30 min</option>
+                                <option value="45">45 min</option>
+                                <option value="60">60 min</option>
+                                <option value="90">90 min</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl">
+                        <span className="text-sm text-slate-300">Online (videochamada)</span>
+                        <button onClick={() => setForm(p => ({ ...p, is_virtual: !p.is_virtual }))}
+                            className={`relative w-10 h-5 rounded-full transition-colors ${form.is_virtual ? 'bg-teal-600' : 'bg-white/10'}`}>
+                            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.is_virtual ? 'left-5' : 'left-0.5'}`}/>
+                        </button>
+                    </div>
+
+                    {form.is_virtual && (
+                        <input value={form.meeting_link} onChange={e => setForm(p => ({ ...p, meeting_link: e.target.value }))}
+                            placeholder="Link da videochamada (opcional)"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-teal-500/50"/>
+                    )}
+
+                    <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+                        rows={2} placeholder="Observações (opcional)"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 resize-none focus:outline-none focus:border-teal-500/50"/>
+
+                    {error && <p className="text-xs text-rose-400 font-bold">{error}</p>}
+
+                    <div className="flex gap-2 pt-1">
+                        <button onClick={onClose} className="flex-1 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-slate-400 text-sm font-bold">Cancelar</button>
+                        <button onClick={handleSave} disabled={saving}
+                            className="flex-1 py-2.5 rounded-2xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2 transition-all">
+                            {saving ? <Loader2 size={14} className="animate-spin"/> : <CalendarPlus size={14}/>}
+                            Agendar
+                        </button>
+                    </div>
+                </div>
+            </motion.div>
+        </motion.div>
     )
 }
 
@@ -1329,6 +1684,7 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
     const [showRegister, setShowRegister] = useState(false)
     const [showImport, setShowImport] = useState(false)
     const [toast, setToast] = useState<string | null>(null)
+    const [remindingCheckin, setRemindingCheckin] = useState(false)
 
     const refresh = useCallback(async () => {
         setLoading(true)
@@ -1348,6 +1704,17 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
     const showToast = (msg: string) => {
         setToast(msg)
         setTimeout(() => setToast(null), 3500)
+    }
+
+    const sendCheckinReminders = async () => {
+        setRemindingCheckin(true)
+        try {
+            const res = await fetch('/api/admin/patients/remind-checkin', { method: 'POST' })
+            const data = await res.json()
+            showToast(data.message || `Lembretes enviados!`)
+        } catch {
+            showToast('Erro ao enviar lembretes')
+        } finally { setRemindingCheckin(false) }
     }
 
     const exportCSV = () => {
@@ -1419,6 +1786,10 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                             <span className="text-[10px] bg-white/10 text-slate-400 px-1.5 py-0.5 rounded-md font-bold">{patients.length}</span>
                         </h2>
                         <div className="flex gap-1">
+                            <button onClick={sendCheckinReminders} disabled={remindingCheckin}
+                                className="p-1.5 hover:bg-white/10 rounded-lg text-slate-600 hover:text-amber-400 transition-colors disabled:opacity-40" title="Lembrar check-in pendente">
+                                {remindingCheckin ? <Loader2 size={13} className="animate-spin"/> : <Bell size={13}/>}
+                            </button>
                             <button onClick={exportCSV} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-600 hover:text-slate-400 transition-colors" title="Exportar CSV">
                                 <Download size={13}/>
                             </button>

@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Calendar as CalendarIcon, List, Trophy, ChevronLeft, ChevronRight, Edit, Download, Sparkles, LayoutGrid, CalendarDays } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { List, Trophy, ChevronLeft, ChevronRight, Download, Sparkles, CalendarDays } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ANNUAL_TEMPLATES, AnnualTemplateItem } from "@/lib/templates/annual-plans"
 import { supabase } from "@/lib/supabase"
@@ -70,7 +69,7 @@ export function ContentPlannerView() {
                         className="grid grid-cols-1 lg:grid-cols-3 gap-6"
                     >
                         {/* Calendar Grid */}
-                        <div className="lg:col-span-2 glass-panel p-6 rounded-3xl border border-white/5">
+                        <div className="lg:col-span-2 bg-white/[0.03] p-6 rounded-3xl border border-white/10">
                             <div className="flex items-center justify-between mb-8">
                                 <h2 className="text-2xl font-bold capitalize">
                                     {new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(currentDate)}
@@ -96,7 +95,7 @@ export function ContentPlannerView() {
 
                             <div className="grid grid-cols-7 gap-2">
                                 {Array.from({ length: 35 }).map((_, i) => (
-                                    <div key={i} className="aspect-square rounded-2xl bg-white/[0.02] border border-white/[0.03] p-2 flex flex-col justify-between group hover:border-queen-pink/30 hover:bg-queen-pink/[0.02] transition-all cursor-pointer">
+                                    <div key={i} className="aspect-square rounded-2xl bg-white/[0.02] border border-white/[0.03] p-2 flex flex-col justify-between group hover:border-indigo-500/30 hover:bg-indigo-500/[0.02] transition-all cursor-pointer">
                                         <span className="text-xs font-bold text-gray-700 group-hover:text-white transition-colors">{i + 1 > 31 ? '' : i + 1}</span>
                                         {i === 4 && (
                                             <div className="bg-white/10 backdrop-blur-md text-white text-[9px] font-bold px-2 py-1 rounded-lg border border-white/20 truncate shadow-xl">
@@ -110,11 +109,11 @@ export function ContentPlannerView() {
 
                         {/* Month Info Sidebar */}
                         <div className="space-y-6">
-                            <div className="glass-panel p-8 rounded-[32px] border border-white/5 space-y-8 h-full flex flex-col shadow-2xl">
+                            <div className="bg-white/[0.03] p-8 rounded-[32px] border border-white/10 space-y-8 h-full flex flex-col shadow-2xl">
                                 <div className="space-y-6 flex-1">
                                     <div className="flex items-center justify-between">
                                         <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500">Estratégia do Mês</span>
-                                        <button className="text-[10px] font-bold text-gray-400 hover:text-queen-pink transition-colors uppercase border-b border-transparent hover:border-queen-pink">Editar</button>
+                                        <button className="text-[10px] font-bold text-gray-400 hover:text-indigo-400 transition-colors uppercase border-b border-transparent hover:border-indigo-400">Editar</button>
                                     </div>
 
                                     <div className="space-y-3">
@@ -135,7 +134,7 @@ export function ContentPlannerView() {
                                         <div className="p-6 rounded-[24px] bg-white/[0.03] border border-white/5 space-y-3">
                                             <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500">Foco no Hábito</span>
                                             <div className="flex items-center gap-3">
-                                                <Trophy size={20} className="text-queen-pink" />
+                                                <Trophy size={20} className="text-indigo-400" />
                                                 <p className="text-base font-bold text-white tracking-tight">
                                                     {selectedMonth?.habit_focus}
                                                 </p>
@@ -144,9 +143,9 @@ export function ContentPlannerView() {
                                     </div>
                                 </div>
 
-                                <Button className="w-full py-8 bg-white text-black hover:bg-white/90 font-extrabold uppercase tracking-[0.2em] text-sm rounded-[20px] transition-all hover:scale-[1.02] shadow-xl shadow-white/5">
-                                    Exportar Calendário
-                                </Button>
+                                <button className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase tracking-[0.15em] text-sm rounded-2xl transition-all flex items-center justify-center gap-2">
+                                    <Download size={16}/> Exportar Calendário
+                                </button>
                             </div>
                         </div>
                     </motion.div>
@@ -159,20 +158,20 @@ export function ContentPlannerView() {
                         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
                     >
                         {templates.map((month) => (
-                            <div key={month.month_index} className="glass-panel p-6 rounded-[32px] border border-white/5 hover:border-queen-pink/30 hover:bg-queen-pink/[0.02] transition-all group cursor-pointer relative overflow-hidden flex flex-col h-full border-white/10">
+                            <div key={month.month_index} className="bg-white/[0.03] p-6 rounded-[32px] border border-white/10 hover:border-indigo-500/30 hover:bg-indigo-500/[0.02] transition-all group cursor-pointer relative overflow-hidden flex flex-col h-full">
                                 {month.month_index === new Date().getMonth() && (
                                     <div className="absolute top-6 right-6 bg-white/10 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md border border-white/20 uppercase tracking-widest">
                                         ATUAL
                                     </div>
                                 )}
                                 <div className="space-y-6 flex-1">
-                                    <span className="text-[11px] uppercase font-bold tracking-[0.2em] text-gray-500 group-hover:text-queen-pink transition-colors">
+                                    <span className="text-[11px] uppercase font-bold tracking-[0.2em] text-gray-500 group-hover:text-indigo-400 transition-colors">
                                         {new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date(2026, month.month_index, 1))}
                                     </span>
                                     <div className="space-y-3">
                                         <h3 className="text-xl font-bold group-hover:text-white transition-colors leading-tight">{month.title}</h3>
                                         <div className="flex gap-2">
-                                            <Sparkles size={14} className="text-gray-600 shrink-0 mt-1 group-hover:text-queen-pink" />
+                                            <Sparkles size={14} className="text-gray-600 shrink-0 mt-1 group-hover:text-indigo-400" />
                                             <p className="text-sm italic text-gray-400 group-hover:text-gray-300 transition-colors line-clamp-2 leading-relaxed">
                                                 {month.marketing_hook}
                                             </p>
@@ -181,10 +180,10 @@ export function ContentPlannerView() {
                                 </div>
                                 <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between">
                                     <div className="flex items-center gap-3 text-xs font-bold text-gray-500 group-hover:text-gray-300">
-                                        <Trophy size={16} className="text-queen-pink/40 group-hover:text-queen-pink" />
+                                        <Trophy size={16} className="text-indigo-400/40 group-hover:text-indigo-400" />
                                         {month.habit_focus}
                                     </div>
-                                    <ChevronRight size={18} className="text-gray-700 group-hover:text-queen-pink group-hover:translate-x-1 transition-all" />
+                                    <ChevronRight size={18} className="text-gray-700 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all" />
                                 </div>
                             </div>
                         ))}
