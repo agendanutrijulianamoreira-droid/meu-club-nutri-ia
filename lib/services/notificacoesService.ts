@@ -1,51 +1,15 @@
 import { sortearMensagem, NOMES_FASE, TipoNotificacao } from '@/lib/config/mensagensNotificacao'
+import { sendPushToUser } from '@/lib/onesignal'
 
-const FCM_SERVER_KEY = process.env.FCM_SERVER_KEY
-
-// Envia push para um único token FCM
-export async function enviarPushFCM(
-  token: string,
-  titulo: string,
-  corpo: string,
-  dados?: Record<string, string>
-): Promise<{ ok: boolean; erro?: string }> {
-  if (!FCM_SERVER_KEY) {
-    console.error('[NotificacoesService] FCM_SERVER_KEY não configurada')
-    return { ok: false, erro: 'FCM_SERVER_KEY ausente' }
-  }
-
-  const payload = {
-    to: token,
-    notification: { title: titulo, body: corpo },
-    data: dados ?? {},
-  }
-
-  const res = await fetch('https://fcm.googleapis.com/fcm/send', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `key=${FCM_SERVER_KEY}`,
-    },
-    body: JSON.stringify(payload),
-  })
-
-  if (!res.ok) {
-    const err = await res.text()
-    console.error('[NotificacoesService] FCM erro:', err)
-    return { ok: false, erro: err }
-  }
-
-  return { ok: true }
-}
-
-// Envia notificação de fase REINO para uma paciente
+// Envia notificação de fase REINO para uma paciente via OneSignal
+// (mesmo canal de push usado pelo restante do app — ver lib/onesignal.ts)
 export async function enviarNotificacaoFase(params: {
-  token: string
+  pacienteId: string
   fase: number
   tipo: TipoNotificacao
   nomePaciente?: string
 }): Promise<{ ok: boolean; erro?: string }> {
-  const { token, fase, tipo, nomePaciente } = params
+  const { pacienteId, fase, tipo, nomePaciente } = params
 
   const nomeFase = NOMES_FASE[fase] ?? `Fase ${fase}`
   const corpo = sortearMensagem(fase, tipo)
@@ -61,9 +25,18 @@ export async function enviarNotificacaoFase(params: {
     motivacao: `Fase ${nomeFase}`,
   }
 
-  return enviarPushFCM(token, titulos[tipo], corpo, {
-    tipo,
-    fase: String(fase),
-    tela: tipo === 'checkin' ? '/patient/progresso/checkin' : '/patient/diario',
+  const result = await sendPushToUser({
+    externalUserId: pacienteId,
+    title: titulos[tipo],
+    message: corpo,
+    url: tipo === 'checkin' ? '/patient/progresso/checkin' : '/patient/diario',
+    data: { tipo, fase: String(fase) },
   })
+
+  if (!result.success) {
+    console.error('[NotificacoesService] Falha ao enviar push de fase:', result.error)
+    return { ok: false, erro: result.error }
+  }
+
+  return { ok: true }
 }

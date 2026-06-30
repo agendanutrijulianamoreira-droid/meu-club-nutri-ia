@@ -6,7 +6,7 @@ import { TipoNotificacao } from "@/lib/config/mensagensNotificacao"
 
 // POST /api/admin/notificacoes/testar
 // Body: { paciente_id, tipo }
-// Busca fase atual + token FCM da paciente e dispara push de teste
+// Busca fase atual da paciente e dispara push de teste via OneSignal
 export async function POST(request: NextRequest) {
   const supabase = createSupabaseServerClient(cookies())
   const { data: { user } } = await supabase.auth.getUser()
@@ -42,28 +42,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Paciente sem fase do REINO atribuída' }, { status: 422 })
   }
 
-  // Busca token FCM da paciente
-  const { data: tokenRow } = await supabase
-    .from('device_tokens')
-    .select('token')
-    .eq('user_id', paciente_id)
-    .order('last_seen_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (!tokenRow) {
-    return NextResponse.json({ error: 'Paciente sem token push cadastrado' }, { status: 422 })
-  }
-
-  // Busca nome da paciente
+  // Confirma que a paciente tem dispositivo registrado para push
   const { data: perfil } = await supabase
     .from('profiles')
-    .select('name')
+    .select('name, onesignal_player_id')
     .eq('user_id', paciente_id)
     .single()
 
+  if (!perfil?.onesignal_player_id) {
+    return NextResponse.json({ error: 'Paciente sem dispositivo registrado para push' }, { status: 422 })
+  }
+
   const resultado = await enviarNotificacaoFase({
-    token: tokenRow.token,
+    pacienteId: paciente_id,
     fase: faseRow.fase,
     tipo,
     nomePaciente: perfil?.name?.split(' ')[0],
