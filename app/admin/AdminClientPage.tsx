@@ -265,8 +265,8 @@ export default function AdminDashboard({
             case 'agent-queue':        return <AgentQueueView setView={setActiveView} tenantId={tenantId} />
             case 'patient-journey':    return <JourneyView setView={setActiveView} tenantId={tenantId} />
             case 'meal-plans':         return <MealPlanBuilderView setView={setActiveView} tenantId={tenantId} />
-            case 'meal-plans-premium': return <MealPlansView setView={setActiveView} tenantId={tenantId} />
-            case 'appointments':       return <AppointmentsView setView={setActiveView} tenantId={tenantId} />
+            case 'meal-plans-premium': return <MealPlansView setView={setActiveView} tenantId={tenantId} tenantName={tenantName} />
+            case 'appointments':       return <AppointmentsView setView={setActiveView} tenantId={tenantId} tenantName={tenantName} />
             case 'professionals':      return <ProfessionalsView setView={setActiveView} tenantId={tenantId} />
             case 'product-gateway':    return <ProductGatewayView setView={setActiveView} tenantId={tenantId} />
             case 'annual-planner':     return <AnnualPlannerView setView={setActiveView} tenantId={tenantId} />

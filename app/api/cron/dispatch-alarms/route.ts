@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendPushToUser } from '@/lib/onesignal'
+import { enviarNotificacaoFase } from '@/lib/services/notificacoesService'
+import type { TipoNotificacao } from '@/lib/config/mensagensNotificacao'
 
 const CRON_SECRET = process.env.CRON_SECRET || ''
 
@@ -12,6 +14,12 @@ const DEFAULT_PUSH: Record<string, { title: string; body: string }> = {
   medication: { title: '💊 Hora do suplemento!', body: 'Não esqueça seus suplementos de hoje.' },
   custom:     { title: '⏰ Lembrete', body: 'Você tem um lembrete agendado para agora.' },
 }
+
+// Horários fixos para os tipos de notificação de fase REINO que não têm
+// horário customizável em preferencias_notificacao (apenas refeições têm).
+const HORARIOS_HIDRATACAO = ['10:00', '15:30']
+const HORARIO_CHECKIN = '20:00'
+const HORARIO_MOTIVACAO = '08:00'
 
 // GET: verificação de saúde (Vercel Cron chama via GET)
 // POST: trigger manual (admin)
@@ -86,6 +94,8 @@ async function handleDispatch(request: NextRequest) {
 
   console.log(`[dispatch-alarms] ${currentTime} BRT — disparados: ${fired}, falhas: ${failed}`)
 
+  const reino = await dispatchReinoNotifications(supabase, currentTime)
+
   return NextResponse.json({
     time: currentTime,
     day: currentDay,
@@ -93,5 +103,79 @@ async function handleDispatch(request: NextRequest) {
     fired,
     failed,
     results,
+    reino,
   })
+}
+
+// Dispara notificações personalizadas por Fase do Método REINO (Fase 3 do plano),
+// respeitando os horários preferidos e opt-ins de cada paciente.
+async function dispatchReinoNotifications(
+  supabase: any,
+  currentTime: string
+) {
+  const { data: preferencias, error: errPrefs } = await supabase
+    .from('preferencias_notificacao')
+    .select('*')
+
+  if (errPrefs || !preferencias?.length) {
+    if (errPrefs) console.error('[dispatch-alarms/reino] Erro ao buscar preferências:', errPrefs)
+    return { total: 0, fired: 0, failed: 0 }
+  }
+
+  const pacienteIds = preferencias.map((p: any) => p.paciente_id)
+
+  const { data: fases } = await supabase
+    .from('fase_paciente')
+    .select('paciente_id, fase')
+    .in('paciente_id', pacienteIds)
+    .is('fim', null)
+
+  const faseByPaciente = new Map<string, number>((fases || []).map((f: any) => [f.paciente_id, f.fase]))
+
+  const { data: perfis } = await supabase
+    .from('profiles')
+    .select('user_id, name')
+    .in('user_id', pacienteIds)
+
+  const nomeByPaciente = new Map<string, string>((perfis || []).map((p: any) => [p.user_id, p.name]))
+
+  const disparos: { pacienteId: string; tipo: TipoNotificacao }[] = []
+
+  for (const pref of preferencias as any[]) {
+    if (!faseByPaciente.has(pref.paciente_id)) continue // sem fase REINO atribuída
+
+    if (pref.notif_refeicao && [pref.horario_cafe, pref.horario_almoco, pref.horario_lanche, pref.horario_jantar]
+      .some((h: string | null) => h?.slice(0, 5) === currentTime)) {
+      disparos.push({ pacienteId: pref.paciente_id, tipo: 'lembrete_refeicao' })
+    }
+    if (pref.notif_hidratacao && HORARIOS_HIDRATACAO.includes(currentTime)) {
+      disparos.push({ pacienteId: pref.paciente_id, tipo: 'hidratacao' })
+    }
+    if (pref.notif_checkin && currentTime === HORARIO_CHECKIN) {
+      disparos.push({ pacienteId: pref.paciente_id, tipo: 'checkin' })
+    }
+    if (pref.notif_motivacao && currentTime === HORARIO_MOTIVACAO) {
+      disparos.push({ pacienteId: pref.paciente_id, tipo: 'motivacao' })
+    }
+  }
+
+  let fired = 0
+  let failed = 0
+
+  for (const { pacienteId, tipo } of disparos) {
+    const resultado = await enviarNotificacaoFase({
+      pacienteId,
+      fase: faseByPaciente.get(pacienteId)!,
+      tipo,
+      nomePaciente: nomeByPaciente.get(pacienteId)?.split(' ')[0],
+    })
+    if (resultado.ok) fired++
+    else failed++
+  }
+
+  if (disparos.length > 0) {
+    console.log(`[dispatch-alarms/reino] ${currentTime} BRT — disparados: ${fired}, falhas: ${failed}`)
+  }
+
+  return { total: disparos.length, fired, failed }
 }

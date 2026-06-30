@@ -4,14 +4,16 @@ import React, { useState, useEffect } from 'react'
 import {
   Calendar, Clock, Video, MapPin, Plus, Loader2, CheckCircle2, XCircle,
   User, ChevronRight, AlertCircle, RefreshCw, Phone, ExternalLink, Trash2,
-  ChevronLeft, LayoutGrid, List, Settings, Save
+  ChevronLeft, LayoutGrid, List, Settings, Save, FileText, FileDown, X, Sparkles
 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
+import { exportRelatorioPdf } from "@/lib/utils/exportRelatorioPdf"
 
 interface AppointmentsViewProps {
   setView: (v: any) => void
   tenantId?: string
+  tenantName?: string
 }
 
 interface Appointment {
@@ -26,6 +28,16 @@ interface Appointment {
   notes?: string
   patient?: { name: string; user_id: string; primary_goal?: string }
   nutritionist?: { name: string }
+}
+
+interface RelatorioPreConsulta {
+  id: string
+  paciente_id: string
+  periodo_inicio: string
+  periodo_fim: string
+  dados_json: any
+  analise_clinica: string
+  created_at: string
 }
 
 interface Patient {
@@ -50,7 +62,7 @@ const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }>
   no_show: { label: 'Não compareceu', bg: 'bg-amber-500/10', text: 'text-amber-400' },
 }
 
-export function AppointmentsView({ setView, tenantId }: AppointmentsViewProps) {
+export function AppointmentsView({ setView, tenantId, tenantName }: AppointmentsViewProps) {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [loading, setLoading] = useState(true)
@@ -83,6 +95,12 @@ export function AppointmentsView({ setView, tenantId }: AppointmentsViewProps) {
     buffer_minutes: 10,
     default_meeting_link: '',
   })
+
+  // Relatório pré-consulta (Fase 8)
+  const [relatorioAppt, setRelatorioAppt] = useState<Appointment | null>(null)
+  const [relatorio, setRelatorio] = useState<RelatorioPreConsulta | null>(null)
+  const [loadingRelatorio, setLoadingRelatorio] = useState(false)
+  const [gerandoRelatorio, setGerandoRelatorio] = useState(false)
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type })
@@ -202,6 +220,50 @@ export function AppointmentsView({ setView, tenantId }: AppointmentsViewProps) {
       showToast(`Status atualizado: ${STATUS_STYLES[status]?.label || status}`)
       loadData()
     } catch { showToast('Erro ao atualizar', 'error') }
+  }
+
+  const openRelatorio = async (appt: Appointment) => {
+    setRelatorioAppt(appt)
+    setRelatorio(null)
+    setLoadingRelatorio(true)
+    try {
+      const res = await fetch(`/api/admin/relatorios/pre-consulta?appointment_id=${appt.id}`)
+      const data = await res.json()
+      setRelatorio(data.relatorio || null)
+    } catch {
+      showToast('Erro ao carregar relatório', 'error')
+    } finally {
+      setLoadingRelatorio(false)
+    }
+  }
+
+  const gerarRelatorio = async () => {
+    if (!relatorioAppt) return
+    setGerandoRelatorio(true)
+    try {
+      const res = await fetch('/api/admin/relatorios/pre-consulta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appointment_id: relatorioAppt.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao gerar relatório')
+      setRelatorio(data.relatorio)
+      showToast('Relatório gerado com sucesso!')
+    } catch (err: any) {
+      showToast(err.message || 'Erro ao gerar relatório', 'error')
+    } finally {
+      setGerandoRelatorio(false)
+    }
+  }
+
+  const exportarRelatorio = () => {
+    if (!relatorio) return
+    exportRelatorioPdf({
+      tenantName,
+      dados: relatorio.dados_json,
+      analiseClinica: relatorio.analise_clinica,
+    })
   }
 
   const resetForm = () => {
@@ -583,6 +645,12 @@ export function AppointmentsView({ setView, tenantId }: AppointmentsViewProps) {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2">
+                    {appt.patient?.user_id && (
+                      <button onClick={() => openRelatorio(appt)}
+                        className="p-2 rounded-lg hover:bg-slate-700 text-violet-400 hover:text-violet-300 transition-colors" title="Relatório pré-consulta">
+                        <FileText size={16} />
+                      </button>
+                    )}
                     {appt.meeting_link && isUpcoming && (
                       <a href={appt.meeting_link} target="_blank" rel="noopener noreferrer"
                         className="p-2 rounded-lg hover:bg-slate-700 text-blue-400 hover:text-blue-300 transition-colors" title="Abrir link">
@@ -617,6 +685,81 @@ export function AppointmentsView({ setView, tenantId }: AppointmentsViewProps) {
         </div>
         )
       )}
+
+      {/* Modal: Relatório Pré-Consulta */}
+      <AnimatePresence>
+        {relatorioAppt && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setRelatorioAppt(null)}>
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-white font-bold text-base flex items-center gap-2">
+                    <FileText size={16} className="text-violet-400" />
+                    Relatório Pré-Consulta
+                  </p>
+                  <p className="text-slate-500 text-xs mt-0.5">{relatorioAppt.patient?.name}</p>
+                </div>
+                <button onClick={() => setRelatorioAppt(null)} className="p-1.5 text-slate-500 hover:text-white transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {loadingRelatorio ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 size={24} className="animate-spin text-indigo-400" />
+                </div>
+              ) : !relatorio ? (
+                <div className="text-center py-8">
+                  <Sparkles size={28} className="text-slate-700 mx-auto mb-3" />
+                  <p className="text-slate-400 text-sm mb-4">Nenhum relatório gerado ainda para esta consulta.</p>
+                  <button onClick={gerarRelatorio} disabled={gerandoRelatorio}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-bold rounded-2xl transition-all">
+                    {gerandoRelatorio ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                    Gerar relatório (últimos 30 dias)
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      Período: {relatorio.periodo_inicio} a {relatorio.periodo_fim}
+                    </p>
+                    <p className="text-white text-sm">
+                      Adesão alimentar: <span className="font-bold">{relatorio.dados_json.adesao.taxa_percentual}%</span>
+                      <span className="text-slate-500"> ({relatorio.dados_json.adesao.dias_com_registro}/{relatorio.dados_json.adesao.total_dias} dias)</span>
+                    </p>
+                    {relatorio.dados_json.paciente.fase_atual && (
+                      <p className="text-slate-400 text-xs">Fase REINO: {relatorio.dados_json.paciente.fase_atual}</p>
+                    )}
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Análise clínica (IA)</p>
+                    <p className="text-slate-200 text-sm whitespace-pre-wrap leading-relaxed">{relatorio.analise_clinica}</p>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <button onClick={gerarRelatorio} disabled={gerandoRelatorio}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white text-xs font-bold rounded-xl transition-all disabled:opacity-50">
+                      {gerandoRelatorio ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                      Atualizar
+                    </button>
+                    <button onClick={exportarRelatorio}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all">
+                      <FileDown size={14} />
+                      Exportar PDF
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
