@@ -14,7 +14,8 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- RLS: paciente pode fazer upload das próprias fotos
-CREATE POLICY IF NOT EXISTS "Paciente upload propria foto" ON storage.objects
+DROP POLICY IF EXISTS "Paciente upload propria foto" ON storage.objects;
+CREATE POLICY "Paciente upload propria foto" ON storage.objects
     FOR INSERT TO authenticated
     WITH CHECK (
         bucket_id = 'fotos-refeicao'
@@ -22,7 +23,8 @@ CREATE POLICY IF NOT EXISTS "Paciente upload propria foto" ON storage.objects
     );
 
 -- RLS: paciente pode ler as próprias fotos
-CREATE POLICY IF NOT EXISTS "Paciente lê propria foto" ON storage.objects
+DROP POLICY IF EXISTS "Paciente lê propria foto" ON storage.objects;
+CREATE POLICY "Paciente lê propria foto" ON storage.objects
     FOR SELECT TO authenticated
     USING (
         bucket_id = 'fotos-refeicao'
@@ -30,7 +32,8 @@ CREATE POLICY IF NOT EXISTS "Paciente lê propria foto" ON storage.objects
     );
 
 -- RLS: paciente pode deletar as próprias fotos
-CREATE POLICY IF NOT EXISTS "Paciente deleta propria foto" ON storage.objects
+DROP POLICY IF EXISTS "Paciente deleta propria foto" ON storage.objects;
+CREATE POLICY "Paciente deleta propria foto" ON storage.objects
     FOR DELETE TO authenticated
     USING (
         bucket_id = 'fotos-refeicao'
