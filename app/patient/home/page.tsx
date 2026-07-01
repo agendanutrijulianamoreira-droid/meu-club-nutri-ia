@@ -26,6 +26,7 @@ import Link from "next/link"
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase-browser"
 import { ReminderSettings } from "@/components/patient/ReminderSettings"
+import { StreakTimeline } from "@/components/patient/StreakTimeline"
 
 export default function PatientHomePage() {
     const {
@@ -52,11 +53,13 @@ export default function PatientHomePage() {
     const [currentPlan, setCurrentPlan] = useState<string>("community")
     const [nextAppointment, setNextAppointment] = useState<{ scheduled_at: string; is_virtual: boolean; meeting_link?: string; appointment_type: string } | null>(null)
     const [pendingQuestionnaires, setPendingQuestionnaires] = useState<{ id: string; name: string }[]>([])
+    const [userId, setUserId] = useState<string | null>(null)
 
     useEffect(() => {
         const init = async () => {
             const { data: { session } } = await supabase.auth.getSession()
             if (!session) return
+            setUserId(session.user.id)
 
             // Load profile name + check if new member
             const { data: profile } = await supabase
@@ -362,6 +365,11 @@ export default function PatientHomePage() {
                         </div>
                     )
                 })()}
+            </div>
+
+            {/* ─── Timeline de Streak (7 dias) ────────────────────────── */}
+            <div className="mb-7">
+                <StreakTimeline userId={userId ?? undefined} />
             </div>
 
             {/* ─── Banner de Trial (Clube) ──────────────────────────────── */}
