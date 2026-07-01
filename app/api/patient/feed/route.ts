@@ -21,13 +21,13 @@ export async function GET(request: NextRequest) {
     // Buscar nível de acesso do paciente neste tenant
     const { data: nivelRow } = await supabase
         .from('nivel_paciente')
-        .select('nivel_id, niveis_acesso(ordem)')
-        .eq('paciente_id', user.id)
+        .select('nivel, validade')
+        .eq('user_id', user.id)
         .eq('tenant_id', profile.tenant_id)
-        .or('valido_ate.is.null,valido_ate.gte.' + new Date().toISOString().split('T')[0])
+        .or('validade.is.null,validade.gte.' + new Date().toISOString().split('T')[0])
         .maybeSingle()
 
-    const ordemDoUsuario: number = (nivelRow?.niveis_acesso as any)?.ordem ?? 1
+    const ordemDoUsuario: number = nivelRow?.nivel ?? 1
 
     // Fetch posts — inclui todos do tenant (inclusive bloqueados, para mostrar lock visual)
     let q = supabase
