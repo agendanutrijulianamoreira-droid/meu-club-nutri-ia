@@ -133,7 +133,7 @@ export default function OnboardingPage() {
                                 >
                                     <div className="text-center mb-6">
                                         <h2 className="text-xl font-semibold text-white mb-2">O que mais te incomoda hoje?</h2>
-                                        <p className="text-sm text-slate-400">Isso ajudará a IA a personalizar seus lembretes.</p>
+                                        <p className="text-sm text-slate-400">Isso ajudará a personalizar seus lembretes.</p>
                                     </div>
 
                                     <div className="space-y-3">

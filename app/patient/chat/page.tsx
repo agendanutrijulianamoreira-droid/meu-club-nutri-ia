@@ -123,7 +123,7 @@ export default function PatientChatPage() {
                             <Sparkles size={16} className="text-emerald-400" />
                         </div>
                         <div>
-                            <p className="text-white text-sm font-black">Nutri IA</p>
+                            <p className="text-white text-sm font-black">Nutri</p>
                             <p className="text-[10px] text-emerald-400">Online agora</p>
                         </div>
                     </div>
@@ -150,7 +150,7 @@ export default function PatientChatPage() {
                         <div className="w-16 h-16 rounded-3xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
                             <Sparkles size={28} className="text-emerald-400" />
                         </div>
-                        <h2 className="text-white font-black text-xl mb-1">Olá! Sou sua Nutri IA</h2>
+                        <h2 className="text-white font-black text-xl mb-1">Olá! Sou sua Nutri</h2>
                         <p className="text-slate-500 text-sm mb-6 max-w-xs mx-auto">
                             Tire dúvidas sobre alimentação, receitas, hábitos e muito mais.
                         </p>

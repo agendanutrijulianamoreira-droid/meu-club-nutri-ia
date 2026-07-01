@@ -350,7 +350,7 @@ export default function PatientGatewayPage() {
             <Crown size={16} className="text-indigo-400" />
             <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400">Modo Paciente</span>
           </div>
-          <p className="text-white text-sm font-bold mb-1">Dieta personalizada + IA + receitas</p>
+          <p className="text-white text-sm font-bold mb-1">Dieta personalizada + chat com a nutri + receitas</p>
           <p className="text-slate-400 text-xs mb-4">
             Desbloqueie cardápio com macros, receitas vinculadas ao seu protocolo, lista de compras calculada e muito mais.
           </p>

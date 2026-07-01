@@ -257,10 +257,10 @@ export default function PatientHomePage() {
                 </div>
                 <div className="space-y-3">
                   {[
-                    { emoji: '🍽️', title: 'Cardápio personalizado', desc: 'Veja seu plano alimentar na aba Dieta', href: '/patient/diet' },
+                    { emoji: '🍽️', title: 'Cardápio interativo', desc: 'Veja seu plano alimentar na aba Dieta', href: '/patient/diet' },
                     { emoji: '🏆', title: 'Missões e Desafios', desc: 'Complete missões diárias e ganhe XP', href: null },
                     { emoji: '💧', title: 'Lembretes inteligentes', desc: 'Configure alertas de água e refeições', href: null },
-                    { emoji: '💬', title: 'Chat com IA nutricionista', desc: 'Tire dúvidas a qualquer hora', href: '/patient/chat' },
+                    { emoji: '💬', title: 'Chat com a nutricionista', desc: 'Tire dúvidas a qualquer hora', href: '/patient/chat' },
                     { emoji: '🌟', title: 'Comunidade e Ranking', desc: 'Conecte-se com outras mulheres', href: '/patient/feed' },
                   ].map((item, i) => (
                     <div key={i} className="flex items-center gap-3 bg-white/5 border border-white/5 rounded-2xl px-4 py-3">

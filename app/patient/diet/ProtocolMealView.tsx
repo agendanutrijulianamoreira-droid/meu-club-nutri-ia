@@ -240,7 +240,7 @@ export function ProtocolMealView({ protocol, days, currentDay, progress, onGoIA 
           onClick={onGoIA}
           className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600/20 border border-indigo-500/30 rounded-xl text-sm font-bold text-indigo-400"
         >
-          <Sparkles size={14} />Gerar com IA enquanto isso
+          <Sparkles size={14} />Gerar plano interativo enquanto isso
         </button>
       </div>
     )
