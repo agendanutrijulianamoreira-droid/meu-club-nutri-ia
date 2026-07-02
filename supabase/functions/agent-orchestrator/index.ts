@@ -17,7 +17,7 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GE
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface OrchestratorEvent {
-  type: 'cron_daily' | 'checkin_submitted' | 'chat_message' | 'stripe_webhook' | 'photo_submitted' | 'meal_logged' | 'post_created' | 'manual'
+  type: 'cron_daily' | 'checkin_submitted' | 'stripe_webhook' | 'meal_logged' | 'post_created' | 'manual'
   tenant_id?: string
   user_id?: string
   payload?: Record<string, any>
@@ -274,8 +274,6 @@ serve(async (req) => {
           results.push(await runUpsellAgent(supabase, tenant, patients, sabResult))
         } else if (agentName === 'meals' && event.user_id) {
           results.push(await runMealsAgent(supabase, event.tenant_id, event.user_id, event.payload))
-        } else if (agentName === 'upsell') {
-          results.push(await runUpsellAgent(supabase, tenant, patients))
         }
         break
       }

@@ -28,7 +28,7 @@
 | IA | Google Gemini 2.5 Flash (free tier) | Via `fetch` direto à API REST, env: `GEMINI_API_KEY` |
 | Storage | Supabase Storage | Buckets: `logos`, `library`, `social-proof` |
 | Edge Functions | Supabase Functions (Deno) | `agent-orchestrator`, `generate-menu`, `analyze-plate`, `send-push-campaign` |
-| Pagamentos | Stripe | Não implementado ainda |
+| Pagamentos | Stripe | Implementado — checkout (`lib/stripe.ts`, `/api/checkout`) e webhook (`/api/webhooks/stripe`) ativos em produção |
 | Push | FCM (Firebase Cloud Messaging) | Via `device_tokens` table |
 
 ### Imports críticos
@@ -702,11 +702,13 @@ triggerOrchestrator('checkin_submitted', tenantId, userId)
 - [x] Função legada `daily-engagement` removida do repositório (o admin já usa só `agent-orchestrator`); a versão deployada no Supabase ainda precisa ser removida manualmente (`supabase functions delete daily-engagement` ou pelo dashboard — não há tool de delete disponível via MCP)
 - [x] Função legada `generate-protocol` (OpenAI, `gpt-4o-mini`) removida do repositório junto com seu único chamador (`lib/ai-generator.ts`, sem uso em nenhuma tela — a geração real de protocolo usa `/api/ai/generate` com Gemini). A versão deployada no Supabase também precisa ser removida manualmente
 - [x] Escritas de notificação migradas para `inbox_messages` em todos os pontos do código
-- [ ] Dropar a tabela `notifications` legada (mantida por segurança até validar em produção — zero escritas hoje)
+- [x] Tabela `notifications` legada dropada (migration `20260703000001_drop_orphan_tables.sql` — zero escritas confirmadas antes da remoção). Tabela `rewards` (legada, nunca usada pela loja real — ver `reward_items`/`reward_redemptions`) removida na mesma migration
+- [x] Bug corrigido no `agent-orchestrator`: branch `manual` tinha um `else if (agentName === 'upsell')` duplicado e inatingível (removido); tipos de evento `chat_message`/`photo_submitted` removidos da interface `OrchestratorEvent` por nunca terem sido disparados nem tratados em nenhum lugar do código
 - [ ] Push notifications via FCM (integração parcial — device_tokens existe)
-- [ ] Exportação CSV de dados das pacientes
+- [ ] Exportação CSV de dados das pacientes — **já existe implementada e funcional em `/api/admin/export/patients`, mas sem botão em nenhuma view do admin**; falta só ligar a UI
 - [ ] Ampliar cobertura de testes automatizados (hoje: gamificação, ai-security, rate-limiter)
 - [ ] Converter `schema_ai_credits.sql` e `schema_scheduled_events.sql` em migrations numeradas — são a única documentação de tabelas ativas sem migration formal (ver `supabase/legacy-manual-sql/README.md`)
+- [ ] Auditoria de sistema (Jul/2026) identificou várias sobreposições de funcionalidade pendentes de decisão/execução: preço dos planos editável em 3 lugares (Settings, Billing, Sales Page) sem fonte única; `ProductsView` vs `ProductGatewayView` como catálogos de produto duplicados; Communication Center / Email Marketing / Strategic Planner como 3 fluxos de campanha não integrados; cálculo de risco de paciente reimplementado em ~4 rotas de API + orchestrator; crédito de XP disparado por 4 caminhos diferentes (client RPC, 2 API routes, trigger SQL); dois sistemas de lembrete paralelos e sobrepostos (`patient_alarms`, com cron de push ativo, e `patient_reminders`, com notificação client-side via `ReminderSettings.tsx` — o cron de push de `patient_reminders`, em `/api/admin/cron/reminders`, está órfão e nunca é chamado); check-in diário e semanal sem navegação cruzada; app da paciente com páginas sem link de acesso (`/patient/recipes`, `/patient/scanner`, `/patient/ranking` standalone). Ver relatório completo da auditoria para o plano de unificação faseado antes de mexer nessas áreas.
 
 ---
 
