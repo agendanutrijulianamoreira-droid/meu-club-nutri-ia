@@ -201,6 +201,7 @@ function AssignProtocolModal({ patientId, patientName, currentProtocol, onClose,
     const [protocols, setProtocols] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [assigning, setAssigning] = useState<string | null>(null)
+    const [error, setError] = useState('')
 
     useEffect(() => {
         fetch('/api/admin/protocols-list')
@@ -211,12 +212,20 @@ function AssignProtocolModal({ patientId, patientName, currentProtocol, onClose,
 
     const handleAssign = async (protocolId: string | null) => {
         setAssigning(protocolId || 'remove')
+        setError('')
         try {
-            await fetch(`/api/admin/patients/${patientId}/action`, {
+            const res = await fetch(`/api/admin/patients/${patientId}/action`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: protocolId ? 'assign-protocol' : 'remove-protocol', protocol_id: protocolId })
             })
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}))
+                setError(data.error || 'Erro ao atribuir protocolo. Tente novamente.')
+                return
+            }
             onSuccess()
+        } catch {
+            setError('Erro de conexão. Tente novamente.')
         } finally { setAssigning(null) }
     }
 
@@ -234,6 +243,10 @@ function AssignProtocolModal({ patientId, patientName, currentProtocol, onClose,
                     </div>
                     <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl"><X size={15} className="text-slate-400"/></button>
                 </div>
+
+                {error && (
+                    <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2 mb-3">{error}</p>
+                )}
 
                 {loading ? (
                     <div className="py-8 flex justify-center"><Loader2 size={20} className="animate-spin text-slate-600"/></div>

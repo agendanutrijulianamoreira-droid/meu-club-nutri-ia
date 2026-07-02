@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
     // 4. Active protocol assignments
     const { data: assignments } = await supabase
         .from('protocol_assignments')
-        .select('user_id, protocol_id, started_at, status')
+        .select('user_id, protocol_id, start_date, status')
         .in('user_id', userIds)
         .eq('status', 'active')
 

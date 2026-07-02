@@ -41,14 +41,12 @@ export async function POST(
         await supabase.from('protocol_assignments')
             .update({ status: 'cancelled' })
             .eq('user_id', patientId)
-            .eq('tenant_id', tenant.id)
             .eq('status', 'active')
 
         // Create new assignment
         const { data, error } = await supabase.from('protocol_assignments').insert({
             user_id: patientId,
             protocol_id,
-            tenant_id: tenant.id,
             start_date: new Date().toISOString().split('T')[0],
             status: 'active',
         }).select().single()
@@ -75,7 +73,6 @@ export async function POST(
         await supabase.from('protocol_assignments')
             .update({ status: 'cancelled' })
             .eq('user_id', patientId)
-            .eq('tenant_id', tenant.id)
             .eq('status', 'active')
         return NextResponse.json({ success: true })
     }
