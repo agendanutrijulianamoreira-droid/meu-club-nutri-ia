@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from "react"
 import {
   Package, Plus, Edit3, Trash2, Loader2, X, ChevronDown, ChevronUp,
   Sparkles, DollarSign, Users, ToggleLeft, ToggleRight, FlaskConical,
-  Dna, CalendarDays, Stethoscope, Star, Check, AlertCircle
+  Dna, CalendarDays, Stethoscope, Star, Check, AlertCircle, ClipboardList, BookOpen
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -20,10 +20,11 @@ interface Product {
   id: string
   name: string
   slug: string
-  type: 'consultation' | 'method_90d' | 'genetic_test' | 'subscription' | 'custom'
+  type: 'consultation' | 'method_90d' | 'genetic_test' | 'subscription' | 'custom' | 'protocol' | 'ebook'
   description: string | null
   short_description: string | null
   price_cents: number
+  price_cents_2027: number | null
   stripe_price_id: string | null
   payment_type: 'one_time' | 'recurring'
   recurring_interval: string | null
@@ -41,6 +42,8 @@ const TYPE_META = {
   method_90d:   { label: 'Método 90 Dias',  icon: <CalendarDays size={14}/>, color: 'text-indigo-400', bg: 'bg-indigo-500/15 border-indigo-500/25' },
   genetic_test:  { label: 'Teste Genético', icon: <Dna size={14}/>,          color: 'text-violet-400', bg: 'bg-violet-500/15 border-violet-500/25' },
   subscription:  { label: 'Assinatura',     icon: <Star size={14}/>,          color: 'text-amber-400',  bg: 'bg-amber-500/15 border-amber-500/25' },
+  protocol:      { label: 'Protocolo',      icon: <ClipboardList size={14}/>, color: 'text-teal-400',   bg: 'bg-teal-500/15 border-teal-500/25' },
+  ebook:         { label: 'Ebook',          icon: <BookOpen size={14}/>,      color: 'text-fuchsia-400',bg: 'bg-fuchsia-500/15 border-fuchsia-500/25' },
   custom:        { label: 'Personalizado',  icon: <Package size={14}/>,       color: 'text-emerald-400',bg: 'bg-emerald-500/15 border-emerald-500/25' },
 }
 
@@ -106,6 +109,7 @@ function ProductForm({ product, onSave, onCancel }: {
     description: product?.description || '',
     short_description: product?.short_description || '',
     price_cents: product?.price_cents ?? 0,
+    price_cents_2027: product?.price_cents_2027 ?? '',
     stripe_price_id: product?.stripe_price_id || '',
     payment_type: product?.payment_type || 'one_time',
     recurring_interval: product?.recurring_interval || 'month',
@@ -156,6 +160,7 @@ function ProductForm({ product, onSave, onCancel }: {
         description: form.description.trim() || null,
         short_description: form.short_description.trim() || null,
         price_cents: Number(form.price_cents) || 0,
+        price_cents_2027: form.price_cents_2027 !== '' ? Number(form.price_cents_2027) : null,
         stripe_price_id: form.stripe_price_id.trim() || null,
         payment_type: form.payment_type,
         recurring_interval: form.payment_type === 'recurring' ? form.recurring_interval : null,
@@ -234,6 +239,19 @@ function ProductForm({ product, onSave, onCancel }: {
             <option value="recurring">Recorrente</option>
           </select>
         </div>
+      </div>
+
+      {/* Preço 2027 (reajuste anual) */}
+      <div>
+        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1.5">
+          Preço 2027 (em centavos) <span className="text-slate-600">(opcional, reajuste anual)</span>
+        </label>
+        <input type="number" value={form.price_cents_2027} onChange={e => set('price_cents_2027', e.target.value)}
+          placeholder="Deixe em branco para manter o preço atual"
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50"/>
+        {form.price_cents_2027 !== '' && Number(form.price_cents_2027) > 0 && (
+          <p className="text-[11px] text-emerald-400 mt-1">{formatPrice(Number(form.price_cents_2027))} a partir de 2027</p>
+        )}
       </div>
 
       {form.payment_type === 'recurring' && (
@@ -371,6 +389,9 @@ function ProductCard({ product, onEdit, onToggle, onDelete }: {
           <p className="text-[10px] text-slate-500">
             {product.payment_type === 'recurring' ? `por ${product.recurring_interval === 'month' ? 'mês' : 'ano'}` : 'pagamento único'}
           </p>
+          {product.price_cents_2027 != null && product.price_cents_2027 !== product.price_cents && (
+            <p className="text-[10px] text-amber-400 mt-0.5">{formatPrice(product.price_cents_2027)} em 2027</p>
+          )}
         </div>
       </div>
 

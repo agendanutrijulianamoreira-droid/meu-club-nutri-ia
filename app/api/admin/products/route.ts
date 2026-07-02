@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const {
     name, slug, type, description, short_description,
-    price_cents, stripe_price_id, payment_type, recurring_interval,
+    price_cents, price_cents_2027, stripe_price_id, payment_type, recurring_interval,
     content_access, features, badge_text, highlight, sort_order,
   } = body
 
@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
     description: description?.trim() || null,
     short_description: short_description?.trim() || null,
     price_cents: Number(price_cents),
+    price_cents_2027: price_cents_2027 != null && price_cents_2027 !== '' ? Number(price_cents_2027) : null,
     stripe_price_id: stripe_price_id?.trim() || null,
     payment_type: payment_type || 'one_time',
     recurring_interval: recurring_interval || null,
