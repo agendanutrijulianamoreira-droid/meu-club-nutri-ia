@@ -14,9 +14,12 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: tenant } = await supabase
-    .from('tenants').select('id, gpt_system_prompt, name, method_name').eq('owner_id', user.id).single()
-  if (!tenant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const { data: tenant, error: tenantError } = await supabase
+    .from('tenants').select('id, gpt_system_prompt, brand_name, method_name').eq('owner_id', user.id).single()
+  if (tenantError || !tenant) {
+    console.error('[generate-seasonal-protocol] tenant lookup failed', tenantError)
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const { prompt, durationDays } = await request.json()
   if (!prompt?.trim()) return NextResponse.json({ error: 'Descreva o objetivo do protocolo' }, { status: 400 })

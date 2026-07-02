@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, { params }: { params: { slug: st
 
   const { data: tenant } = await admin
     .from('tenants')
-    .select('name, logo_url, brand_color, slug')
+    .select('name:brand_name, logo_url, brand_color, slug')
     .eq('id', protocol.tenant_id)
     .single()
 
