@@ -56,7 +56,6 @@ import ClinicSettingsOverlay from "./components/ClinicSettingsOverlay"
 import { signOutAction } from "./actions/authActions"
 import { AgentsDashboardView } from "./views/AgentsDashboardView"
 import { MealPlanBuilderView } from "./views/MealPlanBuilderView"
-import { MealPlansView } from "./views/MealPlansView"
 import { AppointmentsView } from "./views/AppointmentsView"
 import { ProfessionalsView } from "./views/ProfessionalsView"
 import { ProductGatewayView } from "./views/ProductGatewayView"
@@ -80,7 +79,7 @@ type ViewType =
     | 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients'
     | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits'
     | 'library' | 'settings' | 'club-plan' | 'agents-dashboard'
-    | 'meal-plans' | 'meal-plans-premium'
+    | 'meal-plans'
     | 'appointments' | 'professionals' | 'product-gateway'
     | 'strategic-planner' | 'analytics' | 'patient-journey'
     | 'products' | 'approvals' | 'recipes' | 'manager-learning' | 'habits' | 'vip-settings' | 'email-marketing'
@@ -163,7 +162,6 @@ const navGroups: NavGroup[] = [
             { id: 'ai-brain', label: 'Laboratório IA' },
             { id: 'agents-dashboard', label: 'Agentes IA' },
             { id: 'approvals', label: 'Aprovações', badge: true },
-            { id: 'meal-plans-premium', label: 'Planos Avançados' },
             { id: 'ai-credits', label: 'Créditos IA' },
             { id: 'manager-learning', label: 'Gerente IA' },
             { id: 'settings', label: 'Configurações' },
@@ -251,7 +249,6 @@ export default function AdminDashboard({
             case 'agents-dashboard':   return <AgentsDashboardView setView={setActiveView} tenantId={tenantId} />
             case 'patient-journey':    return <JourneyView setView={setActiveView} tenantId={tenantId} />
             case 'meal-plans':         return <MealPlanBuilderView setView={setActiveView} tenantId={tenantId} />
-            case 'meal-plans-premium': return <MealPlansView setView={setActiveView} tenantId={tenantId} tenantName={tenantName} />
             case 'appointments':       return <AppointmentsView setView={setActiveView} tenantId={tenantId} tenantName={tenantName} />
             case 'professionals':      return <ProfessionalsView setView={setActiveView} tenantId={tenantId} />
             case 'product-gateway':    return <ProductGatewayView setView={setActiveView} tenantId={tenantId} />
