@@ -40,7 +40,6 @@ import { motion, AnimatePresence } from "framer-motion"
 import { DashboardView } from "./views/DashboardView"
 import { CommunicationCenterView } from "./views/CommunicationCenterView"
 import { ProtocolsView } from "./views/ProtocolsView"
-import { ChallengesView } from "./views/ChallengesView"
 import { PatientsView } from "./views/PatientsView"
 import { RewardsView } from "./views/RewardsView"
 import { CheckinsView } from "./views/CheckinsView"
@@ -76,7 +75,7 @@ import { BillingView } from "./views/BillingView"
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ViewType =
-    | 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients'
+    | 'dashboard' | 'communication' | 'protocols' | 'patients'
     | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits'
     | 'library' | 'settings' | 'club-plan' | 'agents-dashboard'
     | 'meal-plans'
@@ -129,7 +128,6 @@ const navGroups: NavGroup[] = [
         label: 'Programas',
         items: [
             { id: 'protocols', label: 'Protocolos' },
-            { id: 'challenges', label: 'Desafios' },
             { id: 'habits', label: 'Hábitos' },
             { id: 'meal-plans', label: 'Cardápios' },
             { id: 'recipes', label: 'Receitas' },
@@ -238,7 +236,6 @@ export default function AdminDashboard({
             case 'dashboard':          return <DashboardView {...props} />
             case 'communication':      return <CommunicationCenterView setView={setActiveView} />
             case 'protocols':          return <ProtocolsView setView={setActiveView} tenantId={tenantId} />
-            case 'challenges':         return <ChallengesView setView={setActiveView} />
             case 'patients':           return <PatientsView setView={setActiveView} />
             case 'rewards':            return <RewardsView setView={setActiveView} />
             case 'checkins':           return <CheckinsView setView={setActiveView} />
