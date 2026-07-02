@@ -185,11 +185,22 @@ export function usePatientEngine(): PatientEngineData {
         if (!activeProtocol) return
 
         const newStatus = !currentStatus
+        // ⚡ BUGFIX: usar os pontos reais da missão em vez de 10 fixo —
+        // o card do "Meu Dia" já exibe item.points (10/15/20 XP), mas o
+        // gravador estava sempre creditando 10, então o XP exibido na Home
+        // nunca batia com o que a paciente recebia de fato.
+        const item = currentDayItems.find(i => i.id === itemId)
+        const itemPoints = item?.points || 10
 
         // Optimistic UI update
         setProgress(prev => ({ ...prev, [itemId]: newStatus }))
 
+        let pointsDelta = 0
+
         try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) throw new Error('Sem sessão ativa')
+
             if (newStatus) {
                 // ⚡ TIMEZONE FIX: Enviar checkin_date como DATE puro local
                 const todayStr = getLocalDate()
@@ -201,34 +212,50 @@ export function usePatientEngine(): PatientEngineData {
                         protocol_item_id: itemId,
                         completed_at: new Date().toISOString(), // Timestamp real (p/ audit)
                         checkin_date: todayStr,                 // ← DATE puro local!
-                        points_earned: 10
+                        points_earned: itemPoints
                     })
 
                 if (error) throw error
 
-                // Atualizar pontos do usuário
-                const { data: { user } } = await supabase.auth.getUser()
-                if (user) {
-                    await supabase.rpc('increment_user_points', {
-                        user_id: user.id,
-                        points_to_add: 10
-                    })
-                }
+                await supabase.rpc('increment_user_points', {
+                    user_id: user.id,
+                    points_to_add: itemPoints
+                })
+                pointsDelta = itemPoints
             } else {
-                // Desmarcar - remover do progresso
+                // ⚡ BUGFIX: antes o XP creditado nunca era estornado ao desmarcar
+                // a missão — dava pra marcar/desmarcar o mesmo item repetidas vezes
+                // e farmar XP e NutriCoins infinitamente. Agora buscamos quanto foi
+                // realmente creditado naquele registro e devolvemos exatamente isso.
+                const { data: existing } = await supabase
+                    .from('protocol_progress')
+                    .select('points_earned')
+                    .eq('assignment_id', activeProtocol.assignmentId)
+                    .eq('protocol_item_id', itemId)
+                    .single()
+
+                const earnedPoints = existing?.points_earned ?? itemPoints
+
                 await supabase
                     .from('protocol_progress')
                     .delete()
                     .eq('assignment_id', activeProtocol.assignmentId)
                     .eq('protocol_item_id', itemId)
+
+                await supabase.rpc('increment_user_points', {
+                    user_id: user.id,
+                    points_to_add: -earnedPoints
+                })
+                pointsDelta = -earnedPoints
             }
 
-            // Recalcular stats
+            // Recalcular stats (progresso do dia + XP total exibido na Home)
             const totalItems = currentDayItems.length
             const completedCount = Object.values({ ...progress, [itemId]: newStatus }).filter(Boolean).length
             setStats(prev => ({
                 ...prev,
-                completionRate: Math.round((completedCount / totalItems) * 100)
+                completionRate: Math.round((completedCount / totalItems) * 100),
+                totalPoints: Math.max(0, prev.totalPoints + pointsDelta)
             }))
 
         } catch (error) {

@@ -22,6 +22,7 @@ export default function WeeklyCheckinPage() {
     const [submitting, setSubmitting] = useState(false)
     const [done, setDone] = useState(false)
     const [aiSummary, setAiSummary] = useState("")
+    const [xpAwarded, setXpAwarded] = useState(0)
     const [alreadyDone, setAlreadyDone] = useState(false)
     const [prevCheckin, setPrevCheckin] = useState<{ ai_summary?: string; diet_score?: number; mood?: string } | null>(null)
     const [checking, setChecking] = useState(true)
@@ -61,6 +62,7 @@ export default function WeeklyCheckinPage() {
             const data = await res.json()
             if (!res.ok) throw new Error(data.error || 'Erro ao enviar')
             setAiSummary(data.ai_summary || "Semana registrada com sucesso!")
+            setXpAwarded(data.xp_awarded || 0)
             setDone(true)
         } catch (err: any) {
             setSubmitError(err.message || "Erro ao enviar. Tente novamente.")
@@ -117,6 +119,12 @@ export default function WeeklyCheckinPage() {
             </div>
             <h2 className="text-2xl font-bold text-white mb-2">Check-in enviado! 👑</h2>
             <p className="text-slate-400 text-sm mb-4 max-w-xs">Sua nutricionista já recebeu seus dados desta semana.</p>
+            {xpAwarded > 0 && (
+                <div className="flex items-center gap-1.5 px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-full mb-4">
+                    <Sparkles size={14} className="text-yellow-400" />
+                    <span className="text-sm font-black text-yellow-400">+{xpAwarded} XP</span>
+                </div>
+            )}
             {aiSummary && (
                 <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-2xl p-4 mb-6 max-w-sm">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 mb-1">Análise da equipe</p>

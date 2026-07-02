@@ -89,7 +89,11 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
                             >
                                 <div className="relative">
                                     <Icon size={20} className={isActive ? "text-emerald-400" : ""} />
-                                    {item.href === '/patient/profile' && unreadInbox > 0 && (
+                                    {/* ⚡ BUGFIX: o badge só checava item.href === '/patient/profile', mas esse
+                                        item não existe no menu (nav vai até Início/Hábitos/Diário/Progresso/Tribo),
+                                        então o alerta de inbox não-lida nunca aparecia. A caixa de entrada é acessada
+                                        pelo ícone de Sparkles na Home, então ancoramos o badge em "Início". */}
+                                    {item.href === '/patient/home' && unreadInbox > 0 && (
                                         <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 rounded-full flex items-center justify-center text-[8px] font-black text-white">
                                             {unreadInbox > 9 ? '9+' : unreadInbox}
                                         </span>
