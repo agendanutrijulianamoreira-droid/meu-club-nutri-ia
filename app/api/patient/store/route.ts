@@ -126,12 +126,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Notify admin via inbox (as patient notification to admin's user)
-    await supabase.from('notifications').insert({
+    await supabase.from('inbox_messages').insert({
         tenant_id: profile.tenant_id,
         user_id: user.id,
+        agent_name: 'manual',
         title: '🎁 Novo resgate solicitado!',
         body: `${profile.name?.split(' ')[0] || 'Rainha'} resgatou: ${item.name} (${item.cost} NutriCoins)`,
-        status: 'unread',
+        message_type: 'reward',
+        priority: 'normal',
+        channels: ['inbox'],
     })
 
     return NextResponse.json({

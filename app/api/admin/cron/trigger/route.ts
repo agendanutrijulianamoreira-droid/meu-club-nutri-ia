@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const { data: logRow } = await supabase
         .from('ai_cron_logs')
         .insert({
-            function_name: 'daily-engagement',
+            function_name: 'agent-orchestrator',
             status: 'running',
             triggered_by: 'manual',
         })
@@ -35,11 +35,11 @@ export async function POST(request: NextRequest) {
         .single()
 
     try {
-        const payload: Record<string, any> = {}
+        const payload: Record<string, any> = { type: 'cron_daily' }
         if (tenantOnly) payload.tenant_id = tenant.id
 
-        // Call the edge function
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/daily-engagement`, {
+        // Call the edge function (orchestrator runs Sabotage → Engagement → Retention → Protocol → Community → Upsell)
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/agent-orchestrator`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -53,19 +53,19 @@ export async function POST(request: NextRequest) {
 
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
 
-        const totalNotifs = data.results?.reduce((acc: number, r: any) => acc + (r.notifications_sent || 0), 0) || 0
+        const totalMessages = data.results?.reduce((acc: number, r: any) => acc + (r.messages?.length || 0), 0) || 0
 
         // Update log
         if (logRow?.id) {
             await supabase.from('ai_cron_logs').update({
                 status: 'success',
-                tenants_processed: data.tenants_processed || 0,
-                notifications_sent: totalNotifs,
+                tenants_processed: tenantOnly ? 1 : 0,
+                notifications_sent: totalMessages,
                 elapsed_ms: data.elapsed_ms || 0,
             }).eq('id', logRow.id)
         }
 
-        return NextResponse.json({ success: true, data, notifications_sent: totalNotifs })
+        return NextResponse.json({ success: true, data, notifications_sent: totalMessages })
 
     } catch (err: any) {
         if (logRow?.id) {
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
     const { data: logs } = await supabase
         .from('ai_cron_logs')
         .select('*')
-        .eq('function_name', 'daily-engagement')
+        .eq('function_name', 'agent-orchestrator')
         .order('created_at', { ascending: false })
         .limit(20)
 

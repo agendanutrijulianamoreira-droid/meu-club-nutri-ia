@@ -1,6 +1,12 @@
 -- ============================================
 -- SCHEDULED EVENTS - Estratégia Mensal
 -- ============================================
+-- NOTA (2026-07-02): scheduled_events e content_templates estão
+-- ativas em produção e não têm nenhuma migration numerada
+-- equivalente em /supabase/migrations. Este arquivo é hoje a única
+-- documentação de como recriá-las do zero.
+-- Ver supabase/legacy-manual-sql/README.md.
+-- ============================================
 
 -- Tabela de eventos agendados (push, conteúdo, desafios)
 CREATE TABLE IF NOT EXISTS scheduled_events (

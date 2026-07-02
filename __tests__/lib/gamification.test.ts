@@ -5,12 +5,14 @@ import {
   minXpForLevel,
   xpProgressInLevel,
   xpToNextLevel,
-  streakBonus,
   checkinRiskLevel,
-  XP_REWARDS,
+  DAILY_LOG_XP,
+  WEEKLY_CHECKIN_XP,
+  HABIT_HIT_XP,
 } from '../../lib/gamification'
 
 // ─── levelFromXp ─────────────────────────────────────────────────────────────
+// Espelha calculate_level(xp) = FLOOR(xp / 500) + 1 (supabase/schema_core.sql)
 describe('levelFromXp', () => {
   it('returns level 1 for 0 XP', () => {
     assert.equal(levelFromXp(0), 1)
@@ -24,20 +26,12 @@ describe('levelFromXp', () => {
     assert.equal(levelFromXp(500), 2)
   })
 
-  it('returns level 2 at 1499 XP (boundary)', () => {
-    assert.equal(levelFromXp(1499), 2)
+  it('returns level 2 at 999 XP (boundary)', () => {
+    assert.equal(levelFromXp(999), 2)
   })
 
-  it('returns level 3 at exactly 1500 XP', () => {
-    assert.equal(levelFromXp(1500), 3)
-  })
-
-  it('returns level 3 at 2999 XP (boundary)', () => {
-    assert.equal(levelFromXp(2999), 3)
-  })
-
-  it('returns level 4 at exactly 3000 XP', () => {
-    assert.equal(levelFromXp(3000), 4)
+  it('returns level 3 at exactly 1000 XP', () => {
+    assert.equal(levelFromXp(1000), 3)
   })
 
   it('returns level 1 for negative XP', () => {
@@ -59,15 +53,12 @@ describe('levelFromXp', () => {
 describe('minXpForLevel', () => {
   it('level 1 starts at 0', () => assert.equal(minXpForLevel(1), 0))
   it('level 2 starts at 500', () => assert.equal(minXpForLevel(2), 500))
-  it('level 3 starts at 1500', () => assert.equal(minXpForLevel(3), 1500))
-  it('level 4 starts at 3000', () => assert.equal(minXpForLevel(4), 3000))
-  it('level 5 starts at 5000', () => assert.equal(minXpForLevel(5), 5000))
+  it('level 3 starts at 1000', () => assert.equal(minXpForLevel(3), 1000))
+  it('level 4 starts at 1500', () => assert.equal(minXpForLevel(4), 1500))
 
-  it('gap between levels increases by 500 each time', () => {
-    for (let n = 2; n <= 8; n++) {
-      const gap = minXpForLevel(n + 1) - minXpForLevel(n)
-      const prevGap = minXpForLevel(n) - minXpForLevel(n - 1)
-      assert.equal(gap - prevGap, 500, `gap increment at level ${n}`)
+  it('gap between levels is always exactly 500 XP', () => {
+    for (let n = 1; n <= 8; n++) {
+      assert.equal(minXpForLevel(n + 1) - minXpForLevel(n), 500, `gap at level ${n}`)
     }
   })
 })
@@ -83,14 +74,13 @@ describe('xpProgressInLevel', () => {
   })
 
   it('returns 0.5 at the midpoint of level 2 (750 XP)', () => {
-    // L2: 500–1499 (gap=1000), midpoint=500+500=1000
-    assert.ok(Math.abs(xpProgressInLevel(1000) - 0.5) < 0.01)
+    assert.ok(Math.abs(xpProgressInLevel(750) - 0.5) < 0.01)
   })
 
   it('is always between 0 and 1', () => {
-    for (const xp of [0, 499, 500, 999, 1499, 1500, 2999, 3000]) {
+    for (const xp of [0, 499, 500, 999, 1000, 1499, 1500]) {
       const p = xpProgressInLevel(xp)
-      assert.ok(p >= 0 && p <= 1, `progress=${p} for xp=${xp}`)
+      assert.ok(p >= 0 && p < 1, `progress=${p} for xp=${xp}`)
     }
   })
 })
@@ -105,49 +95,8 @@ describe('xpToNextLevel', () => {
     assert.equal(xpToNextLevel(499), 1)
   })
 
-  it('needs 1000 XP from start of level 2', () => {
-    assert.equal(xpToNextLevel(500), 1000)
-  })
-})
-
-// ─── streakBonus ─────────────────────────────────────────────────────────────
-describe('streakBonus', () => {
-  it('returns 0 for streaks below 7', () => {
-    for (const s of [0, 1, 3, 6]) {
-      assert.equal(streakBonus(s), 0, `streak=${s}`)
-    }
-  })
-
-  it('returns 50 at exactly 7 days', () => {
-    assert.equal(streakBonus(7), 50)
-  })
-
-  it('returns 50 between 7 and 13 days', () => {
-    assert.equal(streakBonus(13), 50)
-  })
-
-  it('returns 75 at exactly 14 days', () => {
-    assert.equal(streakBonus(14), 75)
-  })
-
-  it('returns 100 at exactly 21 days', () => {
-    assert.equal(streakBonus(21), 100)
-  })
-
-  it('returns 150 at exactly 30 days', () => {
-    assert.equal(streakBonus(30), 150)
-  })
-
-  it('returns 200 at exactly 60 days', () => {
-    assert.equal(streakBonus(60), 200)
-  })
-
-  it('returns 300 at exactly 100 days', () => {
-    assert.equal(streakBonus(100), 300)
-  })
-
-  it('returns 300 beyond 100 days', () => {
-    assert.equal(streakBonus(365), 300)
+  it('needs 500 XP from start of level 2', () => {
+    assert.equal(xpToNextLevel(500), 500)
   })
 })
 
@@ -172,11 +121,24 @@ describe('checkinRiskLevel', () => {
   })
 })
 
-// ─── XP_REWARDS constants ────────────────────────────────────────────────────
-describe('XP_REWARDS', () => {
-  it('daily checkin gives 30 XP', () => assert.equal(XP_REWARDS.daily_checkin, 30))
-  it('hydration goal gives 10 XP', () => assert.equal(XP_REWARDS.hydration_goal, 10))
-  it('exercise logged gives 20 XP', () => assert.equal(XP_REWARDS.exercise_logged, 20))
-  it('weekly checkin gives 20 XP', () => assert.equal(XP_REWARDS.weekly_checkin, 20))
-  it('challenge complete gives 100 XP', () => assert.equal(XP_REWARDS.challenge_complete, 100))
+// ─── Constantes de XP (espelham os valores reais gravados no banco) ──────────
+describe('DAILY_LOG_XP', () => {
+  it('matches update_gamification_after_log() in schema_core.sql', () => {
+    assert.equal(DAILY_LOG_XP.water_check, 10)
+    assert.equal(DAILY_LOG_XP.workout_check, 20)
+    assert.equal(DAILY_LOG_XP.sleep_check, 10)
+    assert.equal(DAILY_LOG_XP.meal_plan_check, 30)
+    assert.equal(DAILY_LOG_XP.daily_victory, 10)
+    assert.equal(DAILY_LOG_XP.proof_photo, 10)
+  })
+})
+
+describe('WEEKLY_CHECKIN_XP', () => {
+  it('is 20 XP', () => assert.equal(WEEKLY_CHECKIN_XP, 20))
+})
+
+describe('HABIT_HIT_XP', () => {
+  it('simple hit gives 10 XP', () => assert.equal(HABIT_HIT_XP.simple, 10))
+  it('gallery hit gives 15 XP', () => assert.equal(HABIT_HIT_XP.gallery, 15))
+  it('camera hit gives 20 XP', () => assert.equal(HABIT_HIT_XP.camera, 20))
 })

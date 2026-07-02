@@ -27,7 +27,7 @@
 | Autenticação | Supabase Auth | JWT, cookies server-side |
 | IA | Google Gemini 2.5 Flash (free tier) | Via `fetch` direto à API REST, env: `GEMINI_API_KEY` |
 | Storage | Supabase Storage | Buckets: `logos`, `library`, `social-proof` |
-| Edge Functions | Supabase Functions (Deno) | `agent-orchestrator`, `daily-engagement`, `generate-menu`, `analyze-plate`, `send-push-campaign` |
+| Edge Functions | Supabase Functions (Deno) | `agent-orchestrator`, `generate-menu`, `analyze-plate`, `send-push-campaign` |
 | Pagamentos | Stripe | Não implementado ainda |
 | Push | FCM (Firebase Cloud Messaging) | Via `device_tokens` table |
 
@@ -292,7 +292,7 @@ O sistema usa **3 camadas** de instrução:
 | `POST /api/ai/chat` | Chat em tempo real com paciente | gemini-1.5-flash (streaming) |
 | `POST /api/ai/generate` | Gerar protocolo, desafio, copy | gemini-1.5-flash (JSON) |
 | `POST /api/ai/meal-plan` | Gerar plano alimentar | gemini-1.5-flash (JSON) |
-| Edge: `daily-engagement` | Mensagens automáticas diárias | Gemini REST API |
+| Edge: `agent-orchestrator` | Mensagens automáticas diárias (cron) | Gemini REST API |
 | Edge: `generate-menu` | Cardápio via Edge Function | Gemini REST API |
 
 ### Tarefas do endpoint `/api/ai/generate`
@@ -509,14 +509,14 @@ O sistema usa um **Orchestrator** central que recebe eventos e despacha para age
 **Trigger:** Cron diário + chamada direta de outros webhooks
 **Segredos:** `GEMINI_API_KEY`, `CRON_SECRET`, `FCM_SERVER_KEY`
 **Eventos suportados:**
-- `cron_daily` → roda Sabotage → Engagement → Retention → Protocol → Community
+- `cron_daily` → roda Sabotage → Engagement → Retention → Protocol → Community → Upsell
 - `checkin_submitted` → analisa risco pós-checkin
 - `meal_logged` → feedback nutricional via Meals Agent
 - `post_created` → auto-moderação via Community Moderation Agent
 - `stripe_webhook` → dispara Onboarding para novos assinantes
 - `manual` → execução manual de agente específico (payload: `{ agent: 'nome' }`)
 
-**Agentes embutidos (8 total):**
+**Agentes embutidos (9 total):**
 | Agente | Função | Trigger |
 |---|---|---|
 | Sabotage Detection | Calcula risk scores 0-100 em 4 dimensões, detecta autossabotagem | cron_daily, checkin |
@@ -527,12 +527,7 @@ O sistema usa um **Orchestrator** central que recebe eventos e despacha para age
 | Protocol | Detecta transições de fase (início/metade/fim/completou), auto-completa | cron_daily |
 | Community | Gera 1 post inspiracional/dia adaptado ao dia da semana | cron_daily |
 | Community Moderation | Auto-modera posts novos, flagga conteúdo impróprio, fail-open | post_created |
-
-### `daily-engagement`
-**Deploy:** `supabase/functions/daily-engagement/index.ts`
-**Trigger:** Cron diário `0 9 * * *` (09:00 BRT = 12:00 UTC)
-**Segredos:** `GEMINI_API_KEY`, `CRON_SECRET`
-**Nota:** Versão legada mantida para compatibilidade. O `agent-orchestrator` é o caminho recomendado.
+| Upsell Intelligence | Detecta momentos de upgrade (dias no clube, check-ins, engajamento) e propõe ofertas para aprovação em `agent_approval_queue` | cron_daily |
 
 ### `generate-menu`
 **Deploy:** `supabase/functions/generate-menu/index.ts`
@@ -695,19 +690,23 @@ triggerOrchestrator('checkin_submitted', tenantId, userId)
 
 ## 16. PRÓXIMOS PASSOS CONHECIDOS
 
-- [x] Migração completa para Gemini 2.5 Flash free tier (100% concluída)
-- [x] Orquestra de 8 agentes IA no orchestrator
+- [x] Migração para Gemini 2.5 Flash free tier em todo código ativo (a edge function legada `generate-protocol`, que usa OpenAI, ainda estava deployada mas órfã — removida do repo em 2026-07; ver item abaixo)
+- [x] Orquestra de 9 agentes IA no orchestrator (incluindo Upsell Intelligence)
 - [x] Dashboard admin de agentes (4 tabs: Overview, Agentes, Risco, Timeline)
 - [x] Inbox da paciente com Realtime
 - [x] Stripe webhook → Onboarding Agent
 - [x] Triggers automáticos (checkin, meal, post)
-- [ ] Rodar migration SQL `20260320_agent_infrastructure.sql` no Supabase
-- [ ] Deploy `supabase functions deploy agent-orchestrator`
-- [ ] Configurar pg_cron para cron diário do orchestrator
+- [x] Migration `20260320_agent_infrastructure.sql` aplicada (agent_logs, inbox_messages, patient_risk_scores ativas em produção)
+- [x] Deploy `agent-orchestrator` (ACTIVE em produção)
+- [x] pg_cron configurado (`cron_daily` às 12:00 UTC — job ativo, ver `cron.job`)
+- [x] Função legada `daily-engagement` removida do repositório (o admin já usa só `agent-orchestrator`); a versão deployada no Supabase ainda precisa ser removida manualmente (`supabase functions delete daily-engagement` ou pelo dashboard — não há tool de delete disponível via MCP)
+- [x] Função legada `generate-protocol` (OpenAI, `gpt-4o-mini`) removida do repositório junto com seu único chamador (`lib/ai-generator.ts`, sem uso em nenhuma tela — a geração real de protocolo usa `/api/ai/generate` com Gemini). A versão deployada no Supabase também precisa ser removida manualmente
+- [x] Escritas de notificação migradas para `inbox_messages` em todos os pontos do código
+- [ ] Dropar a tabela `notifications` legada (mantida por segurança até validar em produção — zero escritas hoje)
 - [ ] Push notifications via FCM (integração parcial — device_tokens existe)
 - [ ] Exportação CSV de dados das pacientes
-- [ ] Testes automatizados (zero cobertura atual)
-- [ ] Remover tabela `notifications` legada após validar `inbox_messages`
+- [ ] Ampliar cobertura de testes automatizados (hoje: gamificação, ai-security, rate-limiter)
+- [ ] Converter `schema_ai_credits.sql` e `schema_scheduled_events.sql` em migrations numeradas — são a única documentação de tabelas ativas sem migration formal (ver `supabase/legacy-manual-sql/README.md`)
 
 ---
 
@@ -725,7 +724,6 @@ git add -A && git commit -m "feat: ..." && git push
 
 # Deploy Edge Functions
 supabase functions deploy agent-orchestrator
-supabase functions deploy daily-engagement
 supabase functions deploy generate-menu
 supabase functions deploy analyze-plate
 supabase functions deploy send-push-campaign
@@ -754,4 +752,4 @@ SELECT cron.schedule('daily-agents', '0 12 * * *',
 
 ---
 
-*Última atualização: Março 2026 — VitaClub v1.0 com orquestra completa de 8 agentes IA*
+*Última atualização: Julho 2026 — VitaClub v1.0 com orquestra completa de 9 agentes IA*

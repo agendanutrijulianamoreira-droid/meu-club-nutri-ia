@@ -55,14 +55,17 @@ export async function POST(
 
         // Notify patient
         const { data: proto } = await supabase.from('protocols').select('title').eq('id', protocol_id).single()
-        await supabase.from('notifications').insert({
+        await supabase.from('inbox_messages').insert({
             tenant_id: tenant.id,
             user_id: patientId,
+            agent_name: 'manual',
             title: '🎯 Novo protocolo atribuído!',
             body: `Você recebeu o protocolo "${proto?.title || 'Novo Protocolo'}". Comece hoje!`,
+            message_type: 'protocol',
+            priority: 'normal',
             cta_label: 'Ver protocolo',
             cta_url: '/patient/diet',
-            status: 'unread',
+            channels: ['inbox'],
         })
 
         return NextResponse.json({ success: true, assignment: data })
@@ -113,7 +116,6 @@ Retorne JSON: {"title": "...", "body": "..."}`
             }
         } catch { /* use fallback */ }
 
-        // Write to inbox_messages (new) and notifications (legacy) for backward compatibility
         await supabase.from('inbox_messages').insert({
             tenant_id: tenant.id, user_id: patientId,
             agent_name: 'manual', title, body: msgBody,

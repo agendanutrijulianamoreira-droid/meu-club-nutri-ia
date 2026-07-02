@@ -31,7 +31,6 @@ import {
     LogOut,
     User as UserIcon,
     Building2,
-    Palette,
     Package,
     ChefHat,
 } from "lucide-react"
@@ -41,7 +40,6 @@ import { motion, AnimatePresence } from "framer-motion"
 import { DashboardView } from "./views/DashboardView"
 import { CommunicationCenterView } from "./views/CommunicationCenterView"
 import { ProtocolsView } from "./views/ProtocolsView"
-import { ChallengesView } from "./views/ChallengesView"
 import { PatientsView } from "./views/PatientsView"
 import { RewardsView } from "./views/RewardsView"
 import { CheckinsView } from "./views/CheckinsView"
@@ -54,20 +52,13 @@ import { AICreditsView } from "./views/AICreditsView"
 import { repairProfile } from "./actions/repairProfileAction"
 import AccountOverlay from "./components/AccountOverlay"
 import ClinicSettingsOverlay from "./components/ClinicSettingsOverlay"
-import VisualSettingsOverlay from "./components/VisualSettingsOverlay"
 import { signOutAction } from "./actions/authActions"
-import { SettingsLoginView } from "./views/SettingsLoginView"
 import { AgentsDashboardView } from "./views/AgentsDashboardView"
-import { AgentApprovalsView } from "./views/AgentApprovalsView"
-import { AgentQueueView } from "./views/AgentQueueView"
 import { MealPlanBuilderView } from "./views/MealPlanBuilderView"
-import { MealPlansView } from "./views/MealPlansView"
 import { AppointmentsView } from "./views/AppointmentsView"
 import { ProfessionalsView } from "./views/ProfessionalsView"
 import { ProductGatewayView } from "./views/ProductGatewayView"
-import { AnnualPlannerView } from "./views/AnnualPlannerView"
 import { StrategicPlannerView } from "./views/StrategicPlannerView"
-import { ContentPlannerView } from "./views/ContentPlannerView"
 import { AnalyticsView } from "./views/AnalyticsView"
 import { JourneyView } from "./views/JourneyView"
 import { ProductsView } from "./views/ProductsView"
@@ -84,12 +75,12 @@ import { BillingView } from "./views/BillingView"
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ViewType =
-    | 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients'
+    | 'dashboard' | 'communication' | 'protocols' | 'patients'
     | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits'
-    | 'library' | 'settings' | 'settings-login' | 'club-plan' | 'agents-dashboard'
-    | 'agent-approvals' | 'agent-queue' | 'meal-plans' | 'meal-plans-premium'
-    | 'appointments' | 'professionals' | 'product-gateway' | 'annual-planner'
-    | 'strategic-planner' | 'content-planner' | 'analytics' | 'patient-journey'
+    | 'library' | 'settings' | 'club-plan' | 'agents-dashboard'
+    | 'meal-plans'
+    | 'appointments' | 'professionals' | 'product-gateway'
+    | 'strategic-planner' | 'analytics' | 'patient-journey'
     | 'products' | 'approvals' | 'recipes' | 'manager-learning' | 'habits' | 'vip-settings' | 'email-marketing'
     | 'questionnaires' | 'community' | 'billing'
 
@@ -137,7 +128,6 @@ const navGroups: NavGroup[] = [
         label: 'Programas',
         items: [
             { id: 'protocols', label: 'Protocolos' },
-            { id: 'challenges', label: 'Desafios' },
             { id: 'habits', label: 'Hábitos' },
             { id: 'meal-plans', label: 'Cardápios' },
             { id: 'recipes', label: 'Receitas' },
@@ -153,13 +143,12 @@ const navGroups: NavGroup[] = [
         items: [
             { id: 'billing', label: 'Faturamento' },
             { id: 'club-plan', label: 'Plano do Clube' },
+            { id: 'strategic-planner', label: 'Régua de Eventos' },
             { id: 'vip-settings', label: 'Área VIP' },
             { id: 'community', label: 'Comunidade' },
             { id: 'sales-page', label: 'Página de Vendas' },
             { id: 'product-gateway', label: 'Catálogo de Produtos' },
             { id: 'products', label: 'Produtos' },
-            { id: 'annual-planner', label: 'Planejador Anual' },
-            { id: 'content-planner', label: 'Conteúdo' },
             { id: 'professionals', label: 'Profissionais' },
         ],
     },
@@ -170,15 +159,10 @@ const navGroups: NavGroup[] = [
         items: [
             { id: 'ai-brain', label: 'Laboratório IA' },
             { id: 'agents-dashboard', label: 'Agentes IA' },
-            { id: 'agent-approvals', label: 'Aprovações', badge: true },
-            { id: 'approvals', label: 'Fila de Aprovação', badge: true },
-            { id: 'agent-queue', label: 'Fila de Agentes' },
-            { id: 'meal-plans-premium', label: 'Planos Avançados' },
+            { id: 'approvals', label: 'Aprovações', badge: true },
             { id: 'ai-credits', label: 'Créditos IA' },
-            { id: 'strategic-planner', label: 'Planejamento' },
             { id: 'manager-learning', label: 'Gerente IA' },
             { id: 'settings', label: 'Configurações' },
-            { id: 'settings-login', label: 'Login Designer' },
         ],
     },
 ]
@@ -223,9 +207,9 @@ export default function AdminDashboard({
     // Poll pending approvals every 60s
     useEffect(() => {
         const load = () =>
-            fetch('/api/admin/agent-approvals?status=pending')
+            fetch('/api/admin/approvals?status=pending')
                 .then(r => r.json())
-                .then(d => setPendingApprovals(Array.isArray(d) ? d.length : 0))
+                .then(d => setPendingApprovals(d.pending_count || 0))
                 .catch(() => {})
         load()
         const t = setInterval(load, 60_000)
@@ -252,7 +236,6 @@ export default function AdminDashboard({
             case 'dashboard':          return <DashboardView {...props} />
             case 'communication':      return <CommunicationCenterView setView={setActiveView} />
             case 'protocols':          return <ProtocolsView setView={setActiveView} tenantId={tenantId} />
-            case 'challenges':         return <ChallengesView setView={setActiveView} />
             case 'patients':           return <PatientsView setView={setActiveView} />
             case 'rewards':            return <RewardsView setView={setActiveView} />
             case 'checkins':           return <CheckinsView setView={setActiveView} />
@@ -261,17 +244,12 @@ export default function AdminDashboard({
             case 'ai-brain':           return <AISettingsView setView={setActiveView} tenantId={tenantId} />
             case 'ai-credits':         return <AICreditsView setView={setActiveView} tenantId={tenantId} />
             case 'agents-dashboard':   return <AgentsDashboardView setView={setActiveView} tenantId={tenantId} />
-            case 'agent-approvals':    return <AgentApprovalsView setView={setActiveView} tenantId={tenantId} />
-            case 'agent-queue':        return <AgentQueueView setView={setActiveView} tenantId={tenantId} />
             case 'patient-journey':    return <JourneyView setView={setActiveView} tenantId={tenantId} />
             case 'meal-plans':         return <MealPlanBuilderView setView={setActiveView} tenantId={tenantId} />
-            case 'meal-plans-premium': return <MealPlansView setView={setActiveView} tenantId={tenantId} tenantName={tenantName} />
             case 'appointments':       return <AppointmentsView setView={setActiveView} tenantId={tenantId} tenantName={tenantName} />
             case 'professionals':      return <ProfessionalsView setView={setActiveView} tenantId={tenantId} />
             case 'product-gateway':    return <ProductGatewayView setView={setActiveView} tenantId={tenantId} />
-            case 'annual-planner':     return <AnnualPlannerView setView={setActiveView} tenantId={tenantId} />
             case 'strategic-planner':  return <StrategicPlannerView setView={setActiveView} />
-            case 'content-planner':    return <ContentPlannerView />
             case 'analytics':          return <AnalyticsView setView={setActiveView} />
             case 'products':           return <ProductsView setView={setActiveView} tenantId={tenantId} />
             case 'approvals':          return <ApprovalsView setView={setActiveView} tenantId={tenantId} />
@@ -284,7 +262,6 @@ export default function AdminDashboard({
             case 'questionnaires':     return <QuestionnairesView setView={setActiveView} tenantId={tenantId} />
             case 'community':          return <CommunityView />
             case 'settings':           return <SettingsView {...props} />
-            case 'settings-login':     return <SettingsLoginView />
             case 'club-plan':          return <ClubPlanView {...props} />
             default:                   return <DashboardView {...props} />
         }
@@ -476,8 +453,7 @@ function UserDropdown({ userName, role, openOverlay, router }: {
 
     const menuItems = [
         { id: 'profile', label: 'Meu Perfil', icon: UserIcon, onClick: () => openOverlay({ id: 'account', content: <AccountOverlay index={0} />, title: 'Meu Perfil' }) },
-        { id: 'clinic', label: 'Minha Clínica', icon: Building2, onClick: () => openOverlay({ id: 'clinic', content: <ClinicSettingsOverlay index={0} />, title: 'Minha Clínica' }) },
-        { id: 'visual', label: 'Aparência', icon: Palette, onClick: () => openOverlay({ id: 'visual', content: <VisualSettingsOverlay index={0} />, title: 'Aparência' }) },
+        { id: 'clinic', label: 'Contato da Clínica', icon: Building2, onClick: () => openOverlay({ id: 'clinic', content: <ClinicSettingsOverlay index={0} />, title: 'Contato da Clínica' }) },
     ]
 
     const handleSignOut = async () => {

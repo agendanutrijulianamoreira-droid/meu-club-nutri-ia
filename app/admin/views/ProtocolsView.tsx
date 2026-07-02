@@ -10,6 +10,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion"
 import { useProtocols, useGoals } from "@/lib/hooks/useDatabase"
 import { supabase } from "@/lib/supabase"
+import { ChallengesView } from "./ChallengesView"
 
 type Tab = 'protocols' | 'goals' | 'meals' | 'challenges' | 'seasonal'
 
@@ -270,7 +271,7 @@ export function ProtocolsView({ setView, tenantId = '' }: { setView: (v: any) =>
                 {/* ─── Desafios ─── */}
                 {activeTab === 'challenges' && (
                     <motion.div key="challenges" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                        <ChallengesTab setView={setView} />
+                        <ChallengesView setView={setView} tenantId={tenantId} />
                     </motion.div>
                 )}
 
@@ -1190,87 +1191,3 @@ function MealsTab({ setView }: { setView: (v: any) => void }) {
     )
 }
 
-// ─── Challenges Tab ───────────────────────────────────────────────────────────
-function ChallengesTab({ setView }: { setView: (v: any) => void }) {
-    const [challenges, setChallenges] = useState<any[]>([])
-    const [loading, setLoading] = useState(true)
-
-    useEffect(() => {
-        supabase.from('challenges').select('id, title, emoji, is_active, duration_days, start_date, end_date')
-            .order('created_at', { ascending: false }).limit(6)
-            .then(({ data }) => { setChallenges(data || []); setLoading(false) })
-    }, [])
-
-    const active = challenges.filter(c => c.is_active)
-
-    return (
-        <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="text-slate-500 text-sm">{active.length} desafio{active.length !== 1 ? 's' : ''} ativo{active.length !== 1 ? 's' : ''}</p>
-                </div>
-                <button onClick={() => setView('challenges')}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-2xl transition-all">
-                    <Plus size={14} /> Gerenciar Desafios
-                </button>
-            </div>
-
-            {loading ? (
-                <div className="flex items-center justify-center h-40">
-                    <Loader2 className="animate-spin text-indigo-400" size={32} />
-                </div>
-            ) : challenges.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-60 gap-4">
-                    <div className="text-5xl">🏆</div>
-                    <p className="text-slate-400 text-sm">Nenhum desafio criado ainda</p>
-                    <button onClick={() => setView('challenges')}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-2xl transition-all">
-                        <Plus size={14} /> Criar Primeiro Desafio
-                    </button>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {challenges.map(c => {
-                        const start = c.start_date ? new Date(c.start_date) : null
-                        const end = c.end_date ? new Date(c.end_date) : null
-                        const today = new Date()
-                        let status = 'inactive'
-                        if (c.is_active) {
-                            if (start && today < start) status = 'upcoming'
-                            else if (end && today > end) status = 'finished'
-                            else status = 'active'
-                        }
-                        const statusMeta: Record<string, { label: string; color: string; bg: string }> = {
-                            active:   { label: 'Ativo',     color: 'text-emerald-400', bg: 'bg-emerald-500/15 border-emerald-500/25' },
-                            upcoming: { label: 'Em breve',  color: 'text-indigo-400',  bg: 'bg-indigo-500/15 border-indigo-500/25' },
-                            finished: { label: 'Encerrado', color: 'text-slate-400',   bg: 'bg-slate-500/15 border-slate-500/25' },
-                            inactive: { label: 'Inativo',   color: 'text-slate-500',   bg: 'bg-slate-700/20 border-slate-600/20' },
-                        }
-                        const sm = statusMeta[status]
-                        return (
-                            <div key={c.id} className="bg-white/5 border border-white/10 rounded-3xl p-4 flex items-center gap-3">
-                                <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-xl flex-shrink-0">
-                                    {c.emoji || '🏆'}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <h4 className="font-bold text-white text-sm truncate">{c.title}</h4>
-                                    <p className="text-[10px] text-slate-500 flex items-center gap-1">
-                                        <Clock size={10} /> {c.duration_days}d
-                                    </p>
-                                </div>
-                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border flex-shrink-0 ${sm.bg} ${sm.color}`}>
-                                    {sm.label}
-                                </span>
-                            </div>
-                        )
-                    })}
-                </div>
-            )}
-
-            <button onClick={() => setView('challenges')}
-                className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
-                Ver todos os desafios <ChevronRight size={14} />
-            </button>
-        </div>
-    )
-}

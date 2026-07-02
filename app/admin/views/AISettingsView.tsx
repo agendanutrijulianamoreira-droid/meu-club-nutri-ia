@@ -233,7 +233,6 @@ export function AISettingsView({ setView, tenantId }: { setView: (v: any) => voi
     const [tone, setTone] = useState<Tone>('acolhedora')
     const [emojiLevel, setEmojiLevel] = useState(2)
     const [methodName, setMethodName] = useState('')
-    const [brandName, setBrandName] = useState('')
     const [systemPrompt, setSystemPrompt] = useState('')
     const [isSaving, setIsSaving] = useState(false)
     const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
@@ -241,7 +240,6 @@ export function AISettingsView({ setView, tenantId }: { setView: (v: any) => voi
     useEffect(() => {
         if (tenant) {
             setMethodName(tenant.method_name || '')
-            setBrandName(tenant.brand_name || '')
             setSystemPrompt(tenant.gpt_system_prompt || 'Você é uma nutricionista dedicada e empática. Use linguagem acessível, alimentos reais e foque na adesão de longo prazo.')
             const ai = tenant.settings?.ai || {}
             if (ai.tone) setTone(ai.tone)
@@ -254,7 +252,6 @@ export function AISettingsView({ setView, tenantId }: { setView: (v: any) => voi
         setIsSaving(true)
         try {
             const { error } = await updateTenant(tenant.id, {
-                name: brandName,
                 method_name: methodName || undefined,
                 gpt_system_prompt: systemPrompt,
                 settings: {
@@ -328,9 +325,10 @@ export function AISettingsView({ setView, tenantId }: { setView: (v: any) => voi
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1.5 block">Nome do clube</label>
-                                    <input value={brandName} onChange={e => setBrandName(e.target.value)}
-                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/50"
-                                        placeholder="Ex: NutriClub da Ana"/>
+                                    <button type="button" onClick={() => setView('settings')}
+                                        className="w-full text-left bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-400 hover:border-white/15 hover:text-slate-300 transition-all">
+                                        {tenant?.brand_name || 'Definir em Configurações'}
+                                    </button>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 mb-1.5 block">Nome do método</label>
@@ -384,7 +382,7 @@ export function AISettingsView({ setView, tenantId }: { setView: (v: any) => voi
                     {/* Phone preview */}
                     <div className="space-y-3">
                         <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-2"><Smartphone size={12}/> Preview em tempo real</p>
-                        <PhonePreview tone={tone} brandName={brandName || tenant?.brand_name || 'Clube'}/>
+                        <PhonePreview tone={tone} brandName={tenant?.brand_name || 'Clube'}/>
                         <p className="text-center text-[10px] text-slate-700 uppercase tracking-widest">Assim sua IA fala com as rainhas</p>
                     </div>
                 </div>
@@ -444,7 +442,7 @@ export function AISettingsView({ setView, tenantId }: { setView: (v: any) => voi
                         <div className="bg-slate-950 rounded-xl p-4 border border-white/5 font-mono text-xs text-slate-400 leading-relaxed">
                             <span className="text-indigo-400">SYSTEM:</span> {systemPrompt || <span className="text-slate-700 italic">Instrução não definida</span>}
                             <br/><br/>
-                            <span className="text-indigo-400">CONTEXT:</span> <span className="text-slate-500">tom={tone}, emojis={['discreta','moderada','expressiva'][emojiLevel-1]}, clube={brandName || 'não definido'}</span>
+                            <span className="text-indigo-400">CONTEXT:</span> <span className="text-slate-500">tom={tone}, emojis={['discreta','moderada','expressiva'][emojiLevel-1]}, clube={tenant?.brand_name || 'não definido'}</span>
                         </div>
                     </div>
                 </div>
