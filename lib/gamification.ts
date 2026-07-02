@@ -1,8 +1,10 @@
-// Única fonte de verdade para XP/nível/coins no cliente.
+// Única fonte de verdade para as FÓRMULAS de XP/nível/coins (leitura).
+// Para CREDITAR/ESTORNAR pontos, use lib/services/gamification.ts (server-only) —
+// nenhum código deve chamar a RPC increment_user_points diretamente.
 // Espelha exatamente a lógica gravada no banco — qualquer mudança aqui deve
 // ser acompanhada da mudança equivalente nestas funções SQL:
 //   - calculate_level(xp)                    → supabase/schema_core.sql
-//   - update_gamification_after_log()        → supabase/schema_core.sql
+//   - update_gamification_after_log()        → supabase/schema_core.sql (trigger de daily_logs, mecanismo separado)
 //   - increment_user_points(user_id, points) → supabase/schema_extended.sql
 
 export const XP_PER_LEVEL = 500

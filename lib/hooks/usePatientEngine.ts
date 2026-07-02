@@ -191,59 +191,21 @@ export function usePatientEngine(): PatientEngineData {
         // Optimistic UI update
         setProgress(prev => ({ ...prev, [itemId]: newStatus }))
 
-        let pointsDelta = 0
-
         try {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) throw new Error('Sem sessão ativa')
-
-            if (newStatus) {
-                // ⚡ TIMEZONE FIX: Enviar checkin_date como DATE puro local
-                const todayStr = getLocalDate()
-
-                const { error } = await supabase
-                    .from('protocol_progress')
-                    .insert({
-                        assignment_id: activeProtocol.assignmentId,
-                        protocol_item_id: itemId,
-                        completed_at: new Date().toISOString(), // Timestamp real (p/ audit)
-                        checkin_date: todayStr,                 // ← DATE puro local!
-                        points_earned: itemPoints
-                    })
-
-                if (error) throw error
-
-                await supabase.rpc('increment_user_points', {
-                    user_id: user.id,
-                    points_to_add: itemPoints
-                })
-                pointsDelta = itemPoints
-            } else {
-                // ⚡ BUGFIX: antes o XP creditado nunca era estornado ao desmarcar
-                // a missão — dava pra marcar/desmarcar o mesmo item repetidas vezes
-                // e farmar XP e NutriCoins infinitamente. Agora buscamos quanto foi
-                // realmente creditado naquele registro e devolvemos exatamente isso.
-                const { data: existing } = await supabase
-                    .from('protocol_progress')
-                    .select('points_earned')
-                    .eq('assignment_id', activeProtocol.assignmentId)
-                    .eq('protocol_item_id', itemId)
-                    .single()
-
-                const earnedPoints = existing?.points_earned ?? itemPoints
-
-                await supabase
-                    .from('protocol_progress')
-                    .delete()
-                    .eq('assignment_id', activeProtocol.assignmentId)
-                    .eq('protocol_item_id', itemId)
-
-                await supabase.rpc('increment_user_points', {
-                    user_id: user.id,
-                    points_to_add: -earnedPoints
-                })
-                pointsDelta = -earnedPoints
-            }
+            // Escrita de XP centralizada no server (lib/services/gamification.ts) —
+            // o client não chama mais a RPC increment_user_points diretamente.
+            const res = await fetch('/api/patient/protocol-progress', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    assignment_id: activeProtocol.assignmentId,
+                    protocol_item_id: itemId,
+                    mark: newStatus,
+                    points: itemPoints,
+                }),
+            })
+            if (!res.ok) throw new Error(`Falha ao salvar checkin (${res.status})`)
+            const { points_delta } = await res.json()
 
             // Recalcular stats (progresso do dia + XP total exibido na Home)
             const totalItems = currentDayItems.length
@@ -251,7 +213,7 @@ export function usePatientEngine(): PatientEngineData {
             setStats(prev => ({
                 ...prev,
                 completionRate: Math.round((completedCount / totalItems) * 100),
-                totalPoints: Math.max(0, prev.totalPoints + pointsDelta)
+                totalPoints: Math.max(0, prev.totalPoints + points_delta)
             }))
 
         } catch (error) {
