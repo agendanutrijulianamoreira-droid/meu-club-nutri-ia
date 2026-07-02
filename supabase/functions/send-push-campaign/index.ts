@@ -1,5 +1,19 @@
+// ⚠️  ATENÇÃO — NOME ENGANOSO (auditoria Fase 1)
+// ---------------------------------------------------
+// Esta edge function NÃO envia push FCM de verdade.
+// Ela apenas grava registros em `inbox_messages` (inbox in-app).
+//
+// O envio FCM real acontece dentro do agent-orchestrator,
+// nas funções runDailyEngagementAgent e runRetentionAgent,
+// via device_tokens + FCM REST API.
+//
+// TODO: renomear para send-inbox-campaign em release futuro
+//       para evitar confusão entre push FCM e inbox in-app.
+// ---------------------------------------------------
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
+
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*', // Recommendation: restricted origin in prod

@@ -28,8 +28,8 @@
 | IA | Google Gemini 2.5 Flash (free tier) | Via `fetch` direto à API REST, env: `GEMINI_API_KEY` |
 | Storage | Supabase Storage | Buckets: `logos`, `library`, `social-proof` |
 | Edge Functions | Supabase Functions (Deno) | `agent-orchestrator`, `daily-engagement`, `generate-menu`, `analyze-plate`, `send-push-campaign` |
-| Pagamentos | Stripe | Não implementado ainda |
-| Push | FCM (Firebase Cloud Messaging) | Via `device_tokens` table |
+| Pagamentos | Stripe | ✅ Implementado — `lib/stripe.ts`, rotas `/checkout` e `/webhooks/stripe` em produção |
+| Push | FCM (Firebase Cloud Messaging) | Via `device_tokens` table. ⚠️ `send-push-campaign` (edge fn) SÓ grava em inbox_messages — push FCM real está no agent-orchestrator |
 
 ### Imports críticos
 ```typescript
@@ -701,13 +701,15 @@ triggerOrchestrator('checkin_submitted', tenantId, userId)
 - [x] Inbox da paciente com Realtime
 - [x] Stripe webhook → Onboarding Agent
 - [x] Triggers automáticos (checkin, meal, post)
+- [x] Limpeza de código morto (Fase 1) — rotas órfãs substituídas por 410, tabelas depreciadas renomeadas
+- [ ] Rodar migration SQL `20260702000001_cleanup_deprecated_tables.sql` no Supabase (drop notifications, rename deprecated tables)
+- [ ] DROP definitivo de `_deprecated_rewards` e `_deprecated_patient_reminders` — agendar para ~2026-08-01
 - [ ] Rodar migration SQL `20260320_agent_infrastructure.sql` no Supabase
 - [ ] Deploy `supabase functions deploy agent-orchestrator`
 - [ ] Configurar pg_cron para cron diário do orchestrator
 - [ ] Push notifications via FCM (integração parcial — device_tokens existe)
-- [ ] Exportação CSV de dados das pacientes
+- [ ] Exportação CSV de dados das pacientes (rota existe, falta botão em PatientsView)
 - [ ] Testes automatizados (zero cobertura atual)
-- [ ] Remover tabela `notifications` legada após validar `inbox_messages`
 
 ---
 
@@ -754,4 +756,4 @@ SELECT cron.schedule('daily-agents', '0 12 * * *',
 
 ---
 
-*Última atualização: Março 2026 — VitaClub v1.0 com orquestra completa de 8 agentes IA*
+*Última atualização: Julho 2026 — VitaClub v1.1 · Fase 1 de limpeza concluída · Stripe em produção*

@@ -249,6 +249,26 @@ serve(async (req) => {
         break
       }
 
+      case 'chat_message': {
+        // TODO (Fase 4): integrar chat ao orchestrator
+        // Por enquanto, logar para rastreabilidade e não silenciar o evento
+        console.warn('[orchestrator] Evento chat_message recebido mas sem handler implementado.', {
+          user_id: event.user_id,
+          tenant_id: event.tenant_id,
+        })
+        break
+      }
+
+      case 'photo_submitted': {
+        // TODO (Fase 4): redirecionar para runMealsAgent com payload da foto
+        // Por enquanto, logar para rastreabilidade e não silenciar o evento
+        console.warn('[orchestrator] Evento photo_submitted recebido mas sem handler implementado.', {
+          user_id: event.user_id,
+          tenant_id: event.tenant_id,
+        })
+        break
+      }
+
       case 'manual': {
         // Execução manual de um agente específico
         const agentName = event.payload?.agent
@@ -274,8 +294,6 @@ serve(async (req) => {
           results.push(await runUpsellAgent(supabase, tenant, patients, sabResult))
         } else if (agentName === 'meals' && event.user_id) {
           results.push(await runMealsAgent(supabase, event.tenant_id, event.user_id, event.payload))
-        } else if (agentName === 'upsell') {
-          results.push(await runUpsellAgent(supabase, tenant, patients))
         }
         break
       }

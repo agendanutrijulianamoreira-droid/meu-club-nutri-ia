@@ -1,67 +1,34 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { cookies } from 'next/headers'
+// ROTA REMOVIDA — Fase 1 · Limpeza de código morto
+//
+// Esta rota gerenciava patient_reminders (tabela agora renomeada para
+// _deprecated_patient_reminders). O sistema ativo de alarmes é patient_alarms,
+// gerenciado pela rota /api/patient/alarms.
+//
+// Se precisar migrar dados de _deprecated_patient_reminders para patient_alarms,
+// use o script supabase/migrations/20260702000001_cleanup_deprecated_tables.sql
+// como referência e crie uma migration de migração de dados.
+//
+// Histórico: git show refactor/fase1-limpeza-codigo-morto:app/api/patient/reminders/route.ts
+
+import { NextResponse } from 'next/server'
 
 export async function GET() {
-  const supabase = createSupabaseServerClient(cookies())
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { data } = await supabase
-    .from('patient_reminders')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('time_local', { ascending: true })
-
-  return NextResponse.json(data ?? [])
+  return NextResponse.json(
+    { error: 'Use /api/patient/alarms para gerenciar alarmes.' },
+    { status: 410 }
+  )
 }
 
-export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServerClient(cookies())
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { data: profile } = await supabase
-    .from('profiles').select('tenant_id').eq('user_id', user.id).single()
-  if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-
-  const body = await request.json()
-
-  const { data, error } = await supabase
-    .from('patient_reminders')
-    .upsert({
-      user_id: user.id,
-      tenant_id: profile.tenant_id,
-      reminder_type: body.reminder_type,
-      label: body.label,
-      time_local: body.time_local,
-      timezone: body.timezone ?? 'America/Sao_Paulo',
-      days_of_week: body.days_of_week ?? [0, 1, 2, 3, 4, 5, 6],
-      message: body.message,
-      is_active: body.is_active ?? true,
-    }, { onConflict: 'user_id,reminder_type' })
-    .select()
-    .single()
-
-  if (error) {
-    console.error('[patient/reminders POST]', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-  return NextResponse.json(data)
+export async function POST() {
+  return NextResponse.json(
+    { error: 'Use /api/patient/alarms para gerenciar alarmes.' },
+    { status: 410 }
+  )
 }
 
-export async function DELETE(request: NextRequest) {
-  const supabase = createSupabaseServerClient(cookies())
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { id } = await request.json()
-  const { error } = await supabase
-    .from('patient_reminders')
-    .delete()
-    .eq('id', id)
-    .eq('user_id', user.id)
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+export async function DELETE() {
+  return NextResponse.json(
+    { error: 'Use /api/patient/alarms para gerenciar alarmes.' },
+    { status: 410 }
+  )
 }
