@@ -690,7 +690,7 @@ triggerOrchestrator('checkin_submitted', tenantId, userId)
 
 ## 16. PRÓXIMOS PASSOS CONHECIDOS
 
-- [x] Migração completa para Gemini 2.5 Flash free tier (100% concluída)
+- [x] Migração para Gemini 2.5 Flash free tier em todo código ativo (a edge function legada `generate-protocol`, que usa OpenAI, ainda estava deployada mas órfã — removida do repo em 2026-07; ver item abaixo)
 - [x] Orquestra de 9 agentes IA no orchestrator (incluindo Upsell Intelligence)
 - [x] Dashboard admin de agentes (4 tabs: Overview, Agentes, Risco, Timeline)
 - [x] Inbox da paciente com Realtime
@@ -700,6 +700,7 @@ triggerOrchestrator('checkin_submitted', tenantId, userId)
 - [x] Deploy `agent-orchestrator` (ACTIVE em produção)
 - [x] pg_cron configurado (`cron_daily` às 12:00 UTC — job ativo, ver `cron.job`)
 - [x] Função legada `daily-engagement` removida do repositório (o admin já usa só `agent-orchestrator`); a versão deployada no Supabase ainda precisa ser removida manualmente (`supabase functions delete daily-engagement` ou pelo dashboard — não há tool de delete disponível via MCP)
+- [x] Função legada `generate-protocol` (OpenAI, `gpt-4o-mini`) removida do repositório junto com seu único chamador (`lib/ai-generator.ts`, sem uso em nenhuma tela — a geração real de protocolo usa `/api/ai/generate` com Gemini). A versão deployada no Supabase também precisa ser removida manualmente
 - [x] Escritas de notificação migradas para `inbox_messages` em todos os pontos do código
 - [ ] Dropar a tabela `notifications` legada (mantida por segurança até validar em produção — zero escritas hoje)
 - [ ] Push notifications via FCM (integração parcial — device_tokens existe)
