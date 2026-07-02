@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { triggerOrchestrator } from '@/lib/services/anthropic'
+import { buildAgenda, nextAvailableSlot } from '@/lib/utils/professionalAvailability'
 
 /**
  * GET /api/patient/professionals — Lista profissionais disponíveis para o paciente
@@ -21,6 +22,7 @@ export async function GET(request: NextRequest) {
     const profId = url.searchParams.get('id')
     const myBookings = url.searchParams.get('my_bookings') === 'true'
     const profession = url.searchParams.get('profession')
+    const q = url.searchParams.get('q')?.trim()
 
     // Minhas consultas
     if (myBookings) {
@@ -64,25 +66,48 @@ export async function GET(request: NextRequest) {
                 price_display: `R$ ${(prof.price_cents / 100).toFixed(2)}`,
             },
             booked_slots: bookedSlots,
+            agenda: buildAgenda(prof.availability, bookedSlots),
         })
     }
 
     // Lista de profissionais ativos
     let query = supabase
         .from('professionals')
-        .select('id, name, photo_url, bio, profession, specialty, is_virtual, is_in_person, price_cents, rating, total_sessions, is_featured, duration_minutes')
+        .select('id, name, photo_url, bio, profession, specialty, registration_id, is_virtual, is_in_person, price_cents, rating, total_sessions, is_featured, duration_minutes, availability')
         .eq('tenant_id', profile.tenant_id)
         .eq('is_active', true)
         .order('is_featured', { ascending: false })
         .order('rating', { ascending: false })
 
     if (profession) query = query.eq('profession', profession)
+    if (q) query = query.or(`name.ilike.%${q}%,specialty.ilike.%${q}%,registration_id.ilike.%${q}%`)
 
     const { data } = await query
+
+    // Busca bookings futuros de todos os profissionais listados numa única query,
+    // usada para calcular a próxima disponibilidade de cada um
+    const profIds = (data || []).map(p => p.id)
+    const bookedByProf: Record<string, string[]> = {}
+    if (profIds.length > 0) {
+        const now = new Date()
+        const twoWeeksLater = new Date(now.getTime() + 14 * 86400000)
+        const { data: bookings } = await supabase
+            .from('professional_bookings')
+            .select('professional_id, scheduled_at')
+            .in('professional_id', profIds)
+            .in('status', ['pending', 'confirmed'])
+            .gte('scheduled_at', now.toISOString())
+            .lte('scheduled_at', twoWeeksLater.toISOString())
+
+        for (const b of bookings || []) {
+            (bookedByProf[b.professional_id] ??= []).push(b.scheduled_at)
+        }
+    }
 
     return NextResponse.json({
         professionals: (data || []).map(p => ({
             ...p,
+            next_available: nextAvailableSlot(p.availability, bookedByProf[p.id] || []),
             price_display: `R$ ${(p.price_cents / 100).toFixed(2)}`,
         })),
     })
