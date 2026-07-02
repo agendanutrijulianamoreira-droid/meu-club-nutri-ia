@@ -152,18 +152,24 @@ export default function PatientDietPage() {
     const { assignments, loading } = useAssignments(userId || undefined)
     const activeProtocol = assignments?.[0]
 
-    const protocolDays = (activeProtocol?.protocol as any)?.days
-        ?.sort((a: any, b: any) => a.day_number - b.day_number)
+    const protocolDays = (activeProtocol?.protocol as any)?.protocol_days
+        ?.slice()
+        .sort((a: any, b: any) => a.day_number - b.day_number)
         .map((d: any) => ({
             day: d.day_number,
             title: d.title || `Dia ${d.day_number}`,
-            items: d.items?.sort((a: any, b: any) => a.time?.localeCompare(b.time)).map((i: any) => ({
-                time: i.time,
-                type: i.item_type,
-                title: i.title,
-                description: i.description,
-                completed: false,
-            })) || [],
+            items: (d.protocol_items || [])
+                .slice()
+                .sort((a: any, b: any) => a.order_index - b.order_index)
+                .map((i: any) => ({
+                    time: i.time,
+                    type: i.type,
+                    title: i.title,
+                    description: i.description,
+                    ingredients: i.ingredients || [],
+                    image_url: i.image_url,
+                    points: i.points || 0,
+                })),
         })) || []
 
     // ─── Generate meal plan ──────────────────────────────────────────────────

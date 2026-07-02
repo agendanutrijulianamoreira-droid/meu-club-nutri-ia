@@ -193,6 +193,38 @@ export function streamClaude(opts: ClaudeOptions): ReadableStream {
   })
 }
 
+const IMAGE_MODEL = 'gemini-2.5-flash-image'
+const IMAGE_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent`
+
+/**
+ * Gera uma foto de comida via IA (Gemini nano-banana). Retorna base64 + mimeType,
+ * ou null se a geração falhar (chamador deve tratar como opcional/best-effort).
+ */
+export async function generateFoodImage(prompt: string): Promise<{ base64: string; mimeType: string } | null> {
+  try {
+    const res = await fetch(`${IMAGE_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { responseModalities: ['IMAGE'] },
+      }),
+    })
+    if (!res.ok) {
+      console.error('[generateFoodImage] Gemini error', res.status, await res.text().catch(() => ''))
+      return null
+    }
+    const data = await res.json()
+    const parts = data.candidates?.[0]?.content?.parts || []
+    const imagePart = parts.find((p: any) => p.inlineData?.data)
+    if (!imagePart) return null
+    return { base64: imagePart.inlineData.data, mimeType: imagePart.inlineData.mimeType || 'image/png' }
+  } catch (err) {
+    console.error('[generateFoodImage] Erro:', err)
+    return null
+  }
+}
+
 export function triggerOrchestrator(type: string, tenantId: string, userId?: string, payload?: any) {
   const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-orchestrator`
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
