@@ -31,7 +31,6 @@ import {
     LogOut,
     User as UserIcon,
     Building2,
-    Palette,
     Package,
     ChefHat,
 } from "lucide-react"
@@ -54,9 +53,7 @@ import { AICreditsView } from "./views/AICreditsView"
 import { repairProfile } from "./actions/repairProfileAction"
 import AccountOverlay from "./components/AccountOverlay"
 import ClinicSettingsOverlay from "./components/ClinicSettingsOverlay"
-import VisualSettingsOverlay from "./components/VisualSettingsOverlay"
 import { signOutAction } from "./actions/authActions"
-import { SettingsLoginView } from "./views/SettingsLoginView"
 import { AgentsDashboardView } from "./views/AgentsDashboardView"
 import { MealPlanBuilderView } from "./views/MealPlanBuilderView"
 import { MealPlansView } from "./views/MealPlansView"
@@ -84,7 +81,7 @@ import { BillingView } from "./views/BillingView"
 type ViewType =
     | 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients'
     | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits'
-    | 'library' | 'settings' | 'settings-login' | 'club-plan' | 'agents-dashboard'
+    | 'library' | 'settings' | 'club-plan' | 'agents-dashboard'
     | 'meal-plans' | 'meal-plans-premium'
     | 'appointments' | 'professionals' | 'product-gateway' | 'annual-planner'
     | 'strategic-planner' | 'content-planner' | 'analytics' | 'patient-journey'
@@ -174,7 +171,6 @@ const navGroups: NavGroup[] = [
             { id: 'strategic-planner', label: 'Planejamento' },
             { id: 'manager-learning', label: 'Gerente IA' },
             { id: 'settings', label: 'Configurações' },
-            { id: 'settings-login', label: 'Login Designer' },
         ],
     },
 ]
@@ -278,7 +274,6 @@ export default function AdminDashboard({
             case 'questionnaires':     return <QuestionnairesView setView={setActiveView} tenantId={tenantId} />
             case 'community':          return <CommunityView />
             case 'settings':           return <SettingsView {...props} />
-            case 'settings-login':     return <SettingsLoginView />
             case 'club-plan':          return <ClubPlanView {...props} />
             default:                   return <DashboardView {...props} />
         }
@@ -470,8 +465,7 @@ function UserDropdown({ userName, role, openOverlay, router }: {
 
     const menuItems = [
         { id: 'profile', label: 'Meu Perfil', icon: UserIcon, onClick: () => openOverlay({ id: 'account', content: <AccountOverlay index={0} />, title: 'Meu Perfil' }) },
-        { id: 'clinic', label: 'Minha Clínica', icon: Building2, onClick: () => openOverlay({ id: 'clinic', content: <ClinicSettingsOverlay index={0} />, title: 'Minha Clínica' }) },
-        { id: 'visual', label: 'Aparência', icon: Palette, onClick: () => openOverlay({ id: 'visual', content: <VisualSettingsOverlay index={0} />, title: 'Aparência' }) },
+        { id: 'clinic', label: 'Contato da Clínica', icon: Building2, onClick: () => openOverlay({ id: 'clinic', content: <ClinicSettingsOverlay index={0} />, title: 'Contato da Clínica' }) },
     ]
 
     const handleSignOut = async () => {

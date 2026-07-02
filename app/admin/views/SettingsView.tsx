@@ -2,15 +2,14 @@
 
 import { useState, useEffect } from "react"
 import {
-    Save, Palette, Image as ImageIcon, Globe, Bell, Shield,
-    Loader2, Copy, Check, ExternalLink, CreditCard, ChevronRight,
+    Save, Image as ImageIcon, Globe, Bell, Shield,
+    Loader2, Copy, Check, ExternalLink, CreditCard,
     ToggleLeft, ToggleRight, AlertTriangle, CheckCircle, X,
     Download, Trash2, RefreshCw, Link2, Lock, Building2
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useTenant } from "@/lib/hooks/useDatabase"
 import { useStorage } from "@/lib/hooks/useStorage"
-import { getTenantPlans, saveTenantPlan } from "@/app/admin/actions/checkoutActions"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
@@ -85,37 +84,49 @@ export function SettingsView({ setView, tenantId }: { setView: (v: any) => void;
 
     useEffect(() => {
         if (tenant?.id) {
-            getTenantPlans(tenant.id).then(({ plans }) => {
-                if (plans.length > 0) {
-                    const map: typeof planPrices = { ...planPrices }
-                    plans.forEach((p: any) => {
-                        if (p.plan === 'tech_diet' || p.plan === 'vip') {
-                            map[p.plan] = {
-                                price_cents: p.price_cents || 0,
-                                stripe_price_id: p.stripe_price_id || '',
-                                description: p.description || '',
+            fetch('/api/admin/checkout-plans')
+                .then(r => r.json())
+                .then(({ plans }) => {
+                    if (plans?.length > 0) {
+                        const map: typeof planPrices = { ...planPrices }
+                        plans.forEach((p: any) => {
+                            if (p.plan === 'tech_diet' || p.plan === 'vip') {
+                                map[p.plan] = {
+                                    price_cents: p.price_cents || 0,
+                                    stripe_price_id: p.stripe_price_id || '',
+                                    description: p.description || '',
+                                }
                             }
-                        }
-                    })
-                    setPlanPrices(map)
-                }
-            })
+                        })
+                        setPlanPrices(map)
+                    }
+                })
+                .catch(() => {})
         }
     }, [tenant?.id])
 
     const handleSavePlan = async (plan: 'tech_diet' | 'vip') => {
         if (!tenantId) return
         setSavingPlan(plan)
-        const { error } = await saveTenantPlan({
-            tenantId,
-            plan,
-            priceCents: planPrices[plan].price_cents,
-            stripePriceId: planPrices[plan].stripe_price_id || undefined,
-            description: planPrices[plan].description || undefined,
-        })
-        setSavingPlan(null)
-        if (error) showToast('error', 'Erro: ' + error)
-        else showToast('success', `Plano ${plan === 'tech_diet' ? 'Tech Diet' : 'VIP'} salvo!`)
+        try {
+            const res = await fetch('/api/admin/checkout-plans', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    plan,
+                    price_cents: planPrices[plan].price_cents,
+                    stripe_price_id: planPrices[plan].stripe_price_id || undefined,
+                    description: planPrices[plan].description || undefined,
+                }),
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || 'Erro ao salvar')
+            showToast('success', `Plano ${plan === 'tech_diet' ? 'Tech Diet' : 'VIP'} salvo!`)
+        } catch (err: any) {
+            showToast('error', 'Erro: ' + err.message)
+        } finally {
+            setSavingPlan(null)
+        }
     }
 
     useEffect(() => {
@@ -274,18 +285,6 @@ export function SettingsView({ setView, tenantId }: { setView: (v: any) => void;
                             </div>
                         </div>
                     </Section>
-
-                    {/* Login page editor link */}
-                    <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-bold text-indigo-300">Editor da Página de Login</p>
-                            <p className="text-xs text-slate-500 mt-0.5">Personalize headline, bullets e imagem de fundo</p>
-                        </div>
-                        <button onClick={() => setView('settings-login')}
-                            className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all">
-                            <Palette size={12}/> Abrir editor <ChevronRight size={11}/>
-                        </button>
-                    </div>
 
                     {/* Tenant info (read-only) */}
                     <Section title="Informações do Clube" icon={<Link2 size={15}/>}>
