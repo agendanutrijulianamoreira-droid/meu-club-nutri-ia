@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   if (query) {
     const { data: alimentos, error } = await supabase
       .from('foods')
-      .select('id, name, category, energy_kcal, protein_g, carbs_g, total_fat_g, fiber_g, serving_size_g, serving_label')
+      .select('id, name, category, energy_kcal, protein_g, carbs_g, total_fat_g, fiber_g, serving_size_g, serving_label, vitamin_c_mg, iron_mg, calcium_mg, potassium_mg')
       .or(`name.ilike.%${query}%,name_search.ilike.%${query}%`)
       .eq('is_active', true)
       .order('name', { ascending: true })
