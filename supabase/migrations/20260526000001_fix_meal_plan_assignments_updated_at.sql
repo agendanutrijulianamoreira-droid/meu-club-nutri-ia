@@ -25,8 +25,24 @@ CREATE TRIGGER update_subscriptions_updated_at
 -- profiles.id (auto-generated PK UUID) instead of profiles.user_id (auth FK).
 -- This caused the UPDATE on meal_plan_assignments to never match any row,
 -- and also blocked on the missing updated_at column above.
+--
+-- ⚡ BUGFIX: esta função PRECISA de SECURITY DEFINER (ver migration
+-- 20260701000002_fix_notify_profile_manual_edit_definer.sql). Sem isso o
+-- INSERT em ai_feedback_vectors roda com os privilégios de quem disparou o
+-- UPDATE em profiles — e a RLS dessa tabela só permite o owner do tenant.
+-- Isso já causou uma regressão em produção: esta migration (mais antiga por
+-- nome, 26/mai) acabou sendo aplicada DEPOIS da correção de 01/jul num push
+-- fora de ordem, e o CREATE OR REPLACE sem SECURITY DEFINER sobrescreveu o
+-- fix, voltando a quebrar o onboarding da paciente com "Erro ao salvar seus
+-- dados". Mantendo SECURITY DEFINER aqui também garante que a função nunca
+-- fique num estado inseguro, independente da ordem em que as migrations
+-- forem (re)aplicadas.
 CREATE OR REPLACE FUNCTION public.notify_profile_manual_edit()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
 BEGIN
   IF (
     OLD.dietary_restrictions IS DISTINCT FROM NEW.dietary_restrictions OR
