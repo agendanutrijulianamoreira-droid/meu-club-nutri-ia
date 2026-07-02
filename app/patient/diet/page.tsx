@@ -254,7 +254,7 @@ export default function PatientDietPage() {
                     }`}
                 >
                     <Sparkles size={13} />
-                    Plano IA
+                    Plano Interativo
                 </button>
             </div>
 
@@ -309,7 +309,7 @@ export default function PatientDietPage() {
                                             )}
                                             {mealPlan.is_ai_generated && (
                                                 <span className="shrink-0 flex items-center gap-1 text-xs bg-violet-500/20 text-violet-300 px-2 py-1 rounded-full">
-                                                    <Sparkles size={10} />IA
+                                                    <Sparkles size={10} />Interativo
                                                 </span>
                                             )}
                                         </div>
@@ -519,7 +519,7 @@ export default function PatientDietPage() {
                                     className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600/20 border border-indigo-500/30 rounded-xl text-sm font-bold text-indigo-400"
                                 >
                                     <Sparkles size={15} />
-                                    Gerar Plano com IA
+                                    Gerar Plano Interativo
                                 </button>
                             </div>
                         ) : (
@@ -561,9 +561,9 @@ export default function PatientDietPage() {
                                     <div className="h-14 w-14 rounded-3xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center mx-auto mb-3">
                                         <ChefHat size={28} className="text-indigo-400" />
                                     </div>
-                                    <h2 className="text-xl font-bold text-white mb-1">Plano Alimentar com IA</h2>
+                                    <h2 className="text-xl font-bold text-white mb-1">Plano Alimentar Interativo</h2>
                                     <p className="text-slate-400 text-sm max-w-xs mx-auto">
-                                        Diga o que você quer e a IA monta um cardápio personalizado para você.
+                                        Diga o que você quer e a gente monta um cardápio personalizado para você.
                                     </p>
                                 </div>
 
@@ -639,7 +639,7 @@ export default function PatientDietPage() {
                                     ) : (
                                         <>
                                             <Sparkles size={18} />
-                                            Gerar Meu Plano IA
+                                            Gerar Meu Plano
                                         </>
                                     )}
                                 </button>
@@ -653,7 +653,7 @@ export default function PatientDietPage() {
                                         <div className="flex-1">
                                             <div className="inline-flex items-center gap-1.5 bg-indigo-600/10 border border-indigo-500/20 rounded-full px-3 py-1 mb-2">
                                                 <Sparkles size={10} className="text-indigo-400" />
-                                                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Plano Gerado pela IA</span>
+                                                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Seu Plano Personalizado</span>
                                             </div>
                                             <h2 className="text-xl font-bold text-white">
                                                 {generatedPlan ? generatedPlan.title : generatedPlanRaw?.title}

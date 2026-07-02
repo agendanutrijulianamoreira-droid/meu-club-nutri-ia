@@ -119,7 +119,7 @@ export default function WeeklyCheckinPage() {
             <p className="text-slate-400 text-sm mb-4 max-w-xs">Sua nutricionista já recebeu seus dados desta semana.</p>
             {aiSummary && (
                 <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-2xl p-4 mb-6 max-w-sm">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 mb-1">Análise da IA</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 mb-1">Análise da equipe</p>
                     <p className="text-sm text-slate-300 italic">"{aiSummary}"</p>
                 </div>
             )}
@@ -161,7 +161,7 @@ export default function WeeklyCheckinPage() {
                             <Heart size={18} className="text-rose-400" />
                             <p className="text-white text-xl font-bold">Fase do ciclo esta semana</p>
                         </div>
-                        <p className="text-slate-400 text-sm mb-6">Isso ajuda a IA a entender seus sintomas e personalizar as recomendações.</p>
+                        <p className="text-slate-400 text-sm mb-6">Isso ajuda a entender seus sintomas e personalizar as recomendações.</p>
                         <div className="space-y-2">
                             {CYCLE_PHASES.map(phase => (
                                 <button

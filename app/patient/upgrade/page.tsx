@@ -30,7 +30,7 @@ const PACIENTE_FEATURES = [
   { icon: Zap, text: "Dieta personalizada com macros" },
   { icon: Crown, text: "Receitas vinculadas ao protocolo" },
   { icon: ShoppingCart, text: "Lista de compras calculada" },
-  { icon: Brain, text: "IA assistente personalizada" },
+  { icon: Brain, text: "Acompanhamento personalizado da equipe" },
   { icon: Dna, text: "Benefício no teste genético e microbiota" },
   { icon: Heart, text: "Protocolo de suplementação" },
   { icon: Trophy, text: "Programa de indicação com bônus" },

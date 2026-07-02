@@ -63,10 +63,10 @@ export async function POST(
     // Fetch active protocol
     const { data: assignment } = await supabase
         .from('protocol_assignments')
-        .select('started_at, protocols(title, description)')
+        .select('start_date, protocols(title, description)')
         .eq('user_id', patientId)
         .eq('status', 'active')
-        .order('started_at', { ascending: false })
+        .order('start_date', { ascending: false })
         .limit(1)
         .maybeSingle()
 
