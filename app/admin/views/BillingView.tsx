@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
     TrendingUp, Users, CreditCard, CheckCircle, AlertCircle,
-    Loader2, RefreshCw, ExternalLink, Save, ChevronDown, ChevronUp,
+    Loader2, RefreshCw, ExternalLink,
     Star, Crown, DollarSign, Clock, XCircle, AlertTriangle,
 } from "lucide-react"
 
@@ -107,17 +107,18 @@ function StatusBadge({ status }: { status: string }) {
     )
 }
 
-// ─── Plan price config form ────────────────────────────────────────────────────
+// ─── Plan price summary (somente leitura — edição vive só em Configurações) ────
+// Antes esta tela também editava price_cents/stripe_price_id via
+// /api/admin/checkout-plans, duplicando a edição feita em SettingsView (aba
+// Clube). Consolidado: Settings é a única fonte de escrita, aqui só exibimos
+// o valor vigente com atalho para editar.
 
-function PlanPriceEditor({ tenantId }: { tenantId: string }) {
+function PlanPriceSummary({ onEdit }: { onEdit?: () => void }) {
     const [plans, setPlans] = useState<Record<string, TenantPlan>>({
         tech_diet: { plan: 'tech_diet', price_cents: 9700, stripe_price_id: '', description: '', features: [], is_active: true },
         vip:       { plan: 'vip',       price_cents: 19700, stripe_price_id: '', description: '', features: [], is_active: true },
     })
     const [loading, setLoading] = useState(true)
-    const [saving, setSaving] = useState<string | null>(null)
-    const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
-    const [open, setOpen] = useState(false)
 
     useEffect(() => {
         fetch('/api/admin/checkout-plans')
@@ -142,145 +143,54 @@ function PlanPriceEditor({ tenantId }: { tenantId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    const showToast = (type: 'success' | 'error', msg: string) => {
-        setToast({ type, msg })
-        setTimeout(() => setToast(null), 3500)
-    }
-
-    const savePlan = async (planKey: 'tech_diet' | 'vip') => {
-        setSaving(planKey)
-        try {
-            const p = plans[planKey]
-            const res = await fetch('/api/admin/checkout-plans', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    plan: p.plan,
-                    price_cents: p.price_cents,
-                    stripe_price_id: p.stripe_price_id || null,
-                    description: p.description,
-                    features: p.features,
-                }),
-            })
-            if (res.ok) showToast('success', `Plano ${PLAN_META[planKey].label} salvo!`)
-            else showToast('error', 'Erro ao salvar plano.')
-        } finally {
-            setSaving(null)
-        }
-    }
-
-    const updatePlan = (key: string, field: keyof TenantPlan, value: any) => {
-        setPlans(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }))
-    }
-
     if (loading) return null
 
     return (
         <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
-            <button
-                onClick={() => setOpen(o => !o)}
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/5 transition"
-            >
+            <div className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-2">
                     <DollarSign size={16} className="text-indigo-400" />
-                    <span className="text-sm font-bold text-white">Configurar Preços dos Planos</span>
+                    <span className="text-sm font-bold text-white">Preços dos Planos</span>
                 </div>
-                {open ? <ChevronUp size={16} className="text-slate-500" /> : <ChevronDown size={16} className="text-slate-500" />}
-            </button>
-
-            <AnimatePresence>
-                {open && (
-                    <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden"
+                {onEdit && (
+                    <button
+                        onClick={onEdit}
+                        className="text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 transition-colors"
                     >
-                        <div className="px-5 pb-5 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-white/10 pt-5">
-                            {(['tech_diet', 'vip'] as const).map(key => {
-                                const p = plans[key]
-                                const meta = PLAN_META[key]
-                                const Icon = meta.icon
-                                return (
-                                    <div key={key} className="space-y-3">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <Icon size={15} className={meta.color} />
-                                            <span className="text-sm font-bold text-white">{meta.label}</span>
-                                        </div>
-
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">Preço (em centavos)</label>
-                                            <input
-                                                type="number"
-                                                value={p.price_cents}
-                                                onChange={e => updatePlan(key, 'price_cents', Number(e.target.value))}
-                                                placeholder="9700 = R$97,00"
-                                                className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-3 text-white text-sm focus:outline-none focus:border-indigo-500"
-                                            />
-                                            <p className="text-[10px] text-slate-600 mt-1">= {fmt(p.price_cents)}/mês</p>
-                                        </div>
-
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">Stripe Price ID</label>
-                                            <input
-                                                type="text"
-                                                value={p.stripe_price_id}
-                                                onChange={e => updatePlan(key, 'stripe_price_id', e.target.value)}
-                                                placeholder="price_xxxxx (opcional)"
-                                                className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-3 text-white text-sm focus:outline-none focus:border-indigo-500 font-mono"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">Descrição</label>
-                                            <input
-                                                type="text"
-                                                value={p.description}
-                                                onChange={e => updatePlan(key, 'description', e.target.value)}
-                                                placeholder="Ex: Acesso completo ao clube"
-                                                className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-3 text-white text-sm focus:outline-none focus:border-indigo-500"
-                                            />
-                                        </div>
-
-                                        <button
-                                            onClick={() => savePlan(key)}
-                                            disabled={saving === key}
-                                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all"
-                                        >
-                                            {saving === key ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                                            Salvar {meta.label}
-                                        </button>
-                                    </div>
-                                )
-                            })}
-                        </div>
-
-                        <AnimatePresence>
-                            {toast && (
-                                <motion.div
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    className={`mx-5 mb-5 p-3 rounded-xl text-sm font-bold ${
-                                        toast.type === 'success'
-                                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                            : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                                    }`}
-                                >
-                                    {toast.msg}
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </motion.div>
+                        Editar em Configurações →
+                    </button>
                 )}
-            </AnimatePresence>
+            </div>
+
+            <div className="px-5 pb-5 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-white/10 pt-4">
+                {(['tech_diet', 'vip'] as const).map(key => {
+                    const p = plans[key]
+                    const meta = PLAN_META[key]
+                    const Icon = meta.icon
+                    return (
+                        <div key={key} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-2xl px-4 py-3">
+                            <div className="flex items-center gap-2">
+                                <Icon size={15} className={meta.color} />
+                                <div>
+                                    <p className="text-sm font-bold text-white">{meta.label}</p>
+                                    <p className="text-[11px] text-slate-500">{p.description || 'Sem descrição'}</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <p className="font-bold text-white">{fmt(p.price_cents)}</p>
+                                <p className="text-[10px] text-slate-600">/mês</p>
+                            </div>
+                        </div>
+                    )
+                })}
+            </div>
         </div>
     )
 }
 
 // ─── Main View ────────────────────────────────────────────────────────────────
 
-export function BillingView({ tenantId = '' }: { setView?: (v: any) => void; tenantId?: string }) {
+export function BillingView({ setView, tenantId = '' }: { setView?: (v: any) => void; tenantId?: string }) {
     const [data, setData] = useState<BillingData | null>(null)
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
@@ -426,8 +336,8 @@ export function BillingView({ tenantId = '' }: { setView?: (v: any) => void; ten
                 </div>
             )}
 
-            {/* Plan price config */}
-            <PlanPriceEditor tenantId={tenantId} />
+            {/* Plan price summary */}
+            <PlanPriceSummary onEdit={setView ? () => setView('settings') : undefined} />
 
             {/* Checkout link */}
             <div className="bg-white/5 border border-white/10 rounded-3xl p-5">

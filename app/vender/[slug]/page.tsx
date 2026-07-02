@@ -13,6 +13,10 @@ import {
 export default function PublicSalesPage({ params }: { params: { slug: string } }) {
     const [tenant, setTenant] = useState<any>(null)
     const [loading, setLoading] = useState(true)
+    // Preço real de tech_diet/vip vem de /api/tenant-info (mesma fonte do
+    // checkout) em vez do texto livre salvo em sales_page — evita a paciente
+    // ver um preço na landing e pagar outro no checkout.
+    const [realPrices, setRealPrices] = useState<Record<string, number>>({})
 
     useEffect(() => {
         supabase
@@ -24,7 +28,19 @@ export default function PublicSalesPage({ params }: { params: { slug: string } }
                 if (data) setTenant(data)
                 setLoading(false)
             })
+
+        fetch(`/api/tenant-info?slug=${encodeURIComponent(params.slug)}`)
+            .then(r => r.json())
+            .then(d => {
+                const map: Record<string, number> = {}
+                for (const p of d.plans || []) map[p.plan] = p.price_cents
+                setRealPrices(map)
+            })
+            .catch(() => {})
     }, [params.slug])
+
+    const fmtPrice = (cents: number | undefined, fallback: string) =>
+        cents != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100) : fallback
 
     if (loading) return (
         <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -76,8 +92,8 @@ export default function PublicSalesPage({ params }: { params: { slug: string } }
                 checkoutLink={page.checkoutLink}
                 useInternal={page.useInternalCheckout}
                 priceCommunity={page.price_community}
-                priceTechDiet={page.price_tech_diet}
-                priceVip={page.price_vip}
+                priceTechDiet={fmtPrice(realPrices.tech_diet, page.price_tech_diet || 'R$ 97')}
+                priceVip={fmtPrice(realPrices.vip, page.price_vip || 'R$ 197')}
             />
 
             <GuaranteeSection />
