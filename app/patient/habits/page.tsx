@@ -3,10 +3,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import {
     Check, Camera, Image as ImageIcon, Loader2,
-    Sparkles, Flame, Trophy, X, ZoomIn
+    Sparkles, Flame, Trophy, X, ZoomIn, ChevronDown, ChevronUp, Calendar
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { supabase } from "@/lib/supabase-browser"
+import { StreakCalendar } from "@/components/patient/StreakCalendar"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -191,6 +192,7 @@ export default function HabitsPage() {
     const [uploading, setUploading] = useState<string | null>(null)
     const [xpFlash, setXpFlash] = useState<number | null>(null)
     const [streak, setStreak] = useState(0)
+    const [showCalendar, setShowCalendar] = useState(false)
 
     const cameraRef = useRef<HTMLInputElement>(null)
     const galleryRef = useRef<HTMLInputElement>(null)
@@ -373,6 +375,35 @@ export default function HabitsPage() {
                         />
                     </div>
                 )}
+
+                {/* Calendário de sequência (colapsável) */}
+                <div className="mt-3 bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                    <button
+                        onClick={() => setShowCalendar(s => !s)}
+                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
+                    >
+                        <div className="flex items-center gap-2">
+                            <Calendar size={14} className="text-orange-400" />
+                            <span className="text-sm font-bold text-white">Não quebre a sequência</span>
+                        </div>
+                        {showCalendar ? <ChevronUp size={16} className="text-slate-500" /> : <ChevronDown size={16} className="text-slate-500" />}
+                    </button>
+                    <AnimatePresence>
+                        {showCalendar && (
+                            <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="overflow-hidden"
+                            >
+                                <div className="px-4 pb-4 border-t border-white/5 pt-3">
+                                    <StreakCalendar />
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </div>
 
             {/* Completion celebration */}

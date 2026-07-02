@@ -7,15 +7,26 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data, error } = await supabase
-        .from('body_measurements')
-        .select('*')
-        .eq('patient_id', user.id)
-        .order('measured_at', { ascending: false })
-        .limit(20)
+    const [{ data, error }, { data: profile }] = await Promise.all([
+        supabase
+            .from('body_measurements')
+            .select('*')
+            .eq('patient_id', user.id)
+            .order('measured_at', { ascending: false })
+            .limit(20),
+        supabase
+            .from('profiles')
+            .select('name, initial_weight')
+            .eq('user_id', user.id)
+            .single(),
+    ])
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ measurements: data })
+    return NextResponse.json({
+        measurements: data,
+        patient_name: profile?.name?.split(' ')[0] || null,
+        initial_weight: profile?.initial_weight ?? null,
+    })
 }
 
 export async function POST(request: NextRequest) {
