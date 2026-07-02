@@ -2,6 +2,11 @@
 -- MEU CLUB NUTRI.AI - SCHEMA AI CREDITS
 -- Sistema de Créditos de IA por Tenant
 -- ============================================
+-- NOTA (2026-07-02): esta tabela está ativa em produção e não tem
+-- nenhuma migration numerada equivalente em /supabase/migrations.
+-- Este arquivo é hoje a única documentação de como recriá-la do
+-- zero. Ver supabase/legacy-manual-sql/README.md.
+-- ============================================
 
 -- ============================================
 -- 1. AI_CREDITS (Saldo de créditos por tenant)
