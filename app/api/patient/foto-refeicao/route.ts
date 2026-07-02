@@ -26,6 +26,19 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('current_plan')
+    .eq('user_id', user.id)
+    .single()
+
+  if (profile?.current_plan !== 'vip') {
+    return NextResponse.json(
+      { error: 'Avaliação de pratos por IA é exclusiva do plano VIP', code: 'PLAN_UPGRADE_REQUIRED' },
+      { status: 403 }
+    )
+  }
+
   let body: { image_base64?: string }
   try {
     body = await request.json()

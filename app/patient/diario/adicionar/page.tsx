@@ -7,6 +7,8 @@ import {
   Search, X, Check, ChevronDown, Loader2, ArrowLeft, Info,
   Camera, AlertCircle, Minus, Plus,
 } from "lucide-react"
+import { usePlanGate } from "@/lib/hooks/usePlanGate"
+import { PlanUpgradePrompt } from "@/components/patient/PlanUpgradePrompt"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -68,6 +70,7 @@ function AdicionarAlimentoInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const refeicaoParam = searchParams.get('refeicao') || 'almoco'
+  const { allowed: podeUsarFotoIA, loading: loadingPlanGate } = usePlanGate('plate_analysis_ai')
 
   const [query, setQuery] = useState('')
   const [resultados, setResultados] = useState<Alimento[]>([])
@@ -108,6 +111,10 @@ function AdicionarAlimentoInner() {
       })
       if (!res.ok) {
         const err = await res.json()
+        if (err.code === 'PLAN_UPGRADE_REQUIRED') {
+          showToast('error', 'Avaliação de pratos por IA é exclusiva do plano VIP')
+          return
+        }
         throw new Error(err.error || 'Erro ao analisar foto')
       }
       const { alimentos } = await res.json()
@@ -319,25 +326,33 @@ function AdicionarAlimentoInner() {
         onChange={handleFotoSelecionada}
       />
 
-      {/* Botão fotografar */}
-      {!alimentosFoto && (
-        <button
-          onClick={() => fotoInputRef.current?.click()}
-          disabled={analisandoFoto}
-          className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 hover:border-indigo-500/30 rounded-2xl text-sm text-slate-300 transition-all disabled:opacity-50"
-        >
-          {analisandoFoto ? (
-            <>
-              <Loader2 size={16} className="animate-spin text-indigo-400" />
-              <span className="text-indigo-400">Analisando foto...</span>
-            </>
-          ) : (
-            <>
-              <Camera size={16} className="text-indigo-400" />
-              Fotografar refeição
-            </>
-          )}
-        </button>
+      {/* Botão fotografar (exclusivo plano VIP) */}
+      {!alimentosFoto && !loadingPlanGate && (
+        podeUsarFotoIA ? (
+          <button
+            onClick={() => fotoInputRef.current?.click()}
+            disabled={analisandoFoto}
+            className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 hover:border-indigo-500/30 rounded-2xl text-sm text-slate-300 transition-all disabled:opacity-50"
+          >
+            {analisandoFoto ? (
+              <>
+                <Loader2 size={16} className="animate-spin text-indigo-400" />
+                <span className="text-indigo-400">Analisando foto...</span>
+              </>
+            ) : (
+              <>
+                <Camera size={16} className="text-indigo-400" />
+                Fotografar refeição
+              </>
+            )}
+          </button>
+        ) : (
+          <PlanUpgradePrompt
+            feature="Avaliação de pratos por IA"
+            benefit="Fotografe sua refeição e deixe a IA identificar os alimentos, porções e calorias automaticamente. Exclusivo do plano VIP."
+            badgeLabel="Disponível no plano VIP"
+          />
+        )
       )}
 
       {/* Tela de confirmação dos alimentos identificados */}

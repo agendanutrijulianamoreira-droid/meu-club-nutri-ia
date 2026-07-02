@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     .eq('user_id', user.id)
     .single()
 
-  const isPremium = ['vip', 'tech_diet'].includes(profile?.current_plan || '')
+  const isPremium = profile?.current_plan === 'vip'
   const planTier: 'basic' | 'premium' = isPremium ? 'premium' : 'basic'
 
   // Busca o assignment ativo mais recente

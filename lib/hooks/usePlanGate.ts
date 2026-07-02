@@ -6,8 +6,8 @@ import { supabase } from '@/lib/supabase-browser'
 // Feature matrix — which plans unlock which features
 const PLAN_FEATURES: Record<string, string[]> = {
   community: ['feed', 'checkin', 'store', 'ranking', 'chat_basic', 'protocols_view'],
-  tech_diet: ['feed', 'checkin', 'store', 'ranking', 'chat_basic', 'protocols_view', 'meal_plan_ai', 'diet_premium', 'chat_unlimited', 'gateway'],
-  vip: ['feed', 'checkin', 'store', 'ranking', 'chat_basic', 'protocols_view', 'meal_plan_ai', 'diet_premium', 'chat_unlimited', 'gateway', 'appointments', 'vip_content'],
+  tech_diet: ['feed', 'checkin', 'store', 'ranking', 'chat_basic', 'protocols_view', 'meal_plan_ai', 'chat_unlimited', 'gateway'],
+  vip: ['feed', 'checkin', 'store', 'ranking', 'chat_basic', 'protocols_view', 'meal_plan_ai', 'diet_premium', 'chat_unlimited', 'gateway', 'appointments', 'vip_content', 'plate_analysis_ai'],
 }
 
 const PLAN_ORDER = ['community', 'tech_diet', 'vip']
@@ -25,6 +25,7 @@ export type PlanFeature =
   | 'gateway'
   | 'appointments'
   | 'vip_content'
+  | 'plate_analysis_ai'
 
 interface PlanGateResult {
   allowed: boolean
