@@ -110,21 +110,24 @@ export async function processCampaignAction(campaignId: string) {
                 status: 'sent'
             }))
 
-            const notificationRecords = userIds.map(uid => ({
+            const inboxRecords = userIds.map(uid => ({
                 tenant_id: campaignData.tenant_id,
                 user_id: uid,
-                campaign_id: campaignId,
+                agent_name: 'campaign',
                 title: campaignData.title,
                 body: campaignData.body,
+                message_type: 'campaign',
+                priority: 'normal',
                 cta_label: campaignData.cta_label,
                 cta_url: campaignData.cta_url,
-                status: 'unread'
+                channels: ['inbox'],
+                metadata: { campaign_id: campaignId },
             }))
 
             // Run inbox + recipients operations
             await Promise.all([
                 adminSupabase.from('campaign_recipients').upsert(recipientRecords, { onConflict: 'campaign_id,user_id' }),
-                adminSupabase.from('notifications').upsert(notificationRecords, { onConflict: 'user_id,campaign_id' })
+                adminSupabase.from('inbox_messages').insert(inboxRecords)
             ])
 
             // Send push via OneSignal when channel is enabled (fire-and-forget, non-blocking)

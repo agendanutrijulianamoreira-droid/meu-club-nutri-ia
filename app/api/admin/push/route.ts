@@ -145,23 +145,25 @@ export async function POST(request: NextRequest) {
             console.error(`[Push API] ${failCount}/${pushResults.length} push sends failed`)
         }
 
-        // --- Save to notifications table for inbox fallback ---
-        const notificationRecords = targetUserIds.map(uid => ({
+        // --- Save to inbox for in-app fallback ---
+        const inboxRecords = targetUserIds.map(uid => ({
             tenant_id: tenantId,
             user_id: uid,
+            agent_name: 'manual',
             title,
             body: message,
+            message_type: 'engagement',
+            priority: 'normal',
             cta_url: url || null,
-            status: 'unread',
-            type: 'push',
+            channels: ['inbox', 'push'],
         }))
 
         const { error: insertError } = await adminSupabase
-            .from('notifications')
-            .insert(notificationRecords)
+            .from('inbox_messages')
+            .insert(inboxRecords)
 
         if (insertError) {
-            console.error('[Push API] Error saving to notifications table:', insertError)
+            console.error('[Push API] Error saving to inbox_messages table:', insertError)
         }
 
         return NextResponse.json({

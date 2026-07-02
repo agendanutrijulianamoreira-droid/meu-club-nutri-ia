@@ -185,6 +185,8 @@ export function usePatientEngine(): PatientEngineData {
         if (!activeProtocol) return
 
         const newStatus = !currentStatus
+        const item = currentDayItems.find((i: any) => i.id === itemId)
+        const itemPoints = item?.points ?? 10
 
         // Optimistic UI update
         setProgress(prev => ({ ...prev, [itemId]: newStatus }))
@@ -201,17 +203,17 @@ export function usePatientEngine(): PatientEngineData {
                         protocol_item_id: itemId,
                         completed_at: new Date().toISOString(), // Timestamp real (p/ audit)
                         checkin_date: todayStr,                 // ← DATE puro local!
-                        points_earned: 10
+                        points_earned: itemPoints
                     })
 
                 if (error) throw error
 
-                // Atualizar pontos do usuário
+                // Atualizar pontos do usuário com o valor real do item
                 const { data: { user } } = await supabase.auth.getUser()
                 if (user) {
                     await supabase.rpc('increment_user_points', {
                         user_id: user.id,
-                        points_to_add: 10
+                        points_to_add: itemPoints
                     })
                 }
             } else {

@@ -1,52 +1,46 @@
-// ─── XP rewards por ação ─────────────────────────────────────────────────────
-export const XP_REWARDS = {
-  daily_checkin:      30,
-  hydration_goal:     10,
-  exercise_logged:    20,
-  weekly_checkin:     20,
-  challenge_complete: 100,
+// Única fonte de verdade para XP/nível/coins no cliente.
+// Espelha exatamente a lógica gravada no banco — qualquer mudança aqui deve
+// ser acompanhada da mudança equivalente nestas funções SQL:
+//   - calculate_level(xp)                    → supabase/schema_core.sql
+//   - update_gamification_after_log()        → supabase/schema_core.sql
+//   - increment_user_points(user_id, points) → supabase/schema_extended.sql
+
+export const XP_PER_LEVEL = 500
+
+// XP creditado por cada campo de daily_logs marcado (update_gamification_after_log)
+export const DAILY_LOG_XP = {
+  water_check: 10,
+  workout_check: 20,
+  sleep_check: 10,
+  meal_plan_check: 30,
+  daily_victory: 10,
+  proof_photo: 10,
 } as const
 
-export type XpAction = keyof typeof XP_REWARDS
+export const WEEKLY_CHECKIN_XP = 20
+export const HABIT_HIT_XP = { simple: 10, gallery: 15, camera: 20 } as const
 
-// ─── Nível a partir do XP total ──────────────────────────────────────────────
-// Série: L1=0, L2=500, L3=1500, L4=3000… min_xp(N) = 250 * N * (N-1)
+// level = FLOOR(xp / 500) + 1 — idêntico a calculate_level() no Postgres
 export function levelFromXp(totalXp: number): number {
-  if (totalXp <= 0) return 1
-  let level = 1
-  while (250 * (level + 1) * level <= totalXp) level++
-  return level
+  return Math.floor(Math.max(0, totalXp) / XP_PER_LEVEL) + 1
 }
 
-// XP mínimo para entrar num nível
+// XP mínimo para entrar num nível (gap constante de 500 XP por nível)
 export function minXpForLevel(level: number): number {
-  if (level <= 1) return 0
-  return 250 * level * (level - 1)
+  return Math.max(0, level - 1) * XP_PER_LEVEL
 }
 
 // Progresso dentro do nível atual (0–1)
 export function xpProgressInLevel(totalXp: number): number {
-  const level = levelFromXp(totalXp)
-  const current = minXpForLevel(level)
-  const next    = minXpForLevel(level + 1)
-  return (totalXp - current) / (next - current)
+  const xp = Math.max(0, totalXp)
+  return (xp % XP_PER_LEVEL) / XP_PER_LEVEL
 }
 
 // XP restante para subir de nível
 export function xpToNextLevel(totalXp: number): number {
-  const level = levelFromXp(totalXp)
-  return minXpForLevel(level + 1) - totalXp
-}
-
-// ─── Bônus de streak ─────────────────────────────────────────────────────────
-export function streakBonus(streak: number): number {
-  if (streak >= 100) return 300
-  if (streak >= 60)  return 200
-  if (streak >= 30)  return 150
-  if (streak >= 21)  return 100
-  if (streak >= 14)  return 75
-  if (streak >= 7)   return 50
-  return 0
+  const xp = Math.max(0, totalXp)
+  const remainder = xp % XP_PER_LEVEL
+  return XP_PER_LEVEL - remainder
 }
 
 // ─── Risco de check-in (fallback sem IA) ─────────────────────────────────────

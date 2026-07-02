@@ -65,12 +65,15 @@ export async function PATCH(
 
     if (statusMessages[status]) {
         const msg = statusMessages[status]
-        await supabase.from('notifications').insert({
+        await supabase.from('inbox_messages').insert({
             tenant_id: tenant.id,
             user_id: data.user_id,
+            agent_name: 'manual',
             title: msg.title,
             body: msg.body,
-            status: 'unread',
+            message_type: 'reward',
+            priority: 'normal',
+            channels: ['inbox'],
         })
     }
 

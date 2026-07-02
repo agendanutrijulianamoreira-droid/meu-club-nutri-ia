@@ -188,17 +188,20 @@ serve(async (req) => {
           const message = await generateEngagementMessage(patient, tenant)
           if (!message) continue
 
-          // Salvar na inbox (notifications)
+          // Salvar na inbox
           const { error: notifError } = await supabase
-            .from('notifications')
+            .from('inbox_messages')
             .insert({
               tenant_id: tenant.id,
               user_id: patient.user_id,
+              agent_name: 'daily_engagement',
               title: message.title,
               body: message.body,
+              message_type: 'engagement',
+              priority: 'normal',
               cta_label: message.cta_label || null,
               cta_url: message.cta_url || null,
-              status: 'unread',
+              channels: ['inbox'],
             })
 
           if (!notifError) {

@@ -22,6 +22,7 @@ import {
     ClipboardList,
 } from "lucide-react"
 import { usePatientEngine } from "@/lib/hooks/usePatientEngine"
+import { levelFromXp, minXpForLevel, xpProgressInLevel, DAILY_LOG_XP } from "@/lib/gamification"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
@@ -341,17 +342,16 @@ export default function PatientHomePage() {
                     </div>
                 </div>
 
-                {/* Level progress bar */}
+                {/* Level progress bar — mesma fórmula de calculate_level() no banco */}
                 {(() => {
                     const xp = stats.totalPoints
-                    let level = 1
-                    while (level * level * 500 <= xp) level++
-                    const minCurrent = (level - 1) * (level - 1) * 500
-                    const minNext = level * level * 500
-                    const pct = Math.round(((xp - minCurrent) / (minNext - minCurrent)) * 100)
+                    const level = levelFromXp(xp)
+                    const minCurrent = minXpForLevel(level)
+                    const minNext = minXpForLevel(level + 1)
+                    const pct = Math.round(xpProgressInLevel(xp) * 100)
                     return (
                         <div className="mt-3 flex items-center gap-3">
-                            <span className="text-[10px] font-black text-slate-500 whitespace-nowrap">Nv {level - 1}</span>
+                            <span className="text-[10px] font-black text-slate-500 whitespace-nowrap">Nv {level}</span>
                             <div className="flex-1 relative">
                                 <div className="h-1.5 bg-white/8 rounded-full overflow-hidden">
                                     <motion.div
@@ -362,7 +362,7 @@ export default function PatientHomePage() {
                                     />
                                 </div>
                             </div>
-                            <span className="text-[10px] font-black text-yellow-400 whitespace-nowrap">Nv {level}</span>
+                            <span className="text-[10px] font-black text-yellow-400 whitespace-nowrap">Nv {level + 1}</span>
                             <span className="text-[9px] text-slate-600 whitespace-nowrap">{xp - minCurrent}/{minNext - minCurrent} XP</span>
                         </div>
                     )
@@ -618,9 +618,9 @@ export default function PatientHomePage() {
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3">Registrar agora</p>
                 <div className="grid grid-cols-3 gap-2">
                     {[
-                        { key: 'water', label: 'Água', icon: Droplet, color: 'text-sky-400', bg: 'bg-sky-500/8 border-sky-500/15', activeBg: 'bg-sky-500/20 border-sky-400/35', xp: '+10 XP' },
-                        { key: 'meal', label: 'Refeição', icon: UtensilsCrossed, color: 'text-emerald-400', bg: 'bg-emerald-500/8 border-emerald-500/15', activeBg: 'bg-emerald-500/20 border-emerald-400/35', xp: '+15 XP' },
-                        { key: 'workout', label: 'Exercício', icon: Dumbbell, color: 'text-amber-400', bg: 'bg-amber-500/8 border-amber-500/15', activeBg: 'bg-amber-500/20 border-amber-400/35', xp: '+20 XP' },
+                        { key: 'water', label: 'Água', icon: Droplet, color: 'text-sky-400', bg: 'bg-sky-500/8 border-sky-500/15', activeBg: 'bg-sky-500/20 border-sky-400/35', xp: `+${DAILY_LOG_XP.water_check} XP` },
+                        { key: 'meal', label: 'Refeição', icon: UtensilsCrossed, color: 'text-emerald-400', bg: 'bg-emerald-500/8 border-emerald-500/15', activeBg: 'bg-emerald-500/20 border-emerald-400/35', xp: `+${DAILY_LOG_XP.meal_plan_check} XP` },
+                        { key: 'workout', label: 'Exercício', icon: Dumbbell, color: 'text-amber-400', bg: 'bg-amber-500/8 border-amber-500/15', activeBg: 'bg-amber-500/20 border-amber-400/35', xp: `+${DAILY_LOG_XP.workout_check} XP` },
                     ].map(({ key, label, icon: Icon, color, bg, activeBg, xp }) => {
                         const done = quickTaps[key as keyof typeof quickTaps]
                         return (
