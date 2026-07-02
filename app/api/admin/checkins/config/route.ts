@@ -1,40 +1,26 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { createSupabaseServerClient } from '@/lib/supabase-server'
+// ROTA REMOVIDA — Fase 1 · Limpeza de código morto
+//
+// A tela de Check-ins usa as rotas irmãs (GET/POST /api/admin/checkins)
+// para listar e criar check-ins — nunca chamou esta rota de configuração.
+//
+// A configuração de check-in (frequência, dia, hora, nota) fica em
+// tenants.settings.checkin_config e pode ser editada diretamente via
+// Settings (admin/views/SettingsView.tsx).
+//
+// Histórico: git show refactor/fase1-limpeza-codigo-morto:app/api/admin/checkins/config/route.ts
+
+import { NextResponse } from 'next/server'
 
 export async function GET() {
-    const supabase = createSupabaseServerClient(cookies())
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const { data: tenant } = await supabase
-        .from('tenants').select('settings').eq('owner_id', user.id).single()
-    if (!tenant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-    const config = tenant.settings?.checkin_config || null
-    return NextResponse.json({ config })
+  return NextResponse.json(
+    { error: 'Rota descontinuada. Configure check-ins em Configurações.' },
+    { status: 410 }
+  )
 }
 
-export async function POST(request: NextRequest) {
-    const supabase = createSupabaseServerClient(cookies())
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const { data: tenant } = await supabase
-        .from('tenants').select('id, settings').eq('owner_id', user.id).single()
-    if (!tenant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-    const body = await request.json()
-    const { config } = body  // { frequency, reminder_day, reminder_hour, custom_note }
-
-    const currentSettings = tenant.settings || {}
-    const newSettings = { ...currentSettings, checkin_config: config }
-
-    const { error } = await supabase
-        .from('tenants')
-        .update({ settings: newSettings })
-        .eq('id', tenant.id)
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ success: true })
+export async function POST() {
+  return NextResponse.json(
+    { error: 'Rota descontinuada. Configure check-ins em Configurações.' },
+    { status: 410 }
+  )
 }
