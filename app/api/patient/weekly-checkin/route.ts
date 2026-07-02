@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { triggerOrchestrator } from '@/lib/services/anthropic'
+import { WEEKLY_CHECKIN_XP } from '@/lib/gamification'
 
 export async function POST(request: NextRequest) {
     const supabase = createSupabaseServerClient(cookies())
@@ -76,6 +77,16 @@ Retorne APENAS JSON válido:
     weekStart.setDate(weekStart.getDate() - (day === 0 ? 6 : day - 1))
     const weekStartStr = weekStart.toISOString().split('T')[0]
 
+    // ⚡ BUGFIX: precisa saber se é um envio NOVO (não um reenvio da mesma semana)
+    // antes do upsert, para só creditar XP uma vez por semana.
+    const { data: existingCheckin } = await supabase
+        .from('weekly_checkin_responses')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('week_start', weekStartStr)
+        .single()
+    const isNewSubmission = !existingCheckin
+
     const { data, error } = await supabase
         .from('weekly_checkin_responses')
         .upsert({
@@ -100,10 +111,27 @@ Retorne APENAS JSON válido:
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // ⚡ BUGFIX: a Home promete "Responda em 2 min e ganhe +20 XP" (e a Loja lista
+    // "Check-in semanal enviado: +20 coins" no guia de como ganhar NutriCoins),
+    // mas essa rota nunca creditava XP/NutriCoins — a promessa nunca era cumprida.
+    if (isNewSubmission) {
+        const { error: xpError } = await supabase.rpc('increment_user_points', {
+            user_id: user.id,
+            points_to_add: WEEKLY_CHECKIN_XP,
+        })
+        if (xpError) console.error('[Checkin] XP award error:', xpError)
+    }
+
     // ── Trigger orchestrator: checkin_submitted ─────────────────────────
     triggerOrchestrator('checkin_submitted', profile.tenant_id, user.id)
 
-    return NextResponse.json({ success: true, data, ai_summary: aiSummary, ai_suggestion: aiSuggestion })
+    return NextResponse.json({
+        success: true,
+        data,
+        ai_summary: aiSummary,
+        ai_suggestion: aiSuggestion,
+        xp_awarded: isNewSubmission ? WEEKLY_CHECKIN_XP : 0,
+    })
 }
 
 export async function GET(request: NextRequest) {
