@@ -58,8 +58,6 @@ import VisualSettingsOverlay from "./components/VisualSettingsOverlay"
 import { signOutAction } from "./actions/authActions"
 import { SettingsLoginView } from "./views/SettingsLoginView"
 import { AgentsDashboardView } from "./views/AgentsDashboardView"
-import { AgentApprovalsView } from "./views/AgentApprovalsView"
-import { AgentQueueView } from "./views/AgentQueueView"
 import { MealPlanBuilderView } from "./views/MealPlanBuilderView"
 import { MealPlansView } from "./views/MealPlansView"
 import { AppointmentsView } from "./views/AppointmentsView"
@@ -87,7 +85,7 @@ type ViewType =
     | 'dashboard' | 'communication' | 'protocols' | 'challenges' | 'patients'
     | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits'
     | 'library' | 'settings' | 'settings-login' | 'club-plan' | 'agents-dashboard'
-    | 'agent-approvals' | 'agent-queue' | 'meal-plans' | 'meal-plans-premium'
+    | 'meal-plans' | 'meal-plans-premium'
     | 'appointments' | 'professionals' | 'product-gateway' | 'annual-planner'
     | 'strategic-planner' | 'content-planner' | 'analytics' | 'patient-journey'
     | 'products' | 'approvals' | 'recipes' | 'manager-learning' | 'habits' | 'vip-settings' | 'email-marketing'
@@ -170,9 +168,7 @@ const navGroups: NavGroup[] = [
         items: [
             { id: 'ai-brain', label: 'Laboratório IA' },
             { id: 'agents-dashboard', label: 'Agentes IA' },
-            { id: 'agent-approvals', label: 'Aprovações', badge: true },
-            { id: 'approvals', label: 'Fila de Aprovação', badge: true },
-            { id: 'agent-queue', label: 'Fila de Agentes' },
+            { id: 'approvals', label: 'Aprovações', badge: true },
             { id: 'meal-plans-premium', label: 'Planos Avançados' },
             { id: 'ai-credits', label: 'Créditos IA' },
             { id: 'strategic-planner', label: 'Planejamento' },
@@ -223,9 +219,9 @@ export default function AdminDashboard({
     // Poll pending approvals every 60s
     useEffect(() => {
         const load = () =>
-            fetch('/api/admin/agent-approvals?status=pending')
+            fetch('/api/admin/approvals?status=pending')
                 .then(r => r.json())
-                .then(d => setPendingApprovals(Array.isArray(d) ? d.length : 0))
+                .then(d => setPendingApprovals(d.pending_count || 0))
                 .catch(() => {})
         load()
         const t = setInterval(load, 60_000)
@@ -261,8 +257,6 @@ export default function AdminDashboard({
             case 'ai-brain':           return <AISettingsView setView={setActiveView} tenantId={tenantId} />
             case 'ai-credits':         return <AICreditsView setView={setActiveView} tenantId={tenantId} />
             case 'agents-dashboard':   return <AgentsDashboardView setView={setActiveView} tenantId={tenantId} />
-            case 'agent-approvals':    return <AgentApprovalsView setView={setActiveView} tenantId={tenantId} />
-            case 'agent-queue':        return <AgentQueueView setView={setActiveView} tenantId={tenantId} />
             case 'patient-journey':    return <JourneyView setView={setActiveView} tenantId={tenantId} />
             case 'meal-plans':         return <MealPlanBuilderView setView={setActiveView} tenantId={tenantId} />
             case 'meal-plans-premium': return <MealPlansView setView={setActiveView} tenantId={tenantId} tenantName={tenantName} />
