@@ -60,9 +60,7 @@ import { MealPlansView } from "./views/MealPlansView"
 import { AppointmentsView } from "./views/AppointmentsView"
 import { ProfessionalsView } from "./views/ProfessionalsView"
 import { ProductGatewayView } from "./views/ProductGatewayView"
-import { AnnualPlannerView } from "./views/AnnualPlannerView"
 import { StrategicPlannerView } from "./views/StrategicPlannerView"
-import { ContentPlannerView } from "./views/ContentPlannerView"
 import { AnalyticsView } from "./views/AnalyticsView"
 import { JourneyView } from "./views/JourneyView"
 import { ProductsView } from "./views/ProductsView"
@@ -83,8 +81,8 @@ type ViewType =
     | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits'
     | 'library' | 'settings' | 'club-plan' | 'agents-dashboard'
     | 'meal-plans' | 'meal-plans-premium'
-    | 'appointments' | 'professionals' | 'product-gateway' | 'annual-planner'
-    | 'strategic-planner' | 'content-planner' | 'analytics' | 'patient-journey'
+    | 'appointments' | 'professionals' | 'product-gateway'
+    | 'strategic-planner' | 'analytics' | 'patient-journey'
     | 'products' | 'approvals' | 'recipes' | 'manager-learning' | 'habits' | 'vip-settings' | 'email-marketing'
     | 'questionnaires' | 'community' | 'billing'
 
@@ -148,13 +146,12 @@ const navGroups: NavGroup[] = [
         items: [
             { id: 'billing', label: 'Faturamento' },
             { id: 'club-plan', label: 'Plano do Clube' },
+            { id: 'strategic-planner', label: 'Régua de Eventos' },
             { id: 'vip-settings', label: 'Área VIP' },
             { id: 'community', label: 'Comunidade' },
             { id: 'sales-page', label: 'Página de Vendas' },
             { id: 'product-gateway', label: 'Catálogo de Produtos' },
             { id: 'products', label: 'Produtos' },
-            { id: 'annual-planner', label: 'Planejador Anual' },
-            { id: 'content-planner', label: 'Conteúdo' },
             { id: 'professionals', label: 'Profissionais' },
         ],
     },
@@ -168,7 +165,6 @@ const navGroups: NavGroup[] = [
             { id: 'approvals', label: 'Aprovações', badge: true },
             { id: 'meal-plans-premium', label: 'Planos Avançados' },
             { id: 'ai-credits', label: 'Créditos IA' },
-            { id: 'strategic-planner', label: 'Planejamento' },
             { id: 'manager-learning', label: 'Gerente IA' },
             { id: 'settings', label: 'Configurações' },
         ],
@@ -259,9 +255,7 @@ export default function AdminDashboard({
             case 'appointments':       return <AppointmentsView setView={setActiveView} tenantId={tenantId} tenantName={tenantName} />
             case 'professionals':      return <ProfessionalsView setView={setActiveView} tenantId={tenantId} />
             case 'product-gateway':    return <ProductGatewayView setView={setActiveView} tenantId={tenantId} />
-            case 'annual-planner':     return <AnnualPlannerView setView={setActiveView} tenantId={tenantId} />
             case 'strategic-planner':  return <StrategicPlannerView setView={setActiveView} />
-            case 'content-planner':    return <ContentPlannerView />
             case 'analytics':          return <AnalyticsView setView={setActiveView} />
             case 'products':           return <ProductsView setView={setActiveView} tenantId={tenantId} />
             case 'approvals':          return <ApprovalsView setView={setActiveView} tenantId={tenantId} />
