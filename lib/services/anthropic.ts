@@ -20,39 +20,45 @@ function toGeminiMessages(messages: ClaudeOptions['messages']) {
   }))
 }
 
-export async function callClaude(opts: ClaudeOptions): Promise<string> {
-  const res = await fetch(`${API_URL}:generateContent?key=${GEMINI_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: toGeminiMessages(opts.messages),
-      ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
-      generationConfig: { maxOutputTokens: opts.maxTokens || 1000 },
-    }),
-  })
-  if (!res.ok) {
+// Gemini free tier ocasionalmente responde 503 (sobrecarga) ou 429 (rate limit) —
+// erros transitórios que se resolvem sozinhos em segundos. Tenta de novo com backoff
+// antes de propagar o erro pro chamador.
+const RETRYABLE_STATUS = new Set([429, 503])
+
+async function fetchGeminiWithRetry(url: string, body: unknown, attempts = 3): Promise<any> {
+  let lastError: Error = new Error('Gemini: falha desconhecida')
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (res.ok) return res.json()
+
     const err = await res.json().catch(() => ({ error: 'Unknown' }))
-    throw new Error(`Gemini error ${res.status}: ${JSON.stringify(err)}`)
+    lastError = new Error(`Gemini error ${res.status}: ${JSON.stringify(err)}`)
+    if (!RETRYABLE_STATUS.has(res.status) || attempt === attempts) throw lastError
+
+    await new Promise(resolve => setTimeout(resolve, 500 * attempt))
   }
-  const data = await res.json()
+  throw lastError
+}
+
+export async function callClaude(opts: ClaudeOptions): Promise<string> {
+  const data = await fetchGeminiWithRetry(`${API_URL}:generateContent?key=${GEMINI_API_KEY}`, {
+    contents: toGeminiMessages(opts.messages),
+    ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
+    generationConfig: { maxOutputTokens: opts.maxTokens || 1000 },
+  })
   return data.candidates?.[0]?.content?.parts?.[0]?.text || ''
 }
 
 export async function callClaudeJSON<T = any>(opts: ClaudeOptions): Promise<T> {
-  const res = await fetch(`${API_URL}:generateContent?key=${GEMINI_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: toGeminiMessages(opts.messages),
-      ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
-      generationConfig: { maxOutputTokens: opts.maxTokens || 1000, responseMimeType: 'application/json' },
-    }),
+  const data = await fetchGeminiWithRetry(`${API_URL}:generateContent?key=${GEMINI_API_KEY}`, {
+    contents: toGeminiMessages(opts.messages),
+    ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
+    generationConfig: { maxOutputTokens: opts.maxTokens || 1000, responseMimeType: 'application/json' },
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Unknown' }))
-    throw new Error(`Gemini error ${res.status}: ${JSON.stringify(err)}`)
-  }
-  const data = await res.json()
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
 
   // Robust JSON extraction: handles markdown fences, leading/trailing junk,
