@@ -5,8 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Search, X, Check, ChevronDown, Loader2, ArrowLeft, Info,
-  Camera, AlertCircle, Minus, Plus,
+  Camera, AlertCircle, Minus, Plus, Sparkles, Flame, Drumstick, Wheat, Droplets,
 } from "lucide-react"
+import { usePlanGate } from "@/lib/hooks/usePlanGate"
+import { PlanUpgradePrompt } from "@/components/patient/PlanUpgradePrompt"
+import { ProgressRing } from "@/components/patient/ProgressRing"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,6 +24,17 @@ interface Alimento {
   fiber_g: number | null
   serving_size_g: number | null
   serving_label: string | null
+  vitamin_c_mg: number | null
+  iron_mg: number | null
+  calcium_mg: number | null
+  potassium_mg: number | null
+}
+
+interface MetaDiaria {
+  calorias_meta: number
+  proteina_meta_g: number
+  carboidrato_meta_g: number
+  lipideos_meta_g: number
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -32,6 +46,9 @@ const REFEICOES = [
   { key: 'jantar',     label: 'Jantar' },
   { key: 'ceia',       label: 'Ceia' },
 ]
+
+// Ingestão Diária Recomendada (ANVISA RDC 269/2005), usada só para o % exibido
+const IDR_MG = { vitamina_c: 45, ferro: 14, calcio: 1000, potassio: 3500 }
 
 function calcMacro(valorPer100g: number | null, gramas: number): number | null {
   if (valorPer100g == null) return null
@@ -68,6 +85,7 @@ function AdicionarAlimentoInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const refeicaoParam = searchParams.get('refeicao') || 'almoco'
+  const { allowed: podeUsarFotoIA, loading: loadingPlanGate } = usePlanGate('plate_analysis_ai')
 
   const [query, setQuery] = useState('')
   const [resultados, setResultados] = useState<Alimento[]>([])
@@ -83,12 +101,22 @@ function AdicionarAlimentoInner() {
   const fotoInputRef = useRef<HTMLInputElement>(null)
   const [analisandoFoto, setAnalisandoFoto] = useState(false)
   const [alimentosFoto, setAlimentosFoto] = useState<AlimentoFoto[] | null>(null)
+  const [insightsFoto, setInsightsFoto] = useState<string[]>([])
   const [salvandoFoto, setSalvandoFoto] = useState(false)
+  const [metaHoje, setMetaHoje] = useState<MetaDiaria | null>(null)
 
   const showToast = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg })
     setTimeout(() => setToast(null), 3500)
   }
+
+  // Carrega a meta diária vigente (usada nos anéis de progresso da análise por foto)
+  useEffect(() => {
+    fetch('/api/patient/diario/meta')
+      .then(r => r.json())
+      .then(d => setMetaHoje(d.meta ?? null))
+      .catch(() => setMetaHoje(null))
+  }, [])
 
   // ─── Foto handlers ────────────────────────────────────────────────────────
 
@@ -98,6 +126,7 @@ function AdicionarAlimentoInner() {
 
     setAnalisandoFoto(true)
     setAlimentosFoto(null)
+    setInsightsFoto([])
 
     try {
       const base64 = await fileToBase64(file)
@@ -108,14 +137,19 @@ function AdicionarAlimentoInner() {
       })
       if (!res.ok) {
         const err = await res.json()
+        if (err.code === 'PLAN_UPGRADE_REQUIRED') {
+          showToast('error', 'Avaliação de pratos por IA é exclusiva do plano VIP')
+          return
+        }
         throw new Error(err.error || 'Erro ao analisar foto')
       }
-      const { alimentos } = await res.json()
+      const { alimentos, insights } = await res.json()
       if (!alimentos || alimentos.length === 0) {
         showToast('error', 'Nenhum alimento identificado na foto')
         return
       }
       setAlimentosFoto(alimentos.map((a: Omit<AlimentoFoto, 'selecionado'>) => ({ ...a, selecionado: true })))
+      setInsightsFoto(insights ?? [])
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : 'Erro ao analisar foto')
     } finally {
@@ -189,6 +223,18 @@ function AdicionarAlimentoInner() {
   const carboCalc = selecionado ? calcMacro(selecionado.carbs_g, gramas) : null
   const gordCalc = selecionado ? calcMacro(selecionado.total_fat_g, gramas) : null
   const fibraCalc = selecionado ? calcMacro(selecionado.fiber_g, gramas) : null
+  const vitCCalc = selecionado ? calcMacro(selecionado.vitamin_c_mg, gramas) : null
+  const ferroCalc = selecionado ? calcMacro(selecionado.iron_mg, gramas) : null
+  const calcioCalc = selecionado ? calcMacro(selecionado.calcium_mg, gramas) : null
+  const potassioCalc = selecionado ? calcMacro(selecionado.potassium_mg, gramas) : null
+  const temMicronutrientes = [vitCCalc, ferroCalc, calcioCalc, potassioCalc].some(v => v != null)
+
+  // Totais da refeição fotografada (apenas itens selecionados), usados nos anéis de progresso
+  const selecionadosFoto = alimentosFoto?.filter(a => a.selecionado) ?? []
+  const totalKcalFoto = selecionadosFoto.reduce((s, a) => s + a.calorias, 0)
+  const totalProtFoto = selecionadosFoto.reduce((s, a) => s + (a.proteina_g || 0), 0)
+  const totalCarboFoto = selecionadosFoto.reduce((s, a) => s + (a.carbo_g || 0), 0)
+  const totalGordFoto = selecionadosFoto.reduce((s, a) => s + (a.gordura_g || 0), 0)
 
   const handleSelecionarAlimento = (alimento: Alimento) => {
     setSelecionado(alimento)
@@ -319,25 +365,33 @@ function AdicionarAlimentoInner() {
         onChange={handleFotoSelecionada}
       />
 
-      {/* Botão fotografar */}
-      {!alimentosFoto && (
-        <button
-          onClick={() => fotoInputRef.current?.click()}
-          disabled={analisandoFoto}
-          className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 hover:border-indigo-500/30 rounded-2xl text-sm text-slate-300 transition-all disabled:opacity-50"
-        >
-          {analisandoFoto ? (
-            <>
-              <Loader2 size={16} className="animate-spin text-indigo-400" />
-              <span className="text-indigo-400">Analisando foto...</span>
-            </>
-          ) : (
-            <>
-              <Camera size={16} className="text-indigo-400" />
-              Fotografar refeição
-            </>
-          )}
-        </button>
+      {/* Botão fotografar (exclusivo plano VIP) */}
+      {!alimentosFoto && !loadingPlanGate && (
+        podeUsarFotoIA ? (
+          <button
+            onClick={() => fotoInputRef.current?.click()}
+            disabled={analisandoFoto}
+            className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 hover:border-indigo-500/30 rounded-2xl text-sm text-slate-300 transition-all disabled:opacity-50"
+          >
+            {analisandoFoto ? (
+              <>
+                <Loader2 size={16} className="animate-spin text-indigo-400" />
+                <span className="text-indigo-400">Analisando foto...</span>
+              </>
+            ) : (
+              <>
+                <Camera size={16} className="text-indigo-400" />
+                Fotografar refeição
+              </>
+            )}
+          </button>
+        ) : (
+          <PlanUpgradePrompt
+            feature="Avaliação de pratos por IA"
+            benefit="Fotografe sua refeição e deixe a IA identificar os alimentos, porções e calorias automaticamente. Exclusivo do plano VIP."
+            badgeLabel="Disponível no plano VIP"
+          />
+        )
       )}
 
       {/* Tela de confirmação dos alimentos identificados */}
@@ -354,12 +408,60 @@ function AdicionarAlimentoInner() {
                 Alimentos identificados
               </p>
               <button
-                onClick={() => setAlimentosFoto(null)}
+                onClick={() => { setAlimentosFoto(null); setInsightsFoto([]) }}
                 className="text-slate-500 hover:text-white transition-colors"
               >
                 <X size={14} />
               </button>
             </div>
+
+            {/* Resumo nutricional da refeição fotografada */}
+            {selecionadosFoto.length > 0 && (
+              <div className="bg-white/5 border border-white/10 rounded-3xl p-4">
+                <div className="flex items-center justify-center gap-5">
+                  <ProgressRing value={totalKcalFoto} max={metaHoje?.calorias_meta || 1} size={72} strokeWidth={6} color="#818cf8">
+                    <Flame size={14} className="text-indigo-400 mb-0.5" />
+                    <span className="text-white text-sm font-black leading-none">{Math.round(totalKcalFoto)}</span>
+                    <span className="text-slate-500 text-[9px]">kcal</span>
+                  </ProgressRing>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: 'Prot', value: totalProtFoto, max: metaHoje?.proteina_meta_g, color: '#fb7185', Icon: Drumstick },
+                      { label: 'Carb', value: totalCarboFoto, max: metaHoje?.carboidrato_meta_g, color: '#fbbf24', Icon: Wheat },
+                      { label: 'Gord', value: totalGordFoto, max: metaHoje?.lipideos_meta_g, color: '#38bdf8', Icon: Droplets },
+                    ].map(({ label, value, max, color, Icon }) => (
+                      <div key={label} className="flex flex-col items-center gap-1">
+                        <ProgressRing value={value} max={max || 1} size={48} strokeWidth={4} color={color}>
+                          <Icon size={10} style={{ color }} />
+                          <span className="text-white text-[10px] font-bold leading-none mt-0.5">{Math.round(value)}g</span>
+                        </ProgressRing>
+                        <span className="text-slate-500 text-[9px] uppercase font-black tracking-wider">{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {metaHoje && (
+                  <p className="text-slate-500 text-[11px] text-center mt-3">
+                    Essa refeição representa <span className="text-indigo-400 font-bold">{Math.round((totalKcalFoto / metaHoje.calorias_meta) * 100)}%</span> da sua meta calórica diária
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Insights da refeição gerados pela IA */}
+            {insightsFoto.length > 0 && (
+              <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-2xl p-4 space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                  <Sparkles size={11} /> Insights da refeição
+                </p>
+                {insightsFoto.map((insight, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <Check size={13} className="text-indigo-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-slate-300 text-xs">{insight}</p>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {alimentosFoto.map((alimento, idx) => (
               <div
@@ -441,7 +543,7 @@ function AdicionarAlimentoInner() {
             </button>
 
             <button
-              onClick={() => setAlimentosFoto(null)}
+              onClick={() => { setAlimentosFoto(null); setInsightsFoto([]) }}
               className="w-full text-center text-slate-500 text-xs py-1"
             >
               Buscar manualmente
@@ -591,6 +693,28 @@ function AdicionarAlimentoInner() {
                     </div>
                   )}
                 </div>
+
+                {/* Micronutrientes (% da Ingestão Diária Recomendada) */}
+                {temMicronutrientes && (
+                  <div className="mt-4 pt-3 border-t border-white/5">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Micronutrientes</p>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { label: 'Vit. C', value: vitCCalc, idr: IDR_MG.vitamina_c },
+                        { label: 'Ferro', value: ferroCalc, idr: IDR_MG.ferro },
+                        { label: 'Cálcio', value: calcioCalc, idr: IDR_MG.calcio },
+                        { label: 'Potássio', value: potassioCalc, idr: IDR_MG.potassio },
+                      ].map(({ label, value, idr }) => (
+                        <div key={label} className="text-center bg-white/5 rounded-xl px-2 py-2">
+                          <p className="text-[9px] text-slate-500 uppercase tracking-wider">{label}</p>
+                          <p className="text-white text-xs font-bold mt-0.5">
+                            {value != null ? `${Math.round((value / idr) * 100)}%` : '—'}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

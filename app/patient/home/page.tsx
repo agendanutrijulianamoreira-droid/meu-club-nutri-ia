@@ -23,12 +23,14 @@ import {
 } from "lucide-react"
 import { usePatientEngine } from "@/lib/hooks/usePatientEngine"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase-browser"
 import { ReminderSettings } from "@/components/patient/ReminderSettings"
 import { StreakTimeline } from "@/components/patient/StreakTimeline"
 
 export default function PatientHomePage() {
+    const router = useRouter()
     const {
         loading,
         activeProtocol,
@@ -616,7 +618,7 @@ export default function PatientHomePage() {
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3">Registrar agora</p>
                 <div className="grid grid-cols-3 gap-2">
                     {[
-                        { key: 'water', label: '+500ml Água', icon: Droplet, color: 'text-sky-400', bg: 'bg-sky-500/8 border-sky-500/15', activeBg: 'bg-sky-500/20 border-sky-400/35', xp: '+10 XP' },
+                        { key: 'water', label: 'Água', icon: Droplet, color: 'text-sky-400', bg: 'bg-sky-500/8 border-sky-500/15', activeBg: 'bg-sky-500/20 border-sky-400/35', xp: '+10 XP' },
                         { key: 'meal', label: 'Refeição', icon: UtensilsCrossed, color: 'text-emerald-400', bg: 'bg-emerald-500/8 border-emerald-500/15', activeBg: 'bg-emerald-500/20 border-emerald-400/35', xp: '+15 XP' },
                         { key: 'workout', label: 'Exercício', icon: Dumbbell, color: 'text-amber-400', bg: 'bg-amber-500/8 border-amber-500/15', activeBg: 'bg-amber-500/20 border-amber-400/35', xp: '+20 XP' },
                     ].map(({ key, label, icon: Icon, color, bg, activeBg, xp }) => {
@@ -625,7 +627,7 @@ export default function PatientHomePage() {
                             <motion.button
                                 key={key}
                                 whileTap={{ scale: 0.92 }}
-                                onClick={() => handleQuickTap(key as 'water' | 'meal' | 'workout')}
+                                onClick={() => key === 'water' ? router.push('/patient/hidratacao') : handleQuickTap(key as 'meal' | 'workout')}
                                 className={`flex flex-col items-center gap-2 py-4 px-2 rounded-2xl border transition-all ${done ? activeBg : bg}`}
                             >
                                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${done ? 'bg-white/10' : 'bg-white/5'}`}>

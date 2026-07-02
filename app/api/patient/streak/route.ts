@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase-server"
 import { cookies } from "next/headers"
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     const supabase = createSupabaseServerClient(cookies())
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -14,8 +14,11 @@ export async function GET() {
         .single()
     if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+    const daysParam = parseInt(new URL(request.url).searchParams.get('days') || '7')
+    const numDays = Math.min(Math.max(daysParam, 1), 90)
+
     const days: string[] = []
-    for (let i = 6; i >= 0; i--) {
+    for (let i = numDays - 1; i >= 0; i--) {
         const d = new Date()
         d.setDate(d.getDate() - i)
         days.push(d.toISOString().split('T')[0])

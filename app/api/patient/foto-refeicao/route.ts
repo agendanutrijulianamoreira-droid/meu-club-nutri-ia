@@ -4,12 +4,10 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 /**
  * POST /api/patient/foto-refeicao
- * Recebe imagem em base64, chama analyze-plate Edge Function,
- * retorna lista de alimentos reconhecidos com porção e calorias estimadas.
+ * Recebe imagem em base64, analisa via Gemini Vision e retorna a lista de
+ * alimentos reconhecidos (porção, calorias, macros) e insights da refeição.
+ * Exclusivo do plano VIP.
  */
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 interface AlimentoReconhecido {
   nome: string
@@ -26,6 +24,19 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('current_plan, tenant_id')
+    .eq('user_id', user.id)
+    .single()
+
+  if (profile?.current_plan !== 'vip') {
+    return NextResponse.json(
+      { error: 'Avaliação de pratos por IA é exclusiva do plano VIP', code: 'PLAN_UPGRADE_REQUIRED' },
+      { status: 403 }
+    )
+  }
+
   let body: { image_base64?: string }
   try {
     body = await request.json()
@@ -41,45 +52,6 @@ export async function POST(request: NextRequest) {
   // Remove data URL prefix se presente
   const base64Data = image_base64.replace(/^data:image\/\w+;base64,/, '')
 
-  try {
-    // Chama analyze-plate Edge Function com prompt adaptado para listar alimentos
-    const edgeRes = await fetch(`${SUPABASE_URL}/functions/v1/analyze-plate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify({
-        image_base64: base64Data,
-        user_id: user.id,
-        mode: 'list_foods', // novo campo para indicar modo de listagem
-      }),
-    })
-
-    if (!edgeRes.ok) {
-      // Fallback: chamar Gemini Vision diretamente se a Edge Function não suportar mode
-      return await analisarComGeminiDireto(base64Data, user.id)
-    }
-
-    const edgeData = await edgeRes.json()
-
-    // Se a Edge Function retornou no formato antigo (análise única), converter
-    if (edgeData.alimentos && Array.isArray(edgeData.alimentos)) {
-      return NextResponse.json({ alimentos: edgeData.alimentos })
-    }
-
-    // Fallback para análise direta
-    return await analisarComGeminiDireto(base64Data, user.id)
-  } catch (error) {
-    console.error('[foto-refeicao]', error)
-    return await analisarComGeminiDireto(base64Data, user.id)
-  }
-}
-
-async function analisarComGeminiDireto(
-  base64Data: string,
-  userId: string
-): Promise<NextResponse> {
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY
   if (!GEMINI_API_KEY) {
     return NextResponse.json({ error: 'Configuração de IA ausente' }, { status: 500 })
@@ -96,6 +68,8 @@ Para cada alimento identificado, estime:
 6. Gorduras em gramas (se possível)
 7. Nível de confiança do reconhecimento: "alta", "media" ou "baixa"
 
+Depois, escreva de 1 a 2 insights curtos e objetivos sobre a refeição como um todo (ex: "Rica em proteína, ótima para saciedade", "Baixa em fibras, considere adicionar vegetais").
+
 Retorne APENAS JSON no formato:
 {
   "alimentos": [
@@ -108,7 +82,8 @@ Retorne APENAS JSON no formato:
       "gordura_g": 7,
       "confianca": "alta"
     }
-  ]
+  ],
+  "insights": ["Insight curto 1", "Insight curto 2"]
 }
 
 Regras:
@@ -116,7 +91,8 @@ Regras:
 - Use nomes comuns brasileiros
 - Confiança "baixa" para itens difíceis de distinguir na foto
 - Máximo 10 alimentos por imagem
-- Se não for uma imagem de comida, retorne { "alimentos": [] }`
+- Máximo 2 insights, cada um com no máximo 1 frase
+- Se não for uma imagem de comida, retorne { "alimentos": [], "insights": [] }`
 
   try {
     const res = await fetch(
@@ -165,7 +141,22 @@ Regras:
       confianca: ['alta', 'media', 'baixa'].includes(a.confianca) ? a.confianca : 'media',
     })).filter((a: AlimentoReconhecido) => a.nome && a.calorias > 0)
 
-    return NextResponse.json({ alimentos })
+    const insights: string[] = Array.isArray(parsed.insights)
+      ? parsed.insights.filter((i: unknown) => typeof i === 'string' && i.trim()).slice(0, 2)
+      : []
+
+    supabase.from('ai_generations').insert({
+      user_id: user.id,
+      tenant_id: profile?.tenant_id,
+      prompt_text: 'Avaliação de prato por foto (VIP)',
+      generated_content: { alimentos, insights },
+      gpt_model: 'gemini-2.5-flash-preview-05-20',
+      status: 'success',
+    }).then(({ error }) => {
+      if (error) console.error('[foto-refeicao] log ai_generations:', error)
+    })
+
+    return NextResponse.json({ alimentos, insights })
   } catch (error) {
     console.error('[foto-refeicao] parse error:', error)
     return NextResponse.json({ error: 'Erro ao processar resposta da IA' }, { status: 500 })

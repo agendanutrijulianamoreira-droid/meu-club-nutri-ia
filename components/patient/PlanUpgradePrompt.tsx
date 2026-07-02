@@ -8,9 +8,10 @@ interface PlanUpgradePromptProps {
   feature: string
   benefit: string
   onCtaClick?: () => void
+  badgeLabel?: string
 }
 
-export function PlanUpgradePrompt({ feature, benefit, onCtaClick }: PlanUpgradePromptProps) {
+export function PlanUpgradePrompt({ feature, benefit, onCtaClick, badgeLabel = "Disponível no Modo Paciente" }: PlanUpgradePromptProps) {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
       className="bg-indigo-500/10 border border-indigo-500/30 rounded-3xl p-5 text-center">
@@ -21,7 +22,7 @@ export function PlanUpgradePrompt({ feature, benefit, onCtaClick }: PlanUpgradeP
       <p className="text-slate-400 text-sm mb-4">{benefit}</p>
       <div className="bg-indigo-600/20 border border-indigo-500/30 rounded-2xl px-4 py-2 inline-flex items-center gap-1.5 mb-3">
         <Crown className="w-3.5 h-3.5 text-indigo-400" />
-        <span className="text-indigo-300 text-sm font-medium">Disponível no Modo Paciente</span>
+        <span className="text-indigo-300 text-sm font-medium">{badgeLabel}</span>
       </div>
       <div className="flex items-center justify-center gap-2">
         {onCtaClick ? (

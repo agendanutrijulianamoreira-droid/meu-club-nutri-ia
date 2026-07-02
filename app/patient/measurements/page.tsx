@@ -2,8 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ChevronLeft, Plus, Scale, Ruler, Loader2, Check, TrendingDown, TrendingUp, Minus, X } from "lucide-react"
+import { ChevronLeft, Plus, Scale, Ruler, Loader2, Check, TrendingDown, TrendingUp, Minus, X, Trophy } from "lucide-react"
 import Link from "next/link"
+import { ProgressRing } from "@/components/patient/ProgressRing"
+
+// Marcos fixos de perda de peso (kg) — não dependem de meta cadastrada
+const WEIGHT_MILESTONES_KG = [1, 2, 3, 5, 7, 10, 15, 20, 25, 30]
 
 interface Measurement {
     id: string
@@ -38,6 +42,8 @@ function delta(current: number | null, previous: number | null, lower_is_better 
 
 export default function MeasurementsPage() {
     const [measurements, setMeasurements] = useState<Measurement[]>([])
+    const [patientName, setPatientName] = useState<string | null>(null)
+    const [initialWeight, setInitialWeight] = useState<number | null>(null)
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -62,6 +68,8 @@ export default function MeasurementsPage() {
             const res = await fetch('/api/patient/measurements')
             const data = await res.json()
             setMeasurements(data.measurements || [])
+            setPatientName(data.patient_name ?? null)
+            setInitialWeight(data.initial_weight ?? null)
         } catch { } finally { setLoading(false) }
     }
 
@@ -99,6 +107,11 @@ export default function MeasurementsPage() {
 
     const latest = measurements[0]
     const previous = measurements[1]
+
+    const latestWeight = latest?.weight_kg ?? null
+    const totalLostKg = initialWeight != null && latestWeight != null ? initialWeight - latestWeight : null
+    const nextMilestoneKg = totalLostKg != null ? WEIGHT_MILESTONES_KG.find(m => totalLostKg < m) : null
+    const prevMilestoneKg = totalLostKg != null ? [...WEIGHT_MILESTONES_KG].reverse().find(m => totalLostKg >= m) ?? 0 : 0
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-[#0d1a2b]">
@@ -320,6 +333,56 @@ export default function MeasurementsPage() {
                                 </div>
                             )
                         })()}
+
+                        {/* Marcos de progresso */}
+                        {totalLostKg != null && totalLostKg > 0 && (
+                            <div className="bg-gradient-to-br from-emerald-950/50 to-teal-950/30 border border-emerald-500/25 rounded-3xl p-5">
+                                <div className="flex items-center gap-4">
+                                    <ProgressRing
+                                        value={totalLostKg - prevMilestoneKg}
+                                        max={nextMilestoneKg ? nextMilestoneKg - prevMilestoneKg : 1}
+                                        size={72} strokeWidth={6} color="#10b981"
+                                    >
+                                        <Trophy size={16} className="text-emerald-400 mb-0.5" />
+                                        <span className="text-white text-sm font-black leading-none">{totalLostKg.toFixed(1)}</span>
+                                        <span className="text-slate-500 text-[9px]">kg</span>
+                                    </ProgressRing>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-white font-bold text-sm">
+                                            Parabéns{patientName ? `, ${patientName}` : ''}! 🎉
+                                        </p>
+                                        <p className="text-slate-400 text-xs mt-0.5">
+                                            Você perdeu <span className="text-emerald-400 font-bold">{totalLostKg.toFixed(1)}kg</span> até agora.
+                                        </p>
+                                        {nextMilestoneKg && (
+                                            <p className="text-slate-500 text-xs mt-0.5">
+                                                Faltam <span className="text-white font-bold">{(nextMilestoneKg - totalLostKg).toFixed(1)}kg</span> para o marco de {nextMilestoneKg}kg
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Trilha de marcos */}
+                                <div className="flex items-center gap-1.5 mt-4 overflow-x-auto pb-1">
+                                    {WEIGHT_MILESTONES_KG.map(m => {
+                                        const achieved = totalLostKg >= m
+                                        const isNext = m === nextMilestoneKg
+                                        return (
+                                            <div key={m}
+                                                className={`shrink-0 flex flex-col items-center gap-1 px-2.5 py-1.5 rounded-xl border ${
+                                                    achieved ? 'bg-emerald-500/20 border-emerald-500/40'
+                                                        : isNext ? 'bg-white/10 border-white/20'
+                                                        : 'bg-white/[0.02] border-white/5'
+                                                }`}
+                                            >
+                                                <Trophy size={11} className={achieved ? 'text-emerald-400' : 'text-slate-700'} />
+                                                <span className={`text-[10px] font-bold ${achieved ? 'text-emerald-400' : isNext ? 'text-white' : 'text-slate-700'}`}>{m}kg</span>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
                         {/* History */}
                         {measurements.length > 1 && (

@@ -1,17 +1,32 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronLeft, Star, Video, MapPin, Clock, Loader2, Calendar, Heart, Filter, ArrowRight, CheckCircle2, XCircle } from "lucide-react"
+import { ChevronLeft, Star, Video, MapPin, Clock, Loader2, Calendar, Heart, Filter, ArrowRight, CheckCircle2, XCircle, Search, X, BadgeCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
 import { supabase } from "@/lib/supabase-browser"
 import { useRouter } from "next/navigation"
+import type { AgendaDay } from "@/lib/utils/professionalAvailability"
 
 interface Professional {
   id: string; name: string; photo_url: string; bio: string;
-  profession: string; specialty: string; is_virtual: boolean; is_in_person: boolean;
+  profession: string; specialty: string; registration_id: string;
+  is_virtual: boolean; is_in_person: boolean;
   price_cents: number; price_display: string; rating: number; total_sessions: number;
   is_featured: boolean; duration_minutes: number;
+  next_available: { date: string; time: string } | null;
+}
+
+const WEEKDAY_LABELS: Record<string, string> = { sun: 'Dom', mon: 'Seg', tue: 'Ter', wed: 'Qua', thu: 'Qui', fri: 'Sex', sat: 'Sáb' }
+
+function formatNextAvailable(next: Professional['next_available']): string {
+  if (!next) return 'Sem horários nos próximos 14 dias'
+  const d = new Date(next.date + 'T12:00:00')
+  const today = new Date()
+  const isToday = d.toDateString() === today.toDateString()
+  const isTomorrow = d.toDateString() === new Date(today.getTime() + 86400000).toDateString()
+  const dayLabel = isToday ? 'Hoje' : isTomorrow ? 'Amanhã' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  return `${dayLabel}, ${next.time}`
 }
 
 interface Booking {
@@ -35,20 +50,50 @@ export default function PatientProfessionalsPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
   const [selectedProf, setSelectedProf] = useState<Professional | null>(null)
+  const [agenda, setAgenda] = useState<AgendaDay[] | null>(null)
+  const [agendaLoading, setAgendaLoading] = useState(false)
+  const [selectedDayIdx, setSelectedDayIdx] = useState(0)
   const [bookingDate, setBookingDate] = useState('')
   const [bookingTime, setBookingTime] = useState('')
   const [bookingNotes, setBookingNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
-  useEffect(() => { loadProfessionals() }, [filter])
+  // Busca com debounce
+  useEffect(() => {
+    const timer = setTimeout(() => loadProfessionals(), search ? 350 : 0)
+    return () => clearTimeout(timer)
+  }, [filter, search])
+
   useEffect(() => { if (tab === 'bookings') loadBookings() }, [tab])
+
+  // Carrega a agenda (14 dias) do profissional selecionado
+  useEffect(() => {
+    if (!selectedProf) { setAgenda(null); return }
+    setAgendaLoading(true)
+    setSelectedDayIdx(0)
+    setBookingDate(''); setBookingTime('')
+    fetch(`/api/patient/professionals?id=${selectedProf.id}`)
+      .then(r => r.json())
+      .then(d => {
+        const ag: AgendaDay[] = d.agenda || []
+        setAgenda(ag)
+        const firstAvailable = ag.findIndex(day => day.slots.some(s => s.available))
+        if (firstAvailable >= 0) setSelectedDayIdx(firstAvailable)
+      })
+      .catch(() => setAgenda([]))
+      .finally(() => setAgendaLoading(false))
+  }, [selectedProf])
 
   const loadProfessionals = async () => {
     setLoading(true)
-    const params = filter ? `?profession=${filter}` : ''
-    const res = await fetch(`/api/patient/professionals${params}`)
+    const params = new URLSearchParams()
+    if (filter) params.set('profession', filter)
+    if (search.trim()) params.set('q', search.trim())
+    const qs = params.toString()
+    const res = await fetch(`/api/patient/professionals${qs ? `?${qs}` : ''}`)
     const data = await res.json()
     setProfessionals(data.professionals || [])
     setLoading(false)
@@ -132,6 +177,23 @@ export default function PatientProfessionalsPage() {
         {/* TAB: Browse */}
         {tab === 'browse' && !selectedProf && (
           <>
+            {/* Busca */}
+            <div className="relative mb-4">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar por nome, área ou nº de registro..."
+                className="w-full pl-10 pr-10 py-3 bg-white/5 border border-white/10 rounded-2xl text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 transition-colors"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
             {/* Filter pills */}
             <div className="flex gap-2 overflow-x-auto pb-4 -mx-2 px-2">
               <button onClick={() => setFilter(null)} className={`shrink-0 px-4 py-2 rounded-full text-xs font-medium ${!filter ? 'bg-indigo-600 text-white' : 'bg-white/5 text-slate-400'}`}>Todos</button>
@@ -155,8 +217,8 @@ export default function PatientProfessionalsPage() {
                       onClick={() => setSelectedProf(p)}
                       className="p-5 rounded-2xl border border-white/5 bg-white/[0.02] hover:border-indigo-500/30 cursor-pointer transition-all">
                       <div className="flex items-start gap-4">
-                        <div className="h-14 w-14 rounded-2xl bg-white/5 flex items-center justify-center text-2xl shrink-0">
-                          {meta?.emoji || '👤'}
+                        <div className="h-14 w-14 rounded-2xl bg-white/5 flex items-center justify-center text-2xl shrink-0 overflow-hidden">
+                          {p.photo_url ? <img src={p.photo_url} alt={p.name} className="h-full w-full object-cover" /> : (meta?.emoji || '👤')}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -164,6 +226,9 @@ export default function PatientProfessionalsPage() {
                             {p.is_featured && <Star size={12} className="text-amber-400 fill-amber-400" />}
                           </div>
                           <p className="text-xs text-slate-400">{meta?.label} {p.specialty ? `· ${p.specialty}` : ''}</p>
+                          {p.registration_id && (
+                            <p className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5"><BadgeCheck size={10} />{p.registration_id}</p>
+                          )}
                           {p.bio && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{p.bio}</p>}
                           <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
                             <span className="text-emerald-400 font-bold text-sm">{p.price_display}</span>
@@ -171,6 +236,10 @@ export default function PatientProfessionalsPage() {
                             {p.is_virtual && <span className="flex items-center gap-1"><Video size={10} />Online</span>}
                             {p.is_in_person && <span className="flex items-center gap-1"><MapPin size={10} />Presencial</span>}
                             {p.rating > 0 && <span className="flex items-center gap-1"><Star size={10} className="text-amber-400" />{p.rating.toFixed(1)} ({p.total_sessions})</span>}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-2 text-xs">
+                            <Calendar size={11} className={p.next_available ? 'text-emerald-400' : 'text-slate-600'} />
+                            <span className={p.next_available ? 'text-emerald-400 font-semibold' : 'text-slate-600'}>{formatNextAvailable(p.next_available)}</span>
                           </div>
                         </div>
                         <ArrowRight size={16} className="text-slate-600 shrink-0 mt-4" />
@@ -190,11 +259,16 @@ export default function PatientProfessionalsPage() {
 
             {/* Profile card */}
             <div className="p-6 rounded-2xl border border-white/10 bg-white/[0.02] text-center">
-              <div className="h-20 w-20 rounded-full bg-white/5 flex items-center justify-center text-4xl mx-auto mb-3">
-                {PROFESSION_LABELS[selectedProf.profession]?.emoji || '👤'}
+              <div className="h-20 w-20 rounded-full bg-white/5 flex items-center justify-center text-4xl mx-auto mb-3 overflow-hidden">
+                {selectedProf.photo_url
+                  ? <img src={selectedProf.photo_url} alt={selectedProf.name} className="h-full w-full object-cover" />
+                  : (PROFESSION_LABELS[selectedProf.profession]?.emoji || '👤')}
               </div>
               <h2 className="text-lg font-bold text-white">{selectedProf.name}</h2>
               <p className="text-sm text-slate-400">{PROFESSION_LABELS[selectedProf.profession]?.label} {selectedProf.specialty ? `· ${selectedProf.specialty}` : ''}</p>
+              {selectedProf.registration_id && (
+                <p className="text-xs text-slate-500 flex items-center justify-center gap-1 mt-1"><BadgeCheck size={12} />{selectedProf.registration_id}</p>
+              )}
               {selectedProf.bio && <p className="text-xs text-slate-500 mt-2">{selectedProf.bio}</p>}
               <div className="flex items-center justify-center gap-4 mt-3 text-xs text-slate-500">
                 <span className="text-emerald-400 font-bold text-lg">{selectedProf.price_display}</span>
@@ -203,22 +277,69 @@ export default function PatientProfessionalsPage() {
               </div>
             </div>
 
-            {/* Booking form */}
+            {/* Agenda */}
             <div className="space-y-4">
               <h3 className="text-white font-semibold flex items-center gap-2"><Calendar size={16} className="text-indigo-400" />Escolha data e horário</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">Data</label>
-                  <input type="date" value={bookingDate} onChange={e => setBookingDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">Horário</label>
-                  <input type="time" value={bookingTime} onChange={e => setBookingTime(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm" />
-                </div>
-              </div>
+
+              {agendaLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="animate-spin text-indigo-400" size={24} /></div>
+              ) : !agenda || agenda.length === 0 ? (
+                <p className="text-sm text-slate-500 text-center py-4">Nenhum horário cadastrado por este profissional.</p>
+              ) : (
+                <>
+                  {/* Tira de dias */}
+                  <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+                    {agenda.map((day, idx) => {
+                      const hasSlots = day.slots.some(s => s.available)
+                      const d = new Date(day.date + 'T12:00:00')
+                      const isSelected = idx === selectedDayIdx
+                      return (
+                        <button
+                          key={day.date}
+                          onClick={() => hasSlots && setSelectedDayIdx(idx)}
+                          disabled={!hasSlots}
+                          className={`shrink-0 w-14 py-2 rounded-xl text-center transition-all border ${
+                            isSelected ? 'bg-indigo-600 border-indigo-500 text-white'
+                              : hasSlots ? 'bg-white/5 border-white/10 text-slate-300 hover:border-indigo-500/40'
+                              : 'bg-white/[0.02] border-white/5 text-slate-700 cursor-not-allowed'
+                          }`}
+                        >
+                          <div className="text-[10px] font-bold uppercase">{WEEKDAY_LABELS[day.weekday]}</div>
+                          <div className="text-sm font-bold">{d.getDate()}</div>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Horários do dia selecionado */}
+                  {agenda[selectedDayIdx] && (
+                    agenda[selectedDayIdx].slots.length === 0 ? (
+                      <p className="text-sm text-slate-500 text-center py-4">Sem horários neste dia.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {agenda[selectedDayIdx].slots.map(slot => {
+                          const isSelected = bookingDate === agenda[selectedDayIdx].date && bookingTime === slot.time
+                          return (
+                            <button
+                              key={slot.time}
+                              disabled={!slot.available}
+                              onClick={() => { setBookingDate(agenda[selectedDayIdx].date); setBookingTime(slot.time) }}
+                              className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                                isSelected ? 'bg-indigo-600 text-white'
+                                  : slot.available ? 'bg-white/5 text-slate-300 hover:bg-white/10 border border-white/10'
+                                  : 'bg-white/[0.02] text-slate-700 line-through cursor-not-allowed'
+                              }`}
+                            >
+                              {slot.time}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )
+                  )}
+                </>
+              )}
+
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">Observações (opcional)</label>
                 <textarea value={bookingNotes} onChange={e => setBookingNotes(e.target.value)} rows={2}
