@@ -67,7 +67,6 @@ import { RecipesView } from "./views/RecipesView"
 import { ManagerLearningView } from "./views/ManagerLearningView"
 import { HabitsView } from "./views/HabitsView"
 import { VipSettingsView } from "./views/VipSettingsView"
-import { EmailMarketingView } from "./views/EmailMarketingView"
 import { QuestionnairesView } from "./views/QuestionnairesView"
 import { CommunityView } from "./views/CommunityView"
 import { BillingView } from "./views/BillingView"
@@ -81,7 +80,7 @@ type ViewType =
     | 'meal-plans'
     | 'appointments' | 'professionals' | 'product-gateway'
     | 'strategic-planner' | 'analytics' | 'patient-journey'
-    | 'products' | 'approvals' | 'recipes' | 'manager-learning' | 'habits' | 'vip-settings' | 'email-marketing'
+    | 'products' | 'approvals' | 'recipes' | 'manager-learning' | 'habits' | 'vip-settings'
     | 'questionnaires' | 'community' | 'billing'
 
 interface NavItem {
@@ -108,7 +107,6 @@ const navGroups: NavGroup[] = [
             { id: 'dashboard', label: 'Painel' },
             { id: 'analytics', label: 'Analytics' },
             { id: 'communication', label: 'Comunicação' },
-            { id: 'email-marketing', label: 'Email Marketing' },
         ],
     },
     {
@@ -257,7 +255,6 @@ export default function AdminDashboard({
             case 'habits':             return <HabitsView setView={setActiveView} tenantId={tenantId} />
             case 'vip-settings':       return <VipSettingsView setView={setActiveView} tenantId={tenantId} />
             case 'billing':            return <BillingView setView={setActiveView} tenantId={tenantId} />
-            case 'email-marketing':    return <EmailMarketingView setView={setActiveView} tenantId={tenantId} />
             case 'manager-learning':   return <ManagerLearningView setView={setActiveView} tenantId={tenantId} />
             case 'questionnaires':     return <QuestionnairesView setView={setActiveView} tenantId={tenantId} />
             case 'community':          return <CommunityView />

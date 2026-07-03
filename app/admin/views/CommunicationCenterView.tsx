@@ -2,15 +2,23 @@
 
 import React, { useState, useEffect, useCallback } from "react"
 import {
-    Send, Plus, Calendar, Bell, MessageSquare, Search,
+    Send, Plus, Calendar, Bell, Search,
     ChevronRight, ChevronLeft, Users, Clock, CheckCircle2,
     XCircle, Loader2, Copy, ArrowLeft, Trash2, Sparkles,
-    AlertTriangle, Zap, RefreshCw, Eye, Bot
+    AlertTriangle, RefreshCw, Eye, EyeOff, Bot, Mail,
+    Crown, Flame, ChevronDown, CalendarDays,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
 import { supabase } from "@/lib/supabase-browser"
 import { processCampaignAction } from "../actions/campaignActions"
+
+// Antes esta tela (push/inbox) e Email Marketing eram duas views separadas
+// no menu, com segmentação e histórico próprios mesmo enviando pro mesmo
+// conceito de "campanha para pacientes" — ver auditoria de sistema Jul/2026.
+// Unificadas aqui em abas. A Régua de Eventos (agenda de conteúdo/protocolos)
+// continua separada de propósito: é um calendário editorial, não um composer
+// de campanha — só ganhou um link cruzado no rodapé desta tela.
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Campaign {
@@ -39,6 +47,56 @@ const SEGMENTS = [
     { value: 'active', label: 'Ativas (últimos 3 dias)', icon: '🔥', desc: 'Engajadas recentemente' },
     { value: 'low_adherence', label: 'Baixa adesão', icon: '⚡', desc: 'Inativas há X dias' },
     { value: 'high_risk', label: 'Alto risco de evasão', icon: '🚨', desc: 'Score de risco crítico' },
+]
+
+// ─── E-mail: constantes próprias (segmentação de e-mail é mais simples que a
+// de push — não tem "baixa adesão configurável" nem "alto risco") ─────────────
+interface EmailCampaign {
+    id: string
+    title: string
+    body: string
+    status: string
+    sent_at: string | null
+    created_at: string
+    channels: Record<string, boolean>
+    segment: { type: string }
+}
+
+const EMAIL_SEGMENTS = [
+    { value: 'all', label: 'Todas as pacientes', icon: Users, desc: 'Toda a base ativa' },
+    { value: 'vip', label: 'Plano VIP', icon: Crown, desc: 'Somente membros VIP' },
+    { value: 'active', label: 'Ativas (últimos 3 dias)', icon: Flame, desc: 'Engajadas recentemente' },
+    { value: 'inactive', label: 'Inativas (7+ dias)', icon: AlertTriangle, desc: 'Sem check-in há uma semana' },
+]
+
+const EMAIL_SEGMENT_LABELS: Record<string, string> = {
+    all: 'Todas', vip: 'VIP', active: 'Ativas', inactive: 'Inativas',
+}
+
+const EMAIL_TEMPLATES = [
+    {
+        label: 'Motivação semanal',
+        subject: '✨ Sua semana começa agora, Rainha!',
+        body: `<p>Olá, <strong>Rainha!</strong></p>
+<p>Uma nova semana está chegando cheia de oportunidades para você brilhar. Cada escolha saudável que você faz é uma vitória — por menor que pareça.</p>
+<p>🥗 Foque na sua alimentação hoje.<br>💧 Lembre-se de se hidratar.<br>🏃‍♀️ Mova seu corpo com amor.</p>
+<p>Estamos juntas nessa jornada. 💜</p>`,
+    },
+    {
+        label: 'Lembrete de check-in',
+        subject: '📝 Não esqueça do seu check-in semanal!',
+        body: `<p>Oi, <strong>Rainha!</strong></p>
+<p>Seu check-in semanal está esperando por você! É só alguns minutos para registrar como foi sua semana — e cada registro traz pontos, insights e o olhar atento da sua nutricionista.</p>
+<p>✅ Entre no app agora e compartilhe como está indo.<br>💡 Suas respostas ajudam a personalizar ainda mais o seu protocolo.</p>`,
+    },
+    {
+        label: 'Promo VIP',
+        subject: '👑 Uma oportunidade especial para você',
+        body: `<p>Olá, <strong>Rainha!</strong></p>
+<p>Você tem se dedicado muito e merece o melhor suporte possível. O <strong>Plano VIP</strong> foi feito para quem quer resultados acelerados com acompanhamento personalizado.</p>
+<p>🔥 Benefícios exclusivos:<br>• Atendimento prioritário<br>• Conteúdos premium<br>• Suporte ilimitado da IA</p>
+<p>Quer saber mais? Acesse o app e conheça o Plano VIP. 👑</p>`,
+    },
 ]
 
 // ─── Calendar picker ──────────────────────────────────────────────────────────
@@ -156,6 +214,7 @@ function SendConfirmModal({ onConfirm, onCancel, title, segmentLabel, recipientC
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export function CommunicationCenterView({ setView }: { setView: (v: any) => void }) {
+    const [channel, setChannel] = useState<'push' | 'email'>('push')
     const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
     const [campaigns, setCampaigns] = useState<Campaign[]>([])
     const [loading, setLoading] = useState(true)
@@ -186,6 +245,85 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
     }
 
     const globalFetch = typeof window !== 'undefined' ? window.fetch.bind(window) : fetch
+
+    // ── E-mail: estado próprio (composer + histórico) ──────────────────────
+    const [emailSubject, setEmailSubject] = useState('')
+    const [emailBody, setEmailBody] = useState('')
+    const [emailSegment, setEmailSegment] = useState('all')
+    const [emailSending, setEmailSending] = useState(false)
+    const [emailAiLoading, setEmailAiLoading] = useState(false)
+    const [emailAiTopic, setEmailAiTopic] = useState('')
+    const [emailCampaigns, setEmailCampaigns] = useState<EmailCampaign[]>([])
+    const [hasResend, setHasResend] = useState(false)
+    const [emailShowPreview, setEmailShowPreview] = useState(false)
+    const [emailShowTemplates, setEmailShowTemplates] = useState(false)
+    const [emailShowConfirm, setEmailShowConfirm] = useState(false)
+    const [emailSegmentOpen, setEmailSegmentOpen] = useState(false)
+
+    useEffect(() => {
+        if (channel !== 'email') return
+        fetch('/api/admin/email-campaign')
+            .then(r => r.json())
+            .then(d => { setEmailCampaigns(d.campaigns || []); setHasResend(d.has_resend) })
+    }, [channel])
+
+    const applyEmailTemplate = (t: typeof EMAIL_TEMPLATES[0]) => {
+        setEmailSubject(t.subject)
+        setEmailBody(t.body)
+        setEmailShowTemplates(false)
+    }
+
+    const generateEmailWithAI = async () => {
+        if (!emailAiTopic.trim()) return
+        setEmailAiLoading(true)
+        try {
+            const res = await fetch('/api/ai/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ task: 'email-marketing', topic: emailAiTopic, segment: emailSegment }),
+            })
+            const data = await res.json()
+            if (data.subject) setEmailSubject(data.subject)
+            if (data.html_body) setEmailBody(data.html_body)
+            setEmailAiTopic('')
+        } catch {
+            showToast('Erro ao gerar com IA')
+        } finally {
+            setEmailAiLoading(false)
+        }
+    }
+
+    const handleSendEmail = async () => {
+        setEmailSending(true)
+        setEmailShowConfirm(false)
+        try {
+            const res = await fetch('/api/admin/email-campaign', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subject: emailSubject, html_body: emailBody, segment: emailSegment }),
+            })
+            const data = await res.json()
+            if (res.ok) {
+                showToast(
+                    data.simulated
+                        ? `Simulado: ${data.count} email(s) — adicione RESEND_API_KEY para envio real`
+                        : `${data.count} email(s) enviado(s) com sucesso!`,
+                    'success'
+                )
+                setEmailSubject('')
+                setEmailBody('')
+                const updated = await fetch('/api/admin/email-campaign').then(r => r.json())
+                setEmailCampaigns(updated.campaigns || [])
+            } else {
+                showToast(data.error || 'Erro ao enviar')
+            }
+        } finally {
+            setEmailSending(false)
+        }
+    }
+
+    const selectedEmailSegment = EMAIL_SEGMENTS.find(s => s.value === emailSegment) || EMAIL_SEGMENTS[0]
+    const canSendEmail = emailSubject.trim() && emailBody.trim()
 
     const loadCampaigns = useCallback(async () => {
         setLoading(true)
@@ -323,8 +461,8 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
         (statusFilter === 'all' || c.status === statusFilter)
     )
 
-    // ─── CREATE VIEW ──────────────────────────────────────────────────────────
-    if (viewMode === 'create') {
+    // ─── CREATE VIEW (push/inbox) ────────────────────────────────────────────
+    if (channel === 'push' && viewMode === 'create') {
         return (
             <div className="space-y-6 max-w-5xl">
                 <div className="flex items-center gap-3">
@@ -582,17 +720,32 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                     </motion.div>
                 )}
             </AnimatePresence>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <h1 className="text-3xl font-bold text-white">Central de Comunicação</h1>
                     <p className="text-slate-500 text-sm mt-1">Transforme adesão em resultado com 1 clique.</p>
                 </div>
-                <button onClick={() => setViewMode('create')}
-                    className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-2xl transition-all">
-                    <Plus size={16} /> Nova Campanha
+                {channel === 'push' && (
+                    <button onClick={() => setViewMode('create')}
+                        className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-2xl transition-all">
+                        <Plus size={16} /> Nova Campanha
+                    </button>
+                )}
+            </div>
+
+            {/* Canal: Push/Inbox vs E-mail — antes eram 2 views separadas no menu */}
+            <div className="flex bg-white/5 border border-white/10 rounded-2xl p-1 gap-1 w-fit">
+                <button onClick={() => setChannel('push')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${channel === 'push' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-white'}`}>
+                    <Bell size={13} /> Push &amp; Inbox
+                </button>
+                <button onClick={() => setChannel('email')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${channel === 'email' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-white'}`}>
+                    <Mail size={13} /> E-mail
                 </button>
             </div>
 
+            {channel === 'push' && <>
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
@@ -694,6 +847,262 @@ export function CommunicationCenterView({ setView }: { setView: (v: any) => void
                     </div>
                 )}
             </div>
+            </>}
+
+            {channel === 'email' && (
+                <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5">
+                    {/* ── Composer ── */}
+                    <div className="space-y-4">
+                        {!hasResend && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-xl w-fit">
+                                <AlertTriangle size={13} className="text-amber-400" />
+                                <span className="text-[11px] text-amber-400 font-bold">Modo simulação — configure RESEND_API_KEY</span>
+                            </div>
+                        )}
+
+                        <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                <Sparkles size={11} /> Gerar com IA
+                            </p>
+                            <div className="flex gap-2">
+                                <input
+                                    value={emailAiTopic}
+                                    onChange={e => setEmailAiTopic(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && generateEmailWithAI()}
+                                    placeholder="Ex: motivar para check-in da semana, promoção VIP, dica de hidratação..."
+                                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50"
+                                />
+                                <button onClick={generateEmailWithAI} disabled={emailAiLoading || !emailAiTopic.trim()}
+                                    className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-bold rounded-xl transition-all">
+                                    {emailAiLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                                    Gerar
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                    <Mail size={11} /> Composição
+                                </p>
+                                <button onClick={() => setEmailShowTemplates(!emailShowTemplates)}
+                                    className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                                    Templates <ChevronDown size={10} className={`transition-transform ${emailShowTemplates ? 'rotate-180' : ''}`} />
+                                </button>
+                            </div>
+
+                            <AnimatePresence>
+                                {emailShowTemplates && (
+                                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                                        className="overflow-hidden">
+                                        <div className="grid grid-cols-3 gap-2 pb-2">
+                                            {EMAIL_TEMPLATES.map(t => (
+                                                <button key={t.label} onClick={() => applyEmailTemplate(t)}
+                                                    className="p-3 bg-white/5 border border-white/10 hover:border-indigo-500/30 rounded-xl text-left transition-all group">
+                                                    <p className="text-xs font-bold text-white group-hover:text-indigo-300 transition-colors">{t.label}</p>
+                                                    <p className="text-[10px] text-slate-600 mt-1 line-clamp-2">{t.subject}</p>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Assunto</label>
+                                <input
+                                    value={emailSubject}
+                                    onChange={e => setEmailSubject(e.target.value)}
+                                    placeholder="Ex: ✨ Sua semana começa agora, Rainha!"
+                                    className="w-full mt-1.5 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50"
+                                />
+                            </div>
+
+                            <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Corpo do Email (HTML permitido)</label>
+                                    <button onClick={() => setEmailShowPreview(!emailShowPreview)}
+                                        className="flex items-center gap-1 text-[10px] font-bold text-slate-500 hover:text-slate-300 transition-colors">
+                                        {emailShowPreview ? <EyeOff size={10} /> : <Eye size={10} />}
+                                        {emailShowPreview ? 'Editar' : 'Preview'}
+                                    </button>
+                                </div>
+                                {emailShowPreview ? (
+                                    <div className="bg-white text-slate-900 rounded-xl p-4 text-sm min-h-[200px]"
+                                        dangerouslySetInnerHTML={{ __html: emailBody || '<p class="text-gray-400">Nenhum conteúdo ainda</p>' }} />
+                                ) : (
+                                    <textarea
+                                        value={emailBody}
+                                        onChange={e => setEmailBody(e.target.value)}
+                                        rows={10}
+                                        placeholder="<p>Olá, <strong>Rainha!</strong></p><p>Sua mensagem aqui...</p>"
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 font-mono resize-none"
+                                    />
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Segmento</label>
+                                <div className="relative mt-1.5">
+                                    <button onClick={() => setEmailSegmentOpen(!emailSegmentOpen)}
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-left flex items-center gap-3 hover:border-indigo-500/50 transition-all">
+                                        <selectedEmailSegment.icon size={15} className="text-slate-400 flex-shrink-0" />
+                                        <div className="flex-1">
+                                            <span className="text-white font-bold">{selectedEmailSegment.label}</span>
+                                            <span className="text-slate-500 text-[11px] ml-2">{selectedEmailSegment.desc}</span>
+                                        </div>
+                                        <ChevronDown size={14} className={`text-slate-500 transition-transform ${emailSegmentOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    <AnimatePresence>
+                                        {emailSegmentOpen && (
+                                            <>
+                                                <div className="fixed inset-0 z-10" onClick={() => setEmailSegmentOpen(false)} />
+                                                <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }}
+                                                    className="absolute top-full mt-1 left-0 right-0 bg-slate-900 border border-white/10 rounded-xl overflow-hidden shadow-2xl z-20">
+                                                    {EMAIL_SEGMENTS.map(s => (
+                                                        <button key={s.value} onClick={() => { setEmailSegment(s.value); setEmailSegmentOpen(false) }}
+                                                            className={`w-full flex items-center gap-3 px-4 py-3 text-sm text-left transition-all hover:bg-white/5 ${emailSegment === s.value ? 'bg-indigo-500/10' : ''}`}>
+                                                            <s.icon size={15} className="text-slate-400 flex-shrink-0" />
+                                                            <div>
+                                                                <p className={`font-bold ${emailSegment === s.value ? 'text-indigo-300' : 'text-white'}`}>{s.label}</p>
+                                                                <p className="text-[10px] text-slate-500">{s.desc}</p>
+                                                            </div>
+                                                        </button>
+                                                    ))}
+                                                </motion.div>
+                                            </>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => setEmailShowConfirm(true)}
+                                disabled={!canSendEmail || emailSending}
+                                className="w-full flex items-center justify-center gap-2 py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-bold rounded-2xl transition-all">
+                                {emailSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                                {emailSending ? 'Enviando...' : `Enviar para ${selectedEmailSegment.label}`}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* ── Histórico ── */}
+                    <div className="space-y-3">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                            <Clock size={11} /> Histórico de Envios
+                        </p>
+
+                        {!hasResend && (
+                            <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 space-y-2">
+                                <p className="text-xs font-bold text-amber-300">Configurar envio real</p>
+                                <p className="text-[11px] text-slate-500 leading-relaxed">
+                                    Adicione <code className="text-amber-300 bg-white/5 px-1 rounded">RESEND_API_KEY</code> nas variáveis de ambiente do Vercel para enviar emails reais via <strong>Resend</strong> (gratuito até 3.000/mês).
+                                </p>
+                                <a href="https://resend.com/signup" target="_blank" rel="noopener"
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-400 hover:text-amber-300 transition-colors">
+                                    Criar conta gratuita →
+                                </a>
+                            </div>
+                        )}
+
+                        {emailCampaigns.length === 0 ? (
+                            <div className="text-center py-10 text-slate-700">
+                                <Mail size={32} className="mx-auto mb-3 opacity-30" />
+                                <p className="text-sm">Nenhuma campanha enviada ainda</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {emailCampaigns.map(c => (
+                                    <div key={c.id} className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-1.5">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <p className="text-sm font-bold text-white leading-tight line-clamp-2">{c.title}</p>
+                                            <span className={`flex-shrink-0 text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                                                c.status === 'sent' ? 'bg-emerald-500/15 border-emerald-500/25 text-emerald-400'
+                                                : c.status === 'failed' ? 'bg-rose-500/15 border-rose-500/25 text-rose-400'
+                                                : 'bg-amber-500/15 border-amber-500/25 text-amber-400'}`}>
+                                                {c.status === 'sent' ? 'Enviado' : c.status === 'failed' ? 'Falhou' : c.status}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-[10px] text-slate-600">
+                                            <span className="flex items-center gap-1">
+                                                <Users size={9} /> {EMAIL_SEGMENT_LABELS[c.segment?.type] || c.segment?.type}
+                                            </span>
+                                            {c.sent_at && (
+                                                <span className="flex items-center gap-1">
+                                                    <Clock size={9} /> {new Date(c.sent_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Cross-link — a Régua de Eventos é um calendário editorial (agenda de
+                conteúdo/protocolos/desafios), propósito diferente de "enviar uma
+                campanha agora"; por isso não foi fundida aqui, só linkada */}
+            <button onClick={() => setView('strategic-planner')}
+                className="w-full flex items-center justify-between gap-3 bg-white/[0.02] border border-white/5 hover:border-indigo-500/30 rounded-2xl px-5 py-4 transition-all group">
+                <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center shrink-0">
+                        <CalendarDays size={16} className="text-indigo-400" />
+                    </div>
+                    <div className="text-left">
+                        <p className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">Planejar conteúdo do mês</p>
+                        <p className="text-[11px] text-slate-500">Agende protocolos, desafios e pushes recorrentes na Régua de Eventos</p>
+                    </div>
+                </div>
+                <ChevronRight size={16} className="text-slate-600 group-hover:text-indigo-400 transition-colors shrink-0" />
+            </button>
+
+            <AnimatePresence>
+                {emailShowConfirm && (
+                    <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                        <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }}
+                            className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-sm w-full space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 flex items-center justify-center">
+                                    <Send size={18} className="text-indigo-400" />
+                                </div>
+                                <div>
+                                    <p className="font-bold text-white">Confirmar disparo</p>
+                                    <p className="text-xs text-slate-500">{selectedEmailSegment.label}</p>
+                                </div>
+                            </div>
+                            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-slate-400">Assunto</span>
+                                    <span className="text-white font-bold truncate max-w-[180px]">{emailSubject}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-slate-400">Segmento</span>
+                                    <span className="text-white font-bold">{selectedEmailSegment.label}</span>
+                                </div>
+                                {!hasResend && (
+                                    <div className="flex items-center gap-2 pt-1">
+                                        <AlertTriangle size={12} className="text-amber-400 flex-shrink-0" />
+                                        <span className="text-[11px] text-amber-400">Será simulado (sem RESEND_API_KEY)</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex gap-3">
+                                <button onClick={() => setEmailShowConfirm(false)}
+                                    className="flex-1 py-3 bg-white/5 border border-white/10 text-slate-400 text-sm font-bold rounded-2xl">
+                                    Cancelar
+                                </button>
+                                <button onClick={handleSendEmail}
+                                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-2xl transition-all flex items-center justify-center gap-2">
+                                    <Send size={14} /> Disparar
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     )
 }
