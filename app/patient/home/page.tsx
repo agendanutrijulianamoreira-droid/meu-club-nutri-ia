@@ -20,6 +20,7 @@ import {
     Video,
     MapPin,
     ClipboardList,
+    HeartPulse,
 } from "lucide-react"
 import { usePatientEngine } from "@/lib/hooks/usePatientEngine"
 import { levelFromXp, minXpForLevel, xpProgressInLevel, DAILY_LOG_XP } from "@/lib/gamification"
@@ -46,6 +47,7 @@ export default function PatientHomePage() {
     const [isNewMember, setIsNewMember] = useState(false)
     const [showWelcomeTour, setShowWelcomeTour] = useState(false)
     const [checkinPending, setCheckinPending] = useState(false)
+    const [dailyCheckinPending, setDailyCheckinPending] = useState(false)
     const [quickTaps, setQuickTaps] = useState<{ water: boolean; meal: boolean; workout: boolean }>({ water: false, meal: false, workout: false })
     const [dailyVictory, setDailyVictory] = useState('')
     const [savedVictory, setSavedVictory] = useState('')
@@ -114,6 +116,15 @@ export default function PatientHomePage() {
             const checkinRes = await fetch('/api/patient/weekly-checkin')
             const checkinData = await checkinRes.json().catch(() => ({}))
             setCheckinPending(!checkinData.submitted)
+
+            // Check if today's daily check-in (sintomas) is pending — antes só o
+            // semanal tinha CTA na Home, o diário só era alcançável entrando em
+            // Progresso primeiro (ver auditoria de sistema Jul/2026)
+            const nowLocal = new Date()
+            const todayLocal = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, '0')}-${String(nowLocal.getDate()).padStart(2, '0')}`
+            const dailyRes = await fetch(`/api/patient/checkin-diario?data=${todayLocal}`)
+            const dailyData = await dailyRes.json().catch(() => ({}))
+            setDailyCheckinPending(!dailyData.registro)
 
             // Load nutri coins and next reward
             const { data: profileData } = await supabase
@@ -440,6 +451,27 @@ export default function PatientHomePage() {
                                 <p className="text-slate-400 text-xs">Responda em 2 min e ganhe +20 XP</p>
                             </div>
                             <ChevronRight className="text-emerald-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
+                        </div>
+                    </Link>
+                </motion.div>
+            )}
+
+            {/* ─── CTA: Check-in diário de sintomas pendente ──────────────
+                Antes só o semanal tinha atalho aqui; o diário (energia, humor,
+                sono, inchaço...) só era alcançável entrando em Progresso primeiro */}
+            {dailyCheckinPending && (
+                <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
+                    <Link href="/patient/progresso/checkin">
+                        <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-indigo-600/15 to-purple-600/10 border border-indigo-500/30 rounded-2xl group hover:border-indigo-400/50 transition-all">
+                            <div className="w-11 h-11 rounded-xl bg-indigo-600/25 border border-indigo-500/30 flex items-center justify-center flex-shrink-0">
+                                <HeartPulse className="text-indigo-300" size={20} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400 mb-0.5">Diário de Hoje</p>
+                                <p className="text-white font-bold text-sm">Como você está hoje?</p>
+                                <p className="text-slate-400 text-xs">Registre energia, humor e sintomas em 1 min</p>
+                            </div>
+                            <ChevronRight className="text-indigo-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
                         </div>
                     </Link>
                 </motion.div>

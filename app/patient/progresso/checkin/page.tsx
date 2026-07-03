@@ -195,12 +195,20 @@ export default function CheckinDiarioPage() {
         <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-4 text-center">
           <p className="text-amber-400 font-bold text-sm">Check-in já realizado hoje ✓</p>
           <p className="text-amber-400/70 text-xs mt-1">Volte amanhã para registrar novamente</p>
-          <button
-            onClick={() => router.push('/patient/progresso')}
-            className="mt-3 text-amber-400 text-xs font-bold underline"
-          >
-            Ver meu progresso →
-          </button>
+          <div className="flex items-center justify-center gap-4 mt-3">
+            <button
+              onClick={() => router.push('/patient/progresso')}
+              className="text-amber-400 text-xs font-bold underline"
+            >
+              Ver meu progresso →
+            </button>
+            <button
+              onClick={() => router.push('/patient/checkin')}
+              className="text-amber-400/70 text-xs font-bold underline"
+            >
+              Check-in da semana →
+            </button>
+          </div>
         </div>
       )}
 
@@ -224,6 +232,12 @@ export default function CheckinDiarioPage() {
               className="flex items-center gap-2 mx-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-2xl transition-all"
             >
               Ver meu progresso <ChevronRight size={16} />
+            </button>
+            <button
+              onClick={() => router.push('/patient/checkin')}
+              className="block mx-auto text-slate-500 hover:text-slate-300 text-xs font-bold transition-colors"
+            >
+              Já fez o check-in da semana? →
             </button>
           </motion.div>
         )}
