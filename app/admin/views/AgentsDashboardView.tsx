@@ -131,17 +131,10 @@ export function AgentsDashboardView({ setView, tenantId }: AgentsDashboardViewPr
     if (!tenantId) return
     setTriggeringAgent(agentName)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agent-orchestrator`, {
+      const res = await fetch('/api/admin/agents/trigger', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          type: 'manual',
-          tenant_id: tenantId,
-          payload: { agent: agentName },
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent: agentName }),
       })
       if (res.ok) {
         setTimeout(fetchData, 2000) // Refresh após execução
