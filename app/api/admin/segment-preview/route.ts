@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { calculateRiskScore, daysSinceDate } from '@/lib/services/riskScore'
 
 export async function GET(request: NextRequest) {
     const supabase = createSupabaseServerClient(cookies())
@@ -53,39 +54,23 @@ export async function GET(request: NextRequest) {
     let filtered = patients
 
     if (segmentType === 'low_adherence') {
-        filtered = patients.filter(p => {
-            const daysSince = p.last_checkin_date
-                ? Math.floor((today.getTime() - new Date(p.last_checkin_date).getTime()) / 86400000)
-                : 999
-            return daysSince >= days
-        })
+        filtered = patients.filter(p => daysSinceDate(p.last_checkin_date, today) >= days)
     } else if (segmentType === 'high_risk') {
         filtered = patients.filter(p => {
-            const daysSince = p.last_checkin_date
-                ? Math.floor((today.getTime() - new Date(p.last_checkin_date).getTime()) / 86400000)
-                : 999
+            const daysSince = daysSinceDate(p.last_checkin_date, today)
             const adherence = (logsByUser[p.user_id] || 0) / 7 * 100
-            let risk = 10
-            if (daysSince > 7) risk -= 4
-            else if (daysSince > 3) risk -= 2
-            if (!p.current_streak || p.current_streak === 0) risk -= 3
-            else if (p.current_streak < 3) risk -= 1
-            if (adherence < 30) risk -= 2
-            else if (adherence < 60) risk -= 1
             const cl = checkinByUser[p.user_id]
-            if (cl?.diet_score !== undefined && cl.diet_score < 5) risk -= 2
-            if (cl?.ai_risk_level === 'high') risk = Math.min(risk, 3)
-            if (cl?.ai_risk_level === 'medium') risk = Math.min(risk, 6)
-            risk = Math.max(0, Math.min(10, risk))
-            return risk <= 4
+            const { riskLevel } = calculateRiskScore({
+                daysSinceActivity: daysSince,
+                currentStreak: p.current_streak,
+                adherenceRate: adherence,
+                dietScore: cl?.diet_score,
+                aiRiskLevel: cl?.ai_risk_level,
+            })
+            return riskLevel === 'high'
         })
     } else if (segmentType === 'active') {
-        filtered = patients.filter(p => {
-            const daysSince = p.last_checkin_date
-                ? Math.floor((today.getTime() - new Date(p.last_checkin_date).getTime()) / 86400000)
-                : 999
-            return daysSince <= 3
-        })
+        filtered = patients.filter(p => daysSinceDate(p.last_checkin_date, today) <= 3)
     }
     // 'all' → keep all patients
 

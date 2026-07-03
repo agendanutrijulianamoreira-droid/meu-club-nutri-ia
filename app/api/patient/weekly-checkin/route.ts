@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { triggerOrchestrator } from '@/lib/services/anthropic'
 import { WEEKLY_CHECKIN_XP } from '@/lib/gamification'
+import { awardPoints } from '@/lib/services/gamification'
 
 export async function POST(request: NextRequest) {
     const supabase = createSupabaseServerClient(cookies())
@@ -115,11 +116,7 @@ Retorne APENAS JSON válido:
     // "Check-in semanal enviado: +20 coins" no guia de como ganhar NutriCoins),
     // mas essa rota nunca creditava XP/NutriCoins — a promessa nunca era cumprida.
     if (isNewSubmission) {
-        const { error: xpError } = await supabase.rpc('increment_user_points', {
-            user_id: user.id,
-            points_to_add: WEEKLY_CHECKIN_XP,
-        })
-        if (xpError) console.error('[Checkin] XP award error:', xpError)
+        await awardPoints(supabase, user.id, WEEKLY_CHECKIN_XP, 'weekly-checkin POST')
     }
 
     // ── Trigger orchestrator: checkin_submitted ─────────────────────────

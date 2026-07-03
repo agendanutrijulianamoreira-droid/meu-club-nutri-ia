@@ -102,9 +102,14 @@ export default function WeeklyCheckinPage() {
                     )}
                 </div>
             )}
-            <Link href="/patient/home" className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white font-bold text-sm transition-all">
-                ← Voltar ao início
-            </Link>
+            <div className="flex flex-col items-center gap-3">
+                <Link href="/patient/home" className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white font-bold text-sm transition-all">
+                    ← Voltar ao início
+                </Link>
+                <Link href="/patient/progresso/checkin" className="text-slate-500 hover:text-slate-300 text-xs font-bold transition-colors">
+                    Já fez seu check-in diário de hoje? →
+                </Link>
+            </div>
         </div>
     )
 
@@ -131,9 +136,14 @@ export default function WeeklyCheckinPage() {
                     <p className="text-sm text-slate-300 italic">"{aiSummary}"</p>
                 </div>
             )}
-            <Link href="/patient/home" className="px-6 py-3 bg-indigo-600 rounded-xl text-white font-bold text-sm">
-                Voltar ao início →
-            </Link>
+            <div className="flex flex-col items-center gap-3">
+                <Link href="/patient/home" className="px-6 py-3 bg-indigo-600 rounded-xl text-white font-bold text-sm">
+                    Voltar ao início →
+                </Link>
+                <Link href="/patient/progresso/checkin" className="text-slate-500 hover:text-slate-300 text-xs font-bold transition-colors">
+                    Fazer também o check-in diário de hoje →
+                </Link>
+            </div>
         </motion.div>
     )
 

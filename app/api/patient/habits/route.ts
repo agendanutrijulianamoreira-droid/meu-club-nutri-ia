@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase-server"
 import { cookies } from "next/headers"
 import { HABIT_HIT_XP } from "@/lib/gamification"
+import { awardPoints } from "@/lib/services/gamification"
 
 export async function GET() {
     const supabase = createSupabaseServerClient(cookies())
@@ -101,10 +102,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Award XP + NutriCoins (increment_user_points also recalculates current_level)
-    const { error: rpcError } = await supabase.rpc('increment_user_points', { user_id: user.id, points_to_add: xp })
-    if (rpcError) {
-        console.error('[habits POST] increment_user_points failed', rpcError)
-    }
+    await awardPoints(supabase, user.id, xp, 'habits POST')
 
     return NextResponse.json({ success: true, xp_awarded: xp })
 }
@@ -117,6 +115,17 @@ export async function DELETE(request: NextRequest) {
     const { habit_id } = await request.json()
     const today = new Date().toISOString().split('T')[0]
 
+    // Buscar XP creditado neste log antes de apagar, para estornar corretamente
+    // (mesma classe de bug já corrigida em usePatientEngine.toggleCheckin: sem
+    // isso dava pra marcar/desmarcar o mesmo hábito e farmar XP infinitamente)
+    const { data: existing } = await supabase
+        .from('habit_logs')
+        .select('xp_awarded')
+        .eq('user_id', user.id)
+        .eq('habit_id', habit_id)
+        .eq('log_date', today)
+        .single()
+
     const { error } = await supabase
         .from('habit_logs')
         .delete()
@@ -125,5 +134,10 @@ export async function DELETE(request: NextRequest) {
         .eq('log_date', today)
 
     if (error) return NextResponse.json({ error: 'Failed to delete' }, { status: 500 })
+
+    if (existing?.xp_awarded) {
+        await awardPoints(supabase, user.id, -existing.xp_awarded, 'habits DELETE')
+    }
+
     return NextResponse.json({ success: true })
 }
