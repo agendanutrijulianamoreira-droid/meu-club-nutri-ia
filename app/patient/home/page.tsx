@@ -30,6 +30,7 @@ import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase-browser"
 import { ReminderSettings } from "@/components/patient/ReminderSettings"
 import { StreakTimeline } from "@/components/patient/StreakTimeline"
+import { ProgressRing } from "@/components/patient/ProgressRing"
 
 export default function PatientHomePage() {
     const router = useRouter()
@@ -59,6 +60,7 @@ export default function PatientHomePage() {
     const [nextAppointment, setNextAppointment] = useState<{ scheduled_at: string; is_virtual: boolean; meeting_link?: string; appointment_type: string } | null>(null)
     const [pendingQuestionnaires, setPendingQuestionnaires] = useState<{ id: string; name: string }[]>([])
     const [userId, setUserId] = useState<string | null>(null)
+    const [dietaHoje, setDietaHoje] = useState<{ consumidas: number; meta: number } | null>(null)
 
     useEffect(() => {
         const init = async () => {
@@ -125,6 +127,13 @@ export default function PatientHomePage() {
             const dailyRes = await fetch(`/api/patient/checkin-diario?data=${todayLocal}`)
             const dailyData = await dailyRes.json().catch(() => ({}))
             setDailyCheckinPending(!dailyData.registro)
+
+            // Resumo calórico de hoje (dieta), pra teaser na Home
+            const dietaRes = await fetch('/api/patient/diario/meta').catch(() => null)
+            const dietaData = dietaRes && dietaRes.ok ? await dietaRes.json().catch(() => ({})) : {}
+            if (dietaData?.resumo) {
+                setDietaHoje({ consumidas: dietaData.resumo.calorias_consumidas, meta: dietaData.resumo.calorias_meta })
+            }
 
             // Load nutri coins and next reward
             const { data: profileData } = await supabase
@@ -644,6 +653,30 @@ export default function PatientHomePage() {
                     </div>
                 )}
             </div>
+
+            {/* ─── Dieta de hoje ────────────────────────────────────────── */}
+            {dietaHoje && dietaHoje.meta > 0 && (
+                <Link href="/patient/diario" className="mb-5 block">
+                    <div className="flex items-center gap-4 bg-gradient-to-br from-white/[0.06] to-white/[0.015] border border-white/10 hover:border-indigo-500/30 rounded-2xl p-4 transition-all">
+                        <ProgressRing
+                            value={dietaHoje.consumidas}
+                            max={dietaHoje.meta}
+                            size={56}
+                            strokeWidth={5}
+                            color={dietaHoje.consumidas > dietaHoje.meta ? '#fb7185' : '#818cf8'}
+                        >
+                            <Flame size={13} className="text-orange-400" />
+                        </ProgressRing>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-white">
+                                {Math.round(dietaHoje.consumidas)} <span className="text-slate-500 font-normal">/ {Math.round(dietaHoje.meta)} kcal hoje</span>
+                            </p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">Toque para ver seu diário alimentar</p>
+                        </div>
+                        <ChevronRight size={16} className="text-slate-600 flex-shrink-0" />
+                    </div>
+                </Link>
+            )}
 
             {/* ─── SEÇÃO 3: Metas Rápidas ───────────────────────────────── */}
             <div className="mb-5">

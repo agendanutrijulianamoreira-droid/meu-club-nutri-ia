@@ -371,19 +371,21 @@ function AdicionarAlimentoInner() {
           <button
             onClick={() => fotoInputRef.current?.click()}
             disabled={analisandoFoto}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 hover:border-indigo-500/30 rounded-2xl text-sm text-slate-300 transition-all disabled:opacity-50"
+            className="w-full flex items-center gap-3 p-4 bg-gradient-to-br from-indigo-500/10 to-white/[0.02] border border-indigo-500/20 hover:border-indigo-500/40 rounded-3xl transition-all disabled:opacity-50"
           >
-            {analisandoFoto ? (
-              <>
-                <Loader2 size={16} className="animate-spin text-indigo-400" />
-                <span className="text-indigo-400">Analisando foto...</span>
-              </>
-            ) : (
-              <>
-                <Camera size={16} className="text-indigo-400" />
-                Fotografar refeição
-              </>
-            )}
+            <div className="w-11 h-11 rounded-2xl bg-indigo-500/15 flex items-center justify-center flex-shrink-0">
+              {analisandoFoto
+                ? <Loader2 size={20} className="animate-spin text-indigo-400" />
+                : <Camera size={20} className="text-indigo-400" />}
+            </div>
+            <div className="text-left flex-1 min-w-0">
+              <p className="text-sm font-bold text-white">
+                {analisandoFoto ? 'Analisando foto...' : 'Fotografar refeição'}
+              </p>
+              <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                <Sparkles size={10} className="text-indigo-400" /> IA identifica alimentos e calorias
+              </p>
+            </div>
           </button>
         ) : (
           <PlanUpgradePrompt

@@ -1,7 +1,7 @@
 "use client"
 import { useState, useRef, useCallback, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ChevronLeft, Camera, Search, Loader2, AlertTriangle, CheckCircle2, XCircle, ScanLine } from "lucide-react"
+import { ChevronLeft, Camera, Search, Loader2, AlertTriangle, CheckCircle2, XCircle, ScanLine, Flame, Drumstick, Wheat, Droplets } from "lucide-react"
 import Link from "next/link"
 
 interface AlertaIngrediente {
@@ -50,14 +50,15 @@ const SEMAFORO_META: Record<string, { label: string; color: string; bg: string; 
     },
 }
 
-function MacroBadge({ label, value, unit }: { label: string; value: number | null; unit: string }) {
+function MacroBadge({ label, value, unit, color, Icon }: { label: string; value: number | null; unit: string; color: string; Icon: typeof Flame }) {
     return (
-        <div className="text-center bg-white/5 rounded-xl px-3 py-2">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider">{label}</p>
-            <p className="text-sm font-bold text-white">
+        <div className="text-center bg-white/5 border border-white/5 rounded-2xl px-2 py-3">
+            <Icon size={13} style={{ color }} className="mx-auto mb-1" />
+            <p className="text-sm font-bold text-white leading-none">
                 {value != null ? Math.round(value) : "—"}
                 <span className="text-[10px] text-slate-500 font-normal">{value != null ? unit : ""}</span>
             </p>
+            <p className="text-[9px] text-slate-500 uppercase tracking-wider mt-1">{label}</p>
         </div>
     )
 }
@@ -209,9 +210,13 @@ export default function ScannerPage() {
                             className="bg-slate-900/80 border border-white/10 rounded-3xl p-5 space-y-4"
                         >
                             <div className="flex items-center gap-3">
-                                {resultado.imagem_url && (
+                                {resultado.imagem_url ? (
                                     <img src={resultado.imagem_url} alt={resultado.nome}
-                                        className="w-14 h-14 rounded-xl object-cover bg-white/5" />
+                                        className={`w-16 h-16 rounded-2xl object-cover bg-white/5 border-2 ${meta.border}`} />
+                                ) : (
+                                    <div className={`w-16 h-16 rounded-2xl bg-white/5 border-2 ${meta.border} flex items-center justify-center flex-shrink-0`}>
+                                        {meta.icon}
+                                    </div>
                                 )}
                                 <div className="flex-1 min-w-0">
                                     <p className="text-sm font-bold text-white truncate">{resultado.nome}</p>
@@ -242,10 +247,10 @@ export default function ScannerPage() {
                             )}
 
                             <div className="grid grid-cols-4 gap-2">
-                                <MacroBadge label="Kcal" value={resultado.dados_nutricionais.energia_kcal} unit="" />
-                                <MacroBadge label="Prot" value={resultado.dados_nutricionais.proteina} unit="g" />
-                                <MacroBadge label="Carb" value={resultado.dados_nutricionais.carboidrato} unit="g" />
-                                <MacroBadge label="Gord" value={resultado.dados_nutricionais.gordura} unit="g" />
+                                <MacroBadge label="Kcal" value={resultado.dados_nutricionais.energia_kcal} unit="" color="#fb923c" Icon={Flame} />
+                                <MacroBadge label="Prot" value={resultado.dados_nutricionais.proteina} unit="g" color="#818cf8" Icon={Drumstick} />
+                                <MacroBadge label="Carb" value={resultado.dados_nutricionais.carboidrato} unit="g" color="#fbbf24" Icon={Wheat} />
+                                <MacroBadge label="Gord" value={resultado.dados_nutricionais.gordura} unit="g" color="#38bdf8" Icon={Droplets} />
                             </div>
 
                             <p className="text-[10px] text-slate-600">Valores por 100g/100ml, conforme Open Food Facts.</p>

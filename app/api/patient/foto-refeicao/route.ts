@@ -96,7 +96,7 @@ Regras:
 
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -150,7 +150,7 @@ Regras:
       tenant_id: profile?.tenant_id,
       prompt_text: 'Avaliação de prato por foto (VIP)',
       generated_content: { alimentos, insights },
-      gpt_model: 'gemini-2.5-flash-preview-05-20',
+      gpt_model: 'gemini-2.5-flash',
       status: 'success',
     }).then(({ error }) => {
       if (error) console.error('[foto-refeicao] log ai_generations:', error)
