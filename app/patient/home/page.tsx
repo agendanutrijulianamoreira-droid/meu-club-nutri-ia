@@ -385,145 +385,191 @@ export default function PatientHomePage() {
                 <StreakTimeline userId={userId ?? undefined} />
             </div>
 
-            {/* ─── Banner de Trial (Clube) ──────────────────────────────── */}
-            {currentPlan === 'community' && trialDaysLeft !== null && (
-                <motion.div
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-5"
-                >
-                    <Link href="/patient/upgrade">
-                        <div className={`flex items-center gap-3 p-4 rounded-2xl border group transition-all ${
-                            trialDaysLeft <= 3
-                                ? 'bg-rose-500/10 border-rose-500/30 hover:border-rose-400/50'
-                                : trialDaysLeft <= 7
-                                    ? 'bg-amber-500/10 border-amber-500/30 hover:border-amber-400/50'
-                                    : 'bg-indigo-600/10 border-indigo-500/20 hover:border-indigo-500/40'
-                        }`}>
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                                trialDaysLeft <= 3 ? 'bg-rose-500/20' : trialDaysLeft <= 7 ? 'bg-amber-500/20' : 'bg-indigo-600/20'
-                            }`}>
-                                {trialDaysLeft <= 7 ? (
-                                    <Flame size={18} className={trialDaysLeft <= 3 ? 'text-rose-400' : 'text-amber-400'} />
-                                ) : (
-                                    <Crown size={18} className="text-indigo-400" />
-                                )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                {trialDaysLeft === 0 ? (
-                                    <>
-                                        <p className="text-[9px] font-black uppercase tracking-[0.15em] text-rose-400 mb-0.5">Teste expirado</p>
-                                        <p className="text-white font-bold text-sm">Continue no Clube</p>
-                                        <p className="text-slate-400 text-xs">A partir de R$47/ano</p>
-                                    </>
-                                ) : (
-                                    <>
-                                        <p className="text-[9px] font-black uppercase tracking-[0.15em] text-indigo-400 mb-0.5">Teste gratuito</p>
-                                        <p className="text-white font-bold text-sm">
-                                            {trialDaysLeft} dia{trialDaysLeft > 1 ? 's' : ''} restante{trialDaysLeft > 1 ? 's' : ''}
-                                        </p>
-                                        <p className="text-slate-400 text-xs">Ver planos · a partir de R$47/ano</p>
-                                    </>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                                <span className="text-[10px] font-black text-indigo-400 hidden group-hover:block">Ver planos</span>
-                                <ChevronRight size={16} className={`group-hover:translate-x-1 transition-transform ${
-                                    trialDaysLeft <= 3 ? 'text-rose-400' : trialDaysLeft <= 7 ? 'text-amber-400' : 'text-indigo-400'
-                                }`} />
-                            </div>
-                        </div>
-                    </Link>
-                </motion.div>
-            )}
+            {/* ─── CTAs prioritários ───────────────────────────────────────
+                Antes, trial + check-in semanal + check-in diário + consulta +
+                questionário podiam aparecer como 5 faixas coloridas empilhadas
+                ao mesmo tempo, todas com o mesmo peso visual de urgência (ver
+                auditoria de produto). Agora só a de maior prioridade vira
+                banner cheio; as demais viram atalhos compactos numa única
+                fileira, sem competir por atenção nem desaparecer. */}
+            {(() => {
+                type BannerKey = 'trial-urgent' | 'daily-checkin' | 'weekly-checkin' | 'appointment' | 'questionnaire' | 'trial-soft'
 
-            {/* ─── CTA: Check-in pendente ───────────────────────────────── */}
-            {checkinPending && (
-                <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
-                    <Link href="/patient/checkin">
-                        <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-emerald-600/15 to-teal-600/10 border border-emerald-500/30 rounded-2xl group hover:border-emerald-400/50 transition-all">
-                            <div className="w-11 h-11 rounded-xl bg-emerald-600/25 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
-                                <ClipboardCheck className="text-emerald-300" size={20} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400 mb-0.5">Missão da Semana</p>
-                                <p className="text-white font-bold text-sm">Check-in pendente</p>
-                                <p className="text-slate-400 text-xs">Responda em 2 min e ganhe +20 XP</p>
-                            </div>
-                            <ChevronRight className="text-emerald-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
-                        </div>
-                    </Link>
-                </motion.div>
-            )}
+                const candidates: { key: BannerKey; priority: number }[] = []
+                if (currentPlan === 'community' && trialDaysLeft !== null && trialDaysLeft <= 3) candidates.push({ key: 'trial-urgent', priority: 1 })
+                if (dailyCheckinPending) candidates.push({ key: 'daily-checkin', priority: 2 })
+                if (checkinPending) candidates.push({ key: 'weekly-checkin', priority: 3 })
+                if (nextAppointment) candidates.push({ key: 'appointment', priority: 4 })
+                if (pendingQuestionnaires.length > 0) candidates.push({ key: 'questionnaire', priority: 5 })
+                if (currentPlan === 'community' && trialDaysLeft !== null && trialDaysLeft > 3) candidates.push({ key: 'trial-soft', priority: 6 })
 
-            {/* ─── CTA: Check-in diário de sintomas pendente ──────────────
-                Antes só o semanal tinha atalho aqui; o diário (energia, humor,
-                sono, inchaço...) só era alcançável entrando em Progresso primeiro */}
-            {dailyCheckinPending && (
-                <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
-                    <Link href="/patient/progresso/checkin">
-                        <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-indigo-600/15 to-purple-600/10 border border-indigo-500/30 rounded-2xl group hover:border-indigo-400/50 transition-all">
-                            <div className="w-11 h-11 rounded-xl bg-indigo-600/25 border border-indigo-500/30 flex items-center justify-center flex-shrink-0">
-                                <HeartPulse className="text-indigo-300" size={20} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400 mb-0.5">Diário de Hoje</p>
-                                <p className="text-white font-bold text-sm">Como você está hoje?</p>
-                                <p className="text-slate-400 text-xs">Registre energia, humor e sintomas em 1 min</p>
-                            </div>
-                            <ChevronRight className="text-indigo-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
-                        </div>
-                    </Link>
-                </motion.div>
-            )}
+                if (candidates.length === 0) return null
+                candidates.sort((a, b) => a.priority - b.priority)
+                const primary = candidates[0].key
+                const secondary = candidates.slice(1)
 
-            {/* ─── Widget: Próxima Consulta ────────────────────────────── */}
-            {nextAppointment && (() => {
-                const d = new Date(nextAppointment.scheduled_at)
-                const typeLabel: Record<string, string> = { consultation: 'Consulta', followup: 'Retorno', initial_assessment: 'Avaliação', group_session: 'Grupo' }
-                const date = d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' })
-                const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
+                const questionnaireHref = pendingQuestionnaires.length === 1
+                    ? `/patient/questionnaire/${pendingQuestionnaires[0].id}`
+                    : '/patient/questionnaires'
+
+                const PILL_META: Record<BannerKey, { icon: any; label: string; href: string; color: string }> = {
+                    'trial-urgent':   { icon: Flame,          label: 'Teste expirando',  href: '/patient/upgrade',        color: 'text-rose-400 bg-rose-500/10 border-rose-500/20' },
+                    'trial-soft':     { icon: Crown,          label: 'Ver planos',       href: '/patient/upgrade',        color: 'text-indigo-400 bg-indigo-600/10 border-indigo-500/20' },
+                    'daily-checkin':  { icon: HeartPulse,     label: 'Diário de hoje',   href: '/patient/progresso/checkin', color: 'text-indigo-400 bg-indigo-600/10 border-indigo-500/20' },
+                    'weekly-checkin': { icon: ClipboardCheck, label: 'Check-in semanal', href: '/patient/checkin',        color: 'text-emerald-400 bg-emerald-600/10 border-emerald-500/20' },
+                    'appointment':    { icon: Calendar,       label: 'Próxima consulta', href: '/patient/appointments',   color: 'text-teal-400 bg-teal-600/10 border-teal-500/20' },
+                    'questionnaire':  { icon: ClipboardList,  label: 'Questionário',     href: questionnaireHref,         color: 'text-violet-400 bg-violet-600/10 border-violet-500/20' },
+                }
+
                 return (
-                    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
-                        <Link href="/patient/appointments">
-                            <div className="flex items-center gap-4 p-4 bg-teal-600/10 border border-teal-500/25 rounded-2xl group hover:border-teal-400/40 transition-all">
-                                <div className="w-11 h-11 rounded-xl bg-teal-600/20 border border-teal-500/25 flex items-center justify-center flex-shrink-0">
-                                    {nextAppointment.is_virtual ? <Video className="text-teal-300" size={18} /> : <MapPin className="text-teal-300" size={18} />}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-400 mb-0.5">Próxima Consulta</p>
-                                    <p className="text-white font-bold text-sm">{typeLabel[nextAppointment.appointment_type] || 'Consulta'}</p>
-                                    <p className="text-slate-400 text-xs capitalize">{date} · {time}</p>
-                                </div>
-                                <ChevronRight className="text-teal-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
+                    <>
+                        {(primary === 'trial-urgent' || primary === 'trial-soft') && trialDaysLeft !== null && (
+                            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="mb-3">
+                                <Link href="/patient/upgrade">
+                                    <div className={`flex items-center gap-3 p-4 rounded-2xl border group transition-all ${
+                                        trialDaysLeft <= 3
+                                            ? 'bg-rose-500/10 border-rose-500/30 hover:border-rose-400/50'
+                                            : trialDaysLeft <= 7
+                                                ? 'bg-amber-500/10 border-amber-500/30 hover:border-amber-400/50'
+                                                : 'bg-indigo-600/10 border-indigo-500/20 hover:border-indigo-500/40'
+                                    }`}>
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                            trialDaysLeft <= 3 ? 'bg-rose-500/20' : trialDaysLeft <= 7 ? 'bg-amber-500/20' : 'bg-indigo-600/20'
+                                        }`}>
+                                            {trialDaysLeft <= 7 ? (
+                                                <Flame size={18} className={trialDaysLeft <= 3 ? 'text-rose-400' : 'text-amber-400'} />
+                                            ) : (
+                                                <Crown size={18} className="text-indigo-400" />
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            {trialDaysLeft === 0 ? (
+                                                <>
+                                                    <p className="text-[9px] font-black uppercase tracking-[0.15em] text-rose-400 mb-0.5">Teste expirado</p>
+                                                    <p className="text-white font-bold text-sm">Continue no Clube</p>
+                                                    <p className="text-slate-400 text-xs">A partir de R$47/ano</p>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <p className="text-[9px] font-black uppercase tracking-[0.15em] text-indigo-400 mb-0.5">Teste gratuito</p>
+                                                    <p className="text-white font-bold text-sm">
+                                                        {trialDaysLeft} dia{trialDaysLeft > 1 ? 's' : ''} restante{trialDaysLeft > 1 ? 's' : ''}
+                                                    </p>
+                                                    <p className="text-slate-400 text-xs">Ver planos · a partir de R$47/ano</p>
+                                                </>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                            <span className="text-[10px] font-black text-indigo-400 hidden group-hover:block">Ver planos</span>
+                                            <ChevronRight size={16} className={`group-hover:translate-x-1 transition-transform ${
+                                                trialDaysLeft <= 3 ? 'text-rose-400' : trialDaysLeft <= 7 ? 'text-amber-400' : 'text-indigo-400'
+                                            }`} />
+                                        </div>
+                                    </div>
+                                </Link>
+                            </motion.div>
+                        )}
+
+                        {primary === 'daily-checkin' && (
+                            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-3">
+                                <Link href="/patient/progresso/checkin">
+                                    <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-indigo-600/15 to-purple-600/10 border border-indigo-500/30 rounded-2xl group hover:border-indigo-400/50 transition-all">
+                                        <div className="w-11 h-11 rounded-xl bg-indigo-600/25 border border-indigo-500/30 flex items-center justify-center flex-shrink-0">
+                                            <HeartPulse className="text-indigo-300" size={20} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400 mb-0.5">Diário de Hoje</p>
+                                            <p className="text-white font-bold text-sm">Como você está hoje?</p>
+                                            <p className="text-slate-400 text-xs">Registre energia, humor e sintomas — leva menos de 3 min</p>
+                                        </div>
+                                        <ChevronRight className="text-indigo-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
+                                    </div>
+                                </Link>
+                            </motion.div>
+                        )}
+
+                        {primary === 'weekly-checkin' && (
+                            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-3">
+                                <Link href="/patient/checkin">
+                                    <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-emerald-600/15 to-teal-600/10 border border-emerald-500/30 rounded-2xl group hover:border-emerald-400/50 transition-all">
+                                        <div className="w-11 h-11 rounded-xl bg-emerald-600/25 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
+                                            <ClipboardCheck className="text-emerald-300" size={20} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400 mb-0.5">Missão da Semana</p>
+                                            <p className="text-white font-bold text-sm">Check-in pendente</p>
+                                            <p className="text-slate-400 text-xs">Responda em 2 min e ganhe +20 XP</p>
+                                        </div>
+                                        <ChevronRight className="text-emerald-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
+                                    </div>
+                                </Link>
+                            </motion.div>
+                        )}
+
+                        {primary === 'appointment' && nextAppointment && (() => {
+                            const d = new Date(nextAppointment.scheduled_at)
+                            const typeLabel: Record<string, string> = { consultation: 'Consulta', followup: 'Retorno', initial_assessment: 'Avaliação', group_session: 'Grupo' }
+                            const date = d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' })
+                            const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
+                            return (
+                                <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-3">
+                                    <Link href="/patient/appointments">
+                                        <div className="flex items-center gap-4 p-4 bg-teal-600/10 border border-teal-500/25 rounded-2xl group hover:border-teal-400/40 transition-all">
+                                            <div className="w-11 h-11 rounded-xl bg-teal-600/20 border border-teal-500/25 flex items-center justify-center flex-shrink-0">
+                                                {nextAppointment.is_virtual ? <Video className="text-teal-300" size={18} /> : <MapPin className="text-teal-300" size={18} />}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-400 mb-0.5">Próxima Consulta</p>
+                                                <p className="text-white font-bold text-sm">{typeLabel[nextAppointment.appointment_type] || 'Consulta'}</p>
+                                                <p className="text-slate-400 text-xs capitalize">{date} · {time}</p>
+                                            </div>
+                                            <ChevronRight className="text-teal-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
+                                        </div>
+                                    </Link>
+                                </motion.div>
+                            )
+                        })()}
+
+                        {primary === 'questionnaire' && (
+                            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-3">
+                                <Link href={questionnaireHref}>
+                                    <div className="flex items-center gap-4 p-4 bg-violet-600/10 border border-violet-500/25 rounded-2xl group hover:border-violet-400/40 transition-all">
+                                        <div className="w-11 h-11 rounded-xl bg-violet-600/20 border border-violet-500/25 flex items-center justify-center flex-shrink-0">
+                                            <ClipboardList className="text-violet-300" size={18} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-violet-400 mb-0.5">Questionário Pendente</p>
+                                            <p className="text-white font-bold text-sm truncate">
+                                                {pendingQuestionnaires.length === 1
+                                                    ? pendingQuestionnaires[0].name
+                                                    : `${pendingQuestionnaires.length} questionários para responder`}
+                                            </p>
+                                            <p className="text-slate-400 text-xs">Ajude sua nutri a te conhecer melhor</p>
+                                        </div>
+                                        <ChevronRight className="text-violet-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
+                                    </div>
+                                </Link>
+                            </motion.div>
+                        )}
+
+                        {secondary.length > 0 && (
+                            <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1 scrollbar-hide">
+                                {secondary.map(({ key }) => {
+                                    const meta = PILL_META[key]
+                                    const Icon = meta.icon
+                                    return (
+                                        <Link key={key} href={meta.href}
+                                            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-bold whitespace-nowrap transition-all hover:brightness-110 ${meta.color}`}>
+                                            <Icon size={12} />
+                                            {meta.label}
+                                        </Link>
+                                    )
+                                })}
                             </div>
-                        </Link>
-                    </motion.div>
+                        )}
+                    </>
                 )
             })()}
-
-            {/* ─── Widget: Questionários Pendentes ─────────────────────── */}
-            {pendingQuestionnaires.length > 0 && (
-                <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
-                    <Link href={pendingQuestionnaires.length === 1 ? `/patient/questionnaire/${pendingQuestionnaires[0].id}` : '/patient/questionnaires'}>
-                        <div className="flex items-center gap-4 p-4 bg-violet-600/10 border border-violet-500/25 rounded-2xl group hover:border-violet-400/40 transition-all">
-                            <div className="w-11 h-11 rounded-xl bg-violet-600/20 border border-violet-500/25 flex items-center justify-center flex-shrink-0">
-                                <ClipboardList className="text-violet-300" size={18} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-violet-400 mb-0.5">Questionário Pendente</p>
-                                <p className="text-white font-bold text-sm truncate">
-                                    {pendingQuestionnaires.length === 1
-                                        ? pendingQuestionnaires[0].name
-                                        : `${pendingQuestionnaires.length} questionários para responder`}
-                                </p>
-                                <p className="text-slate-400 text-xs">Ajude sua nutri a te conhecer melhor</p>
-                            </div>
-                            <ChevronRight className="text-violet-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
-                        </div>
-                    </Link>
-                </motion.div>
-            )}
 
             {/* ─── SEÇÃO 2: Protocolo Ativo — Missões do Dia ────────────── */}
             <div className="mb-5">
