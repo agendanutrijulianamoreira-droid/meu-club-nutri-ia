@@ -7,6 +7,7 @@ import {
   Flame, Drumstick, Wheat, Droplets, Leaf, Loader2,
 } from "lucide-react"
 import Link from "next/link"
+import { ProgressRing } from "@/components/patient/ProgressRing"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,42 +58,33 @@ const STATUS_META = {
 
 // ─── Subcomponents ────────────────────────────────────────────────────────────
 
-function BarraProgresso({ valor, max, cor }: { valor: number; max: number; cor: string }) {
-  const pct = max > 0 ? Math.min((valor / max) * 100, 100) : 0
-  return (
-    <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-      <motion.div
-        className={`h-full rounded-full ${cor}`}
-        initial={{ width: 0 }}
-        animate={{ width: `${pct}%` }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-      />
-    </div>
-  )
+const MACRO_RING_COLOR: Record<string, string> = {
+  Proteína: '#818cf8', Carbo: '#fbbf24', Gordura: '#38bdf8', Fibra: '#34d399',
 }
 
 function ResumoMacros({ resumo }: { resumo: Resumo }) {
   const macros = [
-    { label: 'Proteína', consumido: resumo.proteina_consumida, meta: resumo.proteina_meta, unidade: 'g', cor: 'bg-indigo-500', Icon: Drumstick },
-    { label: 'Carbo',    consumido: resumo.carboidrato_consumido, meta: resumo.carboidrato_meta, unidade: 'g', cor: 'bg-amber-500', Icon: Wheat },
-    { label: 'Gordura',  consumido: resumo.lipideos_consumido, meta: resumo.lipideos_meta, unidade: 'g', cor: 'bg-rose-400', Icon: Droplets },
-    { label: 'Fibra',    consumido: resumo.fibra_consumida, meta: resumo.fibra_meta, unidade: 'g', cor: 'bg-emerald-500', Icon: Leaf },
+    { label: 'Proteína', consumido: resumo.proteina_consumida, meta: resumo.proteina_meta, unidade: 'g', Icon: Drumstick },
+    { label: 'Carbo',    consumido: resumo.carboidrato_consumido, meta: resumo.carboidrato_meta, unidade: 'g', Icon: Wheat },
+    { label: 'Gordura',  consumido: resumo.lipideos_consumido, meta: resumo.lipideos_meta, unidade: 'g', Icon: Droplets },
+    { label: 'Fibra',    consumido: resumo.fibra_consumida, meta: resumo.fibra_meta, unidade: 'g', Icon: Leaf },
   ]
 
   return (
-    <div className="grid grid-cols-2 gap-2">
-      {macros.map(({ label, consumido, meta, unidade, cor, Icon }) => (
-        <div key={label} className="bg-white/5 border border-white/10 rounded-2xl p-3">
-          <div className="flex items-center gap-1.5 mb-2">
-            <Icon size={12} className="text-slate-400" />
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">{label}</span>
+    <div className="grid grid-cols-4 gap-2">
+      {macros.map(({ label, consumido, meta, unidade, Icon }) => {
+        const cor = MACRO_RING_COLOR[label]
+        return (
+          <div key={label} className="flex flex-col items-center gap-1.5">
+            <ProgressRing value={consumido} max={meta || 1} size={56} strokeWidth={5} color={cor}>
+              <Icon size={12} style={{ color: cor }} />
+              <span className="text-white text-[11px] font-black leading-none mt-0.5">{Math.round(consumido)}</span>
+            </ProgressRing>
+            <span className="text-slate-500 text-[9px] font-black uppercase tracking-wider">{label}</span>
+            <span className="text-slate-600 text-[9px] -mt-1">/{Math.round(meta)}{unidade}</span>
           </div>
-          <p className="text-white text-sm font-bold mb-1">
-            {consumido}<span className="text-slate-500 text-xs font-normal">/{meta}{unidade}</span>
-          </p>
-          <BarraProgresso valor={consumido} max={meta} cor={cor} />
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -215,37 +207,48 @@ export default function DiarioAlimentarPage() {
       ) : (
         <>
           {/* Resumo calórico */}
-          {resumo && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white/5 border border-white/10 rounded-3xl p-5 space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Flame size={18} className="text-orange-400" />
-                  <span className="text-white font-bold text-base">
-                    {resumo.calorias_consumidas}
-                    <span className="text-slate-500 text-sm font-normal"> / {resumo.calorias_meta} kcal</span>
-                  </span>
+          {resumo && (() => {
+            const ringColor = resumo.status === 'acima' ? '#fb7185' : resumo.status === 'adequado' ? '#34d399' : '#818cf8'
+            const restante = resumo.calorias_meta - resumo.calorias_consumidas
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-gradient-to-br from-white/[0.06] to-white/[0.015] border border-white/10 rounded-3xl p-5 space-y-5"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Hoje</p>
+                  {statusMeta && (
+                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${statusMeta.bg} ${statusMeta.color}`}>
+                      {statusMeta.label}
+                    </span>
+                  )}
                 </div>
-                {statusMeta && (
-                  <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${statusMeta.bg} ${statusMeta.color}`}>
-                    {statusMeta.label}
-                  </span>
-                )}
-              </div>
 
-              {/* Barra calorias */}
-              <BarraProgresso
-                valor={resumo.calorias_consumidas}
-                max={resumo.calorias_meta}
-                cor={resumo.status === 'acima' ? 'bg-rose-400' : resumo.status === 'adequado' ? 'bg-emerald-500' : 'bg-indigo-500'}
-              />
+                <div className="flex items-center justify-center gap-7">
+                  <div className="text-center">
+                    <p className="text-lg font-black text-white">{resumo.calorias_meta}</p>
+                    <p className="text-[9px] text-slate-500 uppercase tracking-wider mt-0.5">Meta</p>
+                  </div>
+                  <ProgressRing value={resumo.calorias_consumidas} max={resumo.calorias_meta} size={112} strokeWidth={9} color={ringColor}>
+                    <Flame size={15} className="text-orange-400 mb-0.5" />
+                    <span className="text-white text-2xl font-black leading-none">{Math.round(resumo.calorias_consumidas)}</span>
+                    <span className="text-slate-500 text-[10px] mt-0.5">kcal</span>
+                  </ProgressRing>
+                  <div className="text-center">
+                    <p className="text-lg font-black" style={{ color: restante >= 0 ? '#e2e8f0' : '#fb7185' }}>
+                      {restante >= 0 ? restante : `+${Math.abs(restante)}`}
+                    </p>
+                    <p className="text-[9px] text-slate-500 uppercase tracking-wider mt-0.5">{restante >= 0 ? 'Restam' : 'Acima'}</p>
+                  </div>
+                </div>
 
-              <ResumoMacros resumo={resumo} />
-            </motion.div>
-          )}
+                <div className="pt-1 border-t border-white/5">
+                  <ResumoMacros resumo={resumo} />
+                </div>
+              </motion.div>
+            )
+          })()}
 
           {/* Refeições */}
           <div className="space-y-3">
@@ -261,7 +264,7 @@ export default function DiarioAlimentarPage() {
                     className="w-full flex items-center justify-between p-4 hover:bg-white/[0.03] transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="text-xl">{emoji}</span>
+                      <span className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center text-lg flex-shrink-0">{emoji}</span>
                       <div className="text-left">
                         <p className="text-white text-sm font-bold">{label}</p>
                         <p className="text-slate-500 text-xs">
