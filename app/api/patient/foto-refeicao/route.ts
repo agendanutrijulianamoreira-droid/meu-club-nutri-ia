@@ -68,7 +68,7 @@ Para cada alimento identificado, estime:
 6. Gorduras em gramas (se possível)
 7. Nível de confiança do reconhecimento: "alta", "media" ou "baixa"
 
-Depois, escreva de 1 a 2 insights curtos e objetivos sobre a refeição como um todo (ex: "Rica em proteína, ótima para saciedade", "Baixa em fibras, considere adicionar vegetais").
+Depois, escreva de 1 a 2 insights curtos sobre a refeição como um todo, focados em energia, saciedade, equilíbrio hormonal e saúde intestinal — nunca em déficit calórico ou perda de peso (ex: "Rico em magnésio: ajuda a reduzir inchaço e ansiedade", "Boa dose de proteína aqui, ótima para manter a energia estável até a tarde", "Baixo em fibras — um vegetal a mais ajudaria a saciedade e o intestino").
 
 Retorne APENAS JSON no formato:
 {

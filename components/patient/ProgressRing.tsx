@@ -8,10 +8,11 @@ interface ProgressRingProps {
   size?: number
   strokeWidth?: number
   color: string
+  trackColor?: string
   children?: ReactNode
 }
 
-export function ProgressRing({ value, max, size = 56, strokeWidth = 5, color, children }: ProgressRingProps) {
+export function ProgressRing({ value, max, size = 56, strokeWidth = 5, color, trackColor = "rgba(255,255,255,0.08)", children }: ProgressRingProps) {
   const pct = max > 0 ? Math.min(value / max, 1) : 0
   const radius = (size - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
@@ -20,7 +21,7 @@ export function ProgressRing({ value, max, size = 56, strokeWidth = 5, color, ch
   return (
     <div className="relative flex items-center justify-center shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} stroke="rgba(255,255,255,0.08)" strokeWidth={strokeWidth} fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke={trackColor} strokeWidth={strokeWidth} fill="none" />
         <circle
           cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeWidth={strokeWidth} fill="none"
           strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"

@@ -238,7 +238,7 @@ export default function PatientHomePage() {
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <Loader2 className="text-indigo-500 animate-spin" size={32} />
+                <Loader2 className="text-sage-600 animate-spin" size={32} />
             </div>
         )
     }
@@ -256,18 +256,18 @@ export default function PatientHomePage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-sm flex items-end justify-center p-4 px-4"
+              className="fixed inset-0 z-50 bg-stone-900/50 backdrop-blur-sm flex items-end justify-center p-4 px-4"
             >
               <motion.div
                 initial={{ y: 60, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: 60, opacity: 0 }}
-                className="w-full max-w-[430px] bg-slate-900 border border-white/10 rounded-3xl p-6 mb-4 space-y-5"
+                className="w-full max-w-[430px] bg-white border border-sage-900/[0.06] shadow-xl shadow-stone-900/10 rounded-[2rem] p-6 mb-4 space-y-5"
               >
                 <div className="text-center">
-                  <div className="text-4xl mb-3">🎉</div>
-                  <h2 className="text-xl font-bold text-white">Bem-vinda ao Clube, {firstName}!</h2>
-                  <p className="text-slate-400 text-sm mt-1">Aqui está tudo que você pode acessar</p>
+                  <div className="text-4xl mb-3">🌿</div>
+                  <h2 className="font-display text-xl font-semibold text-stone-800">Bem-vinda ao Clube, {firstName}</h2>
+                  <p className="text-stone-500 text-sm mt-1">Aqui está tudo que você pode acessar</p>
                 </div>
                 <div className="space-y-3">
                   {[
@@ -277,11 +277,11 @@ export default function PatientHomePage() {
                     { emoji: '💬', title: 'Chat com a nutricionista', desc: 'Tire dúvidas a qualquer hora', href: '/patient/chat' },
                     { emoji: '🌟', title: 'Comunidade e Ranking', desc: 'Conecte-se com outras mulheres', href: '/patient/feed' },
                   ].map((item, i) => (
-                    <div key={i} className="flex items-center gap-3 bg-white/5 border border-white/5 rounded-2xl px-4 py-3">
+                    <div key={i} className="flex items-center gap-3 bg-sand-50 border border-sage-900/[0.05] rounded-2xl px-4 py-3">
                       <span className="text-xl">{item.emoji}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-semibold">{item.title}</p>
-                        <p className="text-slate-500 text-xs">{item.desc}</p>
+                        <p className="text-stone-800 text-sm font-semibold">{item.title}</p>
+                        <p className="text-stone-500 text-xs">{item.desc}</p>
                       </div>
                     </div>
                   ))}
@@ -293,7 +293,7 @@ export default function PatientHomePage() {
                     })
                     setShowWelcomeTour(false)
                   }}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-2xl transition-all"
+                  className="w-full bg-sage-600 hover:bg-sage-700 text-white font-semibold py-4 rounded-2xl transition-all"
                 >
                   Começar minha jornada
                 </button>
@@ -307,12 +307,12 @@ export default function PatientHomePage() {
             <div className="mb-7">
                 <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500 mb-1">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-sage-600 mb-1">
                             {new Date().getHours() < 12 ? 'Bom dia' : new Date().getHours() < 18 ? 'Boa tarde' : 'Boa noite'}
                         </p>
-                        <h1 className="text-2xl font-bold text-white leading-tight">{firstName}</h1>
+                        <h1 className="font-display text-2xl font-semibold text-stone-800 leading-tight">{firstName}</h1>
                         {activeProtocol && (
-                            <p className="text-slate-500 text-xs mt-0.5">
+                            <p className="text-stone-500 text-xs mt-0.5">
                                 Dia {stats.currentDay} de {stats.totalDays} no protocolo
                             </p>
                         )}
@@ -320,16 +320,16 @@ export default function PatientHomePage() {
                     <div className="flex items-center gap-2 shrink-0">
                         <button
                             onClick={() => setShowReminders(true)}
-                            className="h-10 w-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center"
+                            className="h-10 w-10 rounded-2xl bg-white border border-sage-900/[0.06] shadow-sm shadow-stone-900/5 flex items-center justify-center"
                         >
-                            <Bell className="text-slate-400" size={18} />
+                            <Bell className="text-stone-400" size={18} />
                         </button>
                         <Link href="/patient/inbox" className="relative">
-                            <div className="h-10 w-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                                <Sparkles className="text-slate-400" size={18} />
+                            <div className="h-10 w-10 rounded-2xl bg-white border border-sage-900/[0.06] shadow-sm shadow-stone-900/5 flex items-center justify-center">
+                                <Sparkles className="text-stone-400" size={18} />
                             </div>
                             {unreadCount > 0 && (
-                                <span className="absolute -top-1 -right-1 h-4 w-4 bg-emerald-500 border border-[#020617] rounded-full flex items-center justify-center text-[9px] font-black text-white">
+                                <span className="absolute -top-1 -right-1 h-4 w-4 bg-sage-600 border border-sand-50 rounded-full flex items-center justify-center text-[9px] font-black text-white">
                                     {unreadCount}
                                 </span>
                             )}
@@ -339,17 +339,17 @@ export default function PatientHomePage() {
 
                 {/* Streak + XP row */}
                 <div className="flex items-center gap-3 mt-4">
-                    <div className="flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 px-4 py-2.5 rounded-2xl flex-1">
-                        <Flame className="text-orange-400 shrink-0" size={18} />
-                        <span className="font-black text-white text-lg leading-none">{stats.currentStreak}</span>
-                        <span className="text-orange-400/70 text-xs">dias</span>
-                        <span className="ml-auto text-[9px] text-slate-600 uppercase font-black tracking-widest">Streak</span>
+                    <div className="flex items-center gap-2 bg-clay-50 border border-clay-200/60 px-4 py-2.5 rounded-2xl flex-1">
+                        <Flame className="text-clay-500 shrink-0" size={18} />
+                        <span className="font-bold text-stone-800 text-lg leading-none">{stats.currentStreak}</span>
+                        <span className="text-clay-600/70 text-xs">dias</span>
+                        <span className="ml-auto text-[9px] text-stone-400 uppercase font-bold tracking-widest">Streak</span>
                     </div>
-                    <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 px-4 py-2.5 rounded-2xl flex-1">
-                        <Sparkles className="text-yellow-400 shrink-0" size={16} />
-                        <span className="font-black text-white text-lg leading-none">{stats.totalPoints}</span>
-                        <span className="text-yellow-400/70 text-xs">XP</span>
-                        <span className="ml-auto text-[9px] text-slate-600 uppercase font-black tracking-widest">Total</span>
+                    <div className="flex items-center gap-2 bg-sage-50 border border-sage-200/60 px-4 py-2.5 rounded-2xl flex-1">
+                        <Sparkles className="text-sage-600 shrink-0" size={16} />
+                        <span className="font-bold text-stone-800 text-lg leading-none">{stats.totalPoints}</span>
+                        <span className="text-sage-600/70 text-xs">XP</span>
+                        <span className="ml-auto text-[9px] text-stone-400 uppercase font-bold tracking-widest">Total</span>
                     </div>
                 </div>
 
@@ -362,19 +362,19 @@ export default function PatientHomePage() {
                     const pct = Math.round(xpProgressInLevel(xp) * 100)
                     return (
                         <div className="mt-3 flex items-center gap-3">
-                            <span className="text-[10px] font-black text-slate-500 whitespace-nowrap">Nv {level}</span>
+                            <span className="text-[10px] font-bold text-stone-400 whitespace-nowrap">Nv {level}</span>
                             <div className="flex-1 relative">
-                                <div className="h-1.5 bg-white/8 rounded-full overflow-hidden">
+                                <div className="h-1.5 bg-sage-900/[0.06] rounded-full overflow-hidden">
                                     <motion.div
-                                        className="h-full bg-gradient-to-r from-yellow-500 to-amber-400 rounded-full"
+                                        className="h-full bg-gradient-to-r from-clay-400 to-clay-500 rounded-full"
                                         initial={{ width: 0 }}
                                         animate={{ width: `${pct}%` }}
                                         transition={{ duration: 1, ease: 'easeOut' }}
                                     />
                                 </div>
                             </div>
-                            <span className="text-[10px] font-black text-yellow-400 whitespace-nowrap">Nv {level + 1}</span>
-                            <span className="text-[9px] text-slate-600 whitespace-nowrap">{xp - minCurrent}/{minNext - minCurrent} XP</span>
+                            <span className="text-[10px] font-bold text-clay-500 whitespace-nowrap">Nv {level + 1}</span>
+                            <span className="text-[9px] text-stone-400 whitespace-nowrap">{xp - minCurrent}/{minNext - minCurrent} XP</span>
                         </div>
                     )
                 })()}
@@ -393,43 +393,43 @@ export default function PatientHomePage() {
                     className="mb-5"
                 >
                     <Link href="/patient/upgrade">
-                        <div className={`flex items-center gap-3 p-4 rounded-2xl border group transition-all ${
+                        <div className={`flex items-center gap-3 p-4 rounded-2xl border group transition-all bg-white shadow-sm shadow-stone-900/5 ${
                             trialDaysLeft <= 3
-                                ? 'bg-rose-500/10 border-rose-500/30 hover:border-rose-400/50'
+                                ? 'border-rose-300/60 hover:border-rose-400/70'
                                 : trialDaysLeft <= 7
-                                    ? 'bg-amber-500/10 border-amber-500/30 hover:border-amber-400/50'
-                                    : 'bg-indigo-600/10 border-indigo-500/20 hover:border-indigo-500/40'
+                                    ? 'border-amber-300/60 hover:border-amber-400/70'
+                                    : 'border-clay-200/70 hover:border-clay-300/80'
                         }`}>
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                                trialDaysLeft <= 3 ? 'bg-rose-500/20' : trialDaysLeft <= 7 ? 'bg-amber-500/20' : 'bg-indigo-600/20'
+                                trialDaysLeft <= 3 ? 'bg-rose-50' : trialDaysLeft <= 7 ? 'bg-amber-50' : 'bg-clay-50'
                             }`}>
                                 {trialDaysLeft <= 7 ? (
-                                    <Flame size={18} className={trialDaysLeft <= 3 ? 'text-rose-400' : 'text-amber-400'} />
+                                    <Flame size={18} className={trialDaysLeft <= 3 ? 'text-rose-500' : 'text-amber-500'} />
                                 ) : (
-                                    <Crown size={18} className="text-indigo-400" />
+                                    <Crown size={18} className="text-clay-500" />
                                 )}
                             </div>
                             <div className="flex-1 min-w-0">
                                 {trialDaysLeft === 0 ? (
                                     <>
-                                        <p className="text-[9px] font-black uppercase tracking-[0.15em] text-rose-400 mb-0.5">Teste expirado</p>
-                                        <p className="text-white font-bold text-sm">Continue no Clube</p>
-                                        <p className="text-slate-400 text-xs">A partir de R$47/ano</p>
+                                        <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-rose-500 mb-0.5">Teste expirado</p>
+                                        <p className="text-stone-800 font-semibold text-sm">Continue no Clube</p>
+                                        <p className="text-stone-500 text-xs">A partir de R$47/ano</p>
                                     </>
                                 ) : (
                                     <>
-                                        <p className="text-[9px] font-black uppercase tracking-[0.15em] text-indigo-400 mb-0.5">Teste gratuito</p>
-                                        <p className="text-white font-bold text-sm">
+                                        <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-clay-600 mb-0.5">Teste gratuito</p>
+                                        <p className="text-stone-800 font-semibold text-sm">
                                             {trialDaysLeft} dia{trialDaysLeft > 1 ? 's' : ''} restante{trialDaysLeft > 1 ? 's' : ''}
                                         </p>
-                                        <p className="text-slate-400 text-xs">Ver planos · a partir de R$47/ano</p>
+                                        <p className="text-stone-500 text-xs">Ver planos · a partir de R$47/ano</p>
                                     </>
                                 )}
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
-                                <span className="text-[10px] font-black text-indigo-400 hidden group-hover:block">Ver planos</span>
+                                <span className="text-[10px] font-bold text-clay-600 hidden group-hover:block">Ver planos</span>
                                 <ChevronRight size={16} className={`group-hover:translate-x-1 transition-transform ${
-                                    trialDaysLeft <= 3 ? 'text-rose-400' : trialDaysLeft <= 7 ? 'text-amber-400' : 'text-indigo-400'
+                                    trialDaysLeft <= 3 ? 'text-rose-500' : trialDaysLeft <= 7 ? 'text-amber-500' : 'text-clay-500'
                                 }`} />
                             </div>
                         </div>
@@ -441,16 +441,16 @@ export default function PatientHomePage() {
             {checkinPending && (
                 <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
                     <Link href="/patient/checkin">
-                        <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-emerald-600/15 to-teal-600/10 border border-emerald-500/30 rounded-2xl group hover:border-emerald-400/50 transition-all">
-                            <div className="w-11 h-11 rounded-xl bg-emerald-600/25 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
-                                <ClipboardCheck className="text-emerald-300" size={20} />
+                        <div className="flex items-center gap-4 p-4 bg-sage-50 border border-sage-200/70 rounded-2xl group hover:border-sage-400/60 transition-all">
+                            <div className="w-11 h-11 rounded-xl bg-white border border-sage-200/70 flex items-center justify-center flex-shrink-0">
+                                <ClipboardCheck className="text-sage-600" size={20} />
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400 mb-0.5">Missão da Semana</p>
-                                <p className="text-white font-bold text-sm">Check-in pendente</p>
-                                <p className="text-slate-400 text-xs">Responda em 2 min e ganhe +20 XP</p>
+                                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-sage-600 mb-0.5">Missão da Semana</p>
+                                <p className="text-stone-800 font-semibold text-sm">Check-in pendente</p>
+                                <p className="text-stone-500 text-xs">Responda em 2 min e ganhe +20 XP</p>
                             </div>
-                            <ChevronRight className="text-emerald-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
+                            <ChevronRight className="text-sage-500 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
                         </div>
                     </Link>
                 </motion.div>
@@ -462,16 +462,16 @@ export default function PatientHomePage() {
             {dailyCheckinPending && (
                 <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
                     <Link href="/patient/progresso/checkin">
-                        <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-indigo-600/15 to-purple-600/10 border border-indigo-500/30 rounded-2xl group hover:border-indigo-400/50 transition-all">
-                            <div className="w-11 h-11 rounded-xl bg-indigo-600/25 border border-indigo-500/30 flex items-center justify-center flex-shrink-0">
-                                <HeartPulse className="text-indigo-300" size={20} />
+                        <div className="flex items-center gap-4 p-4 bg-clay-50 border border-clay-200/70 rounded-2xl group hover:border-clay-400/60 transition-all">
+                            <div className="w-11 h-11 rounded-xl bg-white border border-clay-200/70 flex items-center justify-center flex-shrink-0">
+                                <HeartPulse className="text-clay-500" size={20} />
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400 mb-0.5">Diário de Hoje</p>
-                                <p className="text-white font-bold text-sm">Como você está hoje?</p>
-                                <p className="text-slate-400 text-xs">Registre energia, humor e sintomas em 1 min</p>
+                                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-clay-600 mb-0.5">Diário de Hoje</p>
+                                <p className="text-stone-800 font-semibold text-sm">Como você está hoje?</p>
+                                <p className="text-stone-500 text-xs">Registre energia, humor e sintomas em 1 min</p>
                             </div>
-                            <ChevronRight className="text-indigo-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
+                            <ChevronRight className="text-clay-500 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
                         </div>
                     </Link>
                 </motion.div>
@@ -486,16 +486,16 @@ export default function PatientHomePage() {
                 return (
                     <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
                         <Link href="/patient/appointments">
-                            <div className="flex items-center gap-4 p-4 bg-teal-600/10 border border-teal-500/25 rounded-2xl group hover:border-teal-400/40 transition-all">
-                                <div className="w-11 h-11 rounded-xl bg-teal-600/20 border border-teal-500/25 flex items-center justify-center flex-shrink-0">
-                                    {nextAppointment.is_virtual ? <Video className="text-teal-300" size={18} /> : <MapPin className="text-teal-300" size={18} />}
+                            <div className="flex items-center gap-4 p-4 bg-white border border-sage-900/[0.06] shadow-sm shadow-stone-900/5 rounded-2xl group hover:border-sage-300/60 transition-all">
+                                <div className="w-11 h-11 rounded-xl bg-sage-50 border border-sage-200/60 flex items-center justify-center flex-shrink-0">
+                                    {nextAppointment.is_virtual ? <Video className="text-sage-600" size={18} /> : <MapPin className="text-sage-600" size={18} />}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-400 mb-0.5">Próxima Consulta</p>
-                                    <p className="text-white font-bold text-sm">{typeLabel[nextAppointment.appointment_type] || 'Consulta'}</p>
-                                    <p className="text-slate-400 text-xs capitalize">{date} · {time}</p>
+                                    <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-sage-600 mb-0.5">Próxima Consulta</p>
+                                    <p className="text-stone-800 font-semibold text-sm">{typeLabel[nextAppointment.appointment_type] || 'Consulta'}</p>
+                                    <p className="text-stone-500 text-xs capitalize">{date} · {time}</p>
                                 </div>
-                                <ChevronRight className="text-teal-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
+                                <ChevronRight className="text-sage-500 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
                             </div>
                         </Link>
                     </motion.div>
@@ -506,20 +506,20 @@ export default function PatientHomePage() {
             {pendingQuestionnaires.length > 0 && (
                 <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
                     <Link href={pendingQuestionnaires.length === 1 ? `/patient/questionnaire/${pendingQuestionnaires[0].id}` : '/patient/questionnaires'}>
-                        <div className="flex items-center gap-4 p-4 bg-violet-600/10 border border-violet-500/25 rounded-2xl group hover:border-violet-400/40 transition-all">
-                            <div className="w-11 h-11 rounded-xl bg-violet-600/20 border border-violet-500/25 flex items-center justify-center flex-shrink-0">
-                                <ClipboardList className="text-violet-300" size={18} />
+                        <div className="flex items-center gap-4 p-4 bg-white border border-sage-900/[0.06] shadow-sm shadow-stone-900/5 rounded-2xl group hover:border-clay-300/60 transition-all">
+                            <div className="w-11 h-11 rounded-xl bg-clay-50 border border-clay-200/60 flex items-center justify-center flex-shrink-0">
+                                <ClipboardList className="text-clay-500" size={18} />
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-violet-400 mb-0.5">Questionário Pendente</p>
-                                <p className="text-white font-bold text-sm truncate">
+                                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-clay-600 mb-0.5">Questionário Pendente</p>
+                                <p className="text-stone-800 font-semibold text-sm truncate">
                                     {pendingQuestionnaires.length === 1
                                         ? pendingQuestionnaires[0].name
                                         : `${pendingQuestionnaires.length} questionários para responder`}
                                 </p>
-                                <p className="text-slate-400 text-xs">Ajude sua nutri a te conhecer melhor</p>
+                                <p className="text-stone-500 text-xs">Ajude sua nutri a te conhecer melhor</p>
                             </div>
-                            <ChevronRight className="text-violet-400 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
+                            <ChevronRight className="text-clay-500 group-hover:translate-x-1 transition-transform flex-shrink-0" size={18} />
                         </div>
                     </Link>
                 </motion.div>
@@ -527,7 +527,7 @@ export default function PatientHomePage() {
 
             {/* ─── SEÇÃO 2: Protocolo Ativo — Missões do Dia ────────────── */}
             <div className="mb-5">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-3">
                     {activeProtocol ? 'Meu Dia' : 'Protocolo'}
                 </p>
 
@@ -535,50 +535,50 @@ export default function PatientHomePage() {
                     <motion.div
                         initial={{ opacity: 0, y: 12 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="p-6 bg-white/5 border border-white/10 rounded-3xl text-center"
+                        className="p-6 bg-white border border-sage-900/[0.06] shadow-sm shadow-stone-900/5 rounded-[2rem] text-center"
                     >
-                        <div className="h-12 w-12 rounded-full bg-emerald-600/15 flex items-center justify-center mx-auto mb-3">
-                            <Sparkles className="text-emerald-400" size={22} />
+                        <div className="h-12 w-12 rounded-full bg-sage-50 flex items-center justify-center mx-auto mb-3">
+                            <Sparkles className="text-sage-600" size={22} />
                         </div>
-                        <h3 className="text-base font-bold text-white mb-1">Protocolo a caminho!</h3>
-                        <p className="text-sm text-slate-500 max-w-xs mx-auto">
+                        <h3 className="font-display text-base font-semibold text-stone-800 mb-1">Protocolo a caminho</h3>
+                        <p className="text-sm text-stone-500 max-w-xs mx-auto">
                             Sua nutricionista está preparando um plano personalizado para você.
                         </p>
-                        <div className="flex items-center justify-center gap-2 text-xs text-emerald-400 mt-3">
+                        <div className="flex items-center justify-center gap-2 text-xs text-sage-600 mt-3">
                             <Loader2 size={13} className="animate-spin" />
                             Aguardando protocolo...
                         </div>
                     </motion.div>
                 ) : (
-                    <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden">
+                    <div className="bg-white border border-sage-900/[0.06] shadow-sm shadow-stone-900/5 rounded-[2rem] overflow-hidden">
                         {/* Protocol header */}
-                        <div className="px-5 pt-5 pb-4 border-b border-white/5">
+                        <div className="px-5 pt-5 pb-4 border-b border-sage-900/[0.05]">
                             <div className="flex items-center justify-between">
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+                                        <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-sage-600 px-2 py-0.5 bg-sage-50 border border-sage-200/60 rounded-full">
                                             Ativo
                                         </span>
-                                        <span className="text-[10px] text-slate-500">Dia {stats.currentDay}/{stats.totalDays}</span>
+                                        <span className="text-[10px] text-stone-400">Dia {stats.currentDay}/{stats.totalDays}</span>
                                     </div>
-                                    <h2 className="text-base font-bold text-white truncate">{activeProtocol.title}</h2>
+                                    <h2 className="font-display text-base font-semibold text-stone-800 truncate">{activeProtocol.title}</h2>
                                 </div>
                                 <div className="relative shrink-0 ml-3">
                                     <svg className="w-12 h-12 -rotate-90">
-                                        <circle cx="24" cy="24" r="20" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3.5" />
-                                        <circle cx="24" cy="24" r="20" fill="none" stroke="#10b981" strokeWidth="3.5"
+                                        <circle cx="24" cy="24" r="20" fill="none" stroke="rgba(52,63,42,0.08)" strokeWidth="3.5" />
+                                        <circle cx="24" cy="24" r="20" fill="none" stroke="#79915d" strokeWidth="3.5"
                                             strokeDasharray={`${2 * Math.PI * 20}`}
                                             strokeDashoffset={`${2 * Math.PI * 20 * (1 - progressPercentage / 100)}`}
                                             strokeLinecap="round" />
                                     </svg>
-                                    <span className="absolute inset-0 flex items-center justify-center text-[11px] font-black text-white">
+                                    <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-stone-800">
                                         {progressPercentage}%
                                     </span>
                                 </div>
                             </div>
-                            <div className="mt-3 h-1.5 bg-white/8 rounded-full overflow-hidden">
+                            <div className="mt-3 h-1.5 bg-sage-900/[0.06] rounded-full overflow-hidden">
                                 <motion.div
-                                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full"
+                                    className="h-full bg-gradient-to-r from-sage-500 to-sage-400 rounded-full"
                                     initial={{ width: 0 }}
                                     animate={{ width: `${progressPercentage}%` }}
                                     transition={{ duration: 0.9, ease: 'easeOut' }}
@@ -588,8 +588,8 @@ export default function PatientHomePage() {
                         {/* Tasks list */}
                         {currentDayItems.length === 0 ? (
                             <div className="px-5 py-6 text-center">
-                                <p className="text-slate-400 text-sm font-bold">Dia livre!</p>
-                                <p className="text-xs text-slate-600 mt-1">Aproveite o descanso</p>
+                                <p className="text-stone-500 text-sm font-semibold">Dia livre!</p>
+                                <p className="text-xs text-stone-400 mt-1">Aproveite o descanso</p>
                             </div>
                         ) : (
                             <div className="px-4 py-3 space-y-2">
@@ -604,27 +604,27 @@ export default function PatientHomePage() {
                                             onClick={() => toggleCheckin(item.id, isCompleted)}
                                             className={`flex items-center gap-3 p-3.5 rounded-2xl cursor-pointer transition-all ${
                                                 isCompleted
-                                                    ? 'bg-emerald-500/8 border border-emerald-500/15'
-                                                    : 'bg-white/[0.03] border border-white/8 hover:border-white/15'
+                                                    ? 'bg-sage-50 border border-sage-200/60'
+                                                    : 'bg-sand-50 border border-sage-900/[0.05] hover:border-sage-300/50'
                                             }`}
                                         >
                                             <div className={`flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-all ${
-                                                isCompleted ? 'bg-emerald-500 shadow-lg shadow-emerald-500/25' : 'bg-white/5 border border-white/10'
+                                                isCompleted ? 'bg-sage-500' : 'bg-white border border-sage-900/[0.08]'
                                             }`}>
                                                 {isCompleted
                                                     ? <CheckCircle2 size={16} className="text-white" />
-                                                    : <Circle size={16} className="text-slate-600" />
+                                                    : <Circle size={16} className="text-stone-300" />
                                                 }
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <h4 className={`text-sm font-semibold ${isCompleted ? 'text-slate-400 line-through' : 'text-white'}`}>
+                                                <h4 className={`text-sm font-medium ${isCompleted ? 'text-stone-400 line-through' : 'text-stone-800'}`}>
                                                     {item.title}
                                                 </h4>
                                                 {item.description && (
-                                                    <p className="text-xs text-slate-600 mt-0.5 truncate">{item.description}</p>
+                                                    <p className="text-xs text-stone-400 mt-0.5 truncate">{item.description}</p>
                                                 )}
                                             </div>
-                                            <span className={`text-[10px] font-black shrink-0 ${isCompleted ? 'text-emerald-500' : 'text-slate-600'}`}>
+                                            <span className={`text-[10px] font-bold shrink-0 ${isCompleted ? 'text-sage-600' : 'text-stone-400'}`}>
                                                 +{item.points || 10} XP
                                             </span>
                                         </motion.div>
@@ -634,10 +634,10 @@ export default function PatientHomePage() {
                         )}
                         {completedCount === currentDayItems.length && currentDayItems.length > 0 && (
                             <div className="px-5 pb-5">
-                                <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3">
-                                    <Award className="text-emerald-400 shrink-0" size={16} />
-                                    <p className="text-emerald-300 text-xs font-bold">Todas as missões concluídas!</p>
-                                    <span className="ml-auto text-xs text-emerald-400 font-black">+{currentDayItems.reduce((s, i) => s + (i.points || 10), 0)} XP</span>
+                                <div className="flex items-center gap-2 bg-sage-50 border border-sage-200/60 rounded-2xl px-4 py-3">
+                                    <Award className="text-sage-600 shrink-0" size={16} />
+                                    <p className="text-sage-700 text-xs font-semibold">Todas as missões concluídas!</p>
+                                    <span className="ml-auto text-xs text-sage-600 font-bold">+{currentDayItems.reduce((s, i) => s + (i.points || 10), 0)} XP</span>
                                 </div>
                             </div>
                         )}
@@ -647,12 +647,12 @@ export default function PatientHomePage() {
 
             {/* ─── SEÇÃO 3: Metas Rápidas ───────────────────────────────── */}
             <div className="mb-5">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3">Registrar agora</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-3">Registrar agora</p>
                 <div className="grid grid-cols-3 gap-2">
                     {[
-                        { key: 'water', label: 'Água', icon: Droplet, color: 'text-sky-400', bg: 'bg-sky-500/8 border-sky-500/15', activeBg: 'bg-sky-500/20 border-sky-400/35', xp: `+${DAILY_LOG_XP.water_check} XP` },
-                        { key: 'meal', label: 'Refeição', icon: UtensilsCrossed, color: 'text-emerald-400', bg: 'bg-emerald-500/8 border-emerald-500/15', activeBg: 'bg-emerald-500/20 border-emerald-400/35', xp: `+${DAILY_LOG_XP.meal_plan_check} XP` },
-                        { key: 'workout', label: 'Exercício', icon: Dumbbell, color: 'text-amber-400', bg: 'bg-amber-500/8 border-amber-500/15', activeBg: 'bg-amber-500/20 border-amber-400/35', xp: `+${DAILY_LOG_XP.workout_check} XP` },
+                        { key: 'water', label: 'Água', icon: Droplet, color: 'text-sky-500', bg: 'bg-white border-sage-900/[0.06]', activeBg: 'bg-sky-50 border-sky-300/60', xp: `+${DAILY_LOG_XP.water_check} XP` },
+                        { key: 'meal', label: 'Refeição', icon: UtensilsCrossed, color: 'text-sage-600', bg: 'bg-white border-sage-900/[0.06]', activeBg: 'bg-sage-50 border-sage-300/60', xp: `+${DAILY_LOG_XP.meal_plan_check} XP` },
+                        { key: 'workout', label: 'Exercício', icon: Dumbbell, color: 'text-clay-500', bg: 'bg-white border-sage-900/[0.06]', activeBg: 'bg-clay-50 border-clay-300/60', xp: `+${DAILY_LOG_XP.workout_check} XP` },
                     ].map(({ key, label, icon: Icon, color, bg, activeBg, xp }) => {
                         const done = quickTaps[key as keyof typeof quickTaps]
                         return (
@@ -660,13 +660,13 @@ export default function PatientHomePage() {
                                 key={key}
                                 whileTap={{ scale: 0.92 }}
                                 onClick={() => key === 'water' ? router.push('/patient/hidratacao') : handleQuickTap(key as 'meal' | 'workout')}
-                                className={`flex flex-col items-center gap-2 py-4 px-2 rounded-2xl border transition-all ${done ? activeBg : bg}`}
+                                className={`flex flex-col items-center gap-2 py-4 px-2 rounded-2xl border shadow-sm shadow-stone-900/5 transition-all ${done ? activeBg : bg}`}
                             >
-                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${done ? 'bg-white/10' : 'bg-white/5'}`}>
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${done ? 'bg-white' : 'bg-sand-50'}`}>
                                     <Icon size={20} className={color} />
                                 </div>
-                                <span className="text-white text-[11px] font-bold leading-tight text-center">{label}</span>
-                                <span className={`text-[9px] font-black ${done ? color : 'text-slate-600'}`}>
+                                <span className="text-stone-800 text-[11px] font-semibold leading-tight text-center">{label}</span>
+                                <span className={`text-[9px] font-bold ${done ? color : 'text-stone-400'}`}>
                                     {done ? '✓ feito' : xp}
                                 </span>
                             </motion.button>
@@ -677,13 +677,13 @@ export default function PatientHomePage() {
 
             {/* ─── Vitória do Dia ──────────────────────────────────────── */}
             <div className="mb-5">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3">Vitória do Dia ✨</p>
-                <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-3">Vitória do Dia ✨</p>
+                <div className="bg-white border border-sage-900/[0.06] shadow-sm shadow-stone-900/5 rounded-2xl p-4">
                     {savedVictory ? (
                         <div className="space-y-2">
-                            <p className="text-sm text-white italic">"{savedVictory}"</p>
+                            <p className="text-sm text-stone-700 italic">"{savedVictory}"</p>
                             <button onClick={() => setSavedVictory('')}
-                                className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors">
+                                className="text-[10px] text-stone-400 hover:text-stone-600 transition-colors">
                                 editar
                             </button>
                         </div>
@@ -695,11 +695,11 @@ export default function PatientHomePage() {
                                 onBlur={saveVictory}
                                 rows={2}
                                 placeholder="Qual foi sua maior conquista hoje? Pode ser pequena..."
-                                className="w-full bg-transparent text-sm text-white placeholder-slate-600 resize-none outline-none leading-relaxed"
+                                className="w-full bg-transparent text-sm text-stone-800 placeholder-stone-400 resize-none outline-none leading-relaxed"
                             />
                             {dailyVictory.trim() && dailyVictory !== savedVictory && (
                                 <button onClick={saveVictory} disabled={savingVictory}
-                                    className="flex items-center gap-1 text-[10px] font-black text-emerald-400 hover:text-emerald-300 transition-colors">
+                                    className="flex items-center gap-1 text-[10px] font-bold text-sage-600 hover:text-sage-700 transition-colors">
                                     {savingVictory ? <Loader2 size={10} className="animate-spin" /> : null}
                                     salvar
                                 </button>
@@ -713,26 +713,26 @@ export default function PatientHomePage() {
             {nextReward && (
                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
                     <Link href="/patient/store">
-                        <div className="flex items-center gap-4 p-4 bg-white/5 border border-white/10 rounded-2xl hover:border-amber-500/25 transition-all group">
-                            <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0 text-xl">
+                        <div className="flex items-center gap-4 p-4 bg-white border border-sage-900/[0.06] shadow-sm shadow-stone-900/5 rounded-2xl hover:border-clay-300/50 transition-all group">
+                            <div className="w-11 h-11 rounded-xl bg-clay-50 border border-clay-200/60 flex items-center justify-center flex-shrink-0 text-xl">
                                 {nextReward.emoji || '🎁'}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-400 mb-0.5">Próximo Prêmio</p>
-                                <p className="text-white font-bold text-sm truncate">{nextReward.name}</p>
+                                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-clay-600 mb-0.5">Próximo Prêmio</p>
+                                <p className="text-stone-800 font-semibold text-sm truncate">{nextReward.name}</p>
                                 <div className="flex items-center gap-2 mt-1.5">
-                                    <div className="flex-1 h-1 bg-white/8 rounded-full overflow-hidden">
+                                    <div className="flex-1 h-1 bg-sage-900/[0.06] rounded-full overflow-hidden">
                                         <div
-                                            className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all"
+                                            className="h-full bg-gradient-to-r from-clay-400 to-clay-500 rounded-full transition-all"
                                             style={{ width: `${Math.min(100, (nutriCoins / nextReward.cost) * 100)}%` }}
                                         />
                                     </div>
-                                    <span className="text-[10px] text-slate-500 font-bold whitespace-nowrap">
+                                    <span className="text-[10px] text-stone-400 font-bold whitespace-nowrap">
                                         {nutriCoins}/{nextReward.cost} 👑
                                     </span>
                                 </div>
                             </div>
-                            <ChevronRight className="text-slate-600 group-hover:text-amber-400 group-hover:translate-x-1 transition-all flex-shrink-0" size={16} />
+                            <ChevronRight className="text-stone-300 group-hover:text-clay-500 group-hover:translate-x-1 transition-all flex-shrink-0" size={16} />
                         </div>
                     </Link>
                 </motion.div>
@@ -741,25 +741,25 @@ export default function PatientHomePage() {
             {/* ─── SEÇÃO 4: No Clube Agora ──────────────────────────────── */}
             <div>
                 <div className="flex items-center justify-between mb-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">No Clube Agora</p>
-                    <Link href="/patient/feed" className="text-[10px] font-black text-emerald-500 hover:text-emerald-400 uppercase tracking-widest transition">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400">No Clube Agora</p>
+                    <Link href="/patient/feed" className="text-[10px] font-bold text-sage-600 hover:text-sage-700 uppercase tracking-widest transition">
                         Ver tudo →
                     </Link>
                 </div>
                 <Link href="/patient/feed">
-                    <div className="flex items-center gap-3 p-4 bg-white/5 border border-white/10 rounded-2xl hover:border-emerald-500/20 transition-all group">
+                    <div className="flex items-center gap-3 p-4 bg-white border border-sage-900/[0.06] shadow-sm shadow-stone-900/5 rounded-2xl hover:border-sage-300/50 transition-all group">
                         <div className="flex -space-x-2">
                             {[1, 2, 3].map(i => (
-                                <div key={i} className="h-8 w-8 rounded-full border-2 border-slate-900 bg-slate-800 overflow-hidden">
+                                <div key={i} className="h-8 w-8 rounded-full border-2 border-white bg-sand-100 overflow-hidden">
                                     <img src={`https://api.dicebear.com/9.x/micah/svg?seed=club${i}`} alt="" className="w-full h-full" />
                                 </div>
                             ))}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-white text-sm font-semibold">Comunidade ativa</p>
-                            <p className="text-slate-500 text-xs">Veja as conquistas de hoje no clube</p>
+                            <p className="text-stone-800 text-sm font-semibold">Comunidade ativa</p>
+                            <p className="text-stone-500 text-xs">Veja as conquistas de hoje no clube</p>
                         </div>
-                        <ChevronRight className="text-slate-600 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all shrink-0" size={16} />
+                        <ChevronRight className="text-stone-300 group-hover:text-sage-500 group-hover:translate-x-1 transition-all shrink-0" size={16} />
                     </div>
                 </Link>
             </div>

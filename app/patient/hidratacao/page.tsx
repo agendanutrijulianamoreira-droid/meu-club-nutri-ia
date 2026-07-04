@@ -6,11 +6,9 @@ import { ChevronLeft, Droplet, Plus, Loader2, Minus } from "lucide-react"
 import Link from "next/link"
 import { supabase } from "@/lib/supabase-browser"
 import { ProgressRing } from "@/components/patient/ProgressRing"
+import { goalForWeight } from "@/lib/hydration"
 
 const QUICK_AMOUNTS = [250, 500]
-const MIN_GOAL_ML = 1500
-const MAX_GOAL_ML = 4000
-const ML_PER_KG = 35
 
 const TIPS = [
   "Evite beber água durante as refeições — prefira 30 min antes ou depois.",
@@ -18,11 +16,6 @@ const TIPS = [
   "Leve uma garrafinha com você para lembrar de beber ao longo do dia.",
   "Sinais de sede já indicam desidratação leve — beba antes de sentir sede.",
 ]
-
-function goalForWeight(weightKg: number | null): number {
-  if (!weightKg) return 2000
-  return Math.min(MAX_GOAL_ML, Math.max(MIN_GOAL_ML, Math.round(weightKg * ML_PER_KG)))
-}
 
 function todayStr(): string {
   const d = new Date()
