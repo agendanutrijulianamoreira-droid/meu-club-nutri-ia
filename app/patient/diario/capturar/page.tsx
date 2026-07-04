@@ -73,10 +73,11 @@ function CapturarRefeicaoInner() {
         return
       }
       sessionStorage.setItem(CAPTURA_STORAGE_KEY, JSON.stringify({
+        foto_base64: base64,
         alimentos: data.alimentos,
         insights: data.insights ?? [],
       }))
-      router.replace(`/patient/diario/adicionar?refeicao=${refeicao}`)
+      router.replace(`/patient/diario/resultado?refeicao=${refeicao}`)
     } catch {
       setErro("Não foi possível analisar a foto agora")
     } finally {

@@ -83,8 +83,10 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
     }, [pathname])
 
     const moreHasUnread = pathname !== '/patient/inbox' && unreadInbox > 0
-    // Telas de câmera em tela cheia (ex: captura de refeição) não usam chrome nenhum
+    // Fluxo de captura/confirmação de refeição por foto não usa o chrome padrão
+    // (bottom nav, botão "Mais"): são telas de foco único, sem distração
     const isFullScreenRoute = pathname?.startsWith('/patient/diario/capturar')
+        || pathname?.startsWith('/patient/diario/resultado')
 
     return (
         <div className={isFullScreenRoute ? "min-h-screen" : "min-h-screen bg-white pb-24"}>
