@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef, Suspense } from "react"
+import { useState, useEffect, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -55,16 +55,7 @@ function calcMacro(valorPer100g: number | null, gramas: number): number | null {
   return Math.round((valorPer100g * gramas) / 100 * 10) / 10
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-}
+const CAPTURA_STORAGE_KEY = "diarioFotoCaptura"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -98,8 +89,6 @@ function AdicionarAlimentoInner() {
   const [showRefeicaoSelect, setShowRefeicaoSelect] = useState(false)
 
   // Foto
-  const fotoInputRef = useRef<HTMLInputElement>(null)
-  const [analisandoFoto, setAnalisandoFoto] = useState(false)
   const [alimentosFoto, setAlimentosFoto] = useState<AlimentoFoto[] | null>(null)
   const [insightsFoto, setInsightsFoto] = useState<string[]>([])
   const [salvandoFoto, setSalvandoFoto] = useState(false)
@@ -118,46 +107,20 @@ function AdicionarAlimentoInner() {
       .catch(() => setMetaHoje(null))
   }, [])
 
-  // ─── Foto handlers ────────────────────────────────────────────────────────
-
-  const handleFotoSelecionada = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    setAnalisandoFoto(true)
-    setAlimentosFoto(null)
-    setInsightsFoto([])
-
+  // Resultado da análise feita na tela de captura (app/patient/diario/capturar)
+  // chega aqui via sessionStorage, já que a foto é tirada numa rota separada
+  useEffect(() => {
+    const raw = sessionStorage.getItem(CAPTURA_STORAGE_KEY)
+    if (!raw) return
+    sessionStorage.removeItem(CAPTURA_STORAGE_KEY)
     try {
-      const base64 = await fileToBase64(file)
-      const res = await fetch('/api/patient/foto-refeicao', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_base64: base64 }),
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        if (err.code === 'PLAN_UPGRADE_REQUIRED') {
-          showToast('error', 'Avaliação de pratos por IA é exclusiva do plano VIP')
-          return
-        }
-        throw new Error(err.error || 'Erro ao analisar foto')
-      }
-      const { alimentos, insights } = await res.json()
-      if (!alimentos || alimentos.length === 0) {
-        showToast('error', 'Nenhum alimento identificado na foto')
-        return
-      }
+      const { alimentos, insights } = JSON.parse(raw)
       setAlimentosFoto(alimentos.map((a: Omit<AlimentoFoto, 'selecionado'>) => ({ ...a, selecionado: true })))
       setInsightsFoto(insights ?? [])
-    } catch (err) {
-      showToast('error', err instanceof Error ? err.message : 'Erro ao analisar foto')
-    } finally {
-      setAnalisandoFoto(false)
-      // Reset input para permitir re-upload da mesma foto
-      if (fotoInputRef.current) fotoInputRef.current.value = ''
+    } catch {
+      // ignora captura corrompida
     }
-  }
+  }, [])
 
   const handleSalvarFoto = async () => {
     if (!alimentosFoto) return
@@ -355,35 +318,15 @@ function AdicionarAlimentoInner() {
         </AnimatePresence>
       </div>
 
-      {/* Input hidden para captura de foto */}
-      <input
-        ref={fotoInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={handleFotoSelecionada}
-      />
-
-      {/* Botão fotografar (exclusivo plano VIP) */}
+      {/* Botão fotografar (exclusivo plano VIP) — abre a tela de captura dedicada */}
       {!alimentosFoto && !loadingPlanGate && (
         podeUsarFotoIA ? (
           <button
-            onClick={() => fotoInputRef.current?.click()}
-            disabled={analisandoFoto}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 hover:border-indigo-500/30 rounded-2xl text-sm text-slate-300 transition-all disabled:opacity-50"
+            onClick={() => router.push(`/patient/diario/capturar?refeicao=${refeicao}`)}
+            className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 hover:border-indigo-500/30 rounded-2xl text-sm text-slate-300 transition-all"
           >
-            {analisandoFoto ? (
-              <>
-                <Loader2 size={16} className="animate-spin text-indigo-400" />
-                <span className="text-indigo-400">Analisando foto...</span>
-              </>
-            ) : (
-              <>
-                <Camera size={16} className="text-indigo-400" />
-                Fotografar refeição
-              </>
-            )}
+            <Camera size={16} className="text-indigo-400" />
+            Fotografar refeição
           </button>
         ) : (
           <PlanUpgradePrompt

@@ -83,31 +83,37 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
     }, [pathname])
 
     const moreHasUnread = pathname !== '/patient/inbox' && unreadInbox > 0
+    // Telas de câmera em tela cheia (ex: captura de refeição) não usam chrome nenhum
+    const isFullScreenRoute = pathname?.startsWith('/patient/diario/capturar')
 
     return (
-        <div className="min-h-screen bg-white pb-24">
+        <div className={isFullScreenRoute ? "min-h-screen" : "min-h-screen bg-white pb-24"}>
             {/* Main Content */}
             <main className="relative z-0">
                 {children}
             </main>
 
-            {/* "Mais" — acesso flutuante ao resto das telas do app (Hábitos, Chat,
-                Scanner, Loja, Medidas, Alarmes, Inbox, Questionários, Consultas);
-                Início/Diário IA/Meu Plano/Acervo/Comunidade já vivem na bottom nav */}
-            <button
-                onClick={() => setShowMore(true)}
-                className="fixed top-4 right-4 z-40 w-10 h-10 flex items-center justify-center rounded-full bg-white border border-stone-100 shadow-soft text-stone-400 hover:text-sage-600 transition-colors"
-            >
-                <Grid2x2 size={18} strokeWidth={1.5} />
-                {moreHasUnread && (
-                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-terracotta-500 rounded-full flex items-center justify-center text-[8px] font-black text-white">
-                        {unreadInbox > 9 ? '9+' : unreadInbox}
-                    </span>
-                )}
-            </button>
+            {!isFullScreenRoute && (
+                <>
+                    {/* "Mais" — acesso flutuante ao resto das telas do app (Hábitos, Chat,
+                        Scanner, Loja, Medidas, Alarmes, Inbox, Questionários, Consultas);
+                        Início/Diário IA/Meu Plano/Acervo/Comunidade já vivem na bottom nav */}
+                    <button
+                        onClick={() => setShowMore(true)}
+                        className="fixed top-4 right-4 z-40 w-10 h-10 flex items-center justify-center rounded-full bg-white border border-stone-100 shadow-soft text-stone-400 hover:text-sage-600 transition-colors"
+                    >
+                        <Grid2x2 size={18} strokeWidth={1.5} />
+                        {moreHasUnread && (
+                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-terracotta-500 rounded-full flex items-center justify-center text-[8px] font-black text-white">
+                                {unreadInbox > 9 ? '9+' : unreadInbox}
+                            </span>
+                        )}
+                    </button>
 
-            {/* Bottom Navigation */}
-            <BottomNav />
+                    {/* Bottom Navigation */}
+                    <BottomNav />
+                </>
+            )}
 
             {/* "Mais" — bottom sheet com o resto das telas do app */}
             <AnimatePresence>
