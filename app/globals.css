@@ -2,23 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens — VitaClub (redesign "acolhimento + sofisticação")
+ * Fundo branco puro, verde sálvia como cor primária, tons terrosos
+ * suaves (areia/nude/terracota) para superfícies secundárias.
+ */
 @layer base {
   :root {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --background: 0 0% 100%;
+    --foreground: 12 6.5% 15.1%;
+    --primary: 92.2 18.9% 42.5%;
+    --primary-foreground: 0 0% 100%;
+    --border: 20 5.9% 90%;
+    --input: 20 5.9% 90%;
+    --ring: 89.2 19.6% 61%;
   }
 }
 
-@layer utilities {
-  .glass-card {
-    @apply backdrop-blur-xl bg-white/5 border border-white/10;
-  }
-  .glass-panel {
-    @apply backdrop-blur-xl bg-white/[0.03] border border-white/[0.08];
+@layer base {
+  body {
+    @apply bg-background text-foreground;
   }
 }
 
@@ -29,8 +32,8 @@
 /* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 4px; }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.5); }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(107, 129, 88, 0.35); border-radius: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(107, 129, 88, 0.55); }
 
 /* Shimmer Animation */
 @keyframes shimmer {
@@ -38,8 +41,8 @@
   100% { background-position: 200% 0; }
 }
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 15px rgba(139, 92, 246, 0.3); }
-  50% { box-shadow: 0 0 30px rgba(139, 92, 246, 0.6); }
+  0%, 100% { box-shadow: 0 0 15px rgba(107, 129, 88, 0.25); }
+  50% { box-shadow: 0 0 30px rgba(107, 129, 88, 0.45); }
 }
 .animate-shimmer {
   background-size: 200% 100%;
