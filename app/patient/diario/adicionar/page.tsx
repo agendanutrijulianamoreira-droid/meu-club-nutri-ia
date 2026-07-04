@@ -1,15 +1,11 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef, Suspense } from "react"
+import { useState, useEffect, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import {
-  Search, X, Check, ChevronDown, Loader2, ArrowLeft, Info,
-  Camera, AlertCircle, Minus, Plus, Sparkles, Flame, Drumstick, Wheat, Droplets,
-} from "lucide-react"
+import { Search, X, Check, ChevronDown, Loader2, ArrowLeft, Info, Camera, Sparkles } from "lucide-react"
 import { usePlanGate } from "@/lib/hooks/usePlanGate"
 import { PlanUpgradePrompt } from "@/components/patient/PlanUpgradePrompt"
-import { ProgressRing } from "@/components/patient/ProgressRing"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,13 +26,6 @@ interface Alimento {
   potassium_mg: number | null
 }
 
-interface MetaDiaria {
-  calorias_meta: number
-  proteina_meta_g: number
-  carboidrato_meta_g: number
-  lipideos_meta_g: number
-}
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const REFEICOES = [
@@ -53,30 +42,6 @@ const IDR_MG = { vitamina_c: 45, ferro: 14, calcio: 1000, potassio: 3500 }
 function calcMacro(valorPer100g: number | null, gramas: number): number | null {
   if (valorPer100g == null) return null
   return Math.round((valorPer100g * gramas) / 100 * 10) / 10
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-}
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface AlimentoFoto {
-  nome: string
-  porcao_g: number
-  calorias: number
-  proteina_g?: number
-  carbo_g?: number
-  gordura_g?: number
-  confianca: 'alta' | 'media' | 'baixa'
-  selecionado: boolean
 }
 
 // ─── Inner Component (uses useSearchParams) ───────────────────────────────────
@@ -97,102 +62,9 @@ function AdicionarAlimentoInner() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const [showRefeicaoSelect, setShowRefeicaoSelect] = useState(false)
 
-  // Foto
-  const fotoInputRef = useRef<HTMLInputElement>(null)
-  const [analisandoFoto, setAnalisandoFoto] = useState(false)
-  const [alimentosFoto, setAlimentosFoto] = useState<AlimentoFoto[] | null>(null)
-  const [insightsFoto, setInsightsFoto] = useState<string[]>([])
-  const [salvandoFoto, setSalvandoFoto] = useState(false)
-  const [metaHoje, setMetaHoje] = useState<MetaDiaria | null>(null)
-
   const showToast = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg })
     setTimeout(() => setToast(null), 3500)
-  }
-
-  // Carrega a meta diária vigente (usada nos anéis de progresso da análise por foto)
-  useEffect(() => {
-    fetch('/api/patient/diario/meta')
-      .then(r => r.json())
-      .then(d => setMetaHoje(d.meta ?? null))
-      .catch(() => setMetaHoje(null))
-  }, [])
-
-  // ─── Foto handlers ────────────────────────────────────────────────────────
-
-  const handleFotoSelecionada = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    setAnalisandoFoto(true)
-    setAlimentosFoto(null)
-    setInsightsFoto([])
-
-    try {
-      const base64 = await fileToBase64(file)
-      const res = await fetch('/api/patient/foto-refeicao', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_base64: base64 }),
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        if (err.code === 'PLAN_UPGRADE_REQUIRED') {
-          showToast('error', 'Avaliação de pratos por IA é exclusiva do plano VIP')
-          return
-        }
-        throw new Error(err.error || 'Erro ao analisar foto')
-      }
-      const { alimentos, insights } = await res.json()
-      if (!alimentos || alimentos.length === 0) {
-        showToast('error', 'Nenhum alimento identificado na foto')
-        return
-      }
-      setAlimentosFoto(alimentos.map((a: Omit<AlimentoFoto, 'selecionado'>) => ({ ...a, selecionado: true })))
-      setInsightsFoto(insights ?? [])
-    } catch (err) {
-      showToast('error', err instanceof Error ? err.message : 'Erro ao analisar foto')
-    } finally {
-      setAnalisandoFoto(false)
-      // Reset input para permitir re-upload da mesma foto
-      if (fotoInputRef.current) fotoInputRef.current.value = ''
-    }
-  }
-
-  const handleSalvarFoto = async () => {
-    if (!alimentosFoto) return
-    const selecionados = alimentosFoto.filter(a => a.selecionado)
-    if (selecionados.length === 0) {
-      showToast('error', 'Selecione ao menos um alimento')
-      return
-    }
-
-    setSalvandoFoto(true)
-    try {
-      for (const alimento of selecionados) {
-        await fetch('/api/patient/diario', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            nome_refeicao: refeicao,
-            food_id: null,
-            alimento_nome: alimento.nome,
-            quantidade_gramas: alimento.porcao_g,
-            calorias_calculadas: alimento.calorias,
-            proteina_calculada: alimento.proteina_g ?? null,
-            carboidrato_calculado: alimento.carbo_g ?? null,
-            lipideos_calculado: alimento.gordura_g ?? null,
-            fibra_calculada: null,
-          }),
-        })
-      }
-      showToast('success', `${selecionados.length} alimento(s) registrado(s)!`)
-      setTimeout(() => router.push('/patient/diario'), 800)
-    } catch (err) {
-      showToast('error', err instanceof Error ? err.message : 'Erro ao salvar')
-    } finally {
-      setSalvandoFoto(false)
-    }
   }
 
   // Busca com debounce
@@ -228,13 +100,6 @@ function AdicionarAlimentoInner() {
   const calcioCalc = selecionado ? calcMacro(selecionado.calcium_mg, gramas) : null
   const potassioCalc = selecionado ? calcMacro(selecionado.potassium_mg, gramas) : null
   const temMicronutrientes = [vitCCalc, ferroCalc, calcioCalc, potassioCalc].some(v => v != null)
-
-  // Totais da refeição fotografada (apenas itens selecionados), usados nos anéis de progresso
-  const selecionadosFoto = alimentosFoto?.filter(a => a.selecionado) ?? []
-  const totalKcalFoto = selecionadosFoto.reduce((s, a) => s + a.calorias, 0)
-  const totalProtFoto = selecionadosFoto.reduce((s, a) => s + (a.proteina_g || 0), 0)
-  const totalCarboFoto = selecionadosFoto.reduce((s, a) => s + (a.carbo_g || 0), 0)
-  const totalGordFoto = selecionadosFoto.reduce((s, a) => s + (a.gordura_g || 0), 0)
 
   const handleSelecionarAlimento = (alimento: Alimento) => {
     setSelecionado(alimento)
@@ -355,33 +220,18 @@ function AdicionarAlimentoInner() {
         </AnimatePresence>
       </div>
 
-      {/* Input hidden para captura de foto */}
-      <input
-        ref={fotoInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={handleFotoSelecionada}
-      />
-
-      {/* Botão fotografar (exclusivo plano VIP) */}
-      {!alimentosFoto && !loadingPlanGate && (
+      {/* Botão fotografar (exclusivo plano VIP) — abre a tela de captura dedicada */}
+      {!loadingPlanGate && (
         podeUsarFotoIA ? (
           <button
-            onClick={() => fotoInputRef.current?.click()}
-            disabled={analisandoFoto}
-            className="w-full flex items-center gap-3 p-4 bg-gradient-to-br from-indigo-500/10 to-white/[0.02] border border-indigo-500/20 hover:border-indigo-500/40 rounded-3xl transition-all disabled:opacity-50"
+            onClick={() => router.push(`/patient/diario/capturar?refeicao=${refeicao}`)}
+            className="w-full flex items-center gap-3 p-4 bg-gradient-to-br from-indigo-500/10 to-white/[0.02] border border-indigo-500/20 hover:border-indigo-500/40 rounded-3xl transition-all"
           >
             <div className="w-11 h-11 rounded-2xl bg-indigo-500/15 flex items-center justify-center flex-shrink-0">
-              {analisandoFoto
-                ? <Loader2 size={20} className="animate-spin text-indigo-400" />
-                : <Camera size={20} className="text-indigo-400" />}
+              <Camera size={20} className="text-indigo-400" />
             </div>
             <div className="text-left flex-1 min-w-0">
-              <p className="text-sm font-bold text-white">
-                {analisandoFoto ? 'Analisando foto...' : 'Fotografar refeição'}
-              </p>
+              <p className="text-sm font-bold text-white">Fotografar refeição</p>
               <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
                 <Sparkles size={10} className="text-indigo-400" /> IA identifica alimentos e calorias
               </p>
@@ -396,175 +246,14 @@ function AdicionarAlimentoInner() {
         )
       )}
 
-      {/* Tela de confirmação dos alimentos identificados */}
-      <AnimatePresence mode="wait">
-        {alimentosFoto && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="space-y-3"
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                Alimentos identificados
-              </p>
-              <button
-                onClick={() => { setAlimentosFoto(null); setInsightsFoto([]) }}
-                className="text-slate-500 hover:text-white transition-colors"
-              >
-                <X size={14} />
-              </button>
-            </div>
-
-            {/* Resumo nutricional da refeição fotografada */}
-            {selecionadosFoto.length > 0 && (
-              <div className="bg-white/5 border border-white/10 rounded-3xl p-4">
-                <div className="flex items-center justify-center gap-5">
-                  <ProgressRing value={totalKcalFoto} max={metaHoje?.calorias_meta || 1} size={72} strokeWidth={6} color="#818cf8">
-                    <Flame size={14} className="text-indigo-400 mb-0.5" />
-                    <span className="text-white text-sm font-black leading-none">{Math.round(totalKcalFoto)}</span>
-                    <span className="text-slate-500 text-[9px]">kcal</span>
-                  </ProgressRing>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { label: 'Prot', value: totalProtFoto, max: metaHoje?.proteina_meta_g, color: '#fb7185', Icon: Drumstick },
-                      { label: 'Carb', value: totalCarboFoto, max: metaHoje?.carboidrato_meta_g, color: '#fbbf24', Icon: Wheat },
-                      { label: 'Gord', value: totalGordFoto, max: metaHoje?.lipideos_meta_g, color: '#38bdf8', Icon: Droplets },
-                    ].map(({ label, value, max, color, Icon }) => (
-                      <div key={label} className="flex flex-col items-center gap-1">
-                        <ProgressRing value={value} max={max || 1} size={48} strokeWidth={4} color={color}>
-                          <Icon size={10} style={{ color }} />
-                          <span className="text-white text-[10px] font-bold leading-none mt-0.5">{Math.round(value)}g</span>
-                        </ProgressRing>
-                        <span className="text-slate-500 text-[9px] uppercase font-black tracking-wider">{label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                {metaHoje && (
-                  <p className="text-slate-500 text-[11px] text-center mt-3">
-                    Essa refeição representa <span className="text-indigo-400 font-bold">{Math.round((totalKcalFoto / metaHoje.calorias_meta) * 100)}%</span> da sua meta calórica diária
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Insights da refeição gerados pela IA */}
-            {insightsFoto.length > 0 && (
-              <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-2xl p-4 space-y-2">
-                <p className="text-[10px] font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
-                  <Sparkles size={11} /> Insights da refeição
-                </p>
-                {insightsFoto.map((insight, i) => (
-                  <div key={i} className="flex items-start gap-2">
-                    <Check size={13} className="text-indigo-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-slate-300 text-xs">{insight}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {alimentosFoto.map((alimento, idx) => (
-              <div
-                key={idx}
-                className={`bg-white/5 border rounded-2xl p-3 transition-all ${
-                  alimento.selecionado ? 'border-indigo-500/40' : 'border-white/5 opacity-50'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <button
-                    onClick={() => setAlimentosFoto(prev => prev!.map((a, i) =>
-                      i === idx ? { ...a, selecionado: !a.selecionado } : a
-                    ))}
-                    className={`mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 transition-colors ${
-                      alimento.selecionado ? 'bg-indigo-600 border-indigo-600' : 'border-white/20'
-                    }`}
-                  >
-                    {alimento.selecionado && <Check size={11} className="text-white" />}
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="text-white text-sm font-medium truncate">{alimento.nome}</p>
-                      <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-                        alimento.confianca === 'alta'
-                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
-                          : alimento.confianca === 'media'
-                          ? 'bg-amber-500/15 text-amber-400 border border-amber-500/25'
-                          : 'bg-rose-500/15 text-rose-400 border border-rose-500/25'
-                      }`}>
-                        {alimento.confianca}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {/* Ajuste de porção */}
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => setAlimentosFoto(prev => prev!.map((a, i) =>
-                            i === idx ? { ...a, porcao_g: Math.max(10, a.porcao_g - 10), calorias: Math.round((a.calorias / a.porcao_g) * Math.max(10, a.porcao_g - 10)) } : a
-                          ))}
-                          className="w-5 h-5 bg-white/10 hover:bg-white/20 rounded-md flex items-center justify-center"
-                        >
-                          <Minus size={10} className="text-slate-400" />
-                        </button>
-                        <span className="text-slate-300 text-xs w-12 text-center">{alimento.porcao_g}g</span>
-                        <button
-                          onClick={() => setAlimentosFoto(prev => prev!.map((a, i) =>
-                            i === idx ? { ...a, porcao_g: a.porcao_g + 10, calorias: Math.round((a.calorias / a.porcao_g) * (a.porcao_g + 10)) } : a
-                          ))}
-                          className="w-5 h-5 bg-white/10 hover:bg-white/20 rounded-md flex items-center justify-center"
-                        >
-                          <Plus size={10} className="text-slate-400" />
-                        </button>
-                      </div>
-                      <span className="text-slate-500 text-xs">{alimento.calorias} kcal</span>
-                      {alimento.proteina_g != null && (
-                        <span className="text-indigo-400/70 text-xs">{alimento.proteina_g}g prot</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {/* Aviso confiança baixa */}
-            {alimentosFoto.some(a => a.confianca === 'baixa') && (
-              <div className="flex items-start gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                <AlertCircle size={13} className="text-amber-400 flex-shrink-0 mt-0.5" />
-                <p className="text-amber-400/80 text-xs">Alguns alimentos tiveram confiança baixa. Confira as porções antes de salvar.</p>
-              </div>
-            )}
-
-            <button
-              onClick={handleSalvarFoto}
-              disabled={salvandoFoto || alimentosFoto.every(a => !a.selecionado)}
-              className="w-full flex items-center justify-center gap-2 py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-bold rounded-2xl transition-all"
-            >
-              {salvandoFoto ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-              {salvandoFoto ? 'Salvando...' : `Registrar ${alimentosFoto.filter(a => a.selecionado).length} alimento(s)`}
-            </button>
-
-            <button
-              onClick={() => { setAlimentosFoto(null); setInsightsFoto([]) }}
-              className="w-full text-center text-slate-500 text-xs py-1"
-            >
-              Buscar manualmente
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Separador */}
-      {!alimentosFoto && (
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-white/5" />
-          <span className="text-slate-600 text-xs">ou buscar</span>
-          <div className="flex-1 h-px bg-white/5" />
-        </div>
-      )}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-white/5" />
+        <span className="text-slate-600 text-xs">ou buscar</span>
+        <div className="flex-1 h-px bg-white/5" />
+      </div>
 
       {/* Campo de busca */}
-      {!alimentosFoto && (
       <div className="relative">
         <div className="relative">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -617,11 +306,10 @@ function AdicionarAlimentoInner() {
           )}
         </AnimatePresence>
       </div>
-      )} {/* end {!alimentosFoto && search} */}
 
       {/* Quantidade + preview nutricional (busca manual) */}
       <AnimatePresence>
-        {selecionado && !alimentosFoto && (
+        {selecionado && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -734,7 +422,7 @@ function AdicionarAlimentoInner() {
       </AnimatePresence>
 
       {/* Dica inicial */}
-      {!selecionado && !alimentosFoto && query.length < 2 && (
+      {!selecionado && query.length < 2 && (
         <div className="text-center py-8">
           <Search size={28} className="text-slate-700 mx-auto mb-3" />
           <p className="text-slate-500 text-sm">Digite o nome de um alimento</p>
