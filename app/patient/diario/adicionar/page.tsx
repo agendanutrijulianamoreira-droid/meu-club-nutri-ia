@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, X, Check, ChevronDown, Loader2, ArrowLeft, Info, Camera } from "lucide-react"
+import { Search, X, Check, ChevronDown, Loader2, ArrowLeft, Info, Camera, Sparkles } from "lucide-react"
 import { usePlanGate } from "@/lib/hooks/usePlanGate"
 import { PlanUpgradePrompt } from "@/components/patient/PlanUpgradePrompt"
 
@@ -225,10 +225,17 @@ function AdicionarAlimentoInner() {
         podeUsarFotoIA ? (
           <button
             onClick={() => router.push(`/patient/diario/capturar?refeicao=${refeicao}`)}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 hover:border-indigo-500/30 rounded-2xl text-sm text-slate-300 transition-all"
+            className="w-full flex items-center gap-3 p-4 bg-gradient-to-br from-indigo-500/10 to-white/[0.02] border border-indigo-500/20 hover:border-indigo-500/40 rounded-3xl transition-all"
           >
-            <Camera size={16} className="text-indigo-400" />
-            Fotografar refeição
+            <div className="w-11 h-11 rounded-2xl bg-indigo-500/15 flex items-center justify-center flex-shrink-0">
+              <Camera size={20} className="text-indigo-400" />
+            </div>
+            <div className="text-left flex-1 min-w-0">
+              <p className="text-sm font-bold text-white">Fotografar refeição</p>
+              <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                <Sparkles size={10} className="text-indigo-400" /> IA identifica alimentos e calorias
+              </p>
+            </div>
           </button>
         ) : (
           <PlanUpgradePrompt

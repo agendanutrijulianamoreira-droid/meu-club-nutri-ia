@@ -653,7 +653,7 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     if (!patient.hasActiveProtocol) riskCauses.push('sem protocolo')
     if (!patient.hasCheckin) riskCauses.push('sem check-in')
     if (patient.adherenceRate === 0) riskCauses.push('adesão zero')
-    if (patient.daysSinceActivity > 7) riskCauses.push(`inativa há ${patient.daysSinceActivity}d`)
+    if (patient.daysSinceActivity > 7) riskCauses.push(patient.daysSinceActivity >= 999 ? 'nunca fez check-in' : `inativa há ${patient.daysSinceActivity}d`)
 
     // Activity timeline events
     const timelineEvents: { label: string; sub: string; done: boolean; urgent?: boolean }[] = [
@@ -746,7 +746,7 @@ function PatientDetail({ patient, onAction, onRefresh }: {
             </div>
 
             {/* ── Content ────────────────────────────────────────────────────── */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
 
                 {activeTab === 'overview' && (
                     <>
@@ -1947,7 +1947,7 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                 </div>
 
                 {/* list */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
                     {loading && patients.length === 0 ? (
                         <div className="flex justify-center py-12"><Loader2 size={20} className="animate-spin text-slate-700"/></div>
                     ) : filtered.length === 0 ? (

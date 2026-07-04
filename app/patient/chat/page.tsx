@@ -123,8 +123,8 @@ export default function PatientChatPage() {
                             <Sparkles size={16} className="text-emerald-400" />
                         </div>
                         <div>
-                            <p className="text-white text-sm font-black">Nutri</p>
-                            <p className="text-[10px] text-emerald-400">Online agora</p>
+                            <p className="text-white text-sm font-black">Nutri IA</p>
+                            <p className="text-[10px] text-emerald-400">Assistente de IA · guiada pelo método da sua nutri</p>
                         </div>
                     </div>
                     {plan === 'community' && (
@@ -150,9 +150,9 @@ export default function PatientChatPage() {
                         <div className="w-16 h-16 rounded-3xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
                             <Sparkles size={28} className="text-emerald-400" />
                         </div>
-                        <h2 className="text-white font-black text-xl mb-1">Olá! Sou sua Nutri</h2>
+                        <h2 className="text-white font-black text-xl mb-1">Olá! Sou a Nutri IA</h2>
                         <p className="text-slate-500 text-sm mb-6 max-w-xs mx-auto">
-                            Tire dúvidas sobre alimentação, receitas, hábitos e muito mais.
+                            Sua assistente de IA, treinada no método da sua nutricionista. Tire dúvidas sobre alimentação, receitas, hábitos e muito mais.
                         </p>
                         <div className="space-y-2 text-left">
                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-600 mb-3">Sugestões para começar</p>
