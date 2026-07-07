@@ -1,5 +1,5 @@
 -- ============================================
--- Módulo de Hábitos (inspirado no MyDose)
+-- Módulo de Hábitos
 -- habits + habit_logs
 -- ============================================
 

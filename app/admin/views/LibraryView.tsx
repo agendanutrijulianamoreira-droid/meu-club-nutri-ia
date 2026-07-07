@@ -149,7 +149,13 @@ function ItemForm({ item, tenantId, category, type, onClose, createItem, updateI
     const [saving, setSaving] = useState(false)
     const [parsing, setParsing] = useState(false)
     const [coverUrl, setCoverUrl] = useState<string | null>(item?.cover_image_url || null)
+    const [formError, setFormError] = useState<string | null>(null)
     const { uploadImage, uploading } = useStorage()
+
+    const showError = (msg: string) => {
+        setFormError(msg)
+        setTimeout(() => setFormError(null), 3500)
+    }
 
     const toggleTag = (tag: string) => setTags(prev =>
         prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
@@ -181,19 +187,19 @@ function ItemForm({ item, tenantId, category, type, onClose, createItem, updateI
             const kcalMatch = text.match(/(\d+)\s*kcal/i)
             if (kcalMatch) setCalories(kcalMatch[1])
         } catch (err: any) {
-            alert('Erro ao processar PDF: ' + err.message)
+            showError('Erro ao processar PDF: ' + err.message)
         } finally { setParsing(false) }
     }
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]; if (!file) return
         const { url, error } = await uploadImage(file, 'library')
-        if (error) alert('Erro ao subir imagem: ' + error)
+        if (error) showError('Erro ao subir imagem: ' + error)
         else setCoverUrl(url)
     }
 
     const handleSave = async () => {
-        if (!title.trim()) { alert('Nome é obrigatório'); return }
+        if (!title.trim()) { showError('Nome é obrigatório'); return }
         setSaving(true)
         try {
             const payload = {
@@ -213,7 +219,7 @@ function ItemForm({ item, tenantId, category, type, onClose, createItem, updateI
             if (result.error) throw new Error(result.error)
             onClose()
         } catch (err: any) {
-            alert('Erro ao salvar: ' + err.message)
+            showError('Erro ao salvar: ' + err.message)
         } finally { setSaving(false) }
     }
 
@@ -222,6 +228,16 @@ function ItemForm({ item, tenantId, category, type, onClose, createItem, updateI
     return (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
             className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-5">
+
+            <AnimatePresence>
+                {formError && (
+                    <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                        className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/25 rounded-xl px-4 py-3">
+                        <AlertCircle size={14} className="text-rose-400 shrink-0"/>
+                        <p className="text-xs text-rose-300">{formError}</p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <div className="flex items-center justify-between">
                 <h2 className="font-bold text-white text-base">{isEditing ? 'Editar' : 'Novo'} {typeLabel}</h2>

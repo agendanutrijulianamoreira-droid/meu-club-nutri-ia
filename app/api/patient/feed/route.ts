@@ -18,11 +18,23 @@ export async function GET(request: NextRequest) {
     const cursor = url.searchParams.get('cursor')  // created_at for pagination
     const limit = 20
 
-    // Fetch posts
+    // Buscar nível de acesso do paciente neste tenant
+    const { data: nivelRow } = await supabase
+        .from('nivel_paciente')
+        .select('nivel, validade')
+        .eq('user_id', user.id)
+        .eq('tenant_id', profile.tenant_id)
+        .or('validade.is.null,validade.gte.' + new Date().toISOString().split('T')[0])
+        .maybeSingle()
+
+    const ordemDoUsuario: number = nivelRow?.nivel ?? 1
+
+    // Fetch posts — inclui todos do tenant (inclusive bloqueados, para mostrar lock visual)
     let q = supabase
         .from('community_posts')
-        .select('id, type, body, meta, is_pinned, created_at, user_id')
+        .select('id, type, body, meta, is_pinned, nivel_minimo, created_at, user_id')
         .eq('tenant_id', profile.tenant_id)
+        .eq('oculto', false)
         .order('is_pinned', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(limit)
@@ -75,10 +87,29 @@ export async function GET(request: NextRequest) {
         }))
     }
 
-    // Assemble
+    // Assemble — posts bloqueados chegam como locked (sem body/reações)
     const enriched = posts.map(p => {
         const author = authorMap[p.user_id]
         const name = author?.name || 'Rainha'
+        const nivelPost: number = (p as any).nivel_minimo ?? 1
+        const bloqueado = nivelPost > ordemDoUsuario && p.user_id !== user.id
+
+        if (bloqueado) {
+            return {
+                id: p.id,
+                type: p.type,
+                body: null,
+                meta: {},
+                is_pinned: p.is_pinned,
+                created_at: p.created_at,
+                is_own: false,
+                locked: true,
+                nivel_minimo: nivelPost,
+                author: { name: '?', initials: '??', streak: 0, level: 1 },
+                reactions: [],
+            }
+        }
+
         return {
             id: p.id,
             type: p.type,
@@ -87,6 +118,8 @@ export async function GET(request: NextRequest) {
             is_pinned: p.is_pinned,
             created_at: p.created_at,
             is_own: p.user_id === user.id,
+            locked: false,
+            nivel_minimo: nivelPost,
             author: {
                 name,
                 initials: name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase(),

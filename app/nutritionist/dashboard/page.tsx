@@ -1,6 +1,7 @@
 'use client'
 
-import { DollarSign, TrendingUp, Users, Calendar, Copy, Share2, QrCode, AlertCircle } from 'lucide-react'
+import { useState } from 'react'
+import { DollarSign, TrendingUp, Users, Calendar, Copy, Share2, QrCode, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { Button } from '@/components/ui/button'
 import { useProfessionalProfile } from '@/lib/hooks/useProfessionalProfile'
@@ -11,12 +12,14 @@ export default function NutritionistDashboard() {
     const { profile, loading: profileLoading } = useProfessionalProfile()
     const { summary, commissions, loading: commissionsLoading } = useCommissions(profile?.user_id)
     const { patients, loading: patientsLoading } = useLinkedPatients(profile?.user_id)
+    const [copied, setCopied] = useState(false)
 
     const copyReferralCode = () => {
         if (!profile?.referral_code) return
         const link = `${window.location.origin}/signup?ref=${profile.referral_code}`
         navigator.clipboard.writeText(link)
-        alert('🎉 Link de indicação copiado!')
+        setCopied(true)
+        setTimeout(() => setCopied(false), 3000)
     }
 
     if (profileLoading) {
@@ -35,7 +38,7 @@ export default function NutritionistDashboard() {
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-4xl font-black text-white tracking-tight uppercase mb-2">
-                            Meu Painel <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">Nutri</span>
+                            Meu Painel <span className="bg-gradient-to-r from-indigo-400 to-emerald-400 bg-clip-text text-transparent">Nutri</span>
                         </h1>
                         <p className="text-slate-400">
                             Bem-vinda, <span className="text-white font-semibold">{profile?.name}</span>! 👋
@@ -92,11 +95,11 @@ export default function NutritionistDashboard() {
                             <h4 className="text-xs font-black uppercase tracking-widest text-slate-500">
                                 Vendas (Mês)
                             </h4>
-                            <div className="h-12 w-12 rounded-xl bg-purple-600/20 flex items-center justify-center">
-                                <Calendar size={24} className="text-purple-400" />
+                            <div className="h-12 w-12 rounded-xl bg-indigo-600/20 flex items-center justify-center">
+                                <Calendar size={24} className="text-indigo-400" />
                             </div>
                         </div>
-                        <p className="text-3xl font-black text-purple-400">
+                        <p className="text-3xl font-black text-indigo-400">
                             {summary.current_month_sales}
                         </p>
                         <p className="text-xs text-emerald-400 mt-1 font-semibold">
@@ -127,28 +130,28 @@ export default function NutritionistDashboard() {
                     <div className="flex items-center justify-between">
                         <div className="flex-1">
                             <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-                                <Share2 size={20} className="text-purple-400" />
+                                <Share2 size={20} className="text-indigo-400" />
                                 Meu Código de Indicação
                             </h3>
                             <p className="text-slate-400 text-sm mb-4">
                                 Compartilhe este código para ganhar comissões em cada venda!
                             </p>
                             <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-950/50 border border-purple-500/30">
-                                    <span className="text-2xl font-mono font-black text-purple-400">
+                                <div className="flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-950/50 border border-indigo-500/30">
+                                    <span className="text-2xl font-mono font-black text-indigo-400">
                                         {profile?.referral_code}
                                     </span>
                                 </div>
                                 <Button
                                     onClick={copyReferralCode}
-                                    className="bg-purple-600 hover:bg-purple-500 h-12 px-6"
+                                    className={`h-12 px-6 transition-all ${copied ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-indigo-600 hover:bg-indigo-500'}`}
                                 >
-                                    <Copy size={18} className="mr-2" />
-                                    Copiar Link
+                                    {copied ? <CheckCircle2 size={18} className="mr-2"/> : <Copy size={18} className="mr-2" />}
+                                    {copied ? 'Copiado!' : 'Copiar Link'}
                                 </Button>
                                 <Button
                                     variant="outline"
-                                    className="h-12 px-6 border-purple-500/30 hover:bg-purple-600/20"
+                                    className="h-12 px-6 border-indigo-500/30 hover:bg-indigo-600/20"
                                 >
                                     <QrCode size={18} className="mr-2" />
                                     QR Code
@@ -176,7 +179,7 @@ export default function NutritionistDashboard() {
                                 commissions.slice(0, 5).map((sale) => (
                                     <div
                                         key={sale.id}
-                                        className="flex items-center justify-between p-4 rounded-lg bg-slate-950/30 border border-white/5 hover:border-purple-500/30 transition-all"
+                                        className="flex items-center justify-between p-4 rounded-lg bg-slate-950/30 border border-white/5 hover:border-indigo-500/30 transition-all"
                                     >
                                         <div>
                                             <p className="text-white font-semibold">{sale.patient_name || 'Sem nome'}</p>
@@ -217,7 +220,7 @@ export default function NutritionistDashboard() {
                                         className="flex items-center justify-between p-4 rounded-lg bg-slate-950/30 border border-white/5 hover:border-pink-500/30 transition-all"
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-pink-600 to-purple-600 flex items-center justify-center text-white font-bold">
+                                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-pink-600 to-indigo-600 flex items-center justify-center text-white font-bold">
                                                 {patient.name.charAt(0)}
                                             </div>
                                             <div>

@@ -23,6 +23,7 @@ export default function CommunityPage() {
     const [loading, setLoading] = useState(true)
     const [newPostContent, setNewPostContent] = useState("")
     const [userProfile, setUserProfile] = useState<any>(null)
+    const [flashMsg, setFlashMsg] = useState<string | null>(null)
 
     useEffect(() => {
         async function loadInitialData() {
@@ -96,7 +97,8 @@ export default function CommunityPage() {
         if (newPost) {
             setPosts([newPost, ...posts])
             setNewPostContent("")
-            alert('Postagem enviada para a Tribo! +10 XP 🚀')
+            setFlashMsg('Postagem enviada para a Tribo! +10 XP')
+            setTimeout(() => setFlashMsg(null), 3500)
 
             // Trigger Community Moderation Agent
             fetch('/api/trigger-agent', {
@@ -114,6 +116,14 @@ export default function CommunityPage() {
 
     return (
         <div className="min-h-screen bg-[#020617] text-slate-200 pb-32 overflow-x-hidden">
+            <AnimatePresence>
+                {flashMsg && (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                        className="fixed top-16 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 bg-emerald-500/20 border border-emerald-500/30 rounded-2xl text-sm font-bold text-emerald-300 shadow-xl">
+                        {flashMsg}
+                    </motion.div>
+                )}
+            </AnimatePresence>
             {/* --- PREMIUM BACKGROUND --- */}
             <div className="fixed inset-0 bg-gradient-to-br from-[#020617] via-[#0f172a] to-[#1e1b4b] -z-10" />
 
@@ -134,7 +144,7 @@ export default function CommunityPage() {
 
             <div className="max-w-md mx-auto pt-28 px-6 space-y-8">
                 {/* CRIAR POST */}
-                <div className="glass-panel p-5 rounded-[2.5rem] border border-indigo-500/20 bg-indigo-500/5 flex items-center gap-4 shadow-2xl">
+                <div className="bg-white/[0.03] p-5 rounded-[2.5rem] border border-indigo-500/20 bg-indigo-500/5 flex items-center gap-4 shadow-2xl">
                     <div className="h-14 w-14 rounded-2xl border border-indigo-500/30 p-0.5 bg-slate-900 overflow-hidden">
                         <img src={userProfile?.avatar_url || "https://api.dicebear.com/9.x/micah/svg?seed=Queen"} className="w-full h-full object-cover" alt="Me" />
                     </div>
@@ -226,7 +236,7 @@ export default function CommunityPage() {
 
             {/* Bottom Nav Bar (Flutuante Premium) */}
             <div className="fixed bottom-8 left-6 right-6 z-50">
-                <div className="max-w-md mx-auto glass-panel p-2.5 rounded-[2.5rem] border border-white/10 bg-slate-950/80 backdrop-blur-2xl shadow-2xl flex justify-around items-center">
+                <div className="max-w-md mx-auto bg-white/[0.03] p-2.5 rounded-[2.5rem] border border-white/10 bg-slate-950/80 backdrop-blur-2xl shadow-2xl flex justify-around items-center">
                     <Link href="/" className="p-4 rounded-2xl text-slate-500 transition-all hover:text-indigo-400">
                         <Home size={24} />
                     </Link>

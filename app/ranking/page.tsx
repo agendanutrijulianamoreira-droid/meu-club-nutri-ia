@@ -22,7 +22,7 @@ export default function RankingPage() {
     ]
 
     return (
-        <div className="min-h-screen bg-[#0a0a16] text-white pb-32">
+        <div className="min-h-screen bg-slate-950 text-white pb-32">
 
             {/* Header */}
             <div className="p-8 pt-12 bg-gradient-to-b from-yellow-500/10 to-transparent text-center">
@@ -68,7 +68,7 @@ export default function RankingPage() {
             {/* List */}
             <div className="px-6 space-y-3">
                 {topRainhas.slice(3).map((rainha, i) => (
-                    <div key={rainha.id} className="glass-panel p-4 rounded-2xl border border-white/5 bg-white/[0.02] flex items-center justify-between">
+                    <div key={rainha.id} className="bg-white/[0.03] p-4 rounded-2xl border border-white/5 bg-white/[0.02] flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <span className="text-gray-500 font-black text-sm w-4">{i + 4}</span>
                             <img src={rainha.avatar} className="w-10 h-10 rounded-full border border-white/10" />
@@ -89,23 +89,23 @@ export default function RankingPage() {
                 {/* My Position */}
                 <div className="mt-8 pt-4 border-t border-white/5">
                     <p className="text-[10px] text-gray-500 uppercase font-bold tracking-[0.2em] mb-3 text-center">Sua Posição</p>
-                    <div className="glass-panel p-4 rounded-3xl border border-purple-500/30 bg-purple-500/10 flex items-center justify-between shadow-lg shadow-purple-900/20">
+                    <div className="bg-white/[0.03] p-4 rounded-3xl border border-indigo-500/30 bg-indigo-500/10 flex items-center justify-between shadow-lg shadow-indigo-900/20">
                         <div className="flex items-center gap-4">
-                            <span className="text-purple-400 font-black text-lg w-6">{user.position}º</span>
-                            <img src={user.avatar} className="w-12 h-12 rounded-full border-2 border-purple-500" />
+                            <span className="text-indigo-400 font-black text-lg w-6">{user.position}º</span>
+                            <img src={user.avatar} className="w-12 h-12 rounded-full border-2 border-indigo-500" />
                             <div>
                                 <p className="font-black text-white italic">Você (Rainha {user.name})</p>
-                                <p className="text-[10px] text-purple-400 font-bold uppercase tracking-widest">Faltam 120 XP para subir</p>
+                                <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest">Faltam 120 XP para subir</p>
                             </div>
                         </div>
-                        <ChevronRight className="text-purple-400" />
+                        <ChevronRight className="text-indigo-400" />
                     </div>
                 </div>
             </div>
 
             {/* Bottom Nav */}
             <div className="fixed bottom-6 left-6 right-6 z-50">
-                <div className="glass-panel p-2 rounded-[2rem] border border-white/10 bg-[#131320]/90 backdrop-blur-xl shadow-2xl flex justify-around items-center">
+                <div className="bg-white/[0.03] p-2 rounded-[2rem] border border-white/10 bg-slate-900/90 backdrop-blur-xl shadow-2xl flex justify-around items-center">
                     <Link href="/" className="p-4 rounded-full text-gray-600">
                         <Home size={22} />
                     </Link>
@@ -114,12 +114,12 @@ export default function RankingPage() {
                     </Link>
 
                     <div className="relative -top-8">
-                        <button className="relative bg-gradient-to-tr from-purple-600 to-pink-600 w-16 h-16 rounded-full flex items-center justify-center shadow-xl shadow-purple-900/50 border-4 border-[#131320]">
+                        <button className="relative bg-indigo-600 w-16 h-16 rounded-full flex items-center justify-center shadow-xl shadow-indigo-900/50 border-4 border-slate-950">
                             <Camera className="text-white" size={28} />
                         </button>
                     </div>
 
-                    <Link href="/ranking" className="p-4 rounded-full bg-purple-600/20 text-purple-400">
+                    <Link href="/ranking" className="p-4 rounded-full bg-indigo-600/20 text-indigo-400">
                         <Trophy size={22} fill="currentColor" />
                     </Link>
                     <Link href="/perfil" className="p-4 rounded-full text-gray-600">

@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
     restrictions     = [],
     preferences      = '',
     patient_id,
+    fase_reino,      // opcional — se não informado, busca da fase_paciente do BD
   } = body
 
   try {
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest) {
     let patientWeight: number | undefined
     let patientGoal: string | undefined
     let allRestrictions = [...restrictions]
+    let faseReino: number | undefined = fase_reino ? Number(fase_reino) : undefined
 
     if (patient_id) {
       const { data: patient } = await supabase
@@ -85,6 +87,20 @@ export async function POST(request: NextRequest) {
         patientGoal    = patient.primary_goal
         allRestrictions = [...new Set([...restrictions, ...(patient.dietary_restrictions || [])])]
       }
+
+      // Buscar fase atual do REINO se não foi informada explicitamente
+      if (!faseReino) {
+        const { data: faseRow } = await supabase
+          .from('fase_paciente')
+          .select('fase_numero')
+          .eq('paciente_id', patient_id)
+          .eq('status', 'ativa')
+          .order('iniciada_em', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (faseRow?.fase_numero) faseReino = faseRow.fase_numero
+      }
     }
 
     // 3. Configurações do tenant
@@ -96,13 +112,14 @@ export async function POST(request: NextRequest) {
 
     // 4. Montar prompts compactos
     const compactCatalog = buildCompactCatalog(foods as FoodRow[])
-    const systemPrompt = getMealPlanSystemPrompt(tenant?.gpt_system_prompt, tenant?.method_name)
+    const systemPrompt = getMealPlanSystemPrompt(tenant?.gpt_system_prompt, tenant?.method_name, faseReino)
     const userPrompt = getMealPlanUserPrompt({
       goal, duration_days, target_kcal, target_protein_g,
       restrictions: allRestrictions, preferences,
       patientName, patientWeight, patientGoal,
       tenantMethodName: tenant?.method_name,
       tenantSystemPrompt: tenant?.gpt_system_prompt,
+      faseReino,
       compactCatalog,
     })
 
@@ -141,6 +158,7 @@ export async function POST(request: NextRequest) {
         status:          'draft',
         is_ai_generated: true,
         tags:            [goal, ...allRestrictions].filter(Boolean),
+        fase_aplicada:   faseReino || null,
       })
       .select('id')
       .single()
@@ -177,9 +195,10 @@ export async function POST(request: NextRequest) {
     // 9. Atribuir à paciente se especificada
     if (patient_id) {
       await supabase.from('meal_plan_assignments').insert({
-        meal_plan_id: plan.id,
-        user_id:      patient_id,
-        tenant_id:    profile.tenant_id,
+        meal_plan_id:  plan.id,
+        user_id:       patient_id,
+        tenant_id:     profile.tenant_id,
+        fase_aplicada: faseReino || null,
       })
     }
 
@@ -191,6 +210,7 @@ export async function POST(request: NextRequest) {
       description:    expanded.description,
       days_generated: expanded.days.length,
       items_created:  dbItems.length,
+      fase_aplicada:  faseReino || null,
       days_summary: expanded.days.map(d => ({
         day_number:        d.day_number,
         day_theme:         d.day_theme,

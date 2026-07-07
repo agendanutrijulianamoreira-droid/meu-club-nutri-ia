@@ -28,13 +28,10 @@ const profileSchema = z.object({
 })
 
 const clinicSchema = z.object({
-    brand_name: z.string().min(2, "Nome da clínica deve ter no mínimo 2 caracteres"),
     clinic_phone: z.string().optional(),
     clinic_whatsapp: z.string().optional(),
     clinic_address: z.string().optional(),
     clinic_instagram: z.string().optional(),
-    brand_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Cor inválida").optional(),
-    logo_url: z.string().optional()
 })
 
 export async function updateProfileAction(data: z.infer<typeof profileSchema>) {
@@ -88,16 +85,14 @@ export async function updateClinicAction(data: z.infer<typeof clinicSchema>) {
         if (!user) throw new Error("Não autorizado")
 
         // Update tenant directly by owner_id — RLS enforces ownership, no service role needed
+        // Identidade visual (brand_name/brand_color/logo_url) é editada só em Configurações do Clube
         const { error } = await supabase
             .from('tenants')
             .update({
-                brand_name: data.brand_name,
                 clinic_phone: data.clinic_phone,
                 clinic_whatsapp: data.clinic_whatsapp,
                 clinic_address: data.clinic_address,
                 clinic_instagram: data.clinic_instagram,
-                brand_color: data.brand_color,
-                logo_url: data.logo_url,
                 updated_at: new Date().toISOString()
             })
             .eq('owner_id', user.id)

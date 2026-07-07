@@ -20,39 +20,45 @@ function toGeminiMessages(messages: ClaudeOptions['messages']) {
   }))
 }
 
-export async function callClaude(opts: ClaudeOptions): Promise<string> {
-  const res = await fetch(`${API_URL}:generateContent?key=${GEMINI_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: toGeminiMessages(opts.messages),
-      ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
-      generationConfig: { maxOutputTokens: opts.maxTokens || 1000 },
-    }),
-  })
-  if (!res.ok) {
+// Gemini free tier ocasionalmente responde 503 (sobrecarga) ou 429 (rate limit) —
+// erros transitórios que se resolvem sozinhos em segundos. Tenta de novo com backoff
+// antes de propagar o erro pro chamador.
+const RETRYABLE_STATUS = new Set([429, 503])
+
+async function fetchGeminiWithRetry(url: string, body: unknown, attempts = 3): Promise<any> {
+  let lastError: Error = new Error('Gemini: falha desconhecida')
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (res.ok) return res.json()
+
     const err = await res.json().catch(() => ({ error: 'Unknown' }))
-    throw new Error(`Gemini error ${res.status}: ${JSON.stringify(err)}`)
+    lastError = new Error(`Gemini error ${res.status}: ${JSON.stringify(err)}`)
+    if (!RETRYABLE_STATUS.has(res.status) || attempt === attempts) throw lastError
+
+    await new Promise(resolve => setTimeout(resolve, 500 * attempt))
   }
-  const data = await res.json()
+  throw lastError
+}
+
+export async function callClaude(opts: ClaudeOptions): Promise<string> {
+  const data = await fetchGeminiWithRetry(`${API_URL}:generateContent?key=${GEMINI_API_KEY}`, {
+    contents: toGeminiMessages(opts.messages),
+    ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
+    generationConfig: { maxOutputTokens: opts.maxTokens || 1000 },
+  })
   return data.candidates?.[0]?.content?.parts?.[0]?.text || ''
 }
 
 export async function callClaudeJSON<T = any>(opts: ClaudeOptions): Promise<T> {
-  const res = await fetch(`${API_URL}:generateContent?key=${GEMINI_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: toGeminiMessages(opts.messages),
-      ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
-      generationConfig: { maxOutputTokens: opts.maxTokens || 1000, responseMimeType: 'application/json' },
-    }),
+  const data = await fetchGeminiWithRetry(`${API_URL}:generateContent?key=${GEMINI_API_KEY}`, {
+    contents: toGeminiMessages(opts.messages),
+    ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
+    generationConfig: { maxOutputTokens: opts.maxTokens || 1000, responseMimeType: 'application/json' },
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Unknown' }))
-    throw new Error(`Gemini error ${res.status}: ${JSON.stringify(err)}`)
-  }
-  const data = await res.json()
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
 
   // Robust JSON extraction: handles markdown fences, leading/trailing junk,
@@ -191,6 +197,38 @@ export function streamClaude(opts: ClaudeOptions): ReadableStream {
       } finally { controller.close() }
     },
   })
+}
+
+const IMAGE_MODEL = 'gemini-2.5-flash-image'
+const IMAGE_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent`
+
+/**
+ * Gera uma foto de comida via IA (Gemini nano-banana). Retorna base64 + mimeType,
+ * ou null se a geração falhar (chamador deve tratar como opcional/best-effort).
+ */
+export async function generateFoodImage(prompt: string): Promise<{ base64: string; mimeType: string } | null> {
+  try {
+    const res = await fetch(`${IMAGE_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { responseModalities: ['IMAGE'] },
+      }),
+    })
+    if (!res.ok) {
+      console.error('[generateFoodImage] Gemini error', res.status, await res.text().catch(() => ''))
+      return null
+    }
+    const data = await res.json()
+    const parts = data.candidates?.[0]?.content?.parts || []
+    const imagePart = parts.find((p: any) => p.inlineData?.data)
+    if (!imagePart) return null
+    return { base64: imagePart.inlineData.data, mimeType: imagePart.inlineData.mimeType || 'image/png' }
+  } catch (err) {
+    console.error('[generateFoodImage] Erro:', err)
+    return null
+  }
 }
 
 export function triggerOrchestrator(type: string, tenantId: string, userId?: string, payload?: any) {

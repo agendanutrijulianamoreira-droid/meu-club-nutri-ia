@@ -3,12 +3,17 @@
 import React, { useState, useEffect } from 'react'
 import {
   Users, Plus, Loader2, Edit3, Trash2, Star, DollarSign, Video, MapPin,
-  Phone, Mail, Award, ChevronDown, Check, X, Eye, TrendingUp, Wallet
+  Phone, Mail, Award, ChevronDown, Check, X, Eye, TrendingUp, Wallet, Camera
 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
+import { useStorage } from "@/lib/hooks/useStorage"
 
 interface ProfessionalsViewProps { setView: (v: any) => void; tenantId?: string }
+
+interface Availability {
+  mon: string[]; tue: string[]; wed: string[]; thu: string[]; fri: string[]; sat: string[]; sun: string[]
+}
 
 interface Professional {
   id: string; name: string; email: string; phone: string; photo_url: string; bio: string;
@@ -16,7 +21,7 @@ interface Professional {
   is_virtual: boolean; is_in_person: boolean; meeting_link: string; duration_minutes: number;
   price_cents: number; commission_pct: number; price_display: string;
   is_active: boolean; is_featured: boolean; rating: number; total_sessions: number;
-  availability: any;
+  availability: Availability;
   financials: { total_bookings: number; completed: number; cancelled: number; total_revenue: number; platform_revenue: number; professional_payout: number; pending_payout: number }
 }
 
@@ -29,6 +34,20 @@ const PROFESSIONS = [
   { value: 'outro', label: 'Outro', emoji: '👤' },
 ]
 
+const WEEKDAYS: { key: keyof Availability; label: string }[] = [
+  { key: 'mon', label: 'Seg' },
+  { key: 'tue', label: 'Ter' },
+  { key: 'wed', label: 'Qua' },
+  { key: 'thu', label: 'Qui' },
+  { key: 'fri', label: 'Sex' },
+  { key: 'sat', label: 'Sáb' },
+  { key: 'sun', label: 'Dom' },
+]
+
+const TIME_PRESETS = ['07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00']
+
+const EMPTY_AVAILABILITY: Availability = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] }
+
 const cents = (v: number) => `R$ ${(v / 100).toFixed(2)}`
 
 export function ProfessionalsView({ setView, tenantId }: ProfessionalsViewProps) {
@@ -39,9 +58,26 @@ export function ProfessionalsView({ setView, tenantId }: ProfessionalsViewProps)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
 
   // Form
-  const [form, setForm] = useState({ name: '', email: '', phone: '', bio: '', profession: 'nutricionista', specialty: '', registration_id: '', is_virtual: true, is_in_person: false, meeting_link: '', price_reais: '', commission_pct: '50', duration_minutes: '60', is_featured: false })
+  const [form, setForm] = useState({ name: '', email: '', phone: '', photo_url: '', bio: '', profession: 'nutricionista', specialty: '', registration_id: '', is_virtual: true, is_in_person: false, meeting_link: '', price_reais: '', commission_pct: '50', duration_minutes: '60', is_featured: false, availability: EMPTY_AVAILABILITY })
+  const { uploadImage, uploading: uploadingPhoto } = useStorage()
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const { url, error } = await uploadImage(file, 'professionals')
+    if (error) showToast('Erro ao subir foto: ' + error, 'error')
+    else if (url) setForm(f => ({ ...f, photo_url: url }))
+  }
+
+  const toggleSlot = (day: keyof Availability, time: string) => {
+    setForm(f => {
+      const current = f.availability[day]
+      const next = current.includes(time) ? current.filter(t => t !== time) : [...current, time].sort()
+      return { ...f, availability: { ...f.availability, [day]: next } }
+    })
+  }
 
   useEffect(() => { loadData() }, [])
 
@@ -73,11 +109,11 @@ export function ProfessionalsView({ setView, tenantId }: ProfessionalsViewProps)
     } catch (err: any) { showToast(err.message, 'error') }
   }
 
-  const resetForm = () => setForm({ name: '', email: '', phone: '', bio: '', profession: 'nutricionista', specialty: '', registration_id: '', is_virtual: true, is_in_person: false, meeting_link: '', price_reais: '', commission_pct: '50', duration_minutes: '60', is_featured: false })
+  const resetForm = () => setForm({ name: '', email: '', phone: '', photo_url: '', bio: '', profession: 'nutricionista', specialty: '', registration_id: '', is_virtual: true, is_in_person: false, meeting_link: '', price_reais: '', commission_pct: '50', duration_minutes: '60', is_featured: false, availability: EMPTY_AVAILABILITY })
 
   const startEdit = (p: Professional) => {
     setEditing(p)
-    setForm({ name: p.name, email: p.email || '', phone: p.phone || '', bio: p.bio || '', profession: p.profession, specialty: p.specialty || '', registration_id: p.registration_id || '', is_virtual: p.is_virtual, is_in_person: p.is_in_person, meeting_link: p.meeting_link || '', price_reais: (p.price_cents / 100).toFixed(2), commission_pct: p.commission_pct.toString(), duration_minutes: p.duration_minutes.toString(), is_featured: p.is_featured })
+    setForm({ name: p.name, email: p.email || '', phone: p.phone || '', photo_url: p.photo_url || '', bio: p.bio || '', profession: p.profession, specialty: p.specialty || '', registration_id: p.registration_id || '', is_virtual: p.is_virtual, is_in_person: p.is_in_person, meeting_link: p.meeting_link || '', price_reais: (p.price_cents / 100).toFixed(2), commission_pct: p.commission_pct.toString(), duration_minutes: p.duration_minutes.toString(), is_featured: p.is_featured, availability: { ...EMPTY_AVAILABILITY, ...(p.availability || {}) } })
     setShowForm(true)
   }
 
@@ -130,6 +166,21 @@ export function ProfessionalsView({ setView, tenantId }: ProfessionalsViewProps)
         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
           <div className="bg-slate-800/40 rounded-xl border border-indigo-500/30 p-6 space-y-4">
             <h3 className="text-white font-semibold">{editing ? 'Editar' : 'Cadastrar'} profissional</h3>
+
+            {/* Foto */}
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 rounded-2xl bg-slate-700/50 border border-slate-600/50 flex items-center justify-center overflow-hidden shrink-0">
+                {form.photo_url
+                  ? <img src={form.photo_url} alt={form.name} className="h-full w-full object-cover" />
+                  : <Camera size={20} className="text-slate-500" />}
+              </div>
+              <label className="flex items-center gap-2 px-4 py-2 bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50 rounded-lg text-sm text-slate-300 cursor-pointer transition-colors">
+                {uploadingPhoto ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+                {uploadingPhoto ? 'Enviando...' : 'Foto do profissional'}
+                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploadingPhoto} />
+              </label>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">Nome completo *</label>
@@ -162,6 +213,35 @@ export function ProfessionalsView({ setView, tenantId }: ProfessionalsViewProps)
               <label className="text-xs text-slate-400 mb-1 block">Bio / Descrição</label>
               <textarea value={form.bio} onChange={e => setForm({ ...form, bio: e.target.value })} rows={2} className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm resize-none" />
             </div>
+
+            {/* Disponibilidade */}
+            <div>
+              <label className="text-xs text-slate-400 mb-2 block">Disponibilidade na agenda</label>
+              <div className="space-y-2">
+                {WEEKDAYS.map(({ key, label }) => (
+                  <div key={key} className="flex items-start gap-3">
+                    <span className="w-8 text-xs font-semibold text-slate-400 pt-2 shrink-0">{label}</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {TIME_PRESETS.map(time => {
+                        const active = form.availability[key].includes(time)
+                        return (
+                          <button
+                            key={time}
+                            type="button"
+                            onClick={() => toggleSlot(key, time)}
+                            className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${active ? 'bg-indigo-600 text-white' : 'bg-slate-700/50 text-slate-500 hover:bg-slate-700'}`}
+                          >
+                            {time}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-slate-500 mt-2">Clique nos horários em que o profissional atende. Essa agenda é mostrada às pacientes.</p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">Valor da sessão (R$)</label>
@@ -218,8 +298,8 @@ export function ProfessionalsView({ setView, tenantId }: ProfessionalsViewProps)
                 className={`bg-slate-800/40 rounded-xl border p-5 transition-colors ${p.is_active ? 'border-slate-700/50 hover:border-slate-600/50' : 'border-slate-800/50 opacity-50'}`}>
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4">
-                    <div className="h-14 w-14 rounded-2xl bg-slate-700/50 flex items-center justify-center text-2xl shrink-0">
-                      {profMeta?.emoji || '👤'}
+                    <div className="h-14 w-14 rounded-2xl bg-slate-700/50 flex items-center justify-center text-2xl shrink-0 overflow-hidden">
+                      {p.photo_url ? <img src={p.photo_url} alt={p.name} className="h-full w-full object-cover" /> : (profMeta?.emoji || '👤')}
                     </div>
                     <div>
                       <div className="flex items-center gap-2 mb-1">

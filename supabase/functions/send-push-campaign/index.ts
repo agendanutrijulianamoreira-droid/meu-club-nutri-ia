@@ -128,23 +128,30 @@ async function processCampaign(supabase: any, campaignId: string) {
                     .from('campaign_recipients')
                     .insert({ campaign_id: campaignId, user_id: userId })
 
-                if (rError && rError.code !== '23505') throw rError
+                const alreadyProcessed = rError?.code === '23505'
+                if (rError && !alreadyProcessed) throw rError
 
-                // Inbox Notification (Idempotency via UNIQUE constraint)
-                if (inboxEnabled) {
+                // Inbox Notification — skip if this recipient was already processed
+                // (inbox_messages has no campaign unique constraint, so campaign_recipients
+                // is the idempotency gate for both records)
+                if (inboxEnabled && !alreadyProcessed) {
                     const { error: nError } = await supabase
-                        .from('notifications')
+                        .from('inbox_messages')
                         .insert({
                             tenant_id: campaign.tenant_id,
                             user_id: userId,
-                            campaign_id: campaignId,
+                            agent_name: 'campaign',
                             title: campaign.title,
                             body: campaign.body,
+                            message_type: 'campaign',
+                            priority: 'normal',
                             cta_label: campaign.cta_label,
-                            cta_url: campaign.cta_url
+                            cta_url: campaign.cta_url,
+                            channels: ['inbox'],
+                            metadata: { campaign_id: campaignId },
                         })
 
-                    if (nError && nError.code !== '23505') throw nError
+                    if (nError) throw nError
                 }
 
                 await supabase.from('campaign_recipients')

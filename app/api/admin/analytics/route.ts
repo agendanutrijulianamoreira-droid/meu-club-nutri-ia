@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { calculateRiskScore, daysSinceDate, adherenceFromLogs } from '@/lib/services/riskScore'
 
 export async function GET() {
     const supabase = createSupabaseServerClient(cookies())
@@ -163,22 +164,24 @@ export async function GET() {
     for (const c of weeklyCheckins || []) {
         if (!riskMap[c.user_id]) riskMap[c.user_id] = c
     }
+    const last7 = daysAgo(7)
+    const logsByUser7: Record<string, { meal_plan_check?: boolean | null }[]> = {}
+    for (const l of (logs56 || []).filter(l => l.log_date >= last7)) {
+        if (!logsByUser7[l.user_id]) logsByUser7[l.user_id] = []
+        logsByUser7[l.user_id].push(l)
+    }
     let highRisk = 0, medRisk = 0, lowRisk = 0
     for (const p of patients || []) {
-        const daysSince = p.last_checkin_date
-            ? Math.floor((now.getTime() - new Date(p.last_checkin_date).getTime()) / 86400000) : 999
-        let risk = 10
-        if (daysSince > 7) risk -= 4
-        else if (daysSince > 3) risk -= 2
-        if (!p.current_streak || p.current_streak === 0) risk -= 3
-        else if (p.current_streak < 3) risk -= 1
         const cl = riskMap[p.user_id]
-        if (cl?.diet_score !== undefined && cl.diet_score < 5) risk -= 2
-        if (cl?.ai_risk_level === 'high') risk = Math.min(risk, 3)
-        if (cl?.ai_risk_level === 'medium') risk = Math.min(risk, 6)
-        risk = Math.max(0, Math.min(10, risk))
-        if (risk <= 4) highRisk++
-        else if (risk <= 6) medRisk++
+        const { riskLevel } = calculateRiskScore({
+            daysSinceActivity: daysSinceDate(p.last_checkin_date, now),
+            currentStreak: p.current_streak,
+            adherenceRate: adherenceFromLogs(logsByUser7[p.user_id] || []),
+            dietScore: cl?.diet_score,
+            aiRiskLevel: cl?.ai_risk_level,
+        })
+        if (riskLevel === 'high') highRisk++
+        else if (riskLevel === 'medium') medRisk++
         else lowRisk++
     }
 

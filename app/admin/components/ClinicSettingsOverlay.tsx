@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Building2, Save, Loader2, Globe, Instagram, MapPin, Palette, Hash, Phone } from "lucide-react"
+import { Save, Loader2, Instagram, MapPin, Phone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import SlideOver from "@/components/ui/SlideOver"
 import { useOverlays } from "@/components/ui/OverlayStack"
@@ -13,15 +13,11 @@ export default function ClinicSettingsOverlay({ index }: { index: number }) {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
-    const [tenant, setTenant] = useState<any>(null)
     const [formData, setFormData] = useState({
-        brand_name: "",
         clinic_phone: "",
         clinic_whatsapp: "",
         clinic_address: "",
         clinic_instagram: "",
-        brand_color: "#6366f1",
-        logo_url: ""
     })
 
     useEffect(() => {
@@ -38,20 +34,16 @@ export default function ClinicSettingsOverlay({ index }: { index: number }) {
             if (profile?.tenant_id) {
                 const { data } = await supabase
                     .from("tenants")
-                    .select("*")
+                    .select("clinic_phone, clinic_whatsapp, clinic_address, clinic_instagram")
                     .eq("id", profile.tenant_id)
                     .single()
 
                 if (data) {
-                    setTenant(data)
                     setFormData({
-                        brand_name: data.brand_name || "",
                         clinic_phone: data.clinic_phone || "",
                         clinic_whatsapp: data.clinic_whatsapp || "",
                         clinic_address: data.clinic_address || "",
                         clinic_instagram: data.clinic_instagram || "",
-                        brand_color: data.brand_color || "#6366f1",
-                        logo_url: data.logo_url || ""
                     })
                 }
             }
@@ -81,57 +73,16 @@ export default function ClinicSettingsOverlay({ index }: { index: number }) {
     )
 
     return (
-        <SlideOver id="clinic" title="Minha Clínica / Consultório" index={index}>
+        <SlideOver id="clinic" title="Contato da Clínica" index={index}>
             <div className="space-y-10 pb-20">
                 {toast && (
                     <div className={`px-4 py-3 rounded-2xl text-sm font-semibold ${toast.type === 'success' ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-400' : 'bg-rose-500/10 border border-rose-500/25 text-rose-400'}`}>
                         {toast.msg}
                     </div>
                 )}
-                {/* Branding Section */}
-                <section className="space-y-6">
-                    <div className="flex items-center gap-2 text-indigo-400 ml-1">
-                        <Building2 size={18} />
-                        <h4 className="font-black uppercase tracking-widest text-xs">Identidade Visual</h4>
-                    </div>
-
-                    <div className="space-y-6 bg-white/[0.02] border border-white/5 p-8 rounded-[2.5rem]">
-                        <div>
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block ml-1">Nome da Empresa / Clínica</label>
-                            <input
-                                value={formData.brand_name}
-                                onChange={e => setFormData({ ...formData, brand_name: e.target.value })}
-                                className="w-full bg-slate-900 border border-white/10 rounded-2xl p-5 text-white focus:border-indigo-500 transition-all outline-none font-bold"
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-6">
-                            <div>
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block ml-1">Cor da Marca</label>
-                                <div className="flex bg-slate-900 border border-white/10 rounded-2xl p-3 items-center gap-3">
-                                    <input
-                                        type="color"
-                                        value={formData.brand_color}
-                                        onChange={e => setFormData({ ...formData, brand_color: e.target.value })}
-                                        className="w-10 h-10 rounded-xl bg-transparent border-none cursor-pointer overflow-hidden"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={formData.brand_color}
-                                        onChange={e => setFormData({ ...formData, brand_color: e.target.value })}
-                                        className="flex-1 bg-transparent text-white font-mono text-sm uppercase outline-none"
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block ml-1">Sigla / Slug (URL)</label>
-                                <div className="bg-slate-950 border border-white/5 rounded-2xl p-5 text-slate-600 text-xs font-mono">
-                                    /{tenant?.slug || '...'}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
+                <p className="text-xs text-slate-500 -mt-4">
+                    Nome, cor e logo do clube ficam em <span className="text-slate-400 font-bold">Configurações → Clube</span>. Aqui vai só o contato exibido no rodapé do app da paciente.
+                </p>
 
                 {/* Contact Section */}
                 <section className="space-y-6">

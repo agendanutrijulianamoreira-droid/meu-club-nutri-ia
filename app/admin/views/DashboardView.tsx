@@ -250,7 +250,7 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
             // 7. Pending agent approvals count
             try {
                 const { count: pendingCount } = await supabase
-                    .from('agent_pending_actions')
+                    .from('agent_approval_queue')
                     .select('id', { count: 'exact', head: true })
                     .eq('tenant_id', tenantId)
                     .eq('status', 'pending')
@@ -397,7 +397,7 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
             items.push({
                 title: `${pendingApprovalsCount} aprovação${pendingApprovalsCount > 1 ? 'ões' : ''} pendente${pendingApprovalsCount > 1 ? 's' : ''}`,
                 desc: `Agentes IA propuseram ações que aguardam sua revisão.`,
-                action: () => setView('agent-approvals'),
+                action: () => setView('approvals'),
                 color: 'amber',
             })
         }
@@ -529,7 +529,7 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
                 <KPICard label="Check-ins Hoje" value={String(stats.todayCheckins)} sub="Registros do dia" icon={<Activity size={18}/>} color="violet" sparkData={checkinHistory} delay={0.12} onClick={() => setView('checkins')} />
                 <KPICard label="Alertas Críticos" value={String(stats.criticalAlerts)} sub={stats.criticalAlerts > 0 ? "Requerem ação!" : "Tudo tranquilo"} icon={<AlertCircle size={18}/>} color={stats.criticalAlerts > 0 ? "rose" : "emerald"} delay={0.18} />
                 <KPICard label="Protocolos Ativos" value={String(stats.activeProtocols)} sub="Em andamento" icon={<FileText size={18}/>} color="cyan" delay={0.24} onClick={() => setView('protocols')} />
-                <KPICard label="Aprovações IA" value={String(pendingApprovalsCount)} sub={pendingApprovalsCount > 0 ? "Aguardando revisão" : "Tudo aprovado"} icon={<ShieldCheck size={18}/>} color={pendingApprovalsCount > 0 ? "amber" : "emerald"} delay={0.30} onClick={() => setView('agent-approvals')} />
+                <KPICard label="Aprovações IA" value={String(pendingApprovalsCount)} sub={pendingApprovalsCount > 0 ? "Aguardando revisão" : "Tudo aprovado"} icon={<ShieldCheck size={18}/>} color={pendingApprovalsCount > 0 ? "amber" : "emerald"} delay={0.30} onClick={() => setView('approvals')} />
             </div>
             {/* CTA for pending approvals */}
             {pendingApprovalsCount > 0 && (
@@ -542,7 +542,7 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
                         </p>
                         <p className="text-amber-600 text-xs">Agentes propuseram ações que precisam da sua revisão antes de serem executadas</p>
                     </div>
-                    <button onClick={() => setView('agent-approvals')}
+                    <button onClick={() => setView('approvals')}
                         className="shrink-0 flex items-center gap-2 px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-400 text-xs font-bold rounded-xl transition-all">
                         Ver aprovações
                         <ChevronRight size={14} />

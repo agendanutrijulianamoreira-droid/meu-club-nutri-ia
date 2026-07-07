@@ -26,16 +26,27 @@ export async function completeOnboarding(formData: FormData) {
 
     try {
         // 2. Salva as informações iniciais no perfil do paciente
+        const { data: currentProfile } = await supabase
+            .from('profiles')
+            .select('settings')
+            .eq('user_id', session.user.id)
+            .single();
+
+        const weight = parseFloat(parsed.data.weight);
+        const height = parseFloat(parsed.data.height);
+
         const { error } = await supabase
             .from('profiles')
             .update({
                 onboarding_completed: true,
-                metadata: {
-                    initial_weight: parsed.data.weight,
-                    height: parsed.data.height,
-                    main_goal: parsed.data.mainGoal,
-                    pain_points: JSON.parse(parsed.data.painPoints)
-                }
+                initial_weight: weight,
+                current_weight: weight,
+                height: height,
+                primary_goal: parsed.data.mainGoal,
+                settings: {
+                    ...(currentProfile?.settings ?? {}),
+                    pain_points: JSON.parse(parsed.data.painPoints),
+                },
             })
             .eq('user_id', session.user.id);
 

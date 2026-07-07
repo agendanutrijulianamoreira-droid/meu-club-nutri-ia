@@ -5,8 +5,9 @@ import { motion, AnimatePresence } from "framer-motion"
 import {
     Clock, ChevronDown, ChevronUp, CheckCircle, Circle, Loader2,
     Sparkles, Utensils, ChefHat, Droplets, Dumbbell, FileText,
-    Zap, RefreshCw, BookOpen, Flame, Drumstick, Wheat,
+    Zap, RefreshCw, BookOpen, Flame, Drumstick, Wheat, ShoppingCart, Crown,
 } from "lucide-react"
+import { getNomeFaseReino } from "@/lib/config/promptsPlanoAlimentar"
 import { useAssignments } from "@/lib/hooks/useDatabase"
 import { ProtocolMealView } from "./ProtocolMealView"
 import { supabase } from "@/lib/supabase-browser"
@@ -51,6 +52,54 @@ const FOCUS_PRESETS = [
     "Equilibrar o intestino",
     "Reduzir inflamação",
 ]
+
+// ─── Lista de Compras ─────────────────────────────────────────────────────────
+function ListaCompras({ mealPlan, dia }: { mealPlan: any; dia: number }) {
+    const [aberta, setAberta] = useState(false)
+
+    const diaData = mealPlan?.days?.find((d: any) => d.day_number === dia)
+    if (!diaData) return null
+
+    const todosItens: { nome: string; qtd: number }[] = []
+    const mapaItens: Record<string, number> = {}
+
+    for (const meal of diaData.meals || []) {
+        for (const item of meal.items || []) {
+            const nome = item.food_name
+            if (!nome) continue
+            mapaItens[nome] = (mapaItens[nome] || 0) + (item.quantity_g || 0)
+        }
+    }
+
+    for (const [nome, qtd] of Object.entries(mapaItens)) {
+        todosItens.push({ nome, qtd: Math.round(qtd) })
+    }
+
+    if (todosItens.length === 0) return null
+
+    return (
+        <div className="bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden">
+            <button onClick={() => setAberta(a => !a)}
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-all">
+                <div className="flex items-center gap-2">
+                    <ShoppingCart size={15} className="text-emerald-400" />
+                    <span className="text-sm font-bold text-white">Lista de compras — Dia {dia}</span>
+                </div>
+                {aberta ? <ChevronUp size={16} className="text-slate-500" /> : <ChevronDown size={16} className="text-slate-500" />}
+            </button>
+            {aberta && (
+                <div className="px-4 pb-4 space-y-1.5 border-t border-white/5 pt-3">
+                    {todosItens.sort((a, b) => a.nome.localeCompare(b.nome)).map((item, i) => (
+                        <div key={i} className="flex items-center justify-between py-1">
+                            <span className="text-sm text-slate-300">{item.nome}</span>
+                            <span className="text-xs text-slate-500 bg-white/5 px-2 py-0.5 rounded-lg">{item.qtd}g</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PatientDietPage() {
@@ -103,18 +152,24 @@ export default function PatientDietPage() {
     const { assignments, loading } = useAssignments(userId || undefined)
     const activeProtocol = assignments?.[0]
 
-    const protocolDays = (activeProtocol?.protocol as any)?.days
-        ?.sort((a: any, b: any) => a.day_number - b.day_number)
+    const protocolDays = (activeProtocol?.protocol as any)?.protocol_days
+        ?.slice()
+        .sort((a: any, b: any) => a.day_number - b.day_number)
         .map((d: any) => ({
             day: d.day_number,
             title: d.title || `Dia ${d.day_number}`,
-            items: d.items?.sort((a: any, b: any) => a.time?.localeCompare(b.time)).map((i: any) => ({
-                time: i.time,
-                type: i.item_type,
-                title: i.title,
-                description: i.description,
-                completed: false,
-            })) || [],
+            items: (d.protocol_items || [])
+                .slice()
+                .sort((a: any, b: any) => a.order_index - b.order_index)
+                .map((i: any) => ({
+                    time: i.time,
+                    type: i.type,
+                    title: i.title,
+                    description: i.description,
+                    ingredients: i.ingredients || [],
+                    image_url: i.image_url,
+                    points: i.points || 0,
+                })),
         })) || []
 
     // ─── Generate meal plan ──────────────────────────────────────────────────
@@ -199,7 +254,7 @@ export default function PatientDietPage() {
                     }`}
                 >
                     <Sparkles size={13} />
-                    Plano IA
+                    Plano Interativo
                 </button>
             </div>
 
@@ -247,9 +302,14 @@ export default function PatientDietPage() {
                                                     VIP
                                                 </span>
                                             )}
+                                            {mealPlan.fase_aplicada && (
+                                                <span className="shrink-0 flex items-center gap-1 text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 px-2 py-1 rounded-full font-bold">
+                                                    <Crown size={10} />F{mealPlan.fase_aplicada} {getNomeFaseReino(mealPlan.fase_aplicada)}
+                                                </span>
+                                            )}
                                             {mealPlan.is_ai_generated && (
                                                 <span className="shrink-0 flex items-center gap-1 text-xs bg-violet-500/20 text-violet-300 px-2 py-1 rounded-full">
-                                                    <Sparkles size={10} />IA
+                                                    <Sparkles size={10} />Interativo
                                                 </span>
                                             )}
                                         </div>
@@ -426,6 +486,8 @@ export default function PatientDietPage() {
                                             ))}
                                         </div>
                                     ))}
+                                        {/* Lista de compras do dia */}
+                                        <ListaCompras mealPlan={mealPlan} dia={mealPlanDay} />
                                         </>
                                     )
                                 })()}
@@ -457,7 +519,7 @@ export default function PatientDietPage() {
                                     className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600/20 border border-indigo-500/30 rounded-xl text-sm font-bold text-indigo-400"
                                 >
                                     <Sparkles size={15} />
-                                    Gerar Plano com IA
+                                    Gerar Plano Interativo
                                 </button>
                             </div>
                         ) : (
@@ -499,9 +561,9 @@ export default function PatientDietPage() {
                                     <div className="h-14 w-14 rounded-3xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center mx-auto mb-3">
                                         <ChefHat size={28} className="text-indigo-400" />
                                     </div>
-                                    <h2 className="text-xl font-bold text-white mb-1">Plano Alimentar com IA</h2>
+                                    <h2 className="text-xl font-bold text-white mb-1">Plano Alimentar Interativo</h2>
                                     <p className="text-slate-400 text-sm max-w-xs mx-auto">
-                                        Diga o que você quer e a IA monta um cardápio personalizado para você.
+                                        Diga o que você quer e a gente monta um cardápio personalizado para você.
                                     </p>
                                 </div>
 
@@ -577,7 +639,7 @@ export default function PatientDietPage() {
                                     ) : (
                                         <>
                                             <Sparkles size={18} />
-                                            Gerar Meu Plano IA
+                                            Gerar Meu Plano
                                         </>
                                     )}
                                 </button>
@@ -591,7 +653,7 @@ export default function PatientDietPage() {
                                         <div className="flex-1">
                                             <div className="inline-flex items-center gap-1.5 bg-indigo-600/10 border border-indigo-500/20 rounded-full px-3 py-1 mb-2">
                                                 <Sparkles size={10} className="text-indigo-400" />
-                                                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Plano Gerado pela IA</span>
+                                                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Seu Plano Personalizado</span>
                                             </div>
                                             <h2 className="text-xl font-bold text-white">
                                                 {generatedPlan ? generatedPlan.title : generatedPlanRaw?.title}

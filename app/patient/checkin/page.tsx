@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { CheckCircle, ArrowLeft, ArrowRight, Sparkles, Loader2, Star, Heart } from "lucide-react"
+import { CheckCircle, ArrowLeft, ArrowRight, Sparkles, Loader2, Star, Heart, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -22,8 +22,11 @@ export default function WeeklyCheckinPage() {
     const [submitting, setSubmitting] = useState(false)
     const [done, setDone] = useState(false)
     const [aiSummary, setAiSummary] = useState("")
+    const [xpAwarded, setXpAwarded] = useState(0)
     const [alreadyDone, setAlreadyDone] = useState(false)
+    const [prevCheckin, setPrevCheckin] = useState<{ ai_summary?: string; diet_score?: number; mood?: string } | null>(null)
     const [checking, setChecking] = useState(true)
+    const [submitError, setSubmitError] = useState<string | null>(null)
 
     const [form, setForm] = useState({
         cycle_phase: "",
@@ -39,13 +42,17 @@ export default function WeeklyCheckinPage() {
         fetch("/api/patient/weekly-checkin")
             .then(r => r.json())
             .then(d => {
-                if (d.submitted) setAlreadyDone(true)
+                if (d.submitted) {
+                    setAlreadyDone(true)
+                    if (d.checkin) setPrevCheckin(d.checkin)
+                }
             })
             .finally(() => setChecking(false))
     }, [])
 
     const handleSubmit = async () => {
         setSubmitting(true)
+        setSubmitError(null)
         try {
             const res = await fetch("/api/patient/weekly-checkin", {
                 method: "POST",
@@ -53,10 +60,12 @@ export default function WeeklyCheckinPage() {
                 body: JSON.stringify(form),
             })
             const data = await res.json()
+            if (!res.ok) throw new Error(data.error || 'Erro ao enviar')
             setAiSummary(data.ai_summary || "Semana registrada com sucesso!")
+            setXpAwarded(data.xp_awarded || 0)
             setDone(true)
-        } catch {
-            alert("Erro ao enviar. Tente novamente.")
+        } catch (err: any) {
+            setSubmitError(err.message || "Erro ao enviar. Tente novamente.")
         } finally {
             setSubmitting(false)
         }
@@ -74,8 +83,33 @@ export default function WeeklyCheckinPage() {
                 <CheckCircle size={32} className="text-emerald-400" />
             </div>
             <h2 className="text-xl font-bold text-white mb-2">Check-in da semana feito!</h2>
-            <p className="text-slate-400 text-sm mb-6 max-w-xs">Você já enviou seu check-in esta semana. Volte na semana que vem.</p>
-            <Link href="/patient/home" className="text-indigo-400 font-bold text-sm">← Voltar para o início</Link>
+            <p className="text-slate-400 text-sm mb-5 max-w-xs">Você já enviou seu check-in esta semana. Volte na semana que vem. 💜</p>
+            {prevCheckin?.ai_summary && (
+                <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-2xl p-4 mb-6 max-w-sm w-full text-left">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 mb-1.5">Análise desta semana</p>
+                    <p className="text-sm text-slate-300 italic leading-relaxed">"{prevCheckin.ai_summary}"</p>
+                    {prevCheckin.diet_score !== undefined && (
+                        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-white/5">
+                            <span className="text-xs text-slate-500">Dieta:</span>
+                            <span className={`text-sm font-bold ${prevCheckin.diet_score >= 8 ? 'text-emerald-400' : prevCheckin.diet_score >= 5 ? 'text-amber-400' : 'text-rose-400'}`}>
+                                {prevCheckin.diet_score}/10
+                            </span>
+                            {prevCheckin.mood && <>
+                                <span className="text-xs text-slate-500 ml-2">Humor:</span>
+                                <span className="text-sm font-bold text-slate-300">{prevCheckin.mood}</span>
+                            </>}
+                        </div>
+                    )}
+                </div>
+            )}
+            <div className="flex flex-col items-center gap-3">
+                <Link href="/patient/home" className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white font-bold text-sm transition-all">
+                    ← Voltar ao início
+                </Link>
+                <Link href="/patient/progresso/checkin" className="text-slate-500 hover:text-slate-300 text-xs font-bold transition-colors">
+                    Já fez seu check-in diário de hoje? →
+                </Link>
+            </div>
         </div>
     )
 
@@ -90,15 +124,26 @@ export default function WeeklyCheckinPage() {
             </div>
             <h2 className="text-2xl font-bold text-white mb-2">Check-in enviado! 👑</h2>
             <p className="text-slate-400 text-sm mb-4 max-w-xs">Sua nutricionista já recebeu seus dados desta semana.</p>
+            {xpAwarded > 0 && (
+                <div className="flex items-center gap-1.5 px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-full mb-4">
+                    <Sparkles size={14} className="text-yellow-400" />
+                    <span className="text-sm font-black text-yellow-400">+{xpAwarded} XP</span>
+                </div>
+            )}
             {aiSummary && (
                 <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-2xl p-4 mb-6 max-w-sm">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 mb-1">Análise da IA</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 mb-1">Análise da equipe</p>
                     <p className="text-sm text-slate-300 italic">"{aiSummary}"</p>
                 </div>
             )}
-            <Link href="/patient/home" className="px-6 py-3 bg-indigo-600 rounded-xl text-white font-bold text-sm">
-                Voltar ao início →
-            </Link>
+            <div className="flex flex-col items-center gap-3">
+                <Link href="/patient/home" className="px-6 py-3 bg-indigo-600 rounded-xl text-white font-bold text-sm">
+                    Voltar ao início →
+                </Link>
+                <Link href="/patient/progresso/checkin" className="text-slate-500 hover:text-slate-300 text-xs font-bold transition-colors">
+                    Fazer também o check-in diário de hoje →
+                </Link>
+            </div>
         </motion.div>
     )
 
@@ -134,7 +179,7 @@ export default function WeeklyCheckinPage() {
                             <Heart size={18} className="text-rose-400" />
                             <p className="text-white text-xl font-bold">Fase do ciclo esta semana</p>
                         </div>
-                        <p className="text-slate-400 text-sm mb-6">Isso ajuda a IA a entender seus sintomas e personalizar as recomendações.</p>
+                        <p className="text-slate-400 text-sm mb-6">Isso ajuda a entender seus sintomas e personalizar as recomendações.</p>
                         <div className="space-y-2">
                             {CYCLE_PHASES.map(phase => (
                                 <button
@@ -297,6 +342,15 @@ export default function WeeklyCheckinPage() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Error banner */}
+            {submitError && (
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                    className="mt-4 flex items-center gap-2 bg-rose-500/10 border border-rose-500/25 rounded-xl px-4 py-3">
+                    <AlertCircle size={14} className="text-rose-400 flex-shrink-0"/>
+                    <p className="text-xs text-rose-300">{submitError}</p>
+                </motion.div>
+            )}
 
             {/* Navigation */}
             <div className="flex gap-3 mt-auto pt-6">

@@ -186,7 +186,7 @@ export default function PatientGatewayPage() {
           initial={{ opacity: 0, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1 }}
-          className="mb-6 bg-gradient-to-r from-indigo-600/20 to-purple-600/10 border border-indigo-500/20 rounded-3xl p-4 flex items-center gap-4"
+          className="mb-6 bg-gradient-to-r from-indigo-600/20 to-indigo-600/5 border border-indigo-500/20 rounded-3xl p-4 flex items-center gap-4"
         >
           <div className="w-12 h-12 rounded-2xl bg-indigo-600/30 flex items-center justify-center shrink-0">
             <Sparkles size={22} className="text-indigo-300" />
@@ -344,13 +344,13 @@ export default function PatientGatewayPage() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="mt-6 bg-gradient-to-br from-indigo-600/15 to-purple-600/5 border border-indigo-500/25 rounded-3xl p-5"
+          className="mt-6 bg-gradient-to-br from-indigo-600/15 to-indigo-600/5 border border-indigo-500/25 rounded-3xl p-5"
         >
           <div className="flex items-center gap-2 mb-2">
             <Crown size={16} className="text-indigo-400" />
             <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400">Modo Paciente</span>
           </div>
-          <p className="text-white text-sm font-bold mb-1">Dieta personalizada + IA + receitas</p>
+          <p className="text-white text-sm font-bold mb-1">Dieta personalizada + chat com a nutri + receitas</p>
           <p className="text-slate-400 text-xs mb-4">
             Desbloqueie cardápio com macros, receitas vinculadas ao seu protocolo, lista de compras calculada e muito mais.
           </p>

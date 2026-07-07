@@ -24,10 +24,10 @@ export function DailyMissionCard({ title, description, points, status }: DailyMi
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="relative glass-panel p-6 rounded-3xl border border-white/10 overflow-hidden"
+            className="relative bg-white/5 p-6 rounded-3xl border border-white/10 overflow-hidden"
         >
             {/* Background Glow */}
-            <div className="absolute inset-0 bg-gradient-to-br from-queen-pink/10 to-purple-600/10 opacity-50" />
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-emerald-500/5 opacity-50" />
 
             {/* Content */}
             <div className="relative z-10">
@@ -45,7 +45,7 @@ export function DailyMissionCard({ title, description, points, status }: DailyMi
                 {!isCompleted ? (
                     <Button
                         onClick={handleComplete}
-                        className="w-full h-14 bg-gradient-to-r from-queen-pink to-purple-600 border-0 font-bold text-lg shadow-lg shadow-queen-pink/20"
+                        className="w-full h-14 bg-indigo-600 hover:bg-indigo-500 border-0 font-bold text-lg shadow-lg shadow-indigo-900/40"
                     >
                         <Camera size={20} className="mr-2" />
                         Enviar Evidência

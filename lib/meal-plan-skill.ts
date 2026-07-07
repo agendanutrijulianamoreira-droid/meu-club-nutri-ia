@@ -12,6 +12,7 @@
  */
 
 import { MEAL_SLOTS } from './meal-plan-template'
+import { getPromptFaseReino } from './config/promptsPlanoAlimentar'
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ export interface MealPlanPromptParams {
   patientGoal?:      string
   tenantMethodName?: string
   tenantSystemPrompt?: string
+  faseReino?:        number      // 1-6: fase clínica do Método REINO
   compactCatalog:    string      // saída de buildCompactCatalog()
 }
 
@@ -34,13 +36,14 @@ export interface MealPlanPromptParams {
 
 export function getMealPlanSystemPrompt(
   tenantSystemPrompt?: string,
-  methodName?: string
+  methodName?: string,
+  faseReino?: number
 ): string {
   const method = methodName || 'Método VitaClub'
 
   return `Você é uma nutricionista especializada em alimentação funcional e anti-inflamatória brasileira, criando cardápios personalizados para o ${method}.
 
-${tenantSystemPrompt ? `FILOSOFIA DO MÉTODO:\n${tenantSystemPrompt}\n` : ''}
+${tenantSystemPrompt ? `FILOSOFIA DO MÉTODO:\n${tenantSystemPrompt}\n` : ''}${faseReino ? getPromptFaseReino(faseReino) : ''}
 
 ═══ PRINCÍPIOS INEGOCIÁVEIS ═══
 
@@ -149,6 +152,7 @@ export function getMealPlanUserPrompt(params: MealPlanPromptParams): string {
     patientName,
     patientWeight,
     patientGoal,
+    faseReino,
     compactCatalog,
   } = params
 
@@ -159,7 +163,7 @@ export function getMealPlanUserPrompt(params: MealPlanPromptParams): string {
 PACIENTE:
   Nome:          ${patientName}
   Objetivo:      ${patientGoal || goal}
-  Peso atual:    ${patientWeight ? patientWeight + 'kg' : 'não informado'}
+  Peso atual:    ${patientWeight ? patientWeight + 'kg' : 'não informado'}${faseReino ? `\n  Fase REINO:    ${faseReino}` : ''}
 ` : ''
 
   const restrictionLine = restrictions.length > 0

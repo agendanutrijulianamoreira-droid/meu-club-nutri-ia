@@ -7,6 +7,7 @@ import {
     Clock, XCircle, Truck, Sparkles, Lock, ChevronRight,
     X, Crown, Zap, Star, TrendingUp, Info
 } from "lucide-react"
+import { DAILY_LOG_XP, WEEKLY_CHECKIN_XP, HABIT_HIT_XP } from "@/lib/gamification"
 
 type RewardItem = {
     id: string; name: string; description: string; cost: number
@@ -148,11 +149,12 @@ function SuccessToast({ item, onClose }: { item: RewardItem; onClose: () => void
 function EarnCoinsGuide() {
     const [open, setOpen] = useState(false)
     const actions = [
-        { emoji: '✅', label: 'Check-in diário completo', coins: '+30' },
-        { emoji: '💧', label: 'Meta de hidratação', coins: '+10' },
-        { emoji: '🔥', label: 'Streak 7 dias', coins: '+50' },
-        { emoji: '📝', label: 'Check-in semanal', coins: '+20' },
-        { emoji: '🏆', label: 'Completar desafio', coins: '+100' },
+        { emoji: '💧', label: 'Meta de hidratação', coins: `+${DAILY_LOG_XP.water_check}` },
+        { emoji: '🍽️', label: 'Refeição do plano', coins: `+${DAILY_LOG_XP.meal_plan_check}` },
+        { emoji: '🏋️', label: 'Exercício registrado', coins: `+${DAILY_LOG_XP.workout_check}` },
+        { emoji: '📝', label: 'Check-in semanal', coins: `+${WEEKLY_CHECKIN_XP}` },
+        { emoji: '✅', label: 'Hábito do dia', coins: `+${HABIT_HIT_XP.simple}` },
+        { emoji: '✨', label: 'Vitória do dia', coins: `+${DAILY_LOG_XP.daily_victory}` },
     ]
     return (
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl overflow-hidden mb-4">
@@ -196,6 +198,7 @@ export default function PatientStorePage() {
     const [successItem, setSuccessItem] = useState<RewardItem | null>(null)
     const [activeTab, setActiveTab] = useState<"loja" | "meus">("loja")
     const [filterType, setFilterType] = useState<string | null>(null)
+    const [redeemError, setRedeemError] = useState<string | null>(null)
 
     const loadStore = useCallback(async () => {
         try {
@@ -220,7 +223,7 @@ export default function PatientStorePage() {
                 body: JSON.stringify({ item_id: selectedItem.id }),
             })
             const data = await res.json()
-            if (!res.ok) { alert(data.error); return }
+            if (!res.ok) { setRedeemError(data.error || 'Erro ao resgatar'); setTimeout(() => setRedeemError(null), 3500); return }
             setCoins(data.newBalance)
             setSuccessItem(selectedItem)
             setSelectedItem(null)
@@ -437,6 +440,12 @@ export default function PatientStorePage() {
             </div>
 
             <AnimatePresence>
+                {redeemError && (
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                        className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-5 py-3 bg-rose-500/20 border border-rose-500/30 rounded-2xl text-sm font-bold text-rose-300 shadow-xl">
+                        {redeemError}
+                    </motion.div>
+                )}
                 {selectedItem && (
                     <RedeemModal item={selectedItem} coins={coins}
                         onConfirm={handleRedeem} onClose={() => setSelectedItem(null)} loading={redeeming}/>

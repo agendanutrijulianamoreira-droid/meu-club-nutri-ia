@@ -60,9 +60,9 @@ export default function EvidencePage() {
                         className="flex flex-col gap-6"
                     >
                         {/* Instruction Card */}
-                        <div className="glass-panel p-4 rounded-2xl border-l-4 border-l-crown-gold">
+                        <div className="bg-white/[0.03] p-4 rounded-2xl border-l-4 border-l-amber-400">
                             <h3 className="font-semibold text-white mb-1 flex items-center gap-2">
-                                <Sparkles size={16} className="text-crown-gold" />
+                                <Sparkles size={16} className="text-amber-400" />
                                 Missão: Hidratação Real
                             </h3>
                             <p className="text-sm text-gray-300">
@@ -71,7 +71,7 @@ export default function EvidencePage() {
                         </div>
 
                         {/* Upload Area */}
-                        <div className="relative aspect-[4/5] w-full overflow-hidden rounded-3xl bg-white/5 border-2 border-dashed border-white/20 hover:border-queen-pink/50 transition-colors group">
+                        <div className="relative aspect-[4/5] w-full overflow-hidden rounded-3xl bg-white/5 border-2 border-dashed border-white/20 hover:border-indigo-500/50 transition-colors group">
                             {selectedImage ? (
                                 <>
                                     <img
@@ -88,9 +88,9 @@ export default function EvidencePage() {
 
                                     {/* AI Scanning Effect Overlay */}
                                     {analyzing && (
-                                        <div className="absolute inset-0 bg-queen-pink/10 z-10">
+                                        <div className="absolute inset-0 bg-indigo-500/10 z-10">
                                             <motion.div
-                                                className="w-full h-1 bg-gradient-to-r from-transparent via-queen-pink to-transparent shadow-[0_0_15px_#FF1493]"
+                                                className="w-full h-1 bg-gradient-to-r from-transparent via-indigo-400 to-transparent shadow-[0_0_15px_rgba(99,102,241,0.8)]"
                                                 animate={{ top: ["0%", "100%", "0%"] }}
                                                 transition={{ duration: 2, ease: "linear", repeat: Infinity }}
                                                 style={{ position: 'absolute' }}
@@ -121,7 +121,7 @@ export default function EvidencePage() {
                         <Button
                             onClick={handleSubmit}
                             disabled={!selectedImage || analyzing}
-                            className={`w-full h-14 text-lg font-bold shadow-xl shadow-queen-pink/20 ${analyzing ? "opacity-80" : ""}`}
+                            className={`w-full h-14 text-lg font-bold shadow-xl shadow-indigo-500/20 ${analyzing ? "opacity-80" : ""}`}
                             variant="primary"
                         >
                             {analyzing ? "Validando..." : "Enviar Evidência (+20 XP)"}
@@ -157,8 +157,8 @@ function SuccessView() {
                 A IA validou sua foto. Você está cada vez mais perto dos seus objetivos!
             </p>
 
-            <div className="glass-panel px-6 py-3 rounded-xl border border-crown-gold/30 bg-crown-gold/10">
-                <span className="text-2xl font-black text-crown-gold">+20 Pontos</span>
+            <div className="bg-white/[0.03] px-6 py-3 rounded-xl border border-amber-400/30 bg-amber-400/10">
+                <span className="text-2xl font-black text-amber-400">+20 Pontos</span>
             </div>
         </motion.div>
     )

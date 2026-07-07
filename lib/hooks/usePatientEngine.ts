@@ -185,50 +185,35 @@ export function usePatientEngine(): PatientEngineData {
         if (!activeProtocol) return
 
         const newStatus = !currentStatus
+        const item = currentDayItems.find((i: any) => i.id === itemId)
+        const itemPoints = item?.points ?? 10
 
         // Optimistic UI update
         setProgress(prev => ({ ...prev, [itemId]: newStatus }))
 
         try {
-            if (newStatus) {
-                // ⚡ TIMEZONE FIX: Enviar checkin_date como DATE puro local
-                const todayStr = getLocalDate()
+            // Escrita de XP centralizada no server (lib/services/gamification.ts) —
+            // o client não chama mais a RPC increment_user_points diretamente.
+            const res = await fetch('/api/patient/protocol-progress', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    assignment_id: activeProtocol.assignmentId,
+                    protocol_item_id: itemId,
+                    mark: newStatus,
+                    points: itemPoints,
+                }),
+            })
+            if (!res.ok) throw new Error(`Falha ao salvar checkin (${res.status})`)
+            const { points_delta } = await res.json()
 
-                const { error } = await supabase
-                    .from('protocol_progress')
-                    .insert({
-                        assignment_id: activeProtocol.assignmentId,
-                        protocol_item_id: itemId,
-                        completed_at: new Date().toISOString(), // Timestamp real (p/ audit)
-                        checkin_date: todayStr,                 // ← DATE puro local!
-                        points_earned: 10
-                    })
-
-                if (error) throw error
-
-                // Atualizar pontos do usuário
-                const { data: { user } } = await supabase.auth.getUser()
-                if (user) {
-                    await supabase.rpc('increment_user_points', {
-                        user_id: user.id,
-                        points_to_add: 10
-                    })
-                }
-            } else {
-                // Desmarcar - remover do progresso
-                await supabase
-                    .from('protocol_progress')
-                    .delete()
-                    .eq('assignment_id', activeProtocol.assignmentId)
-                    .eq('protocol_item_id', itemId)
-            }
-
-            // Recalcular stats
+            // Recalcular stats (progresso do dia + XP total exibido na Home)
             const totalItems = currentDayItems.length
             const completedCount = Object.values({ ...progress, [itemId]: newStatus }).filter(Boolean).length
             setStats(prev => ({
                 ...prev,
-                completionRate: Math.round((completedCount / totalItems) * 100)
+                completionRate: Math.round((completedCount / totalItems) * 100),
+                totalPoints: Math.max(0, prev.totalPoints + points_delta)
             }))
 
         } catch (error) {

@@ -13,6 +13,7 @@ export default function AccountOverlay({ index }: { index: number }) {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [profile, setProfile] = useState<any>(null)
+    const [saveMsg, setSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
     const [formData, setFormData] = useState({
         honorific: "",
         display_name: "",
@@ -56,11 +57,11 @@ export default function AccountOverlay({ index }: { index: number }) {
     const handleSave = async () => {
         setSaving(true)
         const result = await updateProfileAction(formData)
-        if (result.success) {
-            alert("Perfil atualizado com sucesso! ✨")
-        } else {
-            alert("Erro ao salvar: " + result.error)
-        }
+        const msg = result.success
+            ? { type: 'success' as const, text: "Perfil atualizado com sucesso!" }
+            : { type: 'error' as const, text: "Erro ao salvar: " + result.error }
+        setSaveMsg(msg)
+        setTimeout(() => setSaveMsg(null), 3500)
         setSaving(false)
     }
 
@@ -75,6 +76,11 @@ export default function AccountOverlay({ index }: { index: number }) {
     return (
         <SlideOver id="account" title="Meu Perfil Profissional" index={index}>
             <div className="space-y-10 pb-20">
+                {saveMsg && (
+                    <div className={`flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold border ${saveMsg.type === 'error' ? 'bg-rose-500/10 border-rose-500/25 text-rose-300' : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300'}`}>
+                        {saveMsg.text}
+                    </div>
+                )}
                 {/* Header Profile Photo */}
                 <div className="flex flex-col items-center gap-4 py-6 bg-indigo-600/5 rounded-[2.5rem] border border-indigo-500/10">
                     <div className="h-28 w-28 rounded-3xl border-2 border-indigo-500/30 p-1 relative group cursor-pointer">

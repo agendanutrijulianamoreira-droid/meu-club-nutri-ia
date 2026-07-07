@@ -412,7 +412,7 @@ export function usePatients() {
 
 export interface Tenant {
     id: string
-    name: string
+    brand_name: string
     slug: string
     brand_color: string
     method_name?: string
@@ -504,7 +504,7 @@ export function useAssignments(userId?: string) {
             setLoading(true)
             const { data, error } = await supabase
                 .from('protocol_assignments')
-                .select('*, protocol:protocols(*)')
+                .select('*, protocol:protocols(*, protocol_days(*, protocol_items(*)))')
                 .eq('user_id', userId)
                 .order('created_at', { ascending: false })
                 .limit(50)

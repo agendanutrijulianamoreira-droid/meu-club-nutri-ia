@@ -220,6 +220,12 @@ export async function GET(request: NextRequest) {
             totalXP,
             activeProtocols: activeProtocols || 0,
         },
+        patients: (patients || []).map(p => ({
+            user_id: p.user_id,
+            name: p.name,
+            primary_goal: p.primary_goal,
+            current_streak: p.current_streak,
+        })),
         atRisk,
         topQueens,
         insights,

@@ -84,7 +84,33 @@ export async function PATCH(request: NextRequest) {
   if (decision === 'approved') {
     const actionType: string = item.action_type
 
-    if (actionType === 'send_message' || actionType === 'send_offer') {
+    if (actionType === 'create_post') {
+      const targetUserId = item.target_user_id || executionPayload.user_id
+      if (targetUserId) {
+        await supabase.from('community_posts').insert({
+          user_id: targetUserId,
+          tenant_id: tenant.id,
+          content: executionPayload.content || executionPayload.body || '',
+          is_ai_generated: true,
+        })
+      }
+    } else if (actionType === 'assign_protocol') {
+      const targetUserId = item.target_user_id || executionPayload.user_id
+      const protocolId = executionPayload.protocol_id
+      if (targetUserId && protocolId) {
+        await supabase.from('protocol_assignments')
+          .update({ status: 'cancelled' })
+          .eq('user_id', targetUserId)
+          .eq('status', 'active')
+        await supabase.from('protocol_assignments').insert({
+          user_id: targetUserId,
+          protocol_id: protocolId,
+          tenant_id: tenant.id,
+          start_date: new Date().toISOString().split('T')[0],
+          status: 'active',
+        })
+      }
+    } else if (actionType === 'send_message' || actionType === 'send_offer') {
       const targetUserId = item.target_user_id || executionPayload.user_id
       if (targetUserId) {
         await supabase.from('inbox_messages').insert({

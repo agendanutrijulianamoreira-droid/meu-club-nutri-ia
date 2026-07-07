@@ -247,7 +247,11 @@ export default function PatientProfilePage() {
                 <h2 className="text-xs font-bold uppercase text-slate-500 tracking-wider mb-3">Acesso rápido</h2>
                 {[
                     { href: '/patient/diet', icon: Utensils, label: 'Meu Plano Alimentar', color: 'text-emerald-400' },
-                    { href: '/patient/inbox', icon: Bell, label: 'Mensagens da Nutri IA', color: 'text-indigo-400' },
+                    { href: '/patient/chat', icon: Sparkles, label: 'Chat com a Nutri', color: 'text-emerald-400' },
+                    { href: '/patient/appointments', icon: Calendar, label: 'Minhas Consultas', color: 'text-teal-400' },
+                    { href: '/patient/measurements', icon: Scale, label: 'Minhas Medidas', color: 'text-violet-400' },
+                    { href: '/patient/questionnaires', icon: ShieldCheck, label: 'Questionários', color: 'text-violet-400' },
+                    { href: '/patient/inbox', icon: Bell, label: 'Mensagens da Nutri', color: 'text-indigo-400' },
                 ].map(({ href, icon: Icon, label, color }) => (
                     <Link key={href} href={href} className="w-full flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-colors">
                         <div className="flex items-center gap-3">
@@ -344,7 +348,7 @@ export default function PatientProfilePage() {
                                         className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50"
                                         placeholder="Ex: 68.5"
                                     />
-                                    <p className="text-xs text-slate-600 mt-1.5">Usado pela IA para personalizar seu cardápio e acompanhar seu progresso.</p>
+                                    <p className="text-xs text-slate-600 mt-1.5">Usado para personalizar seu cardápio e acompanhar seu progresso.</p>
                                 </div>
 
                                 {/* Objetivo */}

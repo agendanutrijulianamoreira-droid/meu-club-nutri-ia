@@ -71,24 +71,28 @@ export async function POST(request: NextRequest) {
         // 2. Load active protocol assignment
         let activeProtocol = null
         let currentDay = 1
+        let progressPercentage = 0
         if (profile?.tenant_id) {
             const { data: assignment } = await supabase
                 .from('protocol_assignments')
                 .select(`
-                    started_at,
-                    progress_percentage,
+                    start_date,
                     protocol:protocols(title, description, duration_days)
                 `)
-                .eq('patient_id', user.id)
+                .eq('user_id', user.id)
                 .eq('status', 'active')
                 .single()
 
             if (assignment) {
                 activeProtocol = assignment
-                const startDate = new Date(assignment.started_at)
+                const startDate = new Date(assignment.start_date)
                 const today = new Date()
                 const diffDays = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
                 currentDay = Math.max(1, diffDays + 1)
+                const durationDays = (assignment.protocol as any)?.duration_days
+                if (durationDays) {
+                    progressPercentage = Math.min(100, Math.round((currentDay / durationDays) * 100))
+                }
             }
         }
 
@@ -124,7 +128,7 @@ export async function POST(request: NextRequest) {
         ]
 
         const protocolContext = activeProtocol
-            ? `A paciente está no Dia ${currentDay} do protocolo "${(activeProtocol.protocol as any)?.title}". Progresso geral: ${activeProtocol.progress_percentage || 0}%.`
+            ? `A paciente está no Dia ${currentDay} do protocolo "${(activeProtocol.protocol as any)?.title}". Progresso geral: ${progressPercentage}%.`
             : 'A paciente ainda não tem um protocolo ativo.'
 
         const profileContext = profile

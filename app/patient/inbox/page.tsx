@@ -191,7 +191,7 @@ export default function PatientInboxPage() {
                         <div className="space-y-2">
                             <h3 className="text-lg font-bold">Tudo em dia!</h3>
                             <p className="text-sm text-slate-500 leading-relaxed px-12">
-                                Sua nutri IA enviará mensagens personalizadas aqui — dicas, celebrações e lembretes carinhosos.
+                                Sua nutri enviará mensagens personalizadas aqui — dicas, celebrações e lembretes carinhosos.
                             </p>
                         </div>
                     </div>

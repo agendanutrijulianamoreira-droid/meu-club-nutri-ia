@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     .eq('user_id', user.id)
     .single()
 
-  const isPremium = ['vip', 'tech_diet'].includes(profile?.current_plan || '')
+  const isPremium = profile?.current_plan === 'vip'
   const planTier: 'basic' | 'premium' = isPremium ? 'premium' : 'basic'
 
   // Busca o assignment ativo mais recente
@@ -53,10 +53,11 @@ export async function GET(request: NextRequest) {
     .select(`
       id,
       assigned_at,
+      fase_aplicada,
       meal_plan:meal_plans (
         id, title, description, goal, duration_days,
         target_kcal, target_protein_g, target_carbs_g, target_fat_g,
-        status, is_ai_generated, plan_mode
+        status, is_ai_generated, plan_mode, fase_aplicada
       )
     `)
     .eq('user_id', user.id)
@@ -130,6 +131,7 @@ export async function GET(request: NextRequest) {
     plan: {
       ...plan,
       assigned_at: assignment.assigned_at,
+      fase_aplicada: (assignment as any).fase_aplicada ?? plan.fase_aplicada ?? null,
       days,
     },
     tier: planTier,

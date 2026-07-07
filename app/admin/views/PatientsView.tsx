@@ -1,12 +1,13 @@
 "use client"
 
 import React, { useState, useEffect, useCallback } from "react"
+import { supabase } from "@/lib/supabase-browser"
 import {
     Search, Bell, Zap, TrendingUp, AlertTriangle, MessageCircle,
     Activity, Star, Crown, Trophy, Flame, CheckCircle, Mail,
     Phone, Clock, Target, ChevronRight, Loader2, Sparkles,
     Heart, Plus, X, RefreshCw, Send, Shield, Users, FileText,
-    ToggleLeft, ToggleRight, Gift, Coins, Download, KeyRound, Copy, Pencil, Upload
+    ToggleLeft, ToggleRight, Gift, Coins, Download, KeyRound, Copy, Pencil, Upload, CalendarPlus
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -200,6 +201,7 @@ function AssignProtocolModal({ patientId, patientName, currentProtocol, onClose,
     const [protocols, setProtocols] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [assigning, setAssigning] = useState<string | null>(null)
+    const [error, setError] = useState('')
 
     useEffect(() => {
         fetch('/api/admin/protocols-list')
@@ -210,12 +212,20 @@ function AssignProtocolModal({ patientId, patientName, currentProtocol, onClose,
 
     const handleAssign = async (protocolId: string | null) => {
         setAssigning(protocolId || 'remove')
+        setError('')
         try {
-            await fetch(`/api/admin/patients/${patientId}/action`, {
+            const res = await fetch(`/api/admin/patients/${patientId}/action`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: protocolId ? 'assign-protocol' : 'remove-protocol', protocol_id: protocolId })
             })
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}))
+                setError(data.error || 'Erro ao atribuir protocolo. Tente novamente.')
+                return
+            }
             onSuccess()
+        } catch {
+            setError('Erro de conexão. Tente novamente.')
         } finally { setAssigning(null) }
     }
 
@@ -233,6 +243,10 @@ function AssignProtocolModal({ patientId, patientName, currentProtocol, onClose,
                     </div>
                     <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl"><X size={15} className="text-slate-400"/></button>
                 </div>
+
+                {error && (
+                    <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2 mb-3">{error}</p>
+                )}
 
                 {loading ? (
                     <div className="py-8 flex justify-center"><Loader2 size={20} className="animate-spin text-slate-600"/></div>
@@ -426,9 +440,72 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     const [showMessageModal, setShowMessageModal] = useState(false)
     const [showEditModal, setShowEditModal] = useState(false)
     const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'health' | 'insights'>('overview')
+    const [showScheduleModal, setShowScheduleModal] = useState(false)
     const [restrictions, setRestrictions] = useState<string[]>([])
     const [customRestriction, setCustomRestriction] = useState('')
     const [savingRestrictions, setSavingRestrictions] = useState(false)
+    const [measurements, setMeasurements] = useState<any[]>([])
+    const [loadingMeasurements, setLoadingMeasurements] = useState(false)
+    const [patientAppointments, setPatientAppointments] = useState<any[]>([])
+    const [loadingAppointments, setLoadingAppointments] = useState(false)
+    const [patientQuestionnaireResponses, setPatientQuestionnaireResponses] = useState<any[]>([])
+    const [loadingQRs, setLoadingQRs] = useState(false)
+    const [checkinHistory, setCheckinHistory] = useState<any[]>([])
+    const [loadingCheckins, setLoadingCheckins] = useState(false)
+
+    // REINO phase state
+    const [faseAtual, setFaseAtual] = useState<{ fase: number; nome_fase: string; inicio: string } | null | undefined>(undefined)
+    const [faseSelecionada, setFaseSelecionada] = useState<number>(1)
+    const [salvandoFase, setSalvandoFase] = useState(false)
+    const [enviandoNotif, setEnviandoNotif] = useState(false)
+    const [faseToast, setFaseToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+
+    useEffect(() => {
+        fetch(`/api/admin/patients/${patient.id}/fase`)
+            .then(r => r.json())
+            .then(d => {
+                setFaseAtual(d.fase ?? null)
+                if (d.fase) setFaseSelecionada(d.fase.fase)
+            })
+            .catch(() => setFaseAtual(null))
+    }, [patient.id])
+
+    const salvarFase = async () => {
+        setSalvandoFase(true)
+        try {
+            const res = await fetch(`/api/admin/patients/${patient.id}/fase`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fase: faseSelecionada })
+            })
+            const d = await res.json()
+            if (res.ok) {
+                setFaseAtual(d.fase)
+                setFaseToast({ type: 'success', msg: 'Fase atualizada!' })
+            } else {
+                setFaseToast({ type: 'error', msg: d.error || 'Erro ao salvar fase' })
+            }
+        } catch { setFaseToast({ type: 'error', msg: 'Erro de conexão' }) }
+        finally {
+            setSalvandoFase(false)
+            setTimeout(() => setFaseToast(null), 3500)
+        }
+    }
+
+    const testarNotificacao = async (tipo: string) => {
+        setEnviandoNotif(true)
+        try {
+            const res = await fetch('/api/admin/notificacoes/testar', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paciente_id: patient.id, tipo })
+            })
+            const d = await res.json()
+            setFaseToast({ type: res.ok ? 'success' : 'error', msg: res.ok ? 'Push enviado!' : (d.error || 'Erro ao enviar') })
+        } catch { setFaseToast({ type: 'error', msg: 'Erro de conexão' }) }
+        finally {
+            setEnviandoNotif(false)
+            setTimeout(() => setFaseToast(null), 3500)
+        }
+    }
 
     // AI Insights state
     const [insight, setInsight] = useState<{
@@ -442,6 +519,52 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     const [insightLoading, setInsightLoading] = useState(false)
     const [insightError, setInsightError] = useState<string | null>(null)
 
+    useEffect(() => {
+        if (activeTab !== 'health') return
+        setLoadingMeasurements(true)
+        fetch(`/api/admin/measurements?patient_id=${patient.id}`)
+            .then(r => r.json())
+            .then(d => setMeasurements(d.measurements || []))
+            .catch(() => {})
+            .finally(() => setLoadingMeasurements(false))
+    }, [activeTab, patient.id])
+
+    useEffect(() => {
+        if (activeTab !== 'history') return
+        setLoadingAppointments(true)
+        fetch(`/api/admin/appointments?patient_id=${patient.id}`)
+            .then(r => r.json())
+            .then(d => setPatientAppointments(d.appointments || []))
+            .catch(() => {})
+            .finally(() => setLoadingAppointments(false))
+
+        setLoadingCheckins(true)
+        ;(async () => {
+            try {
+                const { data } = await supabase.from('weekly_checkin_responses')
+                    .select('id, created_at, week_start, diet_score, mood, bowel, had_binge, main_difficulty, ai_risk_level')
+                    .eq('user_id', patient.id)
+                    .order('week_start', { ascending: false })
+                    .limit(8)
+                setCheckinHistory(data || [])
+            } catch {}
+            finally { setLoadingCheckins(false) }
+        })()
+
+        setLoadingQRs(true)
+        ;(async () => {
+            try {
+                const { data } = await supabase.from('questionnaire_responses')
+                    .select('id, created_at, completed_at, questionnaire:questionnaires(name)')
+                    .eq('patient_id', patient.id)
+                    .order('created_at', { ascending: false })
+                    .limit(10)
+                setPatientQuestionnaireResponses(data || [])
+            } catch {}
+            finally { setLoadingQRs(false) }
+        })()
+    }, [activeTab, patient.id])
+
     const generateInsight = async () => {
         setInsightLoading(true)
         setInsightError(null)
@@ -454,6 +577,36 @@ function PatientDetail({ patient, onAction, onRefresh }: {
             setInsightError('Erro de conexão')
         } finally {
             setInsightLoading(false)
+        }
+    }
+
+    // AI Chat state (chat com contexto da paciente, só para esta sessão — não persiste)
+    const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
+    const [chatInput, setChatInput] = useState('')
+    const [chatLoading, setChatLoading] = useState(false)
+    const [chatError, setChatError] = useState<string | null>(null)
+
+    const sendChatMessage = async () => {
+        const message = chatInput.trim()
+        if (!message || chatLoading) return
+        const history = chatMessages
+        setChatMessages([...history, { role: 'user', content: message }])
+        setChatInput('')
+        setChatLoading(true)
+        setChatError(null)
+        try {
+            const res = await fetch(`/api/admin/patients/${patient.id}/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message, history }),
+            })
+            const data = await res.json()
+            if (res.ok) setChatMessages(prev => [...prev, { role: 'assistant', content: data.reply }])
+            else setChatError(data.error || 'Erro ao consultar IA')
+        } catch {
+            setChatError('Erro de conexão')
+        } finally {
+            setChatLoading(false)
         }
     }
 
@@ -530,7 +683,7 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     if (!patient.hasActiveProtocol) riskCauses.push('sem protocolo')
     if (!patient.hasCheckin) riskCauses.push('sem check-in')
     if (patient.adherenceRate === 0) riskCauses.push('adesão zero')
-    if (patient.daysSinceActivity > 7) riskCauses.push(`inativa há ${patient.daysSinceActivity}d`)
+    if (patient.daysSinceActivity > 7) riskCauses.push(patient.daysSinceActivity >= 999 ? 'nunca fez check-in' : `inativa há ${patient.daysSinceActivity}d`)
 
     // Activity timeline events
     const timelineEvents: { label: string; sub: string; done: boolean; urgent?: boolean }[] = [
@@ -623,7 +776,7 @@ function PatientDetail({ patient, onAction, onRefresh }: {
             </div>
 
             {/* ── Content ────────────────────────────────────────────────────── */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
 
                 {activeTab === 'overview' && (
                     <>
@@ -691,6 +844,10 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                             <button onClick={() => setShowMessageModal(true)}
                                 className="px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 text-sm font-bold rounded-2xl transition-all flex items-center gap-2">
                                 <Bell size={13}/> Inbox
+                            </button>
+                            <button onClick={() => setShowScheduleModal(true)}
+                                className="px-4 py-2.5 bg-teal-600/20 hover:bg-teal-600/40 border border-teal-500/30 text-teal-400 text-sm font-bold rounded-2xl transition-all flex items-center gap-2">
+                                <CalendarPlus size={13}/>
                             </button>
                             {patient.phone && (
                                 <a href={`https://wa.me/55${patient.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener"
@@ -791,6 +948,57 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                             )}
                         </div>
 
+                        {/* Fase do REINO */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Fase do Método REINO</p>
+                            {faseToast && (
+                                <div className={`text-xs px-3 py-2 rounded-xl font-medium ${faseToast.type === 'success' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'}`}>
+                                    {faseToast.msg}
+                                </div>
+                            )}
+                            {faseAtual === undefined ? (
+                                <div className="text-xs text-slate-500">Carregando...</div>
+                            ) : faseAtual ? (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-indigo-500/15 border-indigo-500/25 text-indigo-400">
+                                        Fase {faseAtual.fase}
+                                    </span>
+                                    <span className="text-sm text-white font-medium">{faseAtual.nome_fase}</span>
+                                    <span className="text-xs text-slate-500">desde {new Date(faseAtual.inicio + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                                </div>
+                            ) : (
+                                <p className="text-xs text-slate-500">Nenhuma fase atribuída</p>
+                            )}
+                            <div className="flex items-center gap-2 pt-1">
+                                <select value={faseSelecionada} onChange={e => setFaseSelecionada(Number(e.target.value))}
+                                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50">
+                                    <option value={1}>1 — Anti-inflamatória</option>
+                                    <option value={2}>2 — Intestinal</option>
+                                    <option value={3}>3 — Hormonal</option>
+                                    <option value={4}>4 — Metabólica</option>
+                                    <option value={5}>5 — Composição Corporal</option>
+                                    <option value={6}>6 — Manutenção</option>
+                                </select>
+                                <button onClick={salvarFase} disabled={salvandoFase}
+                                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all">
+                                    {salvandoFase ? <Loader2 size={12} className="animate-spin"/> : 'Salvar'}
+                                </button>
+                            </div>
+                            {faseAtual && (
+                                <div className="pt-1">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Testar notificação</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {(['lembrete_refeicao', 'hidratacao', 'checkin', 'motivacao'] as const).map(tipo => (
+                                            <button key={tipo} onClick={() => testarNotificacao(tipo)} disabled={enviandoNotif}
+                                                className="text-[10px] font-bold px-2.5 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 rounded-lg transition-all disabled:opacity-50">
+                                                {tipo === 'lembrete_refeicao' ? 'Refeição' : tipo === 'hidratacao' ? 'Hidratação' : tipo === 'checkin' ? 'Check-in' : 'Motivação'}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         {/* Acesso + Contato */}
                         <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
                             <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Contato & Acesso</p>
@@ -876,6 +1084,48 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                             </div>
                         )}
 
+                        {/* Weekly check-in history */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Histórico de Check-ins</p>
+                            {loadingCheckins ? (
+                                <div className="flex justify-center py-3"><Loader2 size={16} className="animate-spin text-slate-500"/></div>
+                            ) : checkinHistory.length === 0 ? (
+                                <p className="text-xs text-slate-600">Nenhum check-in enviado.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {checkinHistory.map((c: any) => {
+                                        const riskColor: Record<string, string> = { low: 'text-emerald-400', medium: 'text-amber-400', high: 'text-rose-400' }
+                                        const moodEmoji: Record<string, string> = { 'Ótimo': '🌟', 'Bom': '😊', 'Regular': '😐', 'Ruim': '😟' }
+                                        return (
+                                            <div key={c.id} className="flex items-start justify-between py-2 border-b border-white/5 last:border-0 gap-3">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-xs text-slate-400">
+                                                            Semana de {new Date(c.week_start + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}
+                                                        </p>
+                                                        {c.mood && <span className="text-xs">{moodEmoji[c.mood] || c.mood}</span>}
+                                                    </div>
+                                                    {c.main_difficulty && (
+                                                        <p className="text-[10px] text-slate-600 truncate mt-0.5">"{c.main_difficulty}"</p>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2 flex-shrink-0">
+                                                    {c.diet_score != null && (
+                                                        <span className={`text-xs font-black ${c.diet_score >= 7 ? 'text-emerald-400' : c.diet_score >= 5 ? 'text-amber-400' : 'text-rose-400'}`}>
+                                                            {c.diet_score}/10
+                                                        </span>
+                                                    )}
+                                                    <span className={`text-[10px] font-bold uppercase ${riskColor[c.ai_risk_level] || 'text-slate-500'}`}>
+                                                        {c.ai_risk_level || 'low'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
                         {/* Stats summary */}
                         <div className="grid grid-cols-2 gap-3">
                             {[
@@ -889,6 +1139,70 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                                     <p className={`font-bold text-sm ${s.color}`}>{s.value}</p>
                                 </div>
                             ))}
+                        </div>
+
+                        {/* Appointments history */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Consultas</p>
+                            {loadingAppointments ? (
+                                <div className="flex justify-center py-3"><Loader2 size={16} className="animate-spin text-slate-500"/></div>
+                            ) : patientAppointments.length === 0 ? (
+                                <p className="text-xs text-slate-600">Nenhuma consulta registrada.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {patientAppointments.slice(0, 5).map((appt: any) => {
+                                        const d = new Date(appt.scheduled_at)
+                                        const statusColor: Record<string, string> = {
+                                            scheduled: 'text-blue-400', confirmed: 'text-emerald-400',
+                                            completed: 'text-slate-400', cancelled: 'text-rose-400', no_show: 'text-amber-400'
+                                        }
+                                        const statusLabel: Record<string, string> = {
+                                            scheduled: 'Agendada', confirmed: 'Confirmada',
+                                            completed: 'Realizada', cancelled: 'Cancelada', no_show: 'Ausente'
+                                        }
+                                        return (
+                                            <div key={appt.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+                                                <div>
+                                                    <p className="text-xs text-white font-bold">
+                                                        {d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })} às {d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-500">{appt.duration_minutes}min · {appt.is_virtual ? 'Online' : 'Presencial'}</p>
+                                                </div>
+                                                <span className={`text-[10px] font-bold ${statusColor[appt.status] || 'text-slate-500'}`}>
+                                                    {statusLabel[appt.status] || appt.status}
+                                                </span>
+                                            </div>
+                                        )
+                                    })}
+                                    {patientAppointments.length > 5 && (
+                                        <p className="text-[10px] text-slate-600 text-center">+{patientAppointments.length - 5} mais</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Questionnaire responses */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Questionários Respondidos</p>
+                            {loadingQRs ? (
+                                <div className="flex justify-center py-3"><Loader2 size={16} className="animate-spin text-slate-500"/></div>
+                            ) : patientQuestionnaireResponses.length === 0 ? (
+                                <p className="text-xs text-slate-600">Nenhum questionário respondido.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {patientQuestionnaireResponses.map((r: any) => (
+                                        <div key={r.id} className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0">
+                                            <div>
+                                                <p className="text-xs text-white font-bold">{(r.questionnaire as any)?.name || 'Questionário'}</p>
+                                                <p className="text-[10px] text-slate-500">
+                                                    {new Date(r.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                </p>
+                                            </div>
+                                            <span className="text-[10px] font-bold text-emerald-400">✓ Respondido</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </>
                 )}
@@ -1014,11 +1328,113 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                                 </button>
                             </>
                         )}
+
+                        {/* Chat IA — conversa livre com contexto completo da paciente */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                <MessageCircle size={10}/> Chat IA sobre {patient.name.split(' ')[0]}
+                            </p>
+                            <p className="text-xs text-slate-500 -mt-2">
+                                Pergunte livremente à IA sobre esta paciente — ela já tem todo o contexto acima.
+                            </p>
+
+                            {chatMessages.length > 0 && (
+                                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                                    {chatMessages.map((m, i) => (
+                                        <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                            <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
+                                                m.role === 'user'
+                                                    ? 'bg-indigo-600 text-white'
+                                                    : 'bg-white/10 text-slate-200'
+                                            }`}>
+                                                {m.content}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {chatLoading && (
+                                        <div className="flex justify-start">
+                                            <div className="bg-white/10 rounded-2xl px-3 py-2">
+                                                <Loader2 size={13} className="animate-spin text-slate-400"/>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {chatError && <p className="text-xs text-rose-400 font-bold">{chatError}</p>}
+
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="text"
+                                    value={chatInput}
+                                    onChange={e => setChatInput(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage() } }}
+                                    placeholder="Ex: ela teve alguma recaída essa semana?"
+                                    disabled={chatLoading}
+                                    className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-3 py-2.5 text-xs text-white placeholder:text-slate-600 outline-none focus:border-indigo-500/50 disabled:opacity-50"
+                                />
+                                <button
+                                    onClick={sendChatMessage}
+                                    disabled={chatLoading || !chatInput.trim()}
+                                    className="flex items-center justify-center w-9 h-9 flex-shrink-0 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-2xl transition-all">
+                                    {chatLoading ? <Loader2 size={14} className="animate-spin"/> : <Send size={14}/>}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
 
                 {activeTab === 'health' && (
                     <div className="space-y-4">
+                        {/* Body measurements */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Medidas Corporais</p>
+                            {loadingMeasurements ? (
+                                <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-slate-500"/></div>
+                            ) : measurements.length === 0 ? (
+                                <p className="text-xs text-slate-600">Nenhuma medida registrada ainda.</p>
+                            ) : (() => {
+                                const latest = measurements[0]
+                                const previous = measurements[1]
+                                const MFIELDS = [
+                                    { key: 'weight_kg', label: 'Peso', unit: 'kg' },
+                                    { key: 'waist_cm', label: 'Cintura', unit: 'cm' },
+                                    { key: 'abdomen_cm', label: 'Abdômen', unit: 'cm' },
+                                    { key: 'hip_cm', label: 'Quadril', unit: 'cm' },
+                                    { key: 'chest_cm', label: 'Busto', unit: 'cm' },
+                                    { key: 'arm_cm', label: 'Braço', unit: 'cm' },
+                                    { key: 'thigh_cm', label: 'Coxa', unit: 'cm' },
+                                ] as const
+                                return (
+                                    <>
+                                        <p className="text-[10px] text-slate-500">
+                                            Última medição: {new Date(latest.measured_at + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                            {measurements.length > 1 && ` · ${measurements.length} registros`}
+                                        </p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {MFIELDS.filter(f => latest[f.key] != null).map(f => {
+                                                const curr = latest[f.key] as number
+                                                const prev = previous ? previous[f.key] as number | null : null
+                                                const diff = curr != null && prev != null ? curr - prev : null
+                                                return (
+                                                    <div key={f.key} className="bg-white/[0.03] border border-white/8 rounded-xl p-2.5">
+                                                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{f.label}</p>
+                                                        <p className="text-white font-black text-base">{curr}<span className="text-slate-500 text-xs font-normal ml-0.5">{f.unit}</span></p>
+                                                        {diff != null && diff !== 0 && (
+                                                            <p className={`text-[10px] font-bold ${diff < 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                                {diff > 0 ? '+' : ''}{diff.toFixed(1)}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                        {latest.notes && <p className="text-xs text-slate-500 italic">"{latest.notes}"</p>}
+                                    </>
+                                )
+                            })()}
+                        </div>
+
                         <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
                             <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Restrições Alimentares</p>
                             <p className="text-xs text-slate-400">Selecione as restrições para personalizar o cardápio e o chat com IA</p>
@@ -1077,8 +1493,148 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                         onSuccess={() => { setShowMessageModal(false); onAction('Mensagem enviada!') }}
                     />
                 )}
+                {showScheduleModal && (
+                    <QuickScheduleModal
+                        patientId={patient.id}
+                        patientName={patient.name}
+                        onClose={() => setShowScheduleModal(false)}
+                        onSuccess={() => { setShowScheduleModal(false); onAction('Consulta agendada!') }}
+                    />
+                )}
             </AnimatePresence>
         </div>
+    )
+}
+
+// ─── Quick Schedule Modal ─────────────────────────────────────────────────────
+function QuickScheduleModal({ patientId, patientName, onClose, onSuccess }: {
+    patientId: string; patientName: string; onClose: () => void; onSuccess: () => void
+}) {
+    const [saving, setSaving] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1)
+    const defaultDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,'0')}-${String(tomorrow.getDate()).padStart(2,'0')}`
+    const [form, setForm] = useState({
+        date: defaultDate,
+        time: '10:00',
+        duration: '60',
+        type: 'consultation',
+        is_virtual: true,
+        meeting_link: '',
+        notes: '',
+    })
+
+    const handleSave = async () => {
+        setSaving(true); setError(null)
+        try {
+            const scheduled_at = new Date(`${form.date}T${form.time}:00`).toISOString()
+            const res = await fetch('/api/admin/appointments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patient_id: patientId,
+                    scheduled_at,
+                    duration_minutes: parseInt(form.duration),
+                    appointment_type: form.type,
+                    is_virtual: form.is_virtual,
+                    meeting_link: form.meeting_link || undefined,
+                    notes: form.notes || undefined,
+                    status: 'scheduled',
+                }),
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || 'Erro ao agendar')
+            onSuccess()
+        } catch (e: any) {
+            setError(e.message)
+        } finally { setSaving(false) }
+    }
+
+    const firstName = patientName.split(' ')[0]
+
+    return (
+        <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div className="bg-slate-900 border border-white/10 rounded-3xl w-full max-w-sm"
+                initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }}>
+                <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-white/5">
+                    <div>
+                        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                            <CalendarPlus size={15} className="text-teal-400"/> Agendar Consulta
+                        </h3>
+                        <p className="text-[10px] text-slate-500 mt-0.5">com {firstName}</p>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl text-slate-500"><X size={15}/></button>
+                </div>
+
+                <div className="p-5 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Data</label>
+                            <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500/50"/>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Hora</label>
+                            <input type="time" value={form.time} onChange={e => setForm(p => ({ ...p, time: e.target.value }))}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500/50"/>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Tipo</label>
+                            <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
+                                className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500/50">
+                                <option value="consultation">Consulta</option>
+                                <option value="followup">Retorno</option>
+                                <option value="initial_assessment">Avaliação</option>
+                                <option value="group_session">Grupo</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Duração</label>
+                            <select value={form.duration} onChange={e => setForm(p => ({ ...p, duration: e.target.value }))}
+                                className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-teal-500/50">
+                                <option value="30">30 min</option>
+                                <option value="45">45 min</option>
+                                <option value="60">60 min</option>
+                                <option value="90">90 min</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl">
+                        <span className="text-sm text-slate-300">Online (videochamada)</span>
+                        <button onClick={() => setForm(p => ({ ...p, is_virtual: !p.is_virtual }))}
+                            className={`relative w-10 h-5 rounded-full transition-colors ${form.is_virtual ? 'bg-teal-600' : 'bg-white/10'}`}>
+                            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.is_virtual ? 'left-5' : 'left-0.5'}`}/>
+                        </button>
+                    </div>
+
+                    {form.is_virtual && (
+                        <input value={form.meeting_link} onChange={e => setForm(p => ({ ...p, meeting_link: e.target.value }))}
+                            placeholder="Link da videochamada (opcional)"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-teal-500/50"/>
+                    )}
+
+                    <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+                        rows={2} placeholder="Observações (opcional)"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 resize-none focus:outline-none focus:border-teal-500/50"/>
+
+                    {error && <p className="text-xs text-rose-400 font-bold">{error}</p>}
+
+                    <div className="flex gap-2 pt-1">
+                        <button onClick={onClose} className="flex-1 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-slate-400 text-sm font-bold">Cancelar</button>
+                        <button onClick={handleSave} disabled={saving}
+                            className="flex-1 py-2.5 rounded-2xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-sm font-bold flex items-center justify-center gap-2 transition-all">
+                            {saving ? <Loader2 size={14} className="animate-spin"/> : <CalendarPlus size={14}/>}
+                            Agendar
+                        </button>
+                    </div>
+                </div>
+            </motion.div>
+        </motion.div>
     )
 }
 
@@ -1329,6 +1885,7 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
     const [showRegister, setShowRegister] = useState(false)
     const [showImport, setShowImport] = useState(false)
     const [toast, setToast] = useState<string | null>(null)
+    const [remindingCheckin, setRemindingCheckin] = useState(false)
 
     const refresh = useCallback(async () => {
         setLoading(true)
@@ -1348,6 +1905,17 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
     const showToast = (msg: string) => {
         setToast(msg)
         setTimeout(() => setToast(null), 3500)
+    }
+
+    const sendCheckinReminders = async () => {
+        setRemindingCheckin(true)
+        try {
+            const res = await fetch('/api/admin/patients/remind-checkin', { method: 'POST' })
+            const data = await res.json()
+            showToast(data.message || `Lembretes enviados!`)
+        } catch {
+            showToast('Erro ao enviar lembretes')
+        } finally { setRemindingCheckin(false) }
     }
 
     const exportCSV = () => {
@@ -1419,6 +1987,10 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                             <span className="text-[10px] bg-white/10 text-slate-400 px-1.5 py-0.5 rounded-md font-bold">{patients.length}</span>
                         </h2>
                         <div className="flex gap-1">
+                            <button onClick={sendCheckinReminders} disabled={remindingCheckin}
+                                className="p-1.5 hover:bg-white/10 rounded-lg text-slate-600 hover:text-amber-400 transition-colors disabled:opacity-40" title="Lembrar check-in pendente">
+                                {remindingCheckin ? <Loader2 size={13} className="animate-spin"/> : <Bell size={13}/>}
+                            </button>
                             <button onClick={exportCSV} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-600 hover:text-slate-400 transition-colors" title="Exportar CSV">
                                 <Download size={13}/>
                             </button>
@@ -1458,7 +2030,7 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
                 </div>
 
                 {/* list */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
                     {loading && patients.length === 0 ? (
                         <div className="flex justify-center py-12"><Loader2 size={20} className="animate-spin text-slate-700"/></div>
                     ) : filtered.length === 0 ? (

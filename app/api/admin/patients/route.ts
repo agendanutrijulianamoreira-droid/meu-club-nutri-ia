@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { calculateRiskScore, adherenceFromLogs } from '@/lib/services/riskScore'
 
 export async function GET(request: NextRequest) {
     const supabase = createSupabaseServerClient(cookies())
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
     // 4. Active protocol assignments
     const { data: assignments } = await supabase
         .from('protocol_assignments')
-        .select('user_id, protocol_id, started_at, status')
+        .select('user_id, protocol_id, start_date, status')
         .in('user_id', userIds)
         .eq('status', 'active')
 
@@ -87,25 +88,15 @@ export async function GET(request: NextRequest) {
             ? Math.floor((today.getTime() - new Date(p.last_checkin_date).getTime()) / (1000 * 60 * 60 * 24))
             : 999
 
-        const adherenceRate = userLogs.length > 0
-            ? Math.round((userLogs.filter(l => l.meal_plan_check).length / 7) * 100)
-            : 0
+        const adherenceRate = adherenceFromLogs(userLogs)
 
-        // Risk: same algorithm as checkins endpoint
-        let riskScore = 10
-        if (daysSinceActivity > 7) riskScore -= 4
-        else if (daysSinceActivity > 3) riskScore -= 2
-        if (!p.current_streak || p.current_streak === 0) riskScore -= 3
-        else if (p.current_streak < 3) riskScore -= 1
-        if (adherenceRate < 30) riskScore -= 2
-        else if (adherenceRate < 60) riskScore -= 1
-        if (checkin?.diet_score !== undefined && checkin.diet_score < 5) riskScore -= 2
-        if (checkin?.ai_risk_level === 'high') riskScore = Math.min(riskScore, 3)
-        if (checkin?.ai_risk_level === 'medium') riskScore = Math.min(riskScore, 6)
-        riskScore = Math.max(0, Math.min(10, riskScore))
-
-        const riskLevel: 'low' | 'medium' | 'high' =
-            riskScore <= 4 ? 'high' : riskScore <= 6 ? 'medium' : 'low'
+        const { riskScore, riskLevel } = calculateRiskScore({
+            daysSinceActivity,
+            currentStreak: p.current_streak,
+            adherenceRate,
+            dietScore: checkin?.diet_score,
+            aiRiskLevel: checkin?.ai_risk_level,
+        })
 
         const status = riskLevel === 'high' ? 'risk'
             : p.current_streak >= 7 ? 'star'

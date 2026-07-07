@@ -197,6 +197,21 @@ export function SalesPageGenerator({ setView, tenantId }: { setView: (v: any) =>
     const [aiGenerating, setAiGenerating] = useState<'all' | 'headline' | 'subheadline' | null>(null)
     const [aiError, setAiError] = useState('')
 
+    // Preço real de tech_diet/vip vem de /api/admin/checkout-plans (mesma fonte
+    // usada em Settings e Billing) — não é mais texto livre editável aqui, para
+    // não divergir do valor realmente cobrado no checkout.
+    const [realPrices, setRealPrices] = useState<Record<string, number>>({})
+    useEffect(() => {
+        fetch('/api/admin/checkout-plans')
+            .then(r => r.json())
+            .then(d => {
+                const map: Record<string, number> = {}
+                for (const p of d.plans || []) map[p.plan] = p.price_cents
+                setRealPrices(map)
+            })
+            .catch(() => {})
+    }, [])
+
     // Load saved data
     useEffect(() => {
         if (tenant?.settings?.sales_page) {
@@ -223,7 +238,7 @@ export function SalesPageGenerator({ setView, tenantId }: { setView: (v: any) =>
     const pageUrl = tenant?.slug ? `${typeof window !== 'undefined' ? window.location.origin : ''}/vender/${tenant.slug}` : null
 
     const handleSave = async () => {
-        if (!tenant) { alert('Tenant não carregado ainda.'); return }
+        if (!tenant) return
         setIsSaving(true)
         setSaveToast(null)
         try {
@@ -259,7 +274,7 @@ export function SalesPageGenerator({ setView, tenantId }: { setView: (v: any) =>
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     task: 'sales-copy',
-                    context: `Clube de nutrição "${tenant?.name || 'Meu Club Nutri'}". Headline atual: "${data.headline}". Benefícios: ${data.benefits.join(', ')}.`,
+                    context: `Clube de nutrição "${tenant?.brand_name || 'Meu Club Nutri'}". Headline atual: "${data.headline}". Benefícios: ${data.benefits.join(', ')}.`,
                     prompt: field === 'headline' ? 'Gere apenas uma nova headline de alta conversão.'
                         : field === 'subheadline' ? 'Gere apenas um novo subheadline de apoio.'
                         : 'Gere headline, subheadline, benefits e cta.'
@@ -301,12 +316,12 @@ export function SalesPageGenerator({ setView, tenantId }: { setView: (v: any) =>
         const files = e.target.files; if (!files) return
         for (let i = 0; i < files.length; i++) {
             const { url, error } = await uploadImage(files[i], 'social-proof')
-            if (error) alert('Erro ao subir print: ' + error)
+            if (error) { setSaveToast('error'); setTimeout(() => setSaveToast(null), 3500) }
             else if (url) setProofUrls(prev => [...prev, url])
         }
     }
 
-    const brandName = tenant?.name || 'Meu Clube'
+    const brandName = tenant?.brand_name || 'Meu Clube'
 
     if (loadingTenant) return (
         <div className="flex justify-center items-center h-64">
@@ -428,18 +443,33 @@ export function SalesPageGenerator({ setView, tenantId }: { setView: (v: any) =>
                 {/* Preços por plano */}
                 <Section title="Preços por Plano">
                     <p className="text-[10px] text-slate-500">Exibido na tabela de planos da página de vendas</p>
+
+                    <div className="flex items-center gap-3">
+                        <span className="text-xs text-slate-400 w-36 shrink-0">Comunidade</span>
+                        <div className="flex-1 flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3">
+                            <DollarSign size={12} className="text-slate-500 shrink-0" />
+                            <input value={data.price_community} onChange={e => update({ price_community: e.target.value })}
+                                className="flex-1 bg-transparent py-2 text-sm text-white focus:outline-none"
+                                placeholder="R$ 47" />
+                        </div>
+                    </div>
+
                     {[
-                        { key: 'price_community' as keyof SalesData, label: 'Comunidade' },
-                        { key: 'price_tech_diet' as keyof SalesData, label: 'Tech Diet (destaque)' },
-                        { key: 'price_vip' as keyof SalesData, label: 'VIP Premium' },
+                        { key: 'tech_diet', label: 'Tech Diet (destaque)' },
+                        { key: 'vip', label: 'VIP Premium' },
                     ].map(({ key, label }) => (
                         <div key={key} className="flex items-center gap-3">
                             <span className="text-xs text-slate-400 w-36 shrink-0">{label}</span>
-                            <div className="flex-1 flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3">
-                                <DollarSign size={12} className="text-slate-500 shrink-0" />
-                                <input value={data[key] as string} onChange={e => update({ [key]: e.target.value })}
-                                    className="flex-1 bg-transparent py-2 text-sm text-white focus:outline-none"
-                                    placeholder="R$ 97" />
+                            <div className="flex-1 flex items-center justify-between gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                                <span className="text-sm text-white font-bold">
+                                    {realPrices[key] != null
+                                        ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(realPrices[key] / 100)
+                                        : '—'}
+                                </span>
+                                <button onClick={() => setView('settings')}
+                                    className="text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 transition-colors shrink-0">
+                                    Editar em Configurações →
+                                </button>
                             </div>
                         </div>
                     ))}

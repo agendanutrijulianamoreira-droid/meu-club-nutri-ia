@@ -3,9 +3,10 @@
 import { useState, useEffect, useCallback } from "react"
 import {
   Utensils, CheckCircle2, Clock, XCircle, RefreshCw, Loader2,
-  ChevronDown, ChevronUp, AlertTriangle, Star, ArrowRightLeft
+  ChevronDown, ChevronUp, AlertTriangle, Star, ArrowRightLeft, FileDown
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
+import { exportMealPlanPdf } from "@/lib/utils/exportMealPlanPdf"
 
 interface MealPlan {
   id: string
@@ -85,7 +86,7 @@ const TIER_META: Record<string, string> = {
 
 type StatusFilter = 'all' | 'pending_approval' | 'active' | 'completed'
 
-export function MealPlansView({ setView, tenantId = '' }: { setView: (v: any) => void; tenantId?: string }) {
+export function MealPlansView({ setView, tenantId = '', tenantName = '' }: { setView: (v: any) => void; tenantId?: string; tenantName?: string }) {
   const [plans, setPlans] = useState<MealPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending_approval')
@@ -172,6 +173,18 @@ export function MealPlansView({ setView, tenantId = '' }: { setView: (v: any) =>
     } finally {
       setApproving(null)
     }
+  }
+
+  const handleExportPdf = (plan: MealPlan) => {
+    if (!planDetail) return
+    exportMealPlanPdf({
+      title: plan.title,
+      tenantName,
+      patientName: plan.profiles?.name,
+      totalCalories: plan.total_calories || plan.target_kcal,
+      durationDays: plan.duration_days,
+      days: planDetail.days,
+    })
   }
 
   const loadSubstitutions = async (item: MealItem) => {
@@ -380,6 +393,17 @@ export function MealPlansView({ setView, tenantId = '' }: { setView: (v: any) =>
 
                       {!loadingDetail && planDetail && (
                         <div className="space-y-5">
+                          {Object.keys(planDetail.days).length > 0 && (
+                            <div className="flex justify-end">
+                              <button
+                                onClick={() => handleExportPdf(plan)}
+                                className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-xs font-bold rounded-xl transition-all"
+                              >
+                                <FileDown size={14} />
+                                Exportar PDF
+                              </button>
+                            </div>
+                          )}
                           {Object.entries(planDetail.days).map(([dayNum, meals]) => {
                             const mealsTyped = meals as Record<string, MealItem[]>
                             return (

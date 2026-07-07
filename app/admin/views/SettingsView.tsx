@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react"
 import {
-    Save, Palette, Image as ImageIcon, Globe, Bell, Shield,
-    Loader2, Copy, Check, ExternalLink, CreditCard, ChevronRight,
+    Save, Image as ImageIcon, Globe, Bell, Shield,
+    Loader2, Copy, Check, ExternalLink, CreditCard,
     ToggleLeft, ToggleRight, AlertTriangle, CheckCircle, X,
     Download, Trash2, RefreshCw, Link2, Lock, Building2
 } from "lucide-react"
@@ -75,9 +75,63 @@ export function SettingsView({ setView, tenantId }: { setView: (v: any) => void;
     const [copied, setCopied] = useState<'slug' | 'id' | null>(null)
     const [dangerAction, setDangerAction] = useState<string | null>(null)
 
+    // Plan pricing state
+    const [planPrices, setPlanPrices] = useState<Record<string, { price_cents: number; stripe_price_id: string; description: string }>>({
+        tech_diet: { price_cents: 9700, stripe_price_id: '', description: '' },
+        vip: { price_cents: 19700, stripe_price_id: '', description: '' },
+    })
+    const [savingPlan, setSavingPlan] = useState<string | null>(null)
+
+    useEffect(() => {
+        if (tenant?.id) {
+            fetch('/api/admin/checkout-plans')
+                .then(r => r.json())
+                .then(({ plans }) => {
+                    if (plans?.length > 0) {
+                        const map: typeof planPrices = { ...planPrices }
+                        plans.forEach((p: any) => {
+                            if (p.plan === 'tech_diet' || p.plan === 'vip') {
+                                map[p.plan] = {
+                                    price_cents: p.price_cents || 0,
+                                    stripe_price_id: p.stripe_price_id || '',
+                                    description: p.description || '',
+                                }
+                            }
+                        })
+                        setPlanPrices(map)
+                    }
+                })
+                .catch(() => {})
+        }
+    }, [tenant?.id])
+
+    const handleSavePlan = async (plan: 'tech_diet' | 'vip') => {
+        if (!tenantId) return
+        setSavingPlan(plan)
+        try {
+            const res = await fetch('/api/admin/checkout-plans', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    plan,
+                    price_cents: planPrices[plan].price_cents,
+                    stripe_price_id: planPrices[plan].stripe_price_id || undefined,
+                    description: planPrices[plan].description || undefined,
+                }),
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || 'Erro ao salvar')
+            showToast('success', `Plano ${plan === 'tech_diet' ? 'Tech Diet' : 'VIP'} salvo!`)
+        } catch (err: any) {
+            showToast('error', 'Erro: ' + err.message)
+        } finally {
+            setSavingPlan(null)
+        }
+    }
+
     useEffect(() => {
         if (tenant) {
-            setClubName(tenant.name || '')
+            setClubName(tenant.brand_name || '')
             setBrandColor(tenant.brand_color || '#6366f1')
             setLogoUrl(tenant.logo_url)
             if (tenant.settings?.notifications) {
@@ -93,7 +147,7 @@ export function SettingsView({ setView, tenantId }: { setView: (v: any) => void;
         setIsSaving(true)
         try {
             const { error } = await updateTenant(tenant.id, {
-                name: clubName,
+                brand_name: clubName,
                 brand_color: brandColor,
                 logo_url: logoUrl,
                 settings: { ...(tenant.settings || {}), notifications },
@@ -232,18 +286,6 @@ export function SettingsView({ setView, tenantId }: { setView: (v: any) => void;
                         </div>
                     </Section>
 
-                    {/* Login page editor link */}
-                    <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-bold text-indigo-300">Editor da Página de Login</p>
-                            <p className="text-xs text-slate-500 mt-0.5">Personalize headline, bullets e imagem de fundo</p>
-                        </div>
-                        <button onClick={() => setView('settings-login')}
-                            className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all">
-                            <Palette size={12}/> Abrir editor <ChevronRight size={11}/>
-                        </button>
-                    </div>
-
                     {/* Tenant info (read-only) */}
                     <Section title="Informações do Clube" icon={<Link2 size={15}/>}>
                         {/* Slug */}
@@ -289,14 +331,80 @@ export function SettingsView({ setView, tenantId }: { setView: (v: any) => void;
                         </div>
                     </Section>
 
-                    {/* Payments placeholder */}
-                    <Section title="Pagamentos" icon={<CreditCard size={15}/>}>
-                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
-                            <p className="text-xs text-amber-300 leading-relaxed">
-                                💳 Integração com <strong>Stripe</strong> será configurada aqui — chave secreta, webhook e planos.
-                                Em desenvolvimento — disponível em breve.
-                            </p>
-                        </div>
+                    {/* Plan Pricing */}
+                    <Section title="Preços dos Planos" icon={<CreditCard size={15}/>}>
+                        <p className="text-xs text-slate-500 leading-relaxed -mt-1">
+                            Configure os preços que suas alunas verão ao assinar. O Stripe Price ID é opcional — se informado, usa o preço configurado no Stripe.
+                        </p>
+                        {(['tech_diet', 'vip'] as const).map(plan => (
+                            <div key={plan} className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-xs font-black text-white uppercase tracking-wider">
+                                            {plan === 'tech_diet' ? 'Tech Diet' : 'VIP Premium'}
+                                        </p>
+                                        <p className="text-[10px] text-slate-500 mt-0.5">
+                                            {plan === 'tech_diet' ? 'Plano principal com IA e gamificação' : 'Plano premium com suporte VIP'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => handleSavePlan(plan)}
+                                        disabled={savingPlan === plan}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all"
+                                    >
+                                        {savingPlan === plan ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
+                                        Salvar
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                                            Preço mensal (R$)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={(planPrices[plan].price_cents / 100).toFixed(2)}
+                                            onChange={e => setPlanPrices(prev => ({
+                                                ...prev,
+                                                [plan]: { ...prev[plan], price_cents: Math.round(parseFloat(e.target.value || '0') * 100) }
+                                            }))}
+                                            className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50 transition-colors"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                                            Stripe Price ID
+                                        </label>
+                                        <input
+                                            type="text"
+                                            placeholder="price_xxx (opcional)"
+                                            value={planPrices[plan].stripe_price_id}
+                                            onChange={e => setPlanPrices(prev => ({
+                                                ...prev,
+                                                [plan]: { ...prev[plan], stripe_price_id: e.target.value }
+                                            }))}
+                                            className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-indigo-500/50 transition-colors font-mono"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                                        Descrição (aparece no checkout)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ex: Acesso completo ao método Tech Diet por 30 dias"
+                                        value={planPrices[plan].description}
+                                        onChange={e => setPlanPrices(prev => ({
+                                            ...prev,
+                                            [plan]: { ...prev[plan], description: e.target.value }
+                                        }))}
+                                        className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-600 outline-none focus:border-indigo-500/50 transition-colors"
+                                    />
+                                </div>
+                            </div>
+                        ))}
                     </Section>
                 </div>
             )}

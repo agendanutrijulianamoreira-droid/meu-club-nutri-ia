@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { cookies } from 'next/headers'
+import { fromProductRow, GATEWAY_TYPES } from '@/lib/services/productCatalog'
 
 export async function GET() {
   const supabase = createSupabaseServerClient(cookies())
@@ -20,12 +21,13 @@ export async function GET() {
   )
 
   const { data: products } = await supabase
-    .from('gateway_products')
+    .from('products')
     .select('*')
     .eq('tenant_id', profile.tenant_id)
     .eq('is_active', true)
+    .in('type', GATEWAY_TYPES)
     .contains('visible_to_plans', [profile.current_plan ?? 'community'])
-    .order('display_order', { ascending: true })
+    .order('sort_order', { ascending: true })
 
   if (!products) return NextResponse.json([])
 
@@ -37,7 +39,7 @@ export async function GET() {
     return true
   })
 
-  return NextResponse.json(visible)
+  return NextResponse.json(visible.map(fromProductRow))
 }
 
 export async function POST(request: Request) {

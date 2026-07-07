@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Clock, ChevronDown, ChevronUp, Droplets, Sparkles, CheckCircle2 } from "lucide-react"
+import { Clock, ChevronDown, ChevronUp, Droplets, Sparkles, CheckCircle2, Target, ShoppingCart, ArrowRight } from "lucide-react"
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -11,6 +11,7 @@ interface Task {
   type: string
   description: string
   ingredients?: string[]
+  image_url?: string | null
   points: number
   dietary_tags?: string[]  // ['sem_gluten', 'vegetariana', 'sem_lactose']
 }
@@ -158,8 +159,12 @@ function MealSection({ slot, tasks }: { slot: typeof MEAL_SLOTS[0]; tasks: Task[
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.04 }}
-                    className="bg-black/20 rounded-xl p-3.5"
+                    className="bg-black/20 rounded-xl overflow-hidden"
                   >
+                    {task.image_url && (
+                      <img src={task.image_url} alt={task.description} className="w-full h-36 object-cover" />
+                    )}
+                    <div className="p-3.5">
                     {/* Tags alimentares */}
                     {tags.length > 0 && (
                       <div className="flex gap-1.5 flex-wrap mb-2">
@@ -199,6 +204,7 @@ function MealSection({ slot, tasks }: { slot: typeof MEAL_SLOTS[0]; tasks: Task[
                         <span className="text-xs text-amber-400 font-semibold">+{task.points} XP</span>
                       </div>
                     )}
+                    </div>
                   </motion.div>
                 )
               })}
@@ -240,7 +246,7 @@ export function ProtocolMealView({ protocol, days, currentDay, progress, onGoIA 
           onClick={onGoIA}
           className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600/20 border border-indigo-500/30 rounded-xl text-sm font-bold text-indigo-400"
         >
-          <Sparkles size={14} />Gerar com IA enquanto isso
+          <Sparkles size={14} />Gerar plano interativo enquanto isso
         </button>
       </div>
     )
@@ -303,6 +309,24 @@ export function ProtocolMealView({ protocol, days, currentDay, progress, onGoIA 
         </div>
       </div>
 
+      {/* Metas do protocolo */}
+      {protocol?.goals?.length > 0 && (
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-2.5">
+            <Target size={14} className="text-emerald-400" />
+            <p className="text-xs font-black uppercase tracking-wider text-slate-400">Metas deste protocolo</p>
+          </div>
+          <ul className="space-y-1.5">
+            {protocol.goals.map((goal: string, i: number) => (
+              <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                <CheckCircle2 size={14} className="text-emerald-400 mt-0.5 shrink-0" />
+                <span>{goal}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Dia atual */}
       {days.length > 1 && (
         <div className="flex items-center justify-between px-1">
@@ -338,6 +362,76 @@ export function ProtocolMealView({ protocol, days, currentDay, progress, onGoIA 
         <div className="text-center py-12 text-slate-500 text-sm">
           Sem refeições configuradas para hoje.
         </div>
+      )}
+
+      {/* Lista de compras (gerada a partir do cardápio) */}
+      {protocol?.shopping_list?.length > 0 && <ShoppingListSection items={protocol.shopping_list} />}
+
+      {/* Próximo passo — exibido no último dia do protocolo */}
+      {days.length > 0 && activeDayData.day === days[days.length - 1].day && protocol?.upsell_title && (
+        <UpsellCard
+          title={protocol.upsell_title}
+          message={protocol.upsell_message}
+          ctaLabel={protocol.upsell_cta_label}
+          ctaUrl={protocol.upsell_cta_url}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Lista de compras ─────────────────────────────────────────────────────────
+
+function ShoppingListSection({ items }: { items: { name: string }[] }) {
+  const [open, setOpen] = useState(false)
+  const [checked, setChecked] = useState<Record<number, boolean>>({})
+
+  return (
+    <div className="bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden">
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between px-4 py-3.5">
+        <div className="flex items-center gap-2">
+          <ShoppingCart size={15} className="text-emerald-400" />
+          <span className="text-sm font-bold text-white">Lista de compras</span>
+          <span className="text-xs text-slate-500">({items.length})</span>
+        </div>
+        {open ? <ChevronUp size={16} className="text-slate-500" /> : <ChevronDown size={16} className="text-slate-500" />}
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-1 border-t border-white/5 pt-3">
+          {items.map((item, i) => (
+            <label key={i} className="flex items-center gap-2.5 py-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!checked[i]}
+                onChange={() => setChecked(c => ({ ...c, [i]: !c[i] }))}
+                className="w-4 h-4 rounded accent-emerald-500"
+              />
+              <span className={`text-sm ${checked[i] ? 'text-slate-600 line-through' : 'text-slate-300'}`}>{item.name}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Upsell (próximo passo no último dia) ─────────────────────────────────────
+
+function UpsellCard({ title, message, ctaLabel, ctaUrl }: { title: string; message?: string | null; ctaLabel?: string | null; ctaUrl?: string | null }) {
+  return (
+    <div className="bg-gradient-to-br from-amber-500/15 to-orange-500/10 border border-amber-500/25 rounded-2xl p-4">
+      <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-1 block">Próximo passo</span>
+      <h3 className="text-white font-bold text-base mb-1">{title}</h3>
+      {message && <p className="text-slate-300 text-sm mb-3 leading-relaxed">{message}</p>}
+      {ctaLabel && ctaUrl && (
+        <a
+          href={ctaUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-sm font-bold rounded-xl transition-all"
+        >
+          {ctaLabel}<ArrowRight size={14} />
+        </a>
       )}
     </div>
   )

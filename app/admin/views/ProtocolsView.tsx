@@ -1,16 +1,18 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import {
     Plus, Sparkles, FileText, Clock, MoreVertical, Edit, Trash2, Copy, Loader2,
     X, Save, Heart, Target, Utensils, Trophy, Check, AlertCircle, ChevronRight,
-    Zap, Calendar, Scale, Dumbbell, Apple, Leaf, Star
+    Zap, Calendar, Scale, Dumbbell, Apple, Leaf, Star, ShoppingBag, Users2, ExternalLink, DollarSign
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useProtocols, useGoals } from "@/lib/hooks/useDatabase"
 import { supabase } from "@/lib/supabase"
+import { ChallengesView } from "./ChallengesView"
 
-type Tab = 'protocols' | 'goals' | 'meals' | 'challenges'
+type Tab = 'protocols' | 'goals' | 'meals' | 'challenges' | 'seasonal'
 
 const GOAL_TYPES = [
     { id: 'weight', label: 'Peso', icon: Scale, color: 'text-rose-400', bg: 'bg-rose-500/10' },
@@ -37,6 +39,7 @@ function Toast({ toast }: { toast: { type: 'success' | 'error'; msg: string } })
 
 // ─── Main View ────────────────────────────────────────────────────────────────
 export function ProtocolsView({ setView, tenantId = '' }: { setView: (v: any) => void; tenantId?: string }) {
+    const router = useRouter()
     const [activeTab, setActiveTab] = useState<Tab>('protocols')
     const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
 
@@ -87,6 +90,13 @@ export function ProtocolsView({ setView, tenantId = '' }: { setView: (v: any) =>
                             <Plus size={16} /> Nova Meta
                         </button>
                     )}
+                    {activeTab === 'seasonal' && (
+                        <button
+                            onClick={() => router.push('/admin/seasonal-protocols/new')}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-2xl transition-all">
+                            <Plus size={16} /> Novo Protocolo Sazonal
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -102,6 +112,7 @@ export function ProtocolsView({ setView, tenantId = '' }: { setView: (v: any) =>
                     { id: 'goals', label: 'Metas', icon: Target },
                     { id: 'meals', label: 'Cardápios', icon: Utensils },
                     { id: 'challenges', label: 'Desafios', icon: Trophy },
+                    { id: 'seasonal', label: 'Sazonais', icon: ShoppingBag },
                 ] as const).map(tab => (
                     <button key={tab.id} onClick={() => setActiveTab(tab.id as Tab)}
                         className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all
@@ -260,10 +271,149 @@ export function ProtocolsView({ setView, tenantId = '' }: { setView: (v: any) =>
                 {/* ─── Desafios ─── */}
                 {activeTab === 'challenges' && (
                     <motion.div key="challenges" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                        <ChallengesTab setView={setView} />
+                        <ChallengesView setView={setView} tenantId={tenantId} />
+                    </motion.div>
+                )}
+
+                {/* ─── Sazonais ─── */}
+                {activeTab === 'seasonal' && (
+                    <motion.div key="seasonal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                        <SeasonalProtocolsTab router={router} />
                     </motion.div>
                 )}
             </AnimatePresence>
+        </div>
+    )
+}
+
+// ─── Protocolos Sazonais (isca + venda avulsa) ────────────────────────────────
+function SeasonalProtocolsTab({ router }: { router: ReturnType<typeof useRouter> }) {
+    const [protocols, setProtocols] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const [releasing, setReleasing] = useState<string | null>(null)
+    const [localToast, setLocalToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+
+    const showLocalToast = (type: 'success' | 'error', msg: string) => {
+        setLocalToast({ type, msg })
+        setTimeout(() => setLocalToast(null), 4000)
+    }
+
+    const load = useCallback(async () => {
+        setLoading(true)
+        try {
+            const res = await fetch('/api/admin/seasonal-protocols')
+            const data = await res.json()
+            setProtocols(data.protocols || [])
+        } finally {
+            setLoading(false)
+        }
+    }, [])
+
+    useEffect(() => { load() }, [load])
+
+    const togglePublish = async (id: string, isActive: boolean) => {
+        await fetch(`/api/admin/seasonal-protocols/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_active: !isActive }),
+        })
+        load()
+    }
+
+    const releaseToSubscribers = async (id: string) => {
+        setReleasing(id)
+        try {
+            const res = await fetch(`/api/admin/seasonal-protocols/${id}/release`, { method: 'POST' })
+            const data = await res.json()
+            if (!res.ok) { showLocalToast('error', data.error || 'Erro ao liberar protocolo'); return }
+            showLocalToast('success', `Liberado para ${data.released} assinante${data.released !== 1 ? 's' : ''}${data.skipped ? ` (${data.skipped} já tinham protocolo ativo)` : ''}.`)
+            load()
+        } finally {
+            setReleasing(null)
+        }
+    }
+
+    const remove = async (id: string) => {
+        if (!confirm('Excluir este protocolo sazonal? Essa ação não pode ser desfeita.')) return
+        await fetch(`/api/admin/seasonal-protocols/${id}`, { method: 'DELETE' })
+        load()
+    }
+
+    if (loading) {
+        return <div className="flex items-center justify-center h-40"><Loader2 className="animate-spin text-indigo-400" size={32} /></div>
+    }
+
+    if (protocols.length === 0) {
+        return (
+            <button
+                onClick={() => router.push('/admin/seasonal-protocols/new')}
+                className="w-full border-2 border-dashed border-white/10 hover:border-indigo-500/50 rounded-3xl p-10 flex flex-col items-center justify-center gap-3 transition-all group">
+                <ShoppingBag size={32} className="text-slate-600 group-hover:text-indigo-400 transition-colors" />
+                <p className="text-slate-500 group-hover:text-white transition-colors text-sm">
+                    Crie protocolos sazonais (detox, dia das mães, verão...) para liberar às assinantes e vender avulso
+                </p>
+            </button>
+        )
+    }
+
+    return (
+        <div className="space-y-4">
+            <AnimatePresence>
+                {localToast && <Toast toast={localToast} />}
+            </AnimatePresence>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {protocols.map(p => (
+                <div key={p.id} className="bg-white/5 border border-white/10 rounded-3xl p-5 group relative transition-all hover:border-indigo-500/30">
+                    <div className="flex items-start justify-between mb-3">
+                        <div className="min-w-0">
+                            <h3 className="font-bold text-white truncate">{p.title}</h3>
+                            <p className="text-xs text-slate-500 mt-0.5">{p.duration_days} dias</p>
+                        </div>
+                        <span className={`shrink-0 text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${p.is_active ? 'bg-emerald-500/15 border-emerald-500/25 text-emerald-400' : 'bg-slate-500/15 border-slate-500/25 text-slate-400'}`}>
+                            {p.is_active ? 'Publicado' : 'Rascunho'}
+                        </span>
+                    </div>
+
+                    {p.description && <p className="text-sm text-slate-400 mb-3 line-clamp-2">{p.description}</p>}
+
+                    <div className="flex flex-wrap items-center gap-2 mb-4">
+                        {p.is_standalone && (
+                            <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-500/10 text-amber-400">
+                                <DollarSign size={10} /> Venda avulsa {p.standalone_price_cents ? `R$ ${(p.standalone_price_cents / 100).toFixed(2)}` : ''}
+                            </span>
+                        )}
+                        {p.is_standalone && p.standalone_slug && (
+                            <a href={`/oferta/${p.standalone_slug}`} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg bg-white/5 text-slate-400 hover:text-white transition-colors">
+                                <ExternalLink size={10} /> Ver página
+                            </a>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2 mb-2">
+                        <button onClick={() => router.push(`/admin/seasonal-protocols/new?edit=${p.id}`)}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold transition-all">
+                            <Edit size={12} /> Editar
+                        </button>
+                        <button onClick={() => togglePublish(p.id, p.is_active)}
+                            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all ${p.is_active ? 'bg-white/5 hover:bg-white/10 text-slate-300' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}>
+                            {p.is_active ? 'Despublicar' : 'Publicar'}
+                        </button>
+                        <button onClick={() => remove(p.id)}
+                            className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/15 text-slate-400 hover:text-rose-400 transition-all">
+                            <Trash2 size={14} />
+                        </button>
+                    </div>
+                    <button
+                        onClick={() => releaseToSubscribers(p.id)}
+                        disabled={releasing === p.id}
+                        className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 disabled:opacity-50 text-emerald-400 text-xs font-bold transition-all">
+                        <Users2 size={12} />
+                        {releasing === p.id ? 'Liberando...' : 'Liberar para assinantes'}
+                    </button>
+                </div>
+            ))}
+            </div>
         </div>
     )
 }
@@ -1041,87 +1191,3 @@ function MealsTab({ setView }: { setView: (v: any) => void }) {
     )
 }
 
-// ─── Challenges Tab ───────────────────────────────────────────────────────────
-function ChallengesTab({ setView }: { setView: (v: any) => void }) {
-    const [challenges, setChallenges] = useState<any[]>([])
-    const [loading, setLoading] = useState(true)
-
-    useEffect(() => {
-        supabase.from('challenges').select('id, title, emoji, is_active, duration_days, start_date, end_date')
-            .order('created_at', { ascending: false }).limit(6)
-            .then(({ data }) => { setChallenges(data || []); setLoading(false) })
-    }, [])
-
-    const active = challenges.filter(c => c.is_active)
-
-    return (
-        <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="text-slate-500 text-sm">{active.length} desafio{active.length !== 1 ? 's' : ''} ativo{active.length !== 1 ? 's' : ''}</p>
-                </div>
-                <button onClick={() => setView('challenges')}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-2xl transition-all">
-                    <Plus size={14} /> Gerenciar Desafios
-                </button>
-            </div>
-
-            {loading ? (
-                <div className="flex items-center justify-center h-40">
-                    <Loader2 className="animate-spin text-indigo-400" size={32} />
-                </div>
-            ) : challenges.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-60 gap-4">
-                    <div className="text-5xl">🏆</div>
-                    <p className="text-slate-400 text-sm">Nenhum desafio criado ainda</p>
-                    <button onClick={() => setView('challenges')}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-2xl transition-all">
-                        <Plus size={14} /> Criar Primeiro Desafio
-                    </button>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {challenges.map(c => {
-                        const start = c.start_date ? new Date(c.start_date) : null
-                        const end = c.end_date ? new Date(c.end_date) : null
-                        const today = new Date()
-                        let status = 'inactive'
-                        if (c.is_active) {
-                            if (start && today < start) status = 'upcoming'
-                            else if (end && today > end) status = 'finished'
-                            else status = 'active'
-                        }
-                        const statusMeta: Record<string, { label: string; color: string; bg: string }> = {
-                            active:   { label: 'Ativo',     color: 'text-emerald-400', bg: 'bg-emerald-500/15 border-emerald-500/25' },
-                            upcoming: { label: 'Em breve',  color: 'text-indigo-400',  bg: 'bg-indigo-500/15 border-indigo-500/25' },
-                            finished: { label: 'Encerrado', color: 'text-slate-400',   bg: 'bg-slate-500/15 border-slate-500/25' },
-                            inactive: { label: 'Inativo',   color: 'text-slate-500',   bg: 'bg-slate-700/20 border-slate-600/20' },
-                        }
-                        const sm = statusMeta[status]
-                        return (
-                            <div key={c.id} className="bg-white/5 border border-white/10 rounded-3xl p-4 flex items-center gap-3">
-                                <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-xl flex-shrink-0">
-                                    {c.emoji || '🏆'}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <h4 className="font-bold text-white text-sm truncate">{c.title}</h4>
-                                    <p className="text-[10px] text-slate-500 flex items-center gap-1">
-                                        <Clock size={10} /> {c.duration_days}d
-                                    </p>
-                                </div>
-                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border flex-shrink-0 ${sm.bg} ${sm.color}`}>
-                                    {sm.label}
-                                </span>
-                            </div>
-                        )
-                    })}
-                </div>
-            )}
-
-            <button onClick={() => setView('challenges')}
-                className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
-                Ver todos os desafios <ChevronRight size={14} />
-            </button>
-        </div>
-    )
-}
