@@ -16,7 +16,7 @@ export async function GET(
 
     const { data: comentarios, error } = await supabase
         .from('comentarios_comunidade')
-        .select('id, corpo, criado_em, user_id')
+        .select('id, corpo, criado_em, user_id, is_ai_generated')
         .eq('post_id', params.id)
         .eq('tenant_id', profile.tenant_id)
         .eq('oculto', false)
@@ -36,6 +36,7 @@ export async function GET(
         corpo: c.corpo,
         criado_em: c.criado_em,
         is_own: c.user_id === user.id,
+        is_ai_generated: c.is_ai_generated,
         author_name: authorMap[c.user_id] || 'Rainha',
         author_initials: (authorMap[c.user_id] || 'R').split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase(),
     }))
