@@ -810,6 +810,30 @@ separados).
    1–11 ou em manutenção normal), rode `npx eslint <arquivo>` nele e corrija o que aparecer ali,
    reduzindo o total aos poucos. Rodar `npx eslint .` periodicamente para acompanhar a contagem
    total baixando.
+7. **Link de redefinição de senha sendo invalidado por scanners de e-mail** — descoberto em
+   2026-07-07 ao investigar um caso real de "senha não funciona" da própria dona da conta. Os logs
+   de auth do Supabase (`get_logs`, serviço `auth`) mostram o endpoint `/verify` do link de
+   recuperação sendo acessado várias vezes em poucos segundos por IPs diferentes da infraestrutura
+   do Google logo após cada envio de e-mail de recuperação — padrão típico de um scanner de
+   segurança (Gmail Safe Browsing / gateway corporativo) pré-carregando o link antes do clique
+   real da pessoa. Como o token de recuperação da Supabase é de uso único, o scanner acaba
+   "queimando" o link antes (ou na corrida com) o clique real, causando erro de link
+   inválido/expirado de forma intermitente. Confirmado que **não é** bug de resolução de papel
+   (`role`): tanto `profiles.role` quanto `auth.users.raw_user_meta_data` já estavam corretos
+   (`admin`) para a conta afetada, e a RLS de `profiles` permite a leitura do próprio perfil sem
+   problema — então o mecanismo de decidir `/admin` vs `/patient/home` em `app/auth/callback/route.ts`
+   e em `app/auth/reset-password/page.tsx` não é, sozinho, a causa raiz. Correção recomendada:
+   trocar o fluxo de link mágico (GET que consome o token ao ser carregado) por um fluxo de código
+   OTP de 6 dígitos que a pessoa digita manualmente (`supabase.auth.verifyOtp` com `type: 'recovery'`
+   e um código enviado por e-mail em vez de um link clicável) — imune a pré-carregamento automático,
+   já que scanners não digitam códigos. Envolve mudar `resetPasswordForEmail`/template de e-mail nas
+   duas telas de login (`app/login/nutricionista/page.tsx`, `app/login/paciente/page.tsx`) e as duas
+   telas de reset (`app/admin/reset-password/page.tsx`, `app/auth/reset-password/page.tsx`) —
+   avaliar nessa hora se ainda faz sentido ter duas telas de reset separadas ou se dá pra unificar
+   em uma só que decida o destino pelo `role`, já que a duplicação hoje é uma fonte extra de
+   confusão. Enquanto isso não é implementado, contornar caso a caso resetando a senha diretamente
+   via SQL (`update auth.users set encrypted_password = crypt('nova_senha', gen_salt('bf')) where
+   id = '...'` — usa a extensão `pgcrypto`, já habilitada no projeto) quando alguém ficar travada.
 
 ### Como testar cada item
 - Item 1: clicar no botão, confirmar download do CSV com dados corretos.
@@ -819,6 +843,10 @@ separados).
 - Item 4: rodar a suite de testes e confirmar cobertura das novas áreas críticas.
 - Item 6: rodar `npx eslint .` antes e depois de cada lote de correções e confirmar que a contagem
   total de problemas caiu (não só mudou de arquivo).
+- Item 7: solicitar um link de recuperação, checar os logs de auth do Supabase (`get_logs`,
+  serviço `auth`) para confirmar que não há mais múltiplos acessos a `/verify` vindos de IPs
+  diferentes antes do clique real; testar o novo fluxo OTP de ponta a ponta nas duas telas de
+  login.
 
 ### Prompt para abrir em outro chat
 ```
