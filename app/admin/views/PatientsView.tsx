@@ -580,6 +580,36 @@ function PatientDetail({ patient, onAction, onRefresh }: {
         }
     }
 
+    // AI Chat state (chat com contexto da paciente, só para esta sessão — não persiste)
+    const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
+    const [chatInput, setChatInput] = useState('')
+    const [chatLoading, setChatLoading] = useState(false)
+    const [chatError, setChatError] = useState<string | null>(null)
+
+    const sendChatMessage = async () => {
+        const message = chatInput.trim()
+        if (!message || chatLoading) return
+        const history = chatMessages
+        setChatMessages([...history, { role: 'user', content: message }])
+        setChatInput('')
+        setChatLoading(true)
+        setChatError(null)
+        try {
+            const res = await fetch(`/api/admin/patients/${patient.id}/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message, history }),
+            })
+            const data = await res.json()
+            if (res.ok) setChatMessages(prev => [...prev, { role: 'assistant', content: data.reply }])
+            else setChatError(data.error || 'Erro ao consultar IA')
+        } catch {
+            setChatError('Erro de conexão')
+        } finally {
+            setChatLoading(false)
+        }
+    }
+
     const rm = RISK_META[patient.riskLevel]
 
     const quickAction = async (action: string, label: string) => {
@@ -1298,6 +1328,59 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                                 </button>
                             </>
                         )}
+
+                        {/* Chat IA — conversa livre com contexto completo da paciente */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                <MessageCircle size={10}/> Chat IA sobre {patient.name.split(' ')[0]}
+                            </p>
+                            <p className="text-xs text-slate-500 -mt-2">
+                                Pergunte livremente à IA sobre esta paciente — ela já tem todo o contexto acima.
+                            </p>
+
+                            {chatMessages.length > 0 && (
+                                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                                    {chatMessages.map((m, i) => (
+                                        <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                            <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
+                                                m.role === 'user'
+                                                    ? 'bg-indigo-600 text-white'
+                                                    : 'bg-white/10 text-slate-200'
+                                            }`}>
+                                                {m.content}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {chatLoading && (
+                                        <div className="flex justify-start">
+                                            <div className="bg-white/10 rounded-2xl px-3 py-2">
+                                                <Loader2 size={13} className="animate-spin text-slate-400"/>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {chatError && <p className="text-xs text-rose-400 font-bold">{chatError}</p>}
+
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="text"
+                                    value={chatInput}
+                                    onChange={e => setChatInput(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage() } }}
+                                    placeholder="Ex: ela teve alguma recaída essa semana?"
+                                    disabled={chatLoading}
+                                    className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-3 py-2.5 text-xs text-white placeholder:text-slate-600 outline-none focus:border-indigo-500/50 disabled:opacity-50"
+                                />
+                                <button
+                                    onClick={sendChatMessage}
+                                    disabled={chatLoading || !chatInput.trim()}
+                                    className="flex items-center justify-center w-9 h-9 flex-shrink-0 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-2xl transition-all">
+                                    {chatLoading ? <Loader2 size={14} className="animate-spin"/> : <Send size={14}/>}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
 
