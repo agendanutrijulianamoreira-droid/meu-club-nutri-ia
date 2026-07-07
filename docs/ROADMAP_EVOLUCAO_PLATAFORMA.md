@@ -795,6 +795,21 @@ separados).
 5. **Decisão de produto pendente: unificar `ProductsView`/`ProductGatewayView`** — mencionado como
    em aberto na Seção 16. Vale revisitar isso junto da Fase 11 (Programas), já que são áreas
    adjacentes.
+6. **Limpeza gradual dos ~975 problemas de lint (`no-explicit-any` / variáveis não usadas)** —
+   descoberto em 2026-07-07: `eslint.config.mjs` estava num formato (flat config, API do ESLint 9)
+   incompatível com o `eslint@^8.56.0` fixado no `package.json`, então `npm run lint` nunca
+   funcionou de verdade nesse projeto (falhava com erro de resolução de módulo, ou pedia setup
+   interativo via `next lint`). Foi substituído por `.eslintrc.json` no formato legado compatível
+   (`{"extends": ["next/core-web-vitals", "next/typescript"]}`), que é o único fix aplicado por
+   ora. Ao rodar de verdade pela primeira vez, o lint acusou 906 erros e 69 avisos — quase todos
+   `@typescript-eslint/no-explicit-any` e `no-unused-vars`, espalhados por handlers, hooks e pelas
+   Edge Functions em Deno (`supabase/functions/*`). São questões de tipagem/estilo, não bugs
+   funcionais (`npx tsc --noEmit` está limpo, 0 erros). Não corrigir tudo de uma vez — arriscado
+   demais mexer em dezenas de arquivos ao mesmo tempo, especialmente Edge Functions que não dá
+   pra testar em runtime neste ambiente. Ao tocar em qualquer arquivo por outro motivo (nas fases
+   1–11 ou em manutenção normal), rode `npx eslint <arquivo>` nele e corrija o que aparecer ali,
+   reduzindo o total aos poucos. Rodar `npx eslint .` periodicamente para acompanhar a contagem
+   total baixando.
 
 ### Como testar cada item
 - Item 1: clicar no botão, confirmar download do CSV com dados corretos.
@@ -802,6 +817,8 @@ separados).
 - Item 3: aplicar a migration nova em um ambiente limpo e confirmar que o schema resultante bate
   exatamente com o que está documentado nos arquivos legados.
 - Item 4: rodar a suite de testes e confirmar cobertura das novas áreas críticas.
+- Item 6: rodar `npx eslint .` antes e depois de cada lote de correções e confirmar que a contagem
+  total de problemas caiu (não só mudou de arquivo).
 
 ### Prompt para abrir em outro chat
 ```
