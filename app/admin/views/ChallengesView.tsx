@@ -2,18 +2,20 @@
 
 import React, { useState, useEffect, useCallback } from "react"
 import {
-    Plus, Trophy, Clock, Users, Flame, Target, Sparkles,
+    Plus, Trophy, Clock, Users, Flame, Sparkles,
     Edit3, Trash2, Loader2, X, Save, Search, Bot,
-    ToggleLeft, ToggleRight, CheckCircle, Calendar, Zap
+    ToggleLeft, ToggleRight, CheckCircle, Calendar, ImagePlus, GripVertical
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useChallenges } from "@/lib/hooks/useDatabase"
+import { useStorage } from "@/lib/hooks/useStorage"
 import { supabase } from "@/lib/supabase"
 
 const EMOJIS = ["🏆","🔥","💪","🥗","💧","🏃","🧘","✨","🌟","🎯","🚀","👑","⚡","🎉","🌿"]
 const DURATIONS = [7, 14, 21, 30]
 
 interface ParticipantStats { [id: string]: { total: number; finished: number } }
+interface RankingReward { position: number; label: string; image_url?: string | null }
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 function getChallengeStatus(challenge: any) {
@@ -112,6 +114,12 @@ function ChallengeCard({ challenge, participants, onEdit, onDelete, onToggle }: 
                         {completionRate}% conclusão
                     </span>
                 )}
+                {challenge.ranking_rewards?.length > 0 && (
+                    <span className="flex items-center gap-1.5 text-[10px] font-bold text-amber-500">
+                        <Trophy size={11} />
+                        {challenge.ranking_rewards.length} recompensa{challenge.ranking_rewards.length > 1 ? 's' : ''}
+                    </span>
+                )}
                 {challenge.prize_pool_coins > 0 && (
                     <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1 ml-auto">
                         🪙 {challenge.prize_pool_coins.toLocaleString('pt-BR')}
@@ -152,6 +160,82 @@ function ChallengeCard({ challenge, participants, onEdit, onDelete, onToggle }: 
     )
 }
 
+// ─── Ranking Rewards Editor ────────────────────────────────────────────────────
+function RankingRewardsEditor({ rewards, onChange }: {
+    rewards: RankingReward[]
+    onChange: (rewards: RankingReward[]) => void
+}) {
+    const { uploadImage, uploading } = useStorage()
+    const [uploadingIndex, setUploadingIndex] = useState<number | null>(null)
+
+    const addRow = () => {
+        const nextPosition = rewards.length > 0 ? Math.max(...rewards.map(r => r.position)) + 1 : 1
+        onChange([...rewards, { position: nextPosition, label: '', image_url: null }])
+    }
+
+    const updateRow = (index: number, patch: Partial<RankingReward>) => {
+        onChange(rewards.map((r, i) => i === index ? { ...r, ...patch } : r))
+    }
+
+    const removeRow = (index: number) => {
+        onChange(rewards.filter((_, i) => i !== index))
+    }
+
+    const handleImageUpload = async (index: number, file: File) => {
+        setUploadingIndex(index)
+        const { url, error } = await uploadImage(file, 'challenge-rewards')
+        if (!error && url) updateRow(index, { image_url: url })
+        setUploadingIndex(null)
+    }
+
+    return (
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <Trophy size={12} className="text-amber-400" /> Recompensas por posição
+                </label>
+                <button onClick={addRow} className="text-[10px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1">
+                    <Plus size={11} /> Adicionar
+                </button>
+            </div>
+            {rewards.length === 0 ? (
+                <p className="text-[11px] text-slate-600">Nenhuma recompensa configurada ainda.</p>
+            ) : (
+                <div className="space-y-2">
+                    {rewards.map((r, i) => (
+                        <div key={i} className="flex items-center gap-2 bg-white/[0.03] border border-white/5 rounded-xl p-2">
+                            <GripVertical size={13} className="text-slate-700 flex-shrink-0" />
+                            <input type="number" min="1" value={r.position}
+                                onChange={e => updateRow(i, { position: parseInt(e.target.value) || 1 })}
+                                className="w-12 bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-xs text-white text-center focus:outline-none"
+                                title="Posição" />
+                            <input value={r.label} onChange={e => updateRow(i, { label: e.target.value })}
+                                placeholder="Ex: Vale-consulta grátis"
+                                className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500/50" />
+                            <label className="flex-shrink-0 w-8 h-8 rounded-lg bg-white/5 border border-white/10 hover:border-amber-500/40 flex items-center justify-center cursor-pointer overflow-hidden">
+                                {uploadingIndex === i && uploading ? (
+                                    <Loader2 size={13} className="animate-spin text-slate-500" />
+                                ) : r.image_url ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={r.image_url} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                    <ImagePlus size={13} className="text-slate-500" />
+                                )}
+                                <input type="file" accept="image/*" className="hidden"
+                                    onChange={e => { const f = e.target.files?.[0]; if (f) handleImageUpload(i, f) }} />
+                            </label>
+                            <button onClick={() => removeRow(i)}
+                                className="flex-shrink-0 w-8 h-8 rounded-lg bg-white/5 hover:bg-rose-500/20 flex items-center justify-center text-slate-500 hover:text-rose-400 transition-all">
+                                <X size={13} />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
 // ─── Challenge Form ───────────────────────────────────────────────────────────
 function ChallengeForm({ editingData, tenantId, onSave, onUpdate, onClose }: {
     editingData?: any; tenantId: string
@@ -171,6 +255,7 @@ function ChallengeForm({ editingData, tenantId, onSave, onUpdate, onClose }: {
         entry_fee_coins: editingData?.entry_fee_coins || 0,
         max_participants: editingData?.max_participants || '',
         rewards_json: editingData?.rewards_json || null,
+        ranking_rewards: (editingData?.ranking_rewards as RankingReward[] | undefined) || [],
     })
     const [generating, setGenerating] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -232,6 +317,9 @@ function ChallengeForm({ editingData, tenantId, onSave, onUpdate, onClose }: {
             entry_fee_coins: Number(form.entry_fee_coins) || 0,
             max_participants: form.max_participants ? Number(form.max_participants) : null,
             rewards_json: form.rewards_json,
+            ranking_rewards: form.ranking_rewards
+                .filter(r => r.label.trim())
+                .sort((a, b) => a.position - b.position),
             tenant_id: tenantId,
         }
 
@@ -369,6 +457,12 @@ function ChallengeForm({ editingData, tenantId, onSave, onUpdate, onClose }: {
                             </div>
                         </div>
                     </div>
+
+                    {/* Ranking rewards */}
+                    <RankingRewardsEditor
+                        rewards={form.ranking_rewards}
+                        onChange={rewards => setForm(f => ({ ...f, ranking_rewards: rewards }))}
+                    />
 
                     {/* Active toggle */}
                     <button onClick={() => setForm(f => ({ ...f, is_active: !f.is_active }))}

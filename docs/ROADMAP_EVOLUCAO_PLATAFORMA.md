@@ -35,7 +35,7 @@
 |---|---|---|---|---|
 | [ ] 1 | Resumo IA + Chat IA por paciente (lado admin) | 🔴 Alta | M | Feature nova |
 | [ ] 2 | Agente de Engajamento — comentários automáticos em posts e conclusões | 🔴 Alta | M | Feature nova |
-| [ ] 3 | Recompensas por posição no ranking dos desafios | 🔴 Alta | S | Completar feature existente |
+| [x] 3 | Recompensas por posição no ranking dos desafios | 🔴 Alta | S | Completar feature existente |
 | [ ] 4 | Pontuação diferenciada por tipo de comprovação (foto na hora / galeria / sem foto) | 🟡 Média | M | Melhoria de gamificação |
 | [ ] 5 | Prontuário clínico (registros por paciente) | 🔴 Alta | L | Feature nova |
 | [ ] 6 | Formulários com gatilhos de ciclo de vida | 🟡 Média | M | Extensão de feature existente |
@@ -204,7 +204,20 @@ avise que está pronto para revisão antes de commitar.
 
 ---
 
-## FASE 3 — Recompensas por posição no ranking dos desafios
+## FASE 3 — Recompensas por posição no ranking dos desafios ✅ CONCLUÍDA (2026-07-07)
+
+> **Correção em relação ao plano original**: a premissa desta fase estava errada.
+> `challenges.rewards_json` **já é usado em produção** pelo builder de missões diárias
+> (`app/admin/desafios/builder/page.tsx`), que grava `{ days, feedPosts }` — não é um
+> campo livre esperando ser preenchido com recompensas por posição. Reaproveitá-lo
+> teria colidido com esse uso existente. A implementação real criou uma coluna nova
+> `challenges.ranking_rewards JSONB` (migration `20260707000002_challenge_ranking_rewards.sql`,
+> aplicada em produção), no formato `[{ position, label, image_url }]`, exatamente como
+> o roadmap sugeria — só que num campo próprio em vez do `rewards_json` existente.
+> UI implementada em `ChallengesView.tsx` (editor de recompensas por posição, upload de
+> imagem via `useStorage`) e no ranking da paciente (`app/patient/feed/page.tsx`, aba
+> Ranking), destacando a posição da própria paciente. `GET /api/patient/ranking` passou
+> a retornar `ranking_rewards` junto com os dados do desafio.
 
 ### Objetivo
 Permitir que a nutricionista defina, na criação/edição de um desafio, o que cada posição do
@@ -283,6 +296,17 @@ porque não foi possível inspecionar neste chat:
    (força câmera) vs. seletor de arquivo livre, e se isso é registrado em algum campo.
 3. `awardPoints` em `lib/services/gamification.ts` (Seção 16 do `CLAUDE.md`, já é a escrita
    centralizada de XP) — confirmar a assinatura atual da função antes de estender.
+
+> **Achado da Fase 3 (2026-07-07)**: o módulo de **Hábitos** (`habit_logs`, migration
+> `20260624000001_habits.sql`, UI `app/patient/habits/page.tsx`) **já implementa exatamente essa
+> diferenciação** — campo `hit_type` (`'camera' | 'gallery' | 'simple'`) com uma constante
+> `HABIT_HIT_XP` que premia XP diferente por tipo, escrito via `awardPoints` em
+> `app/api/patient/habits/route.ts`. `hit_type` inclusive já é usado como critério de desempate
+> no ranking de desafios (`app/api/patient/ranking/route.ts`). O que **não existe** é o mesmo
+> mecanismo para conclusões de **desafio/protocolo** especificamente — só para Hábitos. Ao
+> implementar esta fase, avaliar se dá para reaproveitar o mesmo padrão (`hit_type` +
+> `HABIT_HIT_XP`-like) em vez de desenhar algo do zero, e se "atividade de desafio/protocolo"
+> hoje sequer tem uma tabela de conclusão própria ou se usa `daily_logs`/`habit_logs` por baixo.
 
 ### O que fazer (após confirmar o estado atual acima)
 - Adicionar um campo `proof_type` (`'camera' | 'gallery' | 'none'`) no registro de conclusão de
