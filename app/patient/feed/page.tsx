@@ -308,7 +308,11 @@ function ComposerBox({ onPost }: { onPost: (text: string) => Promise<void> }) {
     )
 }
 
-type Challenge = { id: string; title: string; emoji: string; start_date: string; end_date: string | null }
+type RankingReward = { position: number; label: string; image_url?: string | null }
+type Challenge = {
+    id: string; title: string; emoji: string; start_date: string; end_date: string | null
+    ranking_rewards?: RankingReward[]
+}
 type RankEntry = {
     user_id: string; name: string; rank: number
     total_xp?: number; current_streak: number; current_level: number
@@ -553,6 +557,42 @@ export default function FeedPage() {
                                     <p className="text-[10px] text-slate-500 mt-0.5">
                                         Desempate: 📷 Câmera › 🖼️ Galeria › 💬 Engajamento
                                     </p>
+                                </div>
+                            )}
+
+                            {/* Ranking rewards */}
+                            {selectedChallenge && (activeChallengeMeta?.ranking_rewards?.length ?? 0) > 0 && (
+                                <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 mb-4">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-amber-500 mb-3 flex items-center gap-1">
+                                        <Trophy size={12} /> Recompensas
+                                    </p>
+                                    <div className="space-y-2">
+                                        {activeChallengeMeta!.ranking_rewards!.map(r => {
+                                            const myRank = ranking.find(p => p.user_id === myUserId)?.rank
+                                            const isMine = myRank === r.position
+                                            return (
+                                                <div key={r.position}
+                                                    className={`flex items-center gap-3 rounded-xl px-3 py-2 border transition-all
+                                                        ${isMine ? "bg-amber-500/15 border-amber-500/30" : "bg-white/[0.03] border-white/5"}`}>
+                                                    <span className="w-7 text-center text-sm font-black text-amber-400 flex-shrink-0">
+                                                        {r.position}º
+                                                    </span>
+                                                    {r.image_url ? (
+                                                        // eslint-disable-next-line @next/next/no-img-element
+                                                        <img src={r.image_url} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                                                    ) : (
+                                                        <Trophy size={16} className="text-amber-500/60 flex-shrink-0" />
+                                                    )}
+                                                    <span className="text-xs text-white flex-1 min-w-0 truncate">{r.label}</span>
+                                                    {isMine && (
+                                                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 flex-shrink-0">
+                                                            Você
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
                                 </div>
                             )}
 

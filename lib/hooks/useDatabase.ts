@@ -246,6 +246,7 @@ export interface Challenge {
     entry_fee_coins: number
     max_participants: number | null
     rewards_json: any
+    ranking_rewards: { position: number; label: string; image_url?: string | null }[] | null
     created_at: string
 }
 
