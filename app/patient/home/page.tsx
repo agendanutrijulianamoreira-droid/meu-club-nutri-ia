@@ -21,12 +21,14 @@ import {
     MapPin,
     ClipboardList,
     HeartPulse,
+    Camera,
+    Image as ImageIcon,
 } from "lucide-react"
 import { usePatientEngine } from "@/lib/hooks/usePatientEngine"
 import { levelFromXp, minXpForLevel, xpProgressInLevel, DAILY_LOG_XP } from "@/lib/gamification"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { supabase } from "@/lib/supabase-browser"
 import { ReminderSettings } from "@/components/patient/ReminderSettings"
 import { StreakTimeline } from "@/components/patient/StreakTimeline"
@@ -51,6 +53,10 @@ export default function PatientHomePage() {
     const [dailyCheckinPending, setDailyCheckinPending] = useState(false)
     const [quickTaps, setQuickTaps] = useState<{ water: boolean; meal: boolean; workout: boolean }>({ water: false, meal: false, workout: false })
     const [dailyVictory, setDailyVictory] = useState('')
+    const [uploadingItemId, setUploadingItemId] = useState<string | null>(null)
+    const pendingItemRef = useRef<string | null>(null)
+    const cameraInputRef = useRef<HTMLInputElement>(null)
+    const galleryInputRef = useRef<HTMLInputElement>(null)
     const [savedVictory, setSavedVictory] = useState('')
     const [savingVictory, setSavingVictory] = useState(false)
     const [nextReward, setNextReward] = useState<{ name: string; cost: number; emoji: string } | null>(null)
@@ -244,6 +250,46 @@ export default function PatientHomePage() {
         }, { onConflict: 'user_id,log_date' })
     }
 
+    // Fase 4 do roadmap: concluir item do protocolo com prova (câmera/galeria)
+    // dá mais XP que o toque simples — espelha o padrão já usado em /patient/habits.
+    const requestProof = (itemId: string, type: 'camera' | 'gallery') => {
+        pendingItemRef.current = itemId
+        if (type === 'camera') cameraInputRef.current?.click()
+        else galleryInputRef.current?.click()
+    }
+
+    const handleProofFile = async (e: React.ChangeEvent<HTMLInputElement>, proofType: 'camera' | 'gallery') => {
+        const file = e.target.files?.[0]
+        const itemId = pendingItemRef.current
+        e.target.value = ''
+        if (!file || !itemId) return
+
+        setUploadingItemId(itemId)
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) throw new Error('no user')
+
+            const ext = file.name.split('.').pop() ?? 'jpg'
+            const path = `${user.id}/${itemId}/${Date.now()}.${ext}`
+            const { error: uploadError } = await supabase.storage
+                .from('protocol-photos')
+                .upload(path, file, { upsert: true })
+
+            let photoUrl: string | null = null
+            if (!uploadError) {
+                const { data: urlData } = supabase.storage.from('protocol-photos').getPublicUrl(path)
+                photoUrl = urlData.publicUrl
+            }
+
+            await toggleCheckin(itemId, !!progress[itemId], proofType, photoUrl)
+        } catch (err) {
+            console.error('[protocol proof]', err)
+        } finally {
+            setUploadingItemId(null)
+            pendingItemRef.current = null
+        }
+    }
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -257,6 +303,11 @@ export default function PatientHomePage() {
 
     return (
         <>
+        {/* Inputs ocultos para prova de conclusão de item do protocolo (câmera/galeria) */}
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+            onChange={e => handleProofFile(e, 'camera')} />
+        <input ref={galleryInputRef} type="file" accept="image/*" className="hidden"
+            onChange={e => handleProofFile(e, 'gallery')} />
         <AnimatePresence>
           {showReminders && <ReminderSettings onClose={() => setShowReminders(false)} />}
           {showWelcomeTour && (
@@ -679,6 +730,26 @@ export default function PatientHomePage() {
                                                     <p className="text-xs text-slate-600 mt-0.5 truncate">{item.description}</p>
                                                 )}
                                             </div>
+                                            {!isCompleted && (
+                                                <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                                                    {uploadingItemId === item.id ? (
+                                                        <Loader2 size={14} className="animate-spin text-slate-500 mx-1.5" />
+                                                    ) : (
+                                                        <>
+                                                            <button onClick={() => requestProof(item.id, 'gallery')}
+                                                                title={`Enviar foto da galeria (+${item.points_gallery ?? item.points ?? 10} XP)`}
+                                                                className="w-7 h-7 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 flex items-center justify-center text-sky-400 transition-all">
+                                                                <ImageIcon size={13} />
+                                                            </button>
+                                                            <button onClick={() => requestProof(item.id, 'camera')}
+                                                                title={`Tirar foto agora (+${item.points_camera ?? item.points ?? 10} XP)`}
+                                                                className="w-7 h-7 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 flex items-center justify-center text-violet-400 transition-all">
+                                                                <Camera size={13} />
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
                                             <span className={`text-[10px] font-black shrink-0 ${isCompleted ? 'text-emerald-500' : 'text-slate-600'}`}>
                                                 +{item.points || 10} XP
                                             </span>
