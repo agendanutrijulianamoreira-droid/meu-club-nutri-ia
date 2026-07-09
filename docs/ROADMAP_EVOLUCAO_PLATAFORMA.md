@@ -920,6 +920,29 @@ separados).
    confusão. Enquanto isso não é implementado, contornar caso a caso resetando a senha diretamente
    via SQL (`update auth.users set encrypted_password = crypt('nova_senha', gen_salt('bf')) where
    id = '...'` — usa a extensão `pgcrypto`, já habilitada no projeto) quando alguém ficar travada.
+8. **Anexo/foto de comprovação da Fase 4 (Protocolo) não é revisável por ninguém** — descoberto
+   ao avaliar a Fase 4 (2026-07-09): `protocol_progress.photo_url` é gravado quando a paciente
+   completa um item com câmera/galeria, mas não existe **nenhuma** tela (nem no app da paciente,
+   nem no admin) que mostre essa foto depois de enviada — confirmado por grep, zero ocorrências de
+   `photo_url` em `PatientsView.tsx` ou em qualquer tela de histórico/prontuário. Isso esvazia o
+   propósito da "prova": o sistema paga mais XP por uma foto que ninguém nunca confere. Correção:
+   mostrar a foto (via signed URL, como já feito em `patient-records` na Fase 5) na aba
+   Histórico/Prontuário do paciente em `PatientsView.tsx`, ao lado da data/hora de conclusão do
+   item de protocolo.
+9. **Pontuação diferenciada da Fase 4 só existe no fluxo de Protocolos "sazonais"** — confirmado
+   por grep: `ProtocolsView.tsx`/`app/admin/protocols/new/page.tsx` (o fluxo "padrão" de criar
+   protocolo) grava só em `protocols.content_json`, nunca em `protocol_items`; só
+   `app/admin/seasonal-protocols/new/page.tsx` grava na tabela relacional que a Fase 4 estende. Ou
+   seja, protocolos criados pelo fluxo padrão não têm a opção de pontuação por tipo de prova, sem
+   nenhum aviso disso na UI. Decidir: (a) portar `points_camera`/`points_gallery` para o fluxo
+   padrão também, ou (b) deixar explícito na UI do fluxo padrão que essa funcionalidade não está
+   disponível ali, para não confundir a nutricionista.
+10. **Geração de protocolo por IA não sugere pontuação diferenciada** — em
+    `app/admin/seasonal-protocols/new/page.tsx`, tanto a geração mágica (`handleMagicGenerate`)
+    quanto o carregamento de itens continuam usando `points_camera || points || 10` como fallback,
+    ou seja, a IA nunca propõe os 3 valores diferentes — eles só ficam diferenciados se a
+    nutricionista editar item por item manualmente depois de gerar. Esforço baixo: incluir os 3
+    campos no prompt/schema de `POST /api/ai/generate-seasonal-protocol`.
 
 ### Como testar cada item
 - Item 1: clicar no botão, confirmar download do CSV com dados corretos.
@@ -933,6 +956,12 @@ separados).
   serviço `auth`) para confirmar que não há mais múltiplos acessos a `/verify` vindos de IPs
   diferentes antes do clique real; testar o novo fluxo OTP de ponta a ponta nas duas telas de
   login.
+- Item 8: completar um item de protocolo com foto (câmera ou galeria) como paciente de teste,
+  confirmar que a foto aparece de verdade na tela de histórico/prontuário do admin.
+- Item 9: criar um protocolo pelo fluxo padrão (`ProtocolsView.tsx`) e confirmar a decisão tomada
+  — ou a pontuação por prova aparece lá também, ou fica claro na UI que não está disponível.
+- Item 10: gerar um protocolo sazonal via IA e conferir se os 3 valores de pontuação vêm
+  diferenciados (não apenas repetindo o mesmo número nos 3 campos).
 
 ### Prompt para abrir em outro chat
 ```
