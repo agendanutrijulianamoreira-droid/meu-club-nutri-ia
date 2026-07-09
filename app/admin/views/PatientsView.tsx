@@ -7,7 +7,8 @@ import {
     Activity, Star, Crown, Trophy, Flame, CheckCircle, Mail,
     Phone, Clock, Target, ChevronRight, Loader2, Sparkles,
     Heart, Plus, X, RefreshCw, Send, Shield, Users, FileText,
-    ToggleLeft, ToggleRight, Gift, Coins, Download, KeyRound, Copy, Pencil, Upload, CalendarPlus
+    ToggleLeft, ToggleRight, Gift, Coins, Download, KeyRound, Copy, Pencil, Upload, CalendarPlus,
+    Stethoscope, ClipboardList, Eye, Lock, Paperclip, Trash2
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -33,6 +34,27 @@ const RISK_META: Record<string, { color: string; bg: string; label: string }> = 
     medium: { color: 'text-amber-400',   bg: 'bg-amber-500/15 border-amber-500/25',  label: 'Médio risco' },
     low:    { color: 'text-emerald-400', bg: 'bg-emerald-500/15 border-emerald-500/25', label: 'Saudável' },
 }
+
+const RECORD_TYPE_META: Record<string, { label: string; icon: React.ReactNode; color: string; bg: string }> = {
+    encaminhamento:   { label: 'Encaminhamento',  icon: <Send size={11}/>,          color: 'text-sky-400',     bg: 'bg-sky-500/15 border-sky-500/25' },
+    evolucao_clinica: { label: 'Evolução Clínica', icon: <Stethoscope size={11}/>,   color: 'text-emerald-400', bg: 'bg-emerald-500/15 border-emerald-500/25' },
+    exame:            { label: 'Exame',           icon: <ClipboardList size={11}/>, color: 'text-violet-400',  bg: 'bg-violet-500/15 border-violet-500/25' },
+    nota:              { label: 'Nota',            icon: <FileText size={11}/>,      color: 'text-amber-400',   bg: 'bg-amber-500/15 border-amber-500/25' },
+    observacao:        { label: 'Observação',      icon: <Eye size={11}/>,           color: 'text-slate-400',   bg: 'bg-slate-500/15 border-slate-500/25' },
+}
+
+interface PatientRecord {
+    id: string
+    type: keyof typeof RECORD_TYPE_META
+    title: string
+    body: string | null
+    attachment_path: string | null
+    attachment_url: string | null
+    tag_ids: string[]
+    created_at: string
+}
+
+interface RecordTag { id: string; name: string; color: string; icon: string | null }
 
 // ─── Register Modal ────────────────────────────────────────────────────────────
 interface SuccessData { userId: string; email: string; name: string; password: string; emailSent: boolean }
@@ -427,6 +449,261 @@ function EditPatientModal({ patient, onClose, onSuccess }: {
     )
 }
 
+// ─── Prontuário (Fase 5) ────────────────────────────────────────────────────────
+// Área privada: nunca há nenhuma rota/consulta equivalente no app da paciente.
+const TAG_COLOR_CLASS: Record<string, string> = {
+    indigo: 'text-indigo-400 bg-indigo-500/15 border-indigo-500/25',
+    emerald: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/25',
+    amber: 'text-amber-400 bg-amber-500/15 border-amber-500/25',
+    rose: 'text-rose-400 bg-rose-500/15 border-rose-500/25',
+    sky: 'text-sky-400 bg-sky-500/15 border-sky-500/25',
+    violet: 'text-violet-400 bg-violet-500/15 border-violet-500/25',
+}
+const TAG_COLORS = Object.keys(TAG_COLOR_CLASS)
+
+function NewRecordForm({ patientId, tags, onCreated, onTagCreated, onCancel }: {
+    patientId: string
+    tags: RecordTag[]
+    onCreated: (r: PatientRecord) => void
+    onTagCreated: (t: RecordTag) => void
+    onCancel: () => void
+}) {
+    const [type, setType] = useState<keyof typeof RECORD_TYPE_META>('nota')
+    const [title, setTitle] = useState('')
+    const [body, setBody] = useState('')
+    const [selectedTags, setSelectedTags] = useState<string[]>([])
+    const [newTagName, setNewTagName] = useState('')
+    const [creatingTag, setCreatingTag] = useState(false)
+    const [file, setFile] = useState<File | null>(null)
+    const [saving, setSaving] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    const toggleTag = (id: string) => {
+        setSelectedTags(prev => prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id])
+    }
+
+    const createTag = async () => {
+        const name = newTagName.trim()
+        if (!name || creatingTag) return
+        setCreatingTag(true)
+        try {
+            const color = TAG_COLORS[tags.length % TAG_COLORS.length]
+            const res = await fetch('/api/admin/record-tags', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, color }),
+            })
+            const data = await res.json()
+            if (res.ok && data.tag) {
+                onTagCreated(data.tag)
+                setSelectedTags(prev => [...prev, data.tag.id])
+                setNewTagName('')
+            }
+        } finally { setCreatingTag(false) }
+    }
+
+    const handleSave = async () => {
+        if (!title.trim() || saving) return
+        setSaving(true)
+        setError(null)
+        try {
+            const fd = new FormData()
+            fd.append('type', type)
+            fd.append('title', title.trim())
+            fd.append('body', body)
+            fd.append('tag_ids', JSON.stringify(selectedTags))
+            if (file) fd.append('file', file)
+
+            const res = await fetch(`/api/admin/patients/${patientId}/records`, { method: 'POST', body: fd })
+            const data = await res.json()
+            if (!res.ok) { setError(data.error || 'Erro ao salvar registro'); return }
+            onCreated(data.record)
+        } finally { setSaving(false) }
+    }
+
+    return (
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+            <div className="flex flex-wrap gap-1.5">
+                {(Object.keys(RECORD_TYPE_META) as (keyof typeof RECORD_TYPE_META)[]).map(t => (
+                    <button key={t} onClick={() => setType(t)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all
+                            ${type === t ? RECORD_TYPE_META[t].bg + ' ' + RECORD_TYPE_META[t].color : 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300'}`}>
+                        {RECORD_TYPE_META[t].icon} {RECORD_TYPE_META[t].label}
+                    </button>
+                ))}
+            </div>
+
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Título do registro"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50" />
+
+            <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Detalhes clínicos..."
+                rows={3}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-600 resize-none focus:outline-none focus:border-indigo-500/50" />
+
+            <div className="space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Tags</p>
+                <div className="flex flex-wrap gap-1.5">
+                    {tags.map(tag => (
+                        <button key={tag.id} onClick={() => toggleTag(tag.id)}
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all
+                                ${selectedTags.includes(tag.id) ? TAG_COLOR_CLASS[tag.color] || TAG_COLOR_CLASS.indigo : 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300'}`}>
+                            {tag.name}
+                        </button>
+                    ))}
+                    <div className="flex items-center gap-1">
+                        <input value={newTagName} onChange={e => setNewTagName(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); createTag() } }}
+                            placeholder="Nova tag..."
+                            className="w-24 bg-white/5 border border-white/10 rounded-full px-2.5 py-1 text-[11px] text-white placeholder:text-slate-600 focus:outline-none" />
+                        <button onClick={createTag} disabled={creatingTag || !newTagName.trim()}
+                            className="w-6 h-6 rounded-full bg-white/5 hover:bg-white/10 disabled:opacity-40 flex items-center justify-center text-slate-400">
+                            {creatingTag ? <Loader2 size={11} className="animate-spin"/> : <Plus size={11}/>}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer w-fit">
+                <Paperclip size={13}/>
+                {file ? file.name : 'Anexar arquivo (opcional)'}
+                <input type="file" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
+            </label>
+
+            {error && <p className="text-xs text-rose-400 font-bold">{error}</p>}
+
+            <div className="flex items-center gap-2 pt-1">
+                <button onClick={onCancel} className="px-4 py-2 rounded-xl text-slate-400 text-xs font-bold hover:bg-white/5 transition-all">
+                    Cancelar
+                </button>
+                <button onClick={handleSave} disabled={saving || !title.trim()}
+                    className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs font-bold rounded-xl transition-all">
+                    {saving ? <Loader2 size={13} className="animate-spin"/> : <CheckCircle size={13}/>}
+                    Salvar registro
+                </button>
+            </div>
+        </div>
+    )
+}
+
+function RecordCard({ patientId, record, tags, onDeleted }: {
+    patientId: string
+    record: PatientRecord
+    tags: RecordTag[]
+    onDeleted: (id: string) => void
+}) {
+    const [deleting, setDeleting] = useState(false)
+    const meta = RECORD_TYPE_META[record.type] || RECORD_TYPE_META.nota
+    const recordTags = tags.filter(t => record.tag_ids?.includes(t.id))
+
+    const handleDelete = async () => {
+        if (!confirm('Excluir este registro do prontuário?')) return
+        setDeleting(true)
+        try {
+            const res = await fetch(`/api/admin/patients/${patientId}/records/${record.id}`, { method: 'DELETE' })
+            if (res.ok) onDeleted(record.id)
+        } finally { setDeleting(false) }
+    }
+
+    return (
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${meta.bg} ${meta.color}`}>
+                        {meta.icon} {meta.label}
+                    </span>
+                    {recordTags.map(t => (
+                        <span key={t.id} className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${TAG_COLOR_CLASS[t.color] || TAG_COLOR_CLASS.indigo}`}>
+                            {t.name}
+                        </span>
+                    ))}
+                </div>
+                <button onClick={handleDelete} disabled={deleting}
+                    className="w-7 h-7 rounded-lg bg-white/5 hover:bg-rose-500/20 flex items-center justify-center text-slate-500 hover:text-rose-400 transition-all flex-shrink-0">
+                    {deleting ? <Loader2 size={12} className="animate-spin"/> : <Trash2 size={12}/>}
+                </button>
+            </div>
+            <p className="text-sm font-bold text-white">{record.title}</p>
+            {record.body && <p className="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap">{record.body}</p>}
+            <div className="flex items-center justify-between pt-1">
+                <p className="text-[10px] text-slate-600">
+                    {new Date(record.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </p>
+                {record.attachment_url && (
+                    <a href={record.attachment_url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 font-bold">
+                        <Paperclip size={11}/> Ver anexo
+                    </a>
+                )}
+            </div>
+        </div>
+    )
+}
+
+function PatientRecordsPanel({ patientId }: { patientId: string }) {
+    const [records, setRecords] = useState<PatientRecord[]>([])
+    const [tags, setTags] = useState<RecordTag[]>([])
+    const [loading, setLoading] = useState(true)
+    const [showForm, setShowForm] = useState(false)
+
+    const load = useCallback(async () => {
+        setLoading(true)
+        try {
+            const [recordsRes, tagsRes] = await Promise.all([
+                fetch(`/api/admin/patients/${patientId}/records`),
+                fetch('/api/admin/record-tags'),
+            ])
+            if (recordsRes.ok) setRecords((await recordsRes.json()).records || [])
+            if (tagsRes.ok) setTags((await tagsRes.json()).tags || [])
+        } finally { setLoading(false) }
+    }, [patientId])
+
+    useEffect(() => { load() }, [load])
+
+    return (
+        <div className="space-y-4">
+            <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                    <Lock size={11}/> Área privada — a paciente nunca vê nenhum registro daqui.
+                </p>
+                {!showForm && (
+                    <button onClick={() => setShowForm(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all">
+                        <Plus size={12}/> Novo registro
+                    </button>
+                )}
+            </div>
+
+            <AnimatePresence>
+                {showForm && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                        <NewRecordForm
+                            patientId={patientId}
+                            tags={tags}
+                            onTagCreated={t => setTags(prev => [...prev, t])}
+                            onCreated={r => { setRecords(prev => [r, ...prev]); setShowForm(false) }}
+                            onCancel={() => setShowForm(false)}
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {loading ? (
+                <div className="flex justify-center py-10"><Loader2 size={20} className="animate-spin text-slate-600"/></div>
+            ) : records.length === 0 ? (
+                <div className="text-center py-10">
+                    <ClipboardList size={28} className="text-slate-700 mx-auto mb-2"/>
+                    <p className="text-sm text-slate-500">Nenhum registro no prontuário ainda.</p>
+                </div>
+            ) : (
+                <div className="space-y-2.5">
+                    {records.map(r => (
+                        <RecordCard key={r.id} patientId={patientId} record={r} tags={tags} onDeleted={id => setRecords(prev => prev.filter(x => x.id !== id))} />
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
 // ─── Patient detail panel ─────────────────────────────────────────────────────
 const COMMON_RESTRICTIONS = ['Lactose', 'Glúten', 'Ovo', 'Frutos do mar', 'Amendoim', 'Soja', 'Nozes', 'Carne vermelha', 'Carne de porco', 'Vegetariana', 'Vegana']
 
@@ -439,7 +716,7 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     const [showProtocolModal, setShowProtocolModal] = useState(false)
     const [showMessageModal, setShowMessageModal] = useState(false)
     const [showEditModal, setShowEditModal] = useState(false)
-    const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'health' | 'insights'>('overview')
+    const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'health' | 'insights' | 'records'>('overview')
     const [showScheduleModal, setShowScheduleModal] = useState(false)
     const [restrictions, setRestrictions] = useState<string[]>([])
     const [customRestriction, setCustomRestriction] = useState('')
@@ -765,7 +1042,7 @@ function PatientDetail({ patient, onAction, onRefresh }: {
 
                 {/* Tabs */}
                 <div className="flex gap-1 bg-white/5 rounded-xl p-1 w-fit">
-                    {[['overview', 'Visão Geral'], ['history', 'Histórico'], ['health', 'Saúde'], ['insights', '✨ IA']].map(([id, label]) => (
+                    {[['overview', 'Visão Geral'], ['history', 'Histórico'], ['health', 'Saúde'], ['insights', '✨ IA'], ['records', '🔒 Prontuário']].map(([id, label]) => (
                         <button key={id} onClick={() => setActiveTab(id as any)}
                             className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all
                                 ${activeTab === id ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
@@ -1382,6 +1659,10 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                             </div>
                         </div>
                     </div>
+                )}
+
+                {activeTab === 'records' && (
+                    <PatientRecordsPanel patientId={patient.id} />
                 )}
 
                 {activeTab === 'health' && (

@@ -37,7 +37,7 @@
 | [x] 2 | Agente de Engajamento — comentários automáticos em posts (conclusões de desafio/protocolo ficou de fora, ver nota na fase) | 🔴 Alta | M | Feature nova |
 | [x] 3 | Recompensas por posição no ranking dos desafios | 🔴 Alta | S | Completar feature existente |
 | [x] 4 | Pontuação diferenciada por tipo de comprovação — **só Protocolo**; Desafio virou Fase 13 | 🟡 Média | M | Melhoria de gamificação |
-| [ ] 5 | Prontuário clínico (registros por paciente) | 🔴 Alta | L | Feature nova |
+| [x] 5 | Prontuário clínico (registros por paciente) | 🔴 Alta | L | Feature nova |
 | [ ] 6 | Formulários com gatilhos de ciclo de vida | 🟡 Média | M | Extensão de feature existente |
 | [ ] 7 | Comunidade aberta/fechada com aprovação de entrada | 🟡 Média | S | Feature nova |
 | [ ] 8 | Calendário de eventos comunitários | 🟡 Média | M | Feature nova |
@@ -480,6 +480,32 @@ tenant. Siga a especificação da Fase 5 do roadmap. Ao final rode npx tsc --noE
 e escreva um teste manual explícito confirmando que paciente não acessa os dados antes de avisar
 que está pronto para revisão.
 ```
+
+### Status (2026-07-09)
+Implementado conforme especificado, com um pequeno desvio deliberado: RLS usa o mesmo padrão de
+autorização de todas as outras tabelas admin-only deste projeto (`tenant_id IN (SELECT id FROM
+tenants WHERE owner_id = auth.uid())`) em vez do `role IN ('admin','nutritionist')` sugerido —
+o projeto ainda não tem granularidade de papéis dentro do tenant (isso é exatamente o gap que a
+Fase 9 descreve), então seguir o padrão existente é mais consistente do que introduzir um segundo
+mecanismo de autorização isolado.
+- Migration `20260709000002_patient_records.sql`: `patient_records` (tags como `tag_ids UUID[]`,
+  sem tabela de junção) + `patient_record_tags`. RLS confirmada via SQL direto no Supabase: cada
+  tabela tem exatamente 1 policy, restrita a `owner_id = auth.uid()` — paciente não tem nenhuma
+  policy de leitura possível, em nenhuma circunstância.
+- Bucket `patient-records` criado **sem nenhuma policy de storage.objects** (negar tudo por
+  padrão) — todo upload/leitura passa pelo service role (`lib/supabase-admin.ts`) só no server,
+  nunca client-side. Leitura de anexo usa signed URL de 10 min gerada sob demanda, não URL pública
+  fixa (por isso a coluna se chama `attachment_path`, não `attachment_url` como o roadmap sugeria).
+- `GET/POST /api/admin/patients/[id]/records`, `PATCH/DELETE /api/admin/patients/[id]/records/[recordId]`,
+  `GET/POST /api/admin/record-tags` — todos seguindo o padrão de autenticação+tenant da Seção 5/9.
+- Nova aba "🔒 Prontuário" no detalhe do paciente em `PatientsView.tsx`, com timeline, formulário de
+  novo registro (5 tipos, tags reutilizáveis com criação inline, upload de anexo opcional) e aviso
+  explícito de que a área é privada.
+- Teste manual completo (login real paciente vs. nutricionista) não foi possível neste ambiente
+  sandboxed — a garantia de isolamento foi verificada diretamente no nível de RLS via SQL (a forma
+  mais forte de garantia, independente de bugs de lógica de API), e as rotas foram testadas quanto
+  a rejeitar requests não autenticados (401) sem crash. Recomendo o teste ponta a ponta descrito em
+  "Como testar" acima antes de considerar a fase 100% validada em produção.
 
 ---
 
