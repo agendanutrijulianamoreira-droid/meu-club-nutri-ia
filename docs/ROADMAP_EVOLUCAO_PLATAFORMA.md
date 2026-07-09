@@ -290,9 +290,12 @@ valor anterior adiante ou fica `null`.
 - Paciente vê as recompensas antes de entrar no desafio.
 
 ### Como testar
-1. Criar um desafio novo, configurar recompensas para 3 posições com imagem.
-2. Reabrir o desafio para editar — confirmar que os valores salvos aparecem certos.
-3. Acessar como paciente e confirmar a exibição das recompensas.
+- [x] Criar um desafio novo, configurar recompensas para 3 posições com imagem.
+- [x] Reabrir o desafio para editar — confirmar que os valores salvos aparecem certos.
+- [x] Acessar como paciente e confirmar a exibição das recompensas.
+
+Validado manualmente em produção pela dona do produto (2026-07-09) — os 3 passos acima
+confirmados de ponta a ponta com login real. Fase 3 encerrada, sem pendências.
 
 ### Prompt para abrir em outro chat
 ```
