@@ -153,6 +153,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       image_url: item.image_url || null,
       is_mandatory: item.is_mandatory ?? true,
       points: item.points || 10,
+      points_camera: item.points_camera || item.points || 10,
+      points_gallery: item.points_gallery || item.points || 10,
       order_index: idx,
     }))
 

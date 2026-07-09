@@ -36,7 +36,7 @@
 | [ ] 1 | Resumo IA + Chat IA por paciente (lado admin) | 🔴 Alta | M | Feature nova |
 | [ ] 2 | Agente de Engajamento — comentários automáticos em posts e conclusões | 🔴 Alta | M | Feature nova |
 | [x] 3 | Recompensas por posição no ranking dos desafios | 🔴 Alta | S | Completar feature existente |
-| [ ] 4 | Pontuação diferenciada por tipo de comprovação (foto na hora / galeria / sem foto) | 🟡 Média | M | Melhoria de gamificação |
+| [x] 4 | Pontuação diferenciada por tipo de comprovação — **só Protocolo**; Desafio virou Fase 13 | 🟡 Média | M | Melhoria de gamificação |
 | [ ] 5 | Prontuário clínico (registros por paciente) | 🔴 Alta | L | Feature nova |
 | [ ] 6 | Formulários com gatilhos de ciclo de vida | 🟡 Média | M | Extensão de feature existente |
 | [ ] 7 | Comunidade aberta/fechada com aprovação de entrada | 🟡 Média | S | Feature nova |
@@ -45,6 +45,7 @@
 | [ ] 10 | Biblioteca → motor de cursos (módulos, aulas, liberação sequencial/agendada) | 🟢 Baixa | L | Reforma de feature existente |
 | [ ] 11 | Programas — pacotes vendáveis multi-item | 🟢 Baixa | L | Mudança de modelo de monetização |
 | [ ] 12 | Débitos técnicos e melhorias pendentes já conhecidas | 🟡 Média | S (cada item) | Manutenção |
+| [ ] 13 | Desafio: mecanismo de participação e conclusão de atividade (com prova) | 🟡 Média | L | Feature nova |
 
 Legenda de esforço: S = 1 sessão curta, M = 1–2 sessões, L = múltiplas sessões / vale quebrar em subfases.
 
@@ -341,6 +342,33 @@ implemente o plano concreto de acordo com o que encontrar — a especificação 
 intencionalmente aberta nesse ponto porque depende do que já existe. Ao final rode
 npx tsc --noEmit, corrija erros, e avise que está pronto para revisão antes de commitar.
 ```
+
+### Status (2026-07-09)
+Implementado **só o lado Protocolo**, que era o único com um mecanismo real de conclusão de
+atividade (`protocol_items`/`protocol_progress`, populado hoje pelo builder de
+`app/admin/seasonal-protocols/`). Achados que mudaram o escopo original:
+- `protocol_items` ganhou `points_camera`/`points_gallery` (migration
+  `20260709000001_protocol_proof_points.sql`, aditiva, com backfill = valor de `points` para não
+  mudar XP de itens já criados); `protocol_progress` ganhou `proof_type` (o campo `photo_url` já
+  existia na tabela, só nunca era escrito por nenhum código).
+- `POST /api/patient/protocol-progress` agora resolve os pontos pelo `protocol_item` no servidor
+  em vez de aceitar `points` do body — o código anterior confiava cegamente no valor mandado pelo
+  client, o que permitia inflar XP artificialmente.
+- UI da paciente (`/patient/home`): item do protocolo ganhou botões de "enviar da galeria" e
+  "tirar foto agora" ao lado do toque simples, espelhando o padrão já usado em `/patient/habits`.
+  Bucket novo `protocol-photos` (mesma policy de `habit-photos`: leitura pública, escrita/remoção
+  restrita ao prefixo `auth.uid()` no path).
+- UI do admin (`app/admin/seasonal-protocols/new/page.tsx`, que é quem realmente grava em
+  `protocol_items` hoje — `ProtocolsView.tsx`/`app/admin/protocols/new/page.tsx` gravam só em
+  `protocols.content_json`, um sistema paralelo não lido pelo app da paciente): 3 campos de
+  pontuação por item (sem foto / galeria / câmera) em vez do único campo `points`, que antes nem
+  tinha input nenhum na tela (sempre ficava fixo em 10 na criação).
+- **Desafio ficou de fora**: não existe hoje nenhum mecanismo de participação em desafio no app da
+  paciente (sem tela de "entrar no desafio", sem "missões do dia"; `challenge_participants.score`
+  nunca é escrito em lugar nenhum do código). As "missões" já desenhadas pelo builder de desafios
+  (`app/admin/desafios/builder/page.tsx`, salvas em `rewards_json.days[].missions[]`) nunca chegam
+  a aparecer para a paciente. Construir isso é escopo de múltiplas sessões, não um ajuste de
+  pontuação — virou a **Fase 13** (ver abaixo), a ser planejada e implementada separadamente.
 
 ---
 
@@ -881,6 +909,90 @@ apenas o item [N] indicado, não os outros da lista. Ao final rode npx tsc --noE
 e avise que está pronto para revisão antes de commitar.
 ```
 (Substitua `[N]` pelo número do item específico ao usar este prompt.)
+
+---
+
+## FASE 13 — Desafio: mecanismo de participação e conclusão de atividade
+
+### Objetivo
+Construir a experiência de "jogar um desafio" que hoje não existe: a paciente conseguir entrar
+num desafio, ver as missões do dia, concluí-las com prova (câmera/galeria/sem foto, mesmo padrão
+da Fase 4/Hábitos) e ganhar pontos que realmente alimentam o ranking.
+
+### Por que
+Surgiu como desdobramento da Fase 4 (2026-07-09): o pedido original era "dar pontuação
+diferenciada por tipo de comprovação em atividades de desafio/protocolo", mas investigação
+mostrou que o lado Desafio não tem *nenhum* mecanismo de conclusão de atividade para diferenciar
+— não é uma melhoria pontual, é uma feature inteira faltando.
+
+### Estado atual (confirmado em 2026-07-09)
+- Não existe em lugar nenhum do código um INSERT em `challenge_participants` — ou seja, não há
+  fluxo de "participar de um desafio" no app da paciente hoje.
+- `challenge_participants.score` (INTEGER DEFAULT 0) existe no schema mas nunca é escrito por
+  nenhum código — é campo morto.
+- `app/admin/desafios/builder/page.tsx` já monta uma estrutura de "missões por dia"
+  (`rewards_json.days[].missions[]`, cada mission com `id`, `type`, `title`, `description`,
+  `points`, `isBonus`), mas isso é **puramente decorativo** hoje: nenhuma tela da paciente lê
+  `rewards_json.days`, então as missões criadas pelo admin nunca aparecem para ninguém.
+- O ranking de desafio (`/api/patient/ranking`, aba Ranking do feed) já existe e funciona, mas
+  usa `habit_logs` (Hábitos, sistema à parte) como proxy de desempate — não lê nada de missão de
+  desafio de verdade.
+- Confirmar de novo antes de implementar (pode ter mudado): `grep -rn "challenge_participants" app/`
+  para achar se algum PR paralelo já criou um fluxo de join.
+
+### O que fazer
+**Migration**
+- Nova tabela `challenge_progress` (`id`, `challenge_id`, `user_id`, `tenant_id`, `mission_id`
+  TEXT — os ids de mission são strings geradas no client, não UUIDs de tabela —, `day_number`,
+  `proof_type` `'simple'|'camera'|'gallery'`, `photo_url`, `points_earned`, `completed_at`),
+  `UNIQUE(challenge_id, user_id, mission_id)` para não permitir completar a mesma missão 2x.
+- Estender o formato de mission em `rewards_json.days[].missions[]` para ter 3 valores de pontos
+  (`points_simple`/`points_gallery`/`points_camera` em vez de `points` único) — é JSONB, não
+  precisa migration de schema, só mudar o shape gravado pelo builder.
+
+**Backend**
+- `POST /api/patient/challenges/[id]/join` — cria a linha em `challenge_participants` (idempotente,
+  ignora se já existe).
+- `GET /api/patient/challenges/[id]/today` — retorna as missões do dia corrente do desafio (a
+  partir de `rewards_json.days[dayIndex]`) + quais já foram concluídas pelo usuário
+  (`challenge_progress`).
+- `POST /api/patient/challenges/[id]/complete` — recebe `mission_id`, `proof_type`, `photo_url`;
+  resolve pontos a partir da definição da mission (nunca do client, mesmo cuidado da Fase 4);
+  insere em `challenge_progress`; `awardPoints`; **e agora sim** faz
+  `UPDATE challenge_participants SET score = score + pontos WHERE ...` — primeira escrita real
+  desse campo.
+
+**Frontend**
+- Nova tela/aba no app da paciente (ex: dentro do card do desafio na aba Ranking do feed, ou uma
+  rota própria) com: botão "Participar" quando ainda não é participante, lista de missões do dia
+  com os mesmos 3 botões de prova da Fase 4 (toque simples / galeria / câmera).
+- Reaproveitar bucket `protocol-photos` ou criar `challenge-photos` seguindo a mesma policy —
+  avaliar ao implementar qual faz mais sentido (fotos de desafio e de protocolo são conceitualmente
+  diferentes, mas a estrutura de policy é idêntica).
+
+### Critérios de aceite
+- Paciente consegue entrar num desafio ativo e ver as missões do dia corrente.
+- Completar uma missão com prova dá mais pontos que sem prova, de forma auditável.
+- `challenge_participants.score` reflete a soma real de pontos ganhos, e o ranking existente passa
+  a refletir isso de verdade (hoje `score` sempre aparece 0 porque nunca é escrito).
+
+### Como testar
+1. Como paciente de teste, entrar num desafio ativo, completar 2-3 missões com provas diferentes.
+2. Conferir que `challenge_participants.score` da paciente aumentou de acordo.
+3. Conferir que a aba Ranking do feed reflete a pontuação real (hoje mostraria sempre 0).
+
+### Prompt para abrir em outro chat
+```
+Implemente a FASE 13 do docs/ROADMAP_EVOLUCAO_PLATAFORMA.md (Desafio: participação e conclusão de
+atividade) no repositório meu-club-nutri-ia. Leia o CLAUDE.md inteiro primeiro, e leia a seção
+"Status" da Fase 4 e esta Fase 13 por completo antes de começar — elas documentam por que isso
+virou uma fase própria e o que já foi confirmado sobre o estado atual (challenge_participants.score
+morto, rewards_json.days como estrutura de missões nunca consumida pela paciente). Antes de criar
+qualquer coisa, rode grep -rn "challenge_participants" app/ para confirmar que ninguém implementou
+um fluxo de join em paralelo. Esta é uma feature grande — se não couber numa sessão, entregue e
+avise claramente o que ficou de fora. Ao final rode npx tsc --noEmit, corrija erros, e avise que
+está pronto para revisão antes de commitar.
+```
 
 ---
 
