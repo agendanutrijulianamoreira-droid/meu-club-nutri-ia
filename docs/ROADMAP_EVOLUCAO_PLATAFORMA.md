@@ -33,8 +33,8 @@
 
 | # | Fase | Prioridade | Esforço | Tipo |
 |---|---|---|---|---|
-| [ ] 1 | Resumo IA + Chat IA por paciente (lado admin) | 🔴 Alta | M | Feature nova |
-| [ ] 2 | Agente de Engajamento — comentários automáticos em posts e conclusões | 🔴 Alta | M | Feature nova |
+| [x] 1 | Resumo IA + Chat IA por paciente (lado admin) — Resumo IA já existia, só faltava o Chat | 🔴 Alta | M | Feature nova |
+| [x] 2 | Agente de Engajamento — comentários automáticos em posts (conclusões de desafio/protocolo ficou de fora, ver nota na fase) | 🔴 Alta | M | Feature nova |
 | [x] 3 | Recompensas por posição no ranking dos desafios | 🔴 Alta | S | Completar feature existente |
 | [x] 4 | Pontuação diferenciada por tipo de comprovação — **só Protocolo**; Desafio virou Fase 13 | 🟡 Média | M | Melhoria de gamificação |
 | [ ] 5 | Prontuário clínico (registros por paciente) | 🔴 Alta | L | Feature nova |
@@ -127,6 +127,37 @@ npx tsc --noEmit, corrija erros, e me avise que está pronto para eu revisar ant
 ---
 
 ## FASE 2 — Agente de Engajamento (comentários automáticos)
+
+> **Status: implementado em 2026-07 com escopo ajustado à realidade encontrada no código.**
+> Diferenças em relação à especificação original abaixo (mantida como registro histórico):
+> - **Não foi criada `community_comments`** — já existia uma tabela de comentários em produção
+>   sob outro nome (`comentarios_comunidade`, em português, por isso o grep sugerido não achou),
+>   já com endpoints GET/POST funcionais (`/api/patient/feed/[id]/comentar`,
+>   `/api/admin/comunidade/comentarios`). Só foi adicionada a coluna `is_ai_generated`.
+> - **Avatar da persona não foi implementado** — só nome + instruções de tom/restrições. Pode
+>   ser adicionado depois se fizer falta.
+> - **Comentário em "hits" de desafio/protocolo ficou fora do escopo** — não existe hoje nenhum
+>   evento de conclusão de atividade disparando o orchestrator (`triggerOrchestrator` só é chamado
+>   em `checkin_submitted` e `stripe_webhook`). Construir esse gancho é trabalho novo, não coberto
+>   por esta fase — ver item novo sugerido abaixo.
+> - **Dois bugs pré-existentes foram descobertos e corrigidos junto**, por estarem no mesmo evento
+>   (`post_created`) que este agente passou a disparar de verdade pela primeira vez:
+>   `runCommunityAgent` e `runCommunityModerationAgent` referenciavam uma tabela `posts`/coluna
+>   `content` que nunca existiram em produção (a real é `community_posts`/`body`) — o agente
+>   Community tinha 100% de falha em 42/42 execuções, e o Community Moderation nunca tinha
+>   disparado nenhuma vez porque `triggerOrchestrator('post_created', ...)` nunca era chamado em
+>   lugar nenhum do código, apesar de `CLAUDE.md` documentar esse trigger como ativo. Ver nota
+>   datada na Seção 16 do `CLAUDE.md` para o detalhe completo.
+> - Detalhes técnicos exatos: ver `supabase/functions/agent-orchestrator/index.ts`
+>   (`runEngagementAgent`), `supabase/migrations/20260707000001_engagement_agent.sql`,
+>   `app/admin/views/AISettingsView.tsx` (aba "Agente de Engajamento"),
+>   `app/patient/feed/page.tsx` (`CommentsSection`).
+>
+> **Item novo sugerido para o backlog** (não estava no roadmap original): criar um evento
+> `activity_completed` disparado quando uma paciente conclui uma atividade de desafio/protocolo
+> (hoje esse "hit" não gera nenhum evento pro orchestrator), e então estender `runEngagementAgent`
+> para também comentar nesses casos — só depois disso a parte "conclusões de desafio/protocolo"
+> desta fase original fica de fato viável.
 
 ### Objetivo
 Um agente de IA configurável pela nutricionista (nome, avatar, tom, instruções positivas e

@@ -4,8 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
     Brain, Save, MessageCircle, Sliders, Smartphone, Check,
     Loader2, Bot, Play, Clock, CheckCircle, XCircle, RefreshCw,
-    Bell, Sparkles, Plus, X, Zap, AlertCircle, Edit3, Eye,
-    ChevronRight, Activity
+    Bell, Sparkles, X, Zap, AlertCircle, Edit3, Eye,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTenant } from '@/lib/hooks/useDatabase'
@@ -229,13 +228,19 @@ export function CronEngagementPanel() {
 export function AISettingsView({ setView, tenantId }: { setView: (v: any) => void; tenantId?: string }) {
     const { tenant, updateTenant, loading: loadingTenant } = useTenant(tenantId)
 
-    const [tab, setTab] = useState<'personalidade' | 'prompt' | 'cron'>('personalidade')
+    const [tab, setTab] = useState<'personalidade' | 'prompt' | 'engajamento' | 'cron'>('personalidade')
     const [tone, setTone] = useState<Tone>('acolhedora')
     const [emojiLevel, setEmojiLevel] = useState(2)
     const [methodName, setMethodName] = useState('')
     const [systemPrompt, setSystemPrompt] = useState('')
     const [isSaving, setIsSaving] = useState(false)
     const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+
+    // Persona do Agente de Engajamento — comenta automaticamente em posts novos da comunidade
+    const [engagementEnabled, setEngagementEnabled] = useState(false)
+    const [engagementName, setEngagementName] = useState('')
+    const [engagementTone, setEngagementTone] = useState('')
+    const [engagementRestricted, setEngagementRestricted] = useState('')
 
     useEffect(() => {
         if (tenant) {
@@ -244,6 +249,11 @@ export function AISettingsView({ setView, tenantId }: { setView: (v: any) => voi
             const ai = tenant.settings?.ai || {}
             if (ai.tone) setTone(ai.tone)
             if (ai.emojiLevel) setEmojiLevel(ai.emojiLevel)
+            const persona = ai.engagementPersona || {}
+            setEngagementEnabled(!!persona.enabled)
+            setEngagementName(persona.name || '')
+            setEngagementTone(persona.toneInstructions || '')
+            setEngagementRestricted(persona.restrictedInstructions || '')
         }
     }, [tenant])
 
@@ -256,7 +266,15 @@ export function AISettingsView({ setView, tenantId }: { setView: (v: any) => voi
                 gpt_system_prompt: systemPrompt,
                 settings: {
                     ...tenant.settings,
-                    ai: { tone, emojiLevel }
+                    ai: {
+                        tone, emojiLevel,
+                        engagementPersona: {
+                            enabled: engagementEnabled,
+                            name: engagementName,
+                            toneInstructions: engagementTone,
+                            restrictedInstructions: engagementRestricted,
+                        },
+                    }
                 }
             } as any)
             if (error) throw new Error(error)
@@ -303,9 +321,10 @@ export function AISettingsView({ setView, tenantId }: { setView: (v: any) => voi
             {/* Tabs */}
             <div className="flex bg-white/5 border border-white/10 rounded-2xl p-1 gap-1 w-fit">
                 {([
-                    ['personalidade', <MessageCircle size={13}/>, 'Personalidade'],
-                    ['prompt',        <Edit3 size={13}/>,          'Prompt da IA'],
-                    ['cron',          <Bot size={13}/>,             'IA 24h'],
+                    ['personalidade', <MessageCircle key="personalidade" size={13}/>, 'Personalidade'],
+                    ['prompt',        <Edit3 key="prompt" size={13}/>,                'Prompt da IA'],
+                    ['engajamento',   <Sparkles key="engajamento" size={13}/>,        'Agente de Engajamento'],
+                    ['cron',          <Bot key="cron" size={13}/>,                    'IA 24h'],
                 ] as const).map(([v, icon, l]) => (
                     <button key={v} onClick={() => setTab(v)}
                         className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all
@@ -443,6 +462,56 @@ export function AISettingsView({ setView, tenantId }: { setView: (v: any) => voi
                             <span className="text-indigo-400">SYSTEM:</span> {systemPrompt || <span className="text-slate-700 italic">Instrução não definida</span>}
                             <br/><br/>
                             <span className="text-indigo-400">CONTEXT:</span> <span className="text-slate-500">tom={tone}, emojis={['discreta','moderada','expressiva'][emojiLevel-1]}, clube={tenant?.brand_name || 'não definido'}</span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Tab: Agente de Engajamento ─────────────────────────────── */}
+            {tab === 'engajamento' && (
+                <div className="max-w-3xl space-y-5">
+                    <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 flex items-start gap-3">
+                        <Sparkles size={14} className="text-indigo-400 flex-shrink-0 mt-0.5"/>
+                        <div>
+                            <p className="text-xs font-bold text-indigo-300 mb-1">Como funciona</p>
+                            <p className="text-xs text-slate-400 leading-relaxed">
+                                Quando ativado, este agente comenta automaticamente publicações novas que as pacientes fizerem na comunidade — como se fosse alguém da sua equipe acompanhando de perto. Não comenta em posts gerados pela própria IA (desafios, avisos automáticos etc), só em posts escritos por pacientes.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-bold text-white">Comentar automaticamente em posts</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Ativa ou desativa o agente para toda a comunidade.</p>
+                        </div>
+                        <button onClick={() => setEngagementEnabled(v => !v)}
+                            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${engagementEnabled ? 'bg-emerald-600' : 'bg-white/10'}`}>
+                            <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${engagementEnabled ? 'left-5' : 'left-0.5'}`}/>
+                        </button>
+                    </div>
+
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4">
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2 block">Nome da persona</label>
+                            <input value={engagementName} onChange={e => setEngagementName(e.target.value)}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                                placeholder="Ex: Nutri IA"/>
+                            <p className="text-[11px] text-slate-600 mt-1.5">Como a IA vai se identificar (só interno, não aparece um selo no comentário).</p>
+                        </div>
+
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2 block">Como ela deve se comportar</label>
+                            <textarea value={engagementTone} onChange={e => setEngagementTone(e.target.value)}
+                                className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 resize-none h-28 leading-relaxed"
+                                placeholder="Ex: tom acolhedor, usa o primeiro nome da pessoa raramente, celebra pequenas vitórias, faz perguntas curtas de acompanhamento."/>
+                        </div>
+
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2 block">O que ela nunca deve falar</label>
+                            <textarea value={engagementRestricted} onChange={e => setEngagementRestricted(e.target.value)}
+                                className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 resize-none h-28 leading-relaxed"
+                                placeholder="Ex: nunca mencionar peso em número, nunca dar orientação médica, nunca usar a palavra 'dieta'."/>
                         </div>
                     </div>
                 </div>
