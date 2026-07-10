@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
-    Flame, Trophy, Star, Zap, Heart, Send, ChevronUp,
+    Flame, Trophy, Star, Send,
     Sparkles, Crown, Target, Loader2, Users, Lock, MessageSquare,
     Camera, Image, Globe
 } from "lucide-react"
@@ -21,7 +21,7 @@ type Post = {
     id: string
     type: string
     body: string | null
-    meta: any
+    meta: { streak_days?: number; xp_earned?: number; goal?: string } | null
     is_pinned: boolean
     created_at: string
     is_own: boolean
@@ -102,12 +102,132 @@ function Avatar({ initials, streak }: { initials: string; streak: number }) {
     )
 }
 
+type Comentario = {
+    id: string
+    corpo: string
+    criado_em: string
+    is_own: boolean
+    is_ai_generated?: boolean
+    author_name: string
+    author_initials: string
+}
+
+function CommentsSection({ postId }: { postId: string }) {
+    const [open, setOpen] = useState(false)
+    const [loading, setLoading] = useState(false)
+    const [comentarios, setComentarios] = useState<Comentario[]>([])
+    const [text, setText] = useState("")
+    const [sending, setSending] = useState(false)
+
+    const load = useCallback(async () => {
+        setLoading(true)
+        try {
+            const res = await fetch(`/api/patient/feed/${postId}/comentar`)
+            if (res.ok) {
+                const data = await res.json()
+                setComentarios(data.comentarios || [])
+            }
+        } finally {
+            setLoading(false)
+        }
+    }, [postId])
+
+    useEffect(() => { if (open) load() }, [open, load])
+
+    const handleSend = async () => {
+        if (!text.trim() || sending) return
+        setSending(true)
+        try {
+            const res = await fetch(`/api/patient/feed/${postId}/comentar`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ corpo: text.trim() }),
+            })
+            if (res.ok) {
+                setText("")
+                await load()
+            }
+        } finally {
+            setSending(false)
+        }
+    }
+
+    return (
+        <div className="mt-2">
+            <button
+                onClick={() => setOpen(v => !v)}
+                className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-300 font-bold transition-all"
+            >
+                <MessageSquare size={12} />
+                {open ? "Ocultar comentários" : "Comentar"}
+            </button>
+
+            <AnimatePresence>
+                {open && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                    >
+                        <div className="mt-3 space-y-2.5">
+                            {loading ? (
+                                <div className="flex justify-center py-3"><Loader2 size={14} className="animate-spin text-slate-600" /></div>
+                            ) : comentarios.length === 0 ? (
+                                <p className="text-[11px] text-slate-700 py-1">Nenhum comentário ainda.</p>
+                            ) : (
+                                comentarios.map(c => (
+                                    <div key={c.id} className="flex items-start gap-2">
+                                        <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center text-[9px] font-bold text-slate-300 flex-shrink-0">
+                                            {c.author_initials}
+                                        </div>
+                                        <div className="flex-1 min-w-0 bg-white/5 rounded-2xl px-3 py-2">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-[11px] font-bold text-slate-300">
+                                                    {c.is_own ? "Você" : c.author_name}
+                                                </span>
+                                                {c.is_ai_generated && (
+                                                    <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                                        IA
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-slate-300 leading-relaxed">{c.corpo}</p>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        <div className="flex items-center gap-2 mt-3">
+                            <input
+                                value={text}
+                                onChange={e => setText(e.target.value)}
+                                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+                                placeholder="Escreva um comentário..."
+                                disabled={sending}
+                                className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-3 py-2 text-xs text-white placeholder:text-slate-600 outline-none focus:border-indigo-500/50 disabled:opacity-50"
+                            />
+                            <button
+                                onClick={handleSend}
+                                disabled={sending || !text.trim()}
+                                className="flex items-center justify-center w-8 h-8 flex-shrink-0 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl transition-all"
+                            >
+                                {sending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    )
+}
+
 function PostCard({ post, onReact }: { post: Post; onReact: (postId: string, emoji: string) => unknown; key?: string }) {
     const [showEmojis, setShowEmojis] = useState(false)
     const style = TYPE_STYLES[post.type] || TYPE_STYLES.text
 
     const totalReactions = post.reactions.reduce((acc, r) => acc + r.count, 0)
-    const topReaction = post.reactions.sort((a, b) => b.count - a.count)[0]
 
     return (
         <motion.div
@@ -212,6 +332,8 @@ function PostCard({ post, onReact }: { post: Post; onReact: (postId: string, emo
                     </AnimatePresence>
                 </div>
             </div>
+
+            <CommentsSection postId={post.id} />
         </motion.div>
     )
 }
@@ -308,7 +430,11 @@ function ComposerBox({ onPost }: { onPost: (text: string) => Promise<void> }) {
     )
 }
 
-type Challenge = { id: string; title: string; emoji: string; start_date: string; end_date: string | null }
+type RankingReward = { position: number; label: string; image_url?: string | null }
+type Challenge = {
+    id: string; title: string; emoji: string; start_date: string; end_date: string | null
+    ranking_rewards?: RankingReward[]
+}
 type RankEntry = {
     user_id: string; name: string; rank: number
     total_xp?: number; current_streak: number; current_level: number
@@ -553,6 +679,42 @@ export default function FeedPage() {
                                     <p className="text-[10px] text-slate-500 mt-0.5">
                                         Desempate: 📷 Câmera › 🖼️ Galeria › 💬 Engajamento
                                     </p>
+                                </div>
+                            )}
+
+                            {/* Ranking rewards */}
+                            {selectedChallenge && (activeChallengeMeta?.ranking_rewards?.length ?? 0) > 0 && (
+                                <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 mb-4">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-amber-500 mb-3 flex items-center gap-1">
+                                        <Trophy size={12} /> Recompensas
+                                    </p>
+                                    <div className="space-y-2">
+                                        {activeChallengeMeta!.ranking_rewards!.map(r => {
+                                            const myRank = ranking.find(p => p.user_id === myUserId)?.rank
+                                            const isMine = myRank === r.position
+                                            return (
+                                                <div key={r.position}
+                                                    className={`flex items-center gap-3 rounded-xl px-3 py-2 border transition-all
+                                                        ${isMine ? "bg-amber-500/15 border-amber-500/30" : "bg-white/[0.03] border-white/5"}`}>
+                                                    <span className="w-7 text-center text-sm font-black text-amber-400 flex-shrink-0">
+                                                        {r.position}º
+                                                    </span>
+                                                    {r.image_url ? (
+                                                        // eslint-disable-next-line @next/next/no-img-element
+                                                        <img src={r.image_url} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                                                    ) : (
+                                                        <Trophy size={16} className="text-amber-500/60 flex-shrink-0" />
+                                                    )}
+                                                    <span className="text-xs text-white flex-1 min-w-0 truncate">{r.label}</span>
+                                                    {isMine && (
+                                                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 flex-shrink-0">
+                                                            Você
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
                                 </div>
                             )}
 

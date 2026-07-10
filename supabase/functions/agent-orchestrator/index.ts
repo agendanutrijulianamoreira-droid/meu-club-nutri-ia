@@ -234,10 +234,15 @@ serve(async (req) => {
       }
 
       case 'post_created': {
-        // Novo post na comunidade → auto-moderação
+        // Novo post na comunidade → auto-moderação + comentário automático do agente de engajamento
         if (!event.tenant_id || !event.payload?.post_id) break
         const communityModResult = await runCommunityModerationAgent(supabase, event.tenant_id, event.payload.post_id)
         results.push(communityModResult)
+
+        const postTenant = (await getActiveTenants(supabase, event.tenant_id))[0]
+        if (postTenant) {
+          results.push(await runEngagementAgent(supabase, postTenant, event.payload.post_id))
+        }
         break
       }
 
@@ -294,6 +299,8 @@ serve(async (req) => {
           results.push(await runUpsellAgent(supabase, tenant, patients, sabResult))
         } else if (agentName === 'meals' && event.user_id) {
           results.push(await runMealsAgent(supabase, event.tenant_id, event.user_id, event.payload))
+        } else if (agentName === 'engagement' && event.payload?.post_id) {
+          results.push(await runEngagementAgent(supabase, tenant, event.payload.post_id))
         }
         break
       }
@@ -1486,8 +1493,8 @@ async function runCommunityAgent(
     // Anti-spam: já postou hoje?
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
     const { data: todayPosts } = await supabase
-      .from('posts').select('id').eq('tenant_id', tenant.id).eq('type', 'post')
-      .gte('created_at', todayStart.toISOString()).like('content', '%[IA]%').limit(1)
+      .from('community_posts').select('id').eq('tenant_id', tenant.id).eq('is_ai_generated', true)
+      .gte('created_at', todayStart.toISOString()).limit(1)
 
     if (todayPosts && todayPosts.length > 0) {
       const elapsed = Date.now() - start
@@ -1540,10 +1547,10 @@ Retorne APENAS JSON:
     const { data: tenantOwner } = await supabase.from('tenants').select('owner_id').eq('id', tenant.id).single()
 
     if (tenantOwner?.owner_id) {
-      await supabase.from('posts').insert({
+      await supabase.from('community_posts').insert({
         user_id: tenantOwner.owner_id, tenant_id: tenant.id,
-        content: `${parsed.post_content}\n\n${parsed.engagement_question}\n\n[IA] 🤖`,
-        type: 'post', is_ai_moderated: true, ai_status: 'approved',
+        body: `${parsed.post_content}\n\n${parsed.engagement_question}`,
+        type: 'text', is_ai_generated: true,
       })
     }
 
@@ -1584,9 +1591,9 @@ async function runCommunityModerationAgent(
     .select('id').single()
 
   try {
-    const { data: post } = await supabase.from('posts').select('id, content, user_id, type').eq('id', postId).single()
+    const { data: post } = await supabase.from('community_posts').select('id, body, user_id, type').eq('id', postId).single()
 
-    if (!post || !post.content) {
+    if (!post || !post.body) {
       const elapsed = Date.now() - start
       if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'skipped', output_payload: { reason: 'post_not_found' }, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
       return { agent_name: 'community_moderation', status: 'skipped', messages: [], tokens_used: 0, duration_ms: elapsed }
@@ -1604,7 +1611,7 @@ Retorne APENAS JSON: { "status": "approved|flagged", "reason": "motivo se flagge
     const res = await fetch(GEMINI_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `Analise: "${post.content}"` }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, generationConfig: { maxOutputTokens: 200, responseMimeType: "application/json" } }),
+      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: `Analise: "${post.body}"` }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, generationConfig: { maxOutputTokens: 200, responseMimeType: "application/json" } }),
     })
 
     if (!res.ok) throw new Error(`Gemini error: ${res.status}`)
@@ -1612,7 +1619,11 @@ Retorne APENAS JSON: { "status": "approved|flagged", "reason": "motivo se flagge
     const totalTokens = data.usageMetadata?.totalTokenCount || 0
     const parsed = JSON.parse((data.candidates?.[0]?.content?.parts?.[0]?.text || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
 
-    await supabase.from('posts').update({ is_ai_moderated: true, ai_status: parsed.status }).eq('id', postId)
+    // community_posts não tem coluna de status intermediário — só "oculto" (visível/escondido).
+    // flagged esconde o post e notifica admin; approved não altera nada (post já é visível por padrão).
+    if (parsed.status === 'flagged') {
+      await supabase.from('community_posts').update({ oculto: true }).eq('id', postId)
+    }
 
     const adminMessages: AgentResult['messages'] = []
     if (parsed.status === 'flagged') {
@@ -1642,10 +1653,115 @@ Retorne APENAS JSON: { "status": "approved|flagged", "reason": "motivo se flagge
   } catch (err: any) {
     const elapsed = Date.now() - start
     console.error('[community_moderation] Error:', err)
-    // Fail-safe: manter post em revisão manual quando a IA falhar (não aprovar automaticamente)
-    await supabase.from('posts').update({ is_ai_moderated: false, ai_status: 'pending' }).eq('id', postId)
+    // Fail-open: se a IA falhar, o post continua visível (oculto=false é o padrão da coluna) —
+    // revisão manual fica a cargo da nutricionista via painel de comunidade.
     if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'error', error_message: err.message, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
     return { agent_name: 'community_moderation', status: 'error', messages: [], tokens_used: 0, duration_ms: elapsed, error: err.message }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AGENT: ENGAGEMENT — comenta automaticamente em posts novos da comunidade,
+// com uma persona configurável pela nutricionista (nome + instruções de tom).
+// Config em tenant.settings.ai.engagementPersona.
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function runEngagementAgent(
+  supabase: SupabaseClient,
+  tenant: TenantContext,
+  postId: string
+): Promise<AgentResult> {
+  const start = Date.now()
+
+  const persona = tenant.settings?.ai?.engagementPersona
+  if (!persona?.enabled) {
+    return { agent_name: 'engagement', status: 'skipped', messages: [], tokens_used: 0, duration_ms: Date.now() - start }
+  }
+
+  const { data: agentLog } = await supabase
+    .from('agent_logs')
+    .insert({ tenant_id: tenant.id, agent_name: 'engagement', trigger_type: 'realtime', input_payload: { post_id: postId }, status: 'running' })
+    .select('id').single()
+
+  try {
+    const { data: post } = await supabase
+      .from('community_posts')
+      .select('id, body, user_id, type, is_ai_generated')
+      .eq('id', postId).eq('tenant_id', tenant.id).single()
+
+    // Não comenta em post que não existe (mais), que não é texto livre de paciente,
+    // ou que foi gerado pelo próprio agente de posts diários (IA comentando na IA).
+    if (!post || !post.body || post.is_ai_generated) {
+      const elapsed = Date.now() - start
+      if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'skipped', output_payload: { reason: 'post_not_eligible' }, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+      return { agent_name: 'engagement', status: 'skipped', messages: [], tokens_used: 0, duration_ms: elapsed }
+    }
+
+    // Anti-duplicidade: já comentou nesse post?
+    const { data: existingComment } = await supabase
+      .from('comentarios_comunidade').select('id').eq('post_id', postId).eq('is_ai_generated', true).limit(1)
+    if (existingComment && existingComment.length > 0) {
+      const elapsed = Date.now() - start
+      if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'skipped', output_payload: { reason: 'already_commented' }, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+      return { agent_name: 'engagement', status: 'skipped', messages: [], tokens_used: 0, duration_ms: elapsed }
+    }
+
+    const { data: author } = await supabase.from('profiles').select('name').eq('user_id', post.user_id).single()
+    const authorName = author?.name?.split(' ')[0] || 'a paciente'
+
+    const personaName = persona.name || 'a assistente da comunidade'
+    const systemPrompt = `${tenant.gpt_system_prompt || NUTRITIONIST_IDENTITY}
+
+PAPEL ESPECÍFICO — ${personaName.toUpperCase()}, GESTORA DE COMUNIDADE:
+Você comenta publicações de pacientes na comunidade, como uma pessoa real da equipe acompanhando de perto — nunca como um bot genérico.
+${persona.toneInstructions ? `\nCOMO VOCÊ DEVE SE COMPORTAR:\n${persona.toneInstructions}` : ''}
+${persona.restrictedInstructions ? `\nNUNCA FAÇA/DIGA:\n${persona.restrictedInstructions}` : ''}
+
+Comentário: 1-2 frases curtas, natural, específico ao que a pessoa escreveu — nunca genérico tipo "Legal!" ou "Continue assim!". Sem repetir o nome dela toda hora.`
+
+    const res = await fetch(GEMINI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: `Post de ${authorName}: "${post.body}"` }] }],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        generationConfig: { maxOutputTokens: 200, responseMimeType: 'application/json' },
+      }),
+    })
+
+    if (!res.ok) throw new Error(`Gemini error: ${res.status}`)
+    const data = await res.json()
+    const totalTokens = data.usageMetadata?.totalTokenCount || 0
+    const parsed = JSON.parse((data.candidates?.[0]?.content?.parts?.[0]?.text || '{}').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim())
+
+    const comment = (parsed.comment || '').trim()
+    if (!comment) throw new Error('Gemini retornou comentário vazio')
+
+    const { data: tenantOwner } = await supabase.from('tenants').select('owner_id').eq('id', tenant.id).single()
+    if (tenantOwner?.owner_id) {
+      await supabase.from('comentarios_comunidade').insert({
+        post_id: postId, tenant_id: tenant.id, user_id: tenantOwner.owner_id,
+        corpo: comment, is_ai_generated: true,
+      })
+    }
+
+    const elapsed = Date.now() - start
+    if (agentLog?.id) {
+      await supabase.from('agent_logs').update({
+        status: 'success', output_payload: { commented: true },
+        tokens_used: totalTokens, cost_usd: 0,
+        duration_ms: elapsed, completed_at: new Date().toISOString(),
+      }).eq('id', agentLog.id)
+    }
+
+    return { agent_name: 'engagement', status: 'success', messages: [], tokens_used: totalTokens, duration_ms: elapsed }
+
+  } catch (err: any) {
+    const elapsed = Date.now() - start
+    console.error('[engagement] Error:', err)
+    if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'error', error_message: err.message, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+    return { agent_name: 'engagement', status: 'error', messages: [], tokens_used: 0, duration_ms: elapsed, error: err.message }
   }
 }
 

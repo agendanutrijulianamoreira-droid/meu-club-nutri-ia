@@ -33,11 +33,11 @@
 
 | # | Fase | Prioridade | Esforço | Tipo |
 |---|---|---|---|---|
-| [ ] 1 | Resumo IA + Chat IA por paciente (lado admin) | 🔴 Alta | M | Feature nova |
-| [ ] 2 | Agente de Engajamento — comentários automáticos em posts e conclusões | 🔴 Alta | M | Feature nova |
-| [ ] 3 | Recompensas por posição no ranking dos desafios | 🔴 Alta | S | Completar feature existente |
-| [ ] 4 | Pontuação diferenciada por tipo de comprovação (foto na hora / galeria / sem foto) | 🟡 Média | M | Melhoria de gamificação |
-| [ ] 5 | Prontuário clínico (registros por paciente) | 🔴 Alta | L | Feature nova |
+| [x] 1 | Resumo IA + Chat IA por paciente (lado admin) — Resumo IA já existia, só faltava o Chat | 🔴 Alta | M | Feature nova |
+| [x] 2 | Agente de Engajamento — comentários automáticos em posts (conclusões de desafio/protocolo ficou de fora, ver nota na fase) | 🔴 Alta | M | Feature nova |
+| [x] 3 | Recompensas por posição no ranking dos desafios | 🔴 Alta | S | Completar feature existente |
+| [x] 4 | Pontuação diferenciada por tipo de comprovação — **só Protocolo**; Desafio virou Fase 13 | 🟡 Média | M | Melhoria de gamificação |
+| [x] 5 | Prontuário clínico (registros por paciente) | 🔴 Alta | L | Feature nova |
 | [ ] 6 | Formulários com gatilhos de ciclo de vida | 🟡 Média | M | Extensão de feature existente |
 | [ ] 7 | Comunidade aberta/fechada com aprovação de entrada | 🟡 Média | S | Feature nova |
 | [ ] 8 | Calendário de eventos comunitários | 🟡 Média | M | Feature nova |
@@ -45,6 +45,7 @@
 | [ ] 10 | Biblioteca → motor de cursos (módulos, aulas, liberação sequencial/agendada) | 🟢 Baixa | L | Reforma de feature existente |
 | [ ] 11 | Programas — pacotes vendáveis multi-item | 🟢 Baixa | L | Mudança de modelo de monetização |
 | [ ] 12 | Débitos técnicos e melhorias pendentes já conhecidas | 🟡 Média | S (cada item) | Manutenção |
+| [ ] 13 | Desafio: mecanismo de participação e conclusão de atividade (com prova) | 🟡 Média | L | Feature nova |
 
 Legenda de esforço: S = 1 sessão curta, M = 1–2 sessões, L = múltiplas sessões / vale quebrar em subfases.
 
@@ -127,6 +128,37 @@ npx tsc --noEmit, corrija erros, e me avise que está pronto para eu revisar ant
 
 ## FASE 2 — Agente de Engajamento (comentários automáticos)
 
+> **Status: implementado em 2026-07 com escopo ajustado à realidade encontrada no código.**
+> Diferenças em relação à especificação original abaixo (mantida como registro histórico):
+> - **Não foi criada `community_comments`** — já existia uma tabela de comentários em produção
+>   sob outro nome (`comentarios_comunidade`, em português, por isso o grep sugerido não achou),
+>   já com endpoints GET/POST funcionais (`/api/patient/feed/[id]/comentar`,
+>   `/api/admin/comunidade/comentarios`). Só foi adicionada a coluna `is_ai_generated`.
+> - **Avatar da persona não foi implementado** — só nome + instruções de tom/restrições. Pode
+>   ser adicionado depois se fizer falta.
+> - **Comentário em "hits" de desafio/protocolo ficou fora do escopo** — não existe hoje nenhum
+>   evento de conclusão de atividade disparando o orchestrator (`triggerOrchestrator` só é chamado
+>   em `checkin_submitted` e `stripe_webhook`). Construir esse gancho é trabalho novo, não coberto
+>   por esta fase — ver item novo sugerido abaixo.
+> - **Dois bugs pré-existentes foram descobertos e corrigidos junto**, por estarem no mesmo evento
+>   (`post_created`) que este agente passou a disparar de verdade pela primeira vez:
+>   `runCommunityAgent` e `runCommunityModerationAgent` referenciavam uma tabela `posts`/coluna
+>   `content` que nunca existiram em produção (a real é `community_posts`/`body`) — o agente
+>   Community tinha 100% de falha em 42/42 execuções, e o Community Moderation nunca tinha
+>   disparado nenhuma vez porque `triggerOrchestrator('post_created', ...)` nunca era chamado em
+>   lugar nenhum do código, apesar de `CLAUDE.md` documentar esse trigger como ativo. Ver nota
+>   datada na Seção 16 do `CLAUDE.md` para o detalhe completo.
+> - Detalhes técnicos exatos: ver `supabase/functions/agent-orchestrator/index.ts`
+>   (`runEngagementAgent`), `supabase/migrations/20260707000001_engagement_agent.sql`,
+>   `app/admin/views/AISettingsView.tsx` (aba "Agente de Engajamento"),
+>   `app/patient/feed/page.tsx` (`CommentsSection`).
+>
+> **Item novo sugerido para o backlog** (não estava no roadmap original): criar um evento
+> `activity_completed` disparado quando uma paciente conclui uma atividade de desafio/protocolo
+> (hoje esse "hit" não gera nenhum evento pro orchestrator), e então estender `runEngagementAgent`
+> para também comentar nesses casos — só depois disso a parte "conclusões de desafio/protocolo"
+> desta fase original fica de fato viável.
+
 ### Objetivo
 Um agente de IA configurável pela nutricionista (nome, avatar, tom, instruções positivas e
 restritivas) que comenta automaticamente em posts do feed e em conclusões de desafio/protocolo,
@@ -204,7 +236,20 @@ avise que está pronto para revisão antes de commitar.
 
 ---
 
-## FASE 3 — Recompensas por posição no ranking dos desafios
+## FASE 3 — Recompensas por posição no ranking dos desafios ✅ CONCLUÍDA (2026-07-07)
+
+> **Correção em relação ao plano original**: a premissa desta fase estava errada.
+> `challenges.rewards_json` **já é usado em produção** pelo builder de missões diárias
+> (`app/admin/desafios/builder/page.tsx`), que grava `{ days, feedPosts }` — não é um
+> campo livre esperando ser preenchido com recompensas por posição. Reaproveitá-lo
+> teria colidido com esse uso existente. A implementação real criou uma coluna nova
+> `challenges.ranking_rewards JSONB` (migration `20260707000002_challenge_ranking_rewards.sql`,
+> aplicada em produção), no formato `[{ position, label, image_url }]`, exatamente como
+> o roadmap sugeria — só que num campo próprio em vez do `rewards_json` existente.
+> UI implementada em `ChallengesView.tsx` (editor de recompensas por posição, upload de
+> imagem via `useStorage`) e no ranking da paciente (`app/patient/feed/page.tsx`, aba
+> Ranking), destacando a posição da própria paciente. `GET /api/patient/ranking` passou
+> a retornar `ranking_rewards` junto com os dados do desafio.
 
 ### Objetivo
 Permitir que a nutricionista defina, na criação/edição de um desafio, o que cada posição do
@@ -245,9 +290,12 @@ valor anterior adiante ou fica `null`.
 - Paciente vê as recompensas antes de entrar no desafio.
 
 ### Como testar
-1. Criar um desafio novo, configurar recompensas para 3 posições com imagem.
-2. Reabrir o desafio para editar — confirmar que os valores salvos aparecem certos.
-3. Acessar como paciente e confirmar a exibição das recompensas.
+- [x] Criar um desafio novo, configurar recompensas para 3 posições com imagem.
+- [x] Reabrir o desafio para editar — confirmar que os valores salvos aparecem certos.
+- [x] Acessar como paciente e confirmar a exibição das recompensas.
+
+Validado manualmente em produção pela dona do produto (2026-07-09) — os 3 passos acima
+confirmados de ponta a ponta com login real. Fase 3 encerrada, sem pendências.
 
 ### Prompt para abrir em outro chat
 ```
@@ -284,6 +332,17 @@ porque não foi possível inspecionar neste chat:
 3. `awardPoints` em `lib/services/gamification.ts` (Seção 16 do `CLAUDE.md`, já é a escrita
    centralizada de XP) — confirmar a assinatura atual da função antes de estender.
 
+> **Achado da Fase 3 (2026-07-07)**: o módulo de **Hábitos** (`habit_logs`, migration
+> `20260624000001_habits.sql`, UI `app/patient/habits/page.tsx`) **já implementa exatamente essa
+> diferenciação** — campo `hit_type` (`'camera' | 'gallery' | 'simple'`) com uma constante
+> `HABIT_HIT_XP` que premia XP diferente por tipo, escrito via `awardPoints` em
+> `app/api/patient/habits/route.ts`. `hit_type` inclusive já é usado como critério de desempate
+> no ranking de desafios (`app/api/patient/ranking/route.ts`). O que **não existe** é o mesmo
+> mecanismo para conclusões de **desafio/protocolo** especificamente — só para Hábitos. Ao
+> implementar esta fase, avaliar se dá para reaproveitar o mesmo padrão (`hit_type` +
+> `HABIT_HIT_XP`-like) em vez de desenhar algo do zero, e se "atividade de desafio/protocolo"
+> hoje sequer tem uma tabela de conclusão própria ou se usa `daily_logs`/`habit_logs` por baixo.
+
 ### O que fazer (após confirmar o estado atual acima)
 - Adicionar um campo `proof_type` (`'camera' | 'gallery' | 'none'`) no registro de conclusão de
   atividade.
@@ -317,6 +376,33 @@ implemente o plano concreto de acordo com o que encontrar — a especificação 
 intencionalmente aberta nesse ponto porque depende do que já existe. Ao final rode
 npx tsc --noEmit, corrija erros, e avise que está pronto para revisão antes de commitar.
 ```
+
+### Status (2026-07-09)
+Implementado **só o lado Protocolo**, que era o único com um mecanismo real de conclusão de
+atividade (`protocol_items`/`protocol_progress`, populado hoje pelo builder de
+`app/admin/seasonal-protocols/`). Achados que mudaram o escopo original:
+- `protocol_items` ganhou `points_camera`/`points_gallery` (migration
+  `20260709000001_protocol_proof_points.sql`, aditiva, com backfill = valor de `points` para não
+  mudar XP de itens já criados); `protocol_progress` ganhou `proof_type` (o campo `photo_url` já
+  existia na tabela, só nunca era escrito por nenhum código).
+- `POST /api/patient/protocol-progress` agora resolve os pontos pelo `protocol_item` no servidor
+  em vez de aceitar `points` do body — o código anterior confiava cegamente no valor mandado pelo
+  client, o que permitia inflar XP artificialmente.
+- UI da paciente (`/patient/home`): item do protocolo ganhou botões de "enviar da galeria" e
+  "tirar foto agora" ao lado do toque simples, espelhando o padrão já usado em `/patient/habits`.
+  Bucket novo `protocol-photos` (mesma policy de `habit-photos`: leitura pública, escrita/remoção
+  restrita ao prefixo `auth.uid()` no path).
+- UI do admin (`app/admin/seasonal-protocols/new/page.tsx`, que é quem realmente grava em
+  `protocol_items` hoje — `ProtocolsView.tsx`/`app/admin/protocols/new/page.tsx` gravam só em
+  `protocols.content_json`, um sistema paralelo não lido pelo app da paciente): 3 campos de
+  pontuação por item (sem foto / galeria / câmera) em vez do único campo `points`, que antes nem
+  tinha input nenhum na tela (sempre ficava fixo em 10 na criação).
+- **Desafio ficou de fora**: não existe hoje nenhum mecanismo de participação em desafio no app da
+  paciente (sem tela de "entrar no desafio", sem "missões do dia"; `challenge_participants.score`
+  nunca é escrito em lugar nenhum do código). As "missões" já desenhadas pelo builder de desafios
+  (`app/admin/desafios/builder/page.tsx`, salvas em `rewards_json.days[].missions[]`) nunca chegam
+  a aparecer para a paciente. Construir isso é escopo de múltiplas sessões, não um ajuste de
+  pontuação — virou a **Fase 13** (ver abaixo), a ser planejada e implementada separadamente.
 
 ---
 
@@ -394,6 +480,32 @@ tenant. Siga a especificação da Fase 5 do roadmap. Ao final rode npx tsc --noE
 e escreva um teste manual explícito confirmando que paciente não acessa os dados antes de avisar
 que está pronto para revisão.
 ```
+
+### Status (2026-07-09)
+Implementado conforme especificado, com um pequeno desvio deliberado: RLS usa o mesmo padrão de
+autorização de todas as outras tabelas admin-only deste projeto (`tenant_id IN (SELECT id FROM
+tenants WHERE owner_id = auth.uid())`) em vez do `role IN ('admin','nutritionist')` sugerido —
+o projeto ainda não tem granularidade de papéis dentro do tenant (isso é exatamente o gap que a
+Fase 9 descreve), então seguir o padrão existente é mais consistente do que introduzir um segundo
+mecanismo de autorização isolado.
+- Migration `20260709000002_patient_records.sql`: `patient_records` (tags como `tag_ids UUID[]`,
+  sem tabela de junção) + `patient_record_tags`. RLS confirmada via SQL direto no Supabase: cada
+  tabela tem exatamente 1 policy, restrita a `owner_id = auth.uid()` — paciente não tem nenhuma
+  policy de leitura possível, em nenhuma circunstância.
+- Bucket `patient-records` criado **sem nenhuma policy de storage.objects** (negar tudo por
+  padrão) — todo upload/leitura passa pelo service role (`lib/supabase-admin.ts`) só no server,
+  nunca client-side. Leitura de anexo usa signed URL de 10 min gerada sob demanda, não URL pública
+  fixa (por isso a coluna se chama `attachment_path`, não `attachment_url` como o roadmap sugeria).
+- `GET/POST /api/admin/patients/[id]/records`, `PATCH/DELETE /api/admin/patients/[id]/records/[recordId]`,
+  `GET/POST /api/admin/record-tags` — todos seguindo o padrão de autenticação+tenant da Seção 5/9.
+- Nova aba "🔒 Prontuário" no detalhe do paciente em `PatientsView.tsx`, com timeline, formulário de
+  novo registro (5 tipos, tags reutilizáveis com criação inline, upload de anexo opcional) e aviso
+  explícito de que a área é privada.
+- Teste manual completo (login real paciente vs. nutricionista) não foi possível neste ambiente
+  sandboxed — a garantia de isolamento foi verificada diretamente no nível de RLS via SQL (a forma
+  mais forte de garantia, independente de bugs de lógica de API), e as rotas foram testadas quanto
+  a rejeitar requests não autenticados (401) sem crash. Recomendo o teste ponta a ponta descrito em
+  "Como testar" acima antes de considerar a fase 100% validada em produção.
 
 ---
 
@@ -834,6 +946,29 @@ separados).
    confusão. Enquanto isso não é implementado, contornar caso a caso resetando a senha diretamente
    via SQL (`update auth.users set encrypted_password = crypt('nova_senha', gen_salt('bf')) where
    id = '...'` — usa a extensão `pgcrypto`, já habilitada no projeto) quando alguém ficar travada.
+8. **Anexo/foto de comprovação da Fase 4 (Protocolo) não é revisável por ninguém** — descoberto
+   ao avaliar a Fase 4 (2026-07-09): `protocol_progress.photo_url` é gravado quando a paciente
+   completa um item com câmera/galeria, mas não existe **nenhuma** tela (nem no app da paciente,
+   nem no admin) que mostre essa foto depois de enviada — confirmado por grep, zero ocorrências de
+   `photo_url` em `PatientsView.tsx` ou em qualquer tela de histórico/prontuário. Isso esvazia o
+   propósito da "prova": o sistema paga mais XP por uma foto que ninguém nunca confere. Correção:
+   mostrar a foto (via signed URL, como já feito em `patient-records` na Fase 5) na aba
+   Histórico/Prontuário do paciente em `PatientsView.tsx`, ao lado da data/hora de conclusão do
+   item de protocolo.
+9. **Pontuação diferenciada da Fase 4 só existe no fluxo de Protocolos "sazonais"** — confirmado
+   por grep: `ProtocolsView.tsx`/`app/admin/protocols/new/page.tsx` (o fluxo "padrão" de criar
+   protocolo) grava só em `protocols.content_json`, nunca em `protocol_items`; só
+   `app/admin/seasonal-protocols/new/page.tsx` grava na tabela relacional que a Fase 4 estende. Ou
+   seja, protocolos criados pelo fluxo padrão não têm a opção de pontuação por tipo de prova, sem
+   nenhum aviso disso na UI. Decidir: (a) portar `points_camera`/`points_gallery` para o fluxo
+   padrão também, ou (b) deixar explícito na UI do fluxo padrão que essa funcionalidade não está
+   disponível ali, para não confundir a nutricionista.
+10. **Geração de protocolo por IA não sugere pontuação diferenciada** — em
+    `app/admin/seasonal-protocols/new/page.tsx`, tanto a geração mágica (`handleMagicGenerate`)
+    quanto o carregamento de itens continuam usando `points_camera || points || 10` como fallback,
+    ou seja, a IA nunca propõe os 3 valores diferentes — eles só ficam diferenciados se a
+    nutricionista editar item por item manualmente depois de gerar. Esforço baixo: incluir os 3
+    campos no prompt/schema de `POST /api/ai/generate-seasonal-protocol`.
 
 ### Como testar cada item
 - Item 1: clicar no botão, confirmar download do CSV com dados corretos.
@@ -847,6 +982,12 @@ separados).
   serviço `auth`) para confirmar que não há mais múltiplos acessos a `/verify` vindos de IPs
   diferentes antes do clique real; testar o novo fluxo OTP de ponta a ponta nas duas telas de
   login.
+- Item 8: completar um item de protocolo com foto (câmera ou galeria) como paciente de teste,
+  confirmar que a foto aparece de verdade na tela de histórico/prontuário do admin.
+- Item 9: criar um protocolo pelo fluxo padrão (`ProtocolsView.tsx`) e confirmar a decisão tomada
+  — ou a pontuação por prova aparece lá também, ou fica claro na UI que não está disponível.
+- Item 10: gerar um protocolo sazonal via IA e conferir se os 3 valores de pontuação vêm
+  diferenciados (não apenas repetindo o mesmo número nos 3 campos).
 
 ### Prompt para abrir em outro chat
 ```
@@ -857,6 +998,90 @@ apenas o item [N] indicado, não os outros da lista. Ao final rode npx tsc --noE
 e avise que está pronto para revisão antes de commitar.
 ```
 (Substitua `[N]` pelo número do item específico ao usar este prompt.)
+
+---
+
+## FASE 13 — Desafio: mecanismo de participação e conclusão de atividade
+
+### Objetivo
+Construir a experiência de "jogar um desafio" que hoje não existe: a paciente conseguir entrar
+num desafio, ver as missões do dia, concluí-las com prova (câmera/galeria/sem foto, mesmo padrão
+da Fase 4/Hábitos) e ganhar pontos que realmente alimentam o ranking.
+
+### Por que
+Surgiu como desdobramento da Fase 4 (2026-07-09): o pedido original era "dar pontuação
+diferenciada por tipo de comprovação em atividades de desafio/protocolo", mas investigação
+mostrou que o lado Desafio não tem *nenhum* mecanismo de conclusão de atividade para diferenciar
+— não é uma melhoria pontual, é uma feature inteira faltando.
+
+### Estado atual (confirmado em 2026-07-09)
+- Não existe em lugar nenhum do código um INSERT em `challenge_participants` — ou seja, não há
+  fluxo de "participar de um desafio" no app da paciente hoje.
+- `challenge_participants.score` (INTEGER DEFAULT 0) existe no schema mas nunca é escrito por
+  nenhum código — é campo morto.
+- `app/admin/desafios/builder/page.tsx` já monta uma estrutura de "missões por dia"
+  (`rewards_json.days[].missions[]`, cada mission com `id`, `type`, `title`, `description`,
+  `points`, `isBonus`), mas isso é **puramente decorativo** hoje: nenhuma tela da paciente lê
+  `rewards_json.days`, então as missões criadas pelo admin nunca aparecem para ninguém.
+- O ranking de desafio (`/api/patient/ranking`, aba Ranking do feed) já existe e funciona, mas
+  usa `habit_logs` (Hábitos, sistema à parte) como proxy de desempate — não lê nada de missão de
+  desafio de verdade.
+- Confirmar de novo antes de implementar (pode ter mudado): `grep -rn "challenge_participants" app/`
+  para achar se algum PR paralelo já criou um fluxo de join.
+
+### O que fazer
+**Migration**
+- Nova tabela `challenge_progress` (`id`, `challenge_id`, `user_id`, `tenant_id`, `mission_id`
+  TEXT — os ids de mission são strings geradas no client, não UUIDs de tabela —, `day_number`,
+  `proof_type` `'simple'|'camera'|'gallery'`, `photo_url`, `points_earned`, `completed_at`),
+  `UNIQUE(challenge_id, user_id, mission_id)` para não permitir completar a mesma missão 2x.
+- Estender o formato de mission em `rewards_json.days[].missions[]` para ter 3 valores de pontos
+  (`points_simple`/`points_gallery`/`points_camera` em vez de `points` único) — é JSONB, não
+  precisa migration de schema, só mudar o shape gravado pelo builder.
+
+**Backend**
+- `POST /api/patient/challenges/[id]/join` — cria a linha em `challenge_participants` (idempotente,
+  ignora se já existe).
+- `GET /api/patient/challenges/[id]/today` — retorna as missões do dia corrente do desafio (a
+  partir de `rewards_json.days[dayIndex]`) + quais já foram concluídas pelo usuário
+  (`challenge_progress`).
+- `POST /api/patient/challenges/[id]/complete` — recebe `mission_id`, `proof_type`, `photo_url`;
+  resolve pontos a partir da definição da mission (nunca do client, mesmo cuidado da Fase 4);
+  insere em `challenge_progress`; `awardPoints`; **e agora sim** faz
+  `UPDATE challenge_participants SET score = score + pontos WHERE ...` — primeira escrita real
+  desse campo.
+
+**Frontend**
+- Nova tela/aba no app da paciente (ex: dentro do card do desafio na aba Ranking do feed, ou uma
+  rota própria) com: botão "Participar" quando ainda não é participante, lista de missões do dia
+  com os mesmos 3 botões de prova da Fase 4 (toque simples / galeria / câmera).
+- Reaproveitar bucket `protocol-photos` ou criar `challenge-photos` seguindo a mesma policy —
+  avaliar ao implementar qual faz mais sentido (fotos de desafio e de protocolo são conceitualmente
+  diferentes, mas a estrutura de policy é idêntica).
+
+### Critérios de aceite
+- Paciente consegue entrar num desafio ativo e ver as missões do dia corrente.
+- Completar uma missão com prova dá mais pontos que sem prova, de forma auditável.
+- `challenge_participants.score` reflete a soma real de pontos ganhos, e o ranking existente passa
+  a refletir isso de verdade (hoje `score` sempre aparece 0 porque nunca é escrito).
+
+### Como testar
+1. Como paciente de teste, entrar num desafio ativo, completar 2-3 missões com provas diferentes.
+2. Conferir que `challenge_participants.score` da paciente aumentou de acordo.
+3. Conferir que a aba Ranking do feed reflete a pontuação real (hoje mostraria sempre 0).
+
+### Prompt para abrir em outro chat
+```
+Implemente a FASE 13 do docs/ROADMAP_EVOLUCAO_PLATAFORMA.md (Desafio: participação e conclusão de
+atividade) no repositório meu-club-nutri-ia. Leia o CLAUDE.md inteiro primeiro, e leia a seção
+"Status" da Fase 4 e esta Fase 13 por completo antes de começar — elas documentam por que isso
+virou uma fase própria e o que já foi confirmado sobre o estado atual (challenge_participants.score
+morto, rewards_json.days como estrutura de missões nunca consumida pela paciente). Antes de criar
+qualquer coisa, rode grep -rn "challenge_participants" app/ para confirmar que ninguém implementou
+um fluxo de join em paralelo. Esta é uma feature grande — se não couber numa sessão, entregue e
+avise claramente o que ficou de fora. Ao final rode npx tsc --noEmit, corrija erros, e avise que
+está pronto para revisão antes de commitar.
+```
 
 ---
 

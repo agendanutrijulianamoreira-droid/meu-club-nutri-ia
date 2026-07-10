@@ -35,7 +35,12 @@ export interface PatientEngineData {
         totalPoints: number
         currentStreak: number
     }
-    toggleCheckin: (itemId: string, currentStatus: boolean) => Promise<void>
+    toggleCheckin: (
+        itemId: string,
+        currentStatus: boolean,
+        proofType?: 'simple' | 'camera' | 'gallery',
+        photoUrl?: string | null
+    ) => Promise<void>
     refresh: () => Promise<void>
 }
 
@@ -181,19 +186,24 @@ export function usePatientEngine(): PatientEngineData {
         }
     }
 
-    async function toggleCheckin(itemId: string, currentStatus: boolean) {
+    async function toggleCheckin(
+        itemId: string,
+        currentStatus: boolean,
+        proofType: 'simple' | 'camera' | 'gallery' = 'simple',
+        photoUrl: string | null = null
+    ) {
         if (!activeProtocol) return
 
         const newStatus = !currentStatus
-        const item = currentDayItems.find((i: any) => i.id === itemId)
-        const itemPoints = item?.points ?? 10
 
         // Optimistic UI update
         setProgress(prev => ({ ...prev, [itemId]: newStatus }))
 
         try {
             // Escrita de XP centralizada no server (lib/services/gamification.ts) —
-            // o client não chama mais a RPC increment_user_points diretamente.
+            // o client não chama mais a RPC increment_user_points diretamente, e o
+            // valor de pontos por proof_type é resolvido lá a partir do protocol_item
+            // (nunca aceito do client, ver nota no route.ts).
             const res = await fetch('/api/patient/protocol-progress', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -201,7 +211,8 @@ export function usePatientEngine(): PatientEngineData {
                     assignment_id: activeProtocol.assignmentId,
                     protocol_item_id: itemId,
                     mark: newStatus,
-                    points: itemPoints,
+                    proof_type: proofType,
+                    photo_url: photoUrl,
                 }),
             })
             if (!res.ok) throw new Error(`Falha ao salvar checkin (${res.status})`)

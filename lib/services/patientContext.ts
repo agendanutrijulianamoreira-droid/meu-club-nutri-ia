@@ -9,11 +9,6 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export interface PatientContext {
   profile: {
     name: string
-    current_plan: string
-    current_streak: number
-    total_xp: number
-    current_level: number
-    primary_goal: string | null
   }
   /** Bloco de texto pronto para entrar num prompt de IA. */
   contextText: string
@@ -105,14 +100,7 @@ ${checkinTrend}
 `.trim()
 
   return {
-    profile: {
-      name: profile.name,
-      current_plan: profile.current_plan,
-      current_streak: profile.current_streak,
-      total_xp: profile.total_xp,
-      current_level: profile.current_level,
-      primary_goal: profile.primary_goal,
-    },
+    profile: { name: profile.name },
     contextText,
   }
 }

@@ -34,6 +34,8 @@ type ItemForm = {
     recipe: string
     image_url: string | null
     points: number
+    points_camera: number
+    points_gallery: number
     generatingPhoto?: boolean
 }
 
@@ -44,7 +46,7 @@ function emptyDay(n: number): DayForm {
 }
 
 function newItem(): ItemForm {
-    return { meal_type: 'almoco', title: '', description: '', ingredients: [], recipe: '', image_url: null, points: 10 }
+    return { meal_type: 'almoco', title: '', description: '', ingredients: [], recipe: '', image_url: null, points: 10, points_camera: 10, points_gallery: 10 }
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -149,6 +151,8 @@ function SeasonalProtocolBuilderContent() {
                         recipe: i.recipe || '',
                         image_url: i.image_url,
                         points: i.points || 10,
+                        points_camera: i.points_camera || i.points || 10,
+                        points_gallery: i.points_gallery || i.points || 10,
                     })),
                 }))
                 if (loadedDays.length > 0) setDays(loadedDays)
@@ -244,6 +248,8 @@ function SeasonalProtocolBuilderContent() {
                     recipe: it.recipe || '',
                     image_url: null,
                     points: it.points || 10,
+                    points_camera: it.points_camera || it.points || 10,
+                    points_gallery: it.points_gallery || it.points || 10,
                 })),
             }))
             setDays(generatedDays.length > 0 ? generatedDays : days)
@@ -303,6 +309,7 @@ function SeasonalProtocolBuilderContent() {
                     items: d.items.map(it => ({
                         meal_type: it.meal_type, title: it.title, description: it.description,
                         ingredients: it.ingredients, recipe: it.recipe, image_url: it.image_url, points: it.points,
+                        points_camera: it.points_camera, points_gallery: it.points_gallery,
                     })),
                 })),
                 upsell_title: upsellTitle, upsell_message: upsellMessage,
@@ -539,6 +546,28 @@ function SeasonalProtocolBuilderContent() {
                                                 className="flex-1 bg-transparent border-b border-white/10 text-white placeholder-slate-600 focus:outline-none py-2"
                                                 value={item.title} onChange={e => updateItem(idx, 'title', e.target.value)} />
                                             <button onClick={() => removeItem(idx)} className="p-2 text-slate-500 hover:text-rose-400"><Trash2 size={16} /></button>
+                                        </div>
+
+                                        <div className="flex items-center gap-4 pl-1">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Pontos por comprovação:</span>
+                                            <label className="flex items-center gap-1.5 text-xs text-slate-400">
+                                                Sem foto
+                                                <input type="number" min="0" value={item.points}
+                                                    onChange={e => updateItem(idx, 'points', parseInt(e.target.value) || 0)}
+                                                    className="w-14 bg-black/20 border border-white/10 rounded-lg px-2 py-1 text-white text-center focus:outline-none" />
+                                            </label>
+                                            <label className="flex items-center gap-1.5 text-xs text-sky-400">
+                                                Galeria
+                                                <input type="number" min="0" value={item.points_gallery}
+                                                    onChange={e => updateItem(idx, 'points_gallery', parseInt(e.target.value) || 0)}
+                                                    className="w-14 bg-black/20 border border-white/10 rounded-lg px-2 py-1 text-white text-center focus:outline-none" />
+                                            </label>
+                                            <label className="flex items-center gap-1.5 text-xs text-violet-400">
+                                                Câmera
+                                                <input type="number" min="0" value={item.points_camera}
+                                                    onChange={e => updateItem(idx, 'points_camera', parseInt(e.target.value) || 0)}
+                                                    className="w-14 bg-black/20 border border-white/10 rounded-lg px-2 py-1 text-white text-center focus:outline-none" />
+                                            </label>
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-3">

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { triggerOrchestrator } from '@/lib/services/anthropic'
 
 export async function GET(request: NextRequest) {
     const supabase = createSupabaseServerClient(cookies())
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
         .select('user_id, name, current_streak, current_level')
         .in('user_id', authorIds)
 
-    const authorMap: Record<string, any> = {}
+    const authorMap: Record<string, { user_id: string; name: string; current_streak: number; current_level: number }> = {}
     for (const a of authors || []) authorMap[a.user_id] = a
 
     // Fetch reactions per post
@@ -91,7 +92,7 @@ export async function GET(request: NextRequest) {
     const enriched = posts.map(p => {
         const author = authorMap[p.user_id]
         const name = author?.name || 'Rainha'
-        const nivelPost: number = (p as any).nivel_minimo ?? 1
+        const nivelPost: number = p.nivel_minimo ?? 1
         const bloqueado = nivelPost > ordemDoUsuario && p.user_id !== user.id
 
         if (bloqueado) {
@@ -166,5 +167,8 @@ export async function POST(request: NextRequest) {
         .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    triggerOrchestrator('post_created', profile.tenant_id, user.id, { post_id: post.id })
+
     return NextResponse.json({ post })
 }

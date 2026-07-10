@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
         const today = new Date().toISOString().split('T')[0]
         const { data: challenges } = await supabase
             .from('challenges')
-            .select('id, title, emoji, start_date, end_date, duration_days')
+            .select('id, title, emoji, start_date, end_date, duration_days, ranking_rewards')
             .eq('tenant_id', me.tenant_id)
             .eq('is_active', true)
             .lte('start_date', today)
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     if (challengeId) {
         const { data: challenge } = await supabase
             .from('challenges')
-            .select('id, title, emoji, start_date, end_date')
+            .select('id, title, emoji, start_date, end_date, ranking_rewards')
             .eq('id', challengeId)
             .eq('tenant_id', me.tenant_id)
             .single()

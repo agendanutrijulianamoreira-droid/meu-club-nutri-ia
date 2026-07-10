@@ -516,7 +516,7 @@ O sistema usa um **Orchestrator** central que recebe eventos e despacha para age
 - `stripe_webhook` → dispara Onboarding para novos assinantes
 - `manual` → execução manual de agente específico (payload: `{ agent: 'nome' }`)
 
-**Agentes embutidos (9 total):**
+**Agentes embutidos (10 total):**
 | Agente | Função | Trigger |
 |---|---|---|
 | Sabotage Detection | Calcula risk scores 0-100 em 4 dimensões, detecta autossabotagem | cron_daily, checkin |
@@ -528,6 +528,7 @@ O sistema usa um **Orchestrator** central que recebe eventos e despacha para age
 | Community | Gera 1 post inspiracional/dia adaptado ao dia da semana | cron_daily |
 | Community Moderation | Auto-modera posts novos, flagga conteúdo impróprio, fail-open | post_created |
 | Upsell Intelligence | Detecta momentos de upgrade (dias no clube, check-ins, engajamento) e propõe ofertas para aprovação em `agent_approval_queue` | cron_daily |
+| Engagement | Comenta automaticamente em posts novos da comunidade (persona configurável em Laboratório IA → Agente de Engajamento), anti-duplicidade por post | post_created |
 
 ### `generate-menu`
 **Deploy:** `supabase/functions/generate-menu/index.ts`
@@ -691,11 +692,11 @@ triggerOrchestrator('checkin_submitted', tenantId, userId)
 ## 16. PRÓXIMOS PASSOS CONHECIDOS
 
 - [x] Migração para Gemini 2.5 Flash free tier em todo código ativo (a edge function legada `generate-protocol`, que usa OpenAI, ainda estava deployada mas órfã — removida do repo em 2026-07; ver item abaixo)
-- [x] Orquestra de 9 agentes IA no orchestrator (incluindo Upsell Intelligence)
+- [x] Orquestra de 10 agentes IA no orchestrator (incluindo Upsell Intelligence e Engagement)
 - [x] Dashboard admin de agentes (4 tabs: Overview, Agentes, Risco, Timeline)
 - [x] Inbox da paciente com Realtime
 - [x] Stripe webhook → Onboarding Agent
-- [x] Triggers automáticos (checkin, meal, post)
+- [x] Triggers automáticos (checkin, meal) — o de `post` estava listado aqui mas nunca foi implementado de fato; corrigido em 2026-07 (ver nota abaixo)
 - [x] Migration `20260320_agent_infrastructure.sql` aplicada (agent_logs, inbox_messages, patient_risk_scores ativas em produção)
 - [x] Deploy `agent-orchestrator` (ACTIVE em produção)
 - [x] pg_cron configurado (`cron_daily` às 12:00 UTC — job ativo, ver `cron.job`)
@@ -704,6 +705,7 @@ triggerOrchestrator('checkin_submitted', tenantId, userId)
 - [x] Escritas de notificação migradas para `inbox_messages` em todos os pontos do código
 - [x] Tabela `notifications` legada dropada (migration `20260703000001_drop_orphan_tables.sql` — zero escritas confirmadas antes da remoção). Tabela `rewards` (legada, nunca usada pela loja real — ver `reward_items`/`reward_redemptions`) removida na mesma migration
 - [x] Bug corrigido no `agent-orchestrator`: branch `manual` tinha um `else if (agentName === 'upsell')` duplicado e inatingível (removido); tipos de evento `chat_message`/`photo_submitted` removidos da interface `OrchestratorEvent` por nunca terem sido disparados nem tratados em nenhum lugar do código
+- [x] Agente **Engagement** adicionado (10º agente): comenta automaticamente em posts novos da comunidade, persona configurável em Laboratório IA → aba "Agente de Engajamento" (nome, tom, restrições). Reaproveita a tabela de comentários já existente (`comentarios_comunidade`) com uma coluna nova `is_ai_generated` para diferenciação visual, em vez de criar uma tabela paralela. Ao implementar, descobertos e corrigidos dois bugs pré-existentes no mesmo arquivo: `runCommunityAgent` e `runCommunityModerationAgent` referenciavam uma tabela `posts`/coluna `content` que nunca existiram em produção (a tabela real sempre foi `community_posts`/coluna `body`) — o agente Community tinha 100% de falha nas suas execuções (42/42 no histórico de `agent_logs`) e o Community Moderation nunca tinha rodado nenhuma vez, porque `triggerOrchestrator('post_created', ...)` nunca era chamado em lugar nenhum do código apesar de documentado como ativo (ver correção da linha "Triggers automáticos" acima). Corrigido: `POST /api/patient/feed` agora dispara `post_created` de verdade; `community_posts.oculto` (não existe coluna de status intermediário) substitui o antigo `is_ai_moderated`/`ai_status` inexistente. Deliberadamente fora do escopo: comentário automático em "hits" de desafio/protocolo — não existe hoje nenhum evento de conclusão de atividade disparando o orchestrator (só check-in semanal e refeição), então isso ficou para uma fase futura que primeiro precisa criar esse gancho
 - [ ] Push notifications via FCM (integração parcial — device_tokens existe)
 - [ ] Exportação CSV de dados das pacientes — **já existe implementada e funcional em `/api/admin/export/patients`, mas sem botão em nenhuma view do admin**; falta só ligar a UI
 - [ ] Ampliar cobertura de testes automatizados (hoje: gamificação, ai-security, rate-limiter)
@@ -762,4 +764,4 @@ SELECT cron.schedule('daily-agents', '0 12 * * *',
 
 ---
 
-*Última atualização: Julho 2026 — VitaClub v1.0 com orquestra completa de 9 agentes IA*
+*Última atualização: Julho 2026 — VitaClub v1.0 com orquestra completa de 10 agentes IA*
