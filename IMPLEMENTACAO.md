@@ -149,7 +149,7 @@
 - `app/admin/views/PatientsView.tsx` ✏️ (nova aba Comunidade)
 
 **Pendente (infra):**
-- [ ] Rodar migration `20260629000002_comunidade_acesso.sql` no Supabase Dashboard (se ainda não rodou)
+- [x] Rodar migration `20260629000002_comunidade_acesso.sql` no Supabase Dashboard
 
 ---
 
