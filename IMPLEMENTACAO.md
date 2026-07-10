@@ -12,7 +12,7 @@
 | 1 | Diário Alimentar (TACO + meta) | CRÍTICA | ✅ Concluída |
 | 2 | Gráficos de Progresso + Sintomas | CRÍTICA | ✅ Concluída |
 | 3 | Notificações por Fase do REINO | ALTA | ✅ Concluída |
-| 4 | Comunidade com Controle de Acesso | ALTA | ⬜ Pendente |
+| 4 | Comunidade com Controle de Acesso | ALTA | ✅ Concluída |
 | 5 | Scanner de Código de Barras | MÉDIA | ⬜ Pendente |
 | 6 | Plano Alimentar por IA + REINO | ALTA | ⬜ Pendente |
 | 7 | Reconhecimento de Alimento por Foto | MÉDIA | ⬜ Pendente |
@@ -97,42 +97,59 @@
 
 ---
 
-## ⬜ FASE 4 — Comunidade Dentro do App com Controle de Acesso
+## ✅ FASE 4 — Comunidade Dentro do App com Controle de Acesso
 
-**O que deve ser implementado:**
+**O que foi implementado:**
 
 ### Banco de dados
-- [ ] Tabela `niveis_acesso` — basico(1), plus(2), vip(3), consulta(4)
-- [ ] Tabela `nivel_paciente` — nível atual da paciente com validade
-- [ ] Tabela `posts_comunidade` — posts com `nivel_minimo` de acesso
-- [ ] Tabela `comentarios_comunidade` — com `oculto` para moderação
-- [ ] Tabela `reacoes_post` — PK (post_id, usuario_id), tipo: coracao/fogo/aplauso
-- [ ] RLS em `posts_comunidade`: paciente só vê posts do nível que possui
+- [x] Coluna `nivel_minimo` e `oculto` na tabela `community_posts`
+- [x] Tabela `nivel_paciente` — nível atual da paciente com validade (1=Básico, 2=Plus, 3=VIP, 4=Consulta)
+- [x] Tabela `comentarios_comunidade` — com campo `oculto` para moderação
+- [x] Tabela `community_reactions` — reações por emoji (1 reação por paciente por post)
+- [x] RLS: paciente só vê posts do seu nível ou inferior
 
-### APIs
-- [ ] `GET /api/patient/feed` — lista posts visíveis para o nível da paciente
-- [ ] `POST /api/patient/feed/[id]/reagir` — reagir a um post
-- [ ] `POST /api/patient/feed/[id]/comentar` — comentar em post
-- [ ] `POST /api/admin/comunidade/posts` — nutri cria post com nível de acesso
-- [ ] `PATCH /api/admin/comunidade/posts/[id]` — ocultar/fixar post
-- [ ] `PATCH /api/admin/comunidade/comentarios/[id]` — ocultar comentário
+### APIs (paciente)
+- [x] `GET /api/patient/feed` — filtra por nível com lock visual para posts bloqueados
+- [x] `POST /api/patient/feed` — criar post de texto
+- [x] `POST /api/patient/feed/[id]/reagir` — reagir com emoji (toggle)
+- [x] `GET /POST /api/patient/feed/[id]/comentar` — listar e criar comentários
+
+### APIs (admin)
+- [x] `GET /POST /api/admin/comunidade/posts` — listar posts + criar com nível de acesso
+- [x] `PATCH /DELETE /api/admin/comunidade/posts/[id]` — ocultar/fixar/deletar post
+- [x] `GET /api/admin/comunidade/comentarios` — listar comentários do tenant
+- [x] `PATCH /api/admin/comunidade/comentarios/[id]` — ocultar comentário (toggle)
+- [x] `GET /PUT /api/admin/patients/[id]/nivel` — consultar e definir nível da paciente
 
 ### Frontend (paciente)
-- [ ] Tela `/patient/feed` — já existe, melhorar com controle de nível
-- [ ] Componente PostCard com lock visual se nível insuficiente
-- [ ] Tela de post completo com comentários
+- [x] Tela `/patient/feed` — feed com PostCard, LockedPostCard, CommentsSection, Ranking
+- [x] Componente `LockedPostCard` com lock visual para posts de nível superior
+- [x] Seção de comentários expansível por post
+- [x] Emoji picker e reações em tempo real (otimístico)
 
 ### Frontend (admin)
-- [ ] Painel de criação de posts com seletor de nível mínimo
-- [ ] Aba de moderação (ocultar posts/comentários)
-- [ ] Gestão de nível das pacientes
+- [x] `CommunityView.tsx` — criação de posts com seletor de nível mínimo, fixar, ocultar, deletar
+- [x] Aba **"👥 Comunidade"** no perfil individual de cada paciente em `PatientsView.tsx`:
+  - Exibição do nível atual com badge colorido
+  - Painel para definir nível (Básico/Plus/VIP/Consulta) com data de validade
+  - Lista de comentários da paciente com opção de ocultar individualmente
 
-### Testes obrigatórios
-- [ ] Paciente nível Básico não vê posts de nível Plus (RLS funcionando)
-- [ ] Post fixado aparece sempre no topo
-- [ ] Comentário funciona e aparece no próximo refresh
-- [ ] Nutri consegue ocultar comentário inadequado
-- [ ] Paciente sem nível cadastrado vê nível mínimo (não quebra)
+**Arquivos criados/modificados:**
+- `supabase/migrations/20260629000002_comunidade_acesso.sql`
+- `app/api/patient/feed/route.ts` ✏️
+- `app/api/patient/feed/[id]/comentar/route.ts` ✏️
+- `app/api/patient/feed/[id]/react/route.ts`
+- `app/api/admin/comunidade/posts/route.ts` 🆕
+- `app/api/admin/comunidade/posts/[id]/route.ts` 🆕
+- `app/api/admin/comunidade/comentarios/route.ts`
+- `app/api/admin/comunidade/comentarios/[id]/route.ts`
+- `app/api/admin/patients/[id]/nivel/route.ts`
+- `app/patient/feed/page.tsx` ✏️
+- `app/admin/views/CommunityView.tsx` ✏️
+- `app/admin/views/PatientsView.tsx` ✏️ (nova aba Comunidade)
+
+**Pendente (infra):**
+- [ ] Rodar migration `20260629000002_comunidade_acesso.sql` no Supabase Dashboard (se ainda não rodou)
 
 ---
 

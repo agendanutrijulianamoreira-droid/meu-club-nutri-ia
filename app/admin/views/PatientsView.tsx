@@ -8,7 +8,7 @@ import {
     Phone, Clock, Target, ChevronRight, Loader2, Sparkles,
     Heart, Plus, X, RefreshCw, Send, Shield, Users, FileText,
     ToggleLeft, ToggleRight, Gift, Coins, Download, KeyRound, Copy, Pencil, Upload, CalendarPlus,
-    Stethoscope, ClipboardList, Eye, Lock, Paperclip, Trash2
+    Stethoscope, ClipboardList, Eye, EyeOff, Lock, Paperclip, Trash2
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -704,6 +704,203 @@ function PatientRecordsPanel({ patientId }: { patientId: string }) {
     )
 }
 
+// ─── Comunidade Tab ────────────────────────────────────────────────────────────
+const NIVEL_META = [
+    { id: 1, label: 'Básico',   emoji: '🌱', color: 'bg-slate-600 border-slate-500', badge: 'bg-slate-500/20 border-slate-500/30 text-slate-400' },
+    { id: 2, label: 'Plus',     emoji: '💜', color: 'bg-violet-600 border-violet-500', badge: 'bg-violet-500/20 border-violet-500/30 text-violet-400' },
+    { id: 3, label: 'VIP',      emoji: '👑', color: 'bg-amber-600 border-amber-500',  badge: 'bg-amber-500/20 border-amber-500/30 text-amber-400' },
+    { id: 4, label: 'Consulta', emoji: '🩺', color: 'bg-emerald-600 border-emerald-500', badge: 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' },
+]
+
+function ComunidadeTab({ patientId, nivelAtual, nivelSelecionado, setNivelSelecionado, validadeNivel, setValidadeNivel, salvandoNivel, setSalvandoNivel, setNivelAtual, nivelToast, setNivelToast, comentariosDaPaciente, setComentariosDaPaciente, loadingComentarios, setLoadingComentarios }: {
+    patientId: string
+    nivelAtual: { nivel: number; validade: string | null } | null
+    nivelSelecionado: number
+    setNivelSelecionado: (n: number) => void
+    validadeNivel: string
+    setValidadeNivel: (v: string) => void
+    salvandoNivel: boolean
+    setSalvandoNivel: (b: boolean) => void
+    setNivelAtual: (n: { nivel: number; validade: string | null } | null) => void
+    nivelToast: { type: 'success' | 'error'; msg: string } | null
+    setNivelToast: (t: { type: 'success' | 'error'; msg: string } | null) => void
+    comentariosDaPaciente: any[]
+    setComentariosDaPaciente: (c: any[]) => void
+    loadingComentarios: boolean
+    setLoadingComentarios: (b: boolean) => void
+}) {
+    useEffect(() => {
+        // Buscar nível atual
+        fetch(`/api/admin/patients/${patientId}/nivel`)
+            .then(r => r.json())
+            .then(d => {
+                setNivelAtual({ nivel: d.nivel ?? 1, validade: d.validade ?? null })
+                setNivelSelecionado(d.nivel ?? 1)
+                if (d.validade) setValidadeNivel(d.validade)
+            })
+            .catch(() => setNivelAtual({ nivel: 1, validade: null }))
+
+        // Buscar comentários da paciente
+        setLoadingComentarios(true)
+        fetch(`/api/admin/comunidade/comentarios`)
+            .then(r => r.json())
+            .then(d => {
+                const meus = (d.comentarios || []).filter((c: any) => c.user_id === patientId)
+                setComentariosDaPaciente(meus)
+            })
+            .catch(() => {})
+            .finally(() => setLoadingComentarios(false))
+    }, [patientId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    const salvarNivel = async () => {
+        setSalvandoNivel(true)
+        try {
+            const res = await fetch(`/api/admin/patients/${patientId}/nivel`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nivel: nivelSelecionado, validade: validadeNivel || null }),
+            })
+            const d = await res.json()
+            if (res.ok) {
+                setNivelAtual({ nivel: nivelSelecionado, validade: validadeNivel || null })
+                setNivelToast({ type: 'success', msg: 'Nível atualizado com sucesso!' })
+            } else {
+                setNivelToast({ type: 'error', msg: d.error || 'Erro ao salvar nível' })
+            }
+        } catch {
+            setNivelToast({ type: 'error', msg: 'Erro de conexão' })
+        } finally {
+            setSalvandoNivel(false)
+            setTimeout(() => setNivelToast(null), 3500)
+        }
+    }
+
+    const toggleOcultarComentario = async (comentarioId: string, ocultoAtual: boolean) => {
+        await fetch(`/api/admin/comunidade/comentarios/${comentarioId}`, { method: 'PATCH' })
+        setComentariosDaPaciente(
+            comentariosDaPaciente.map((c: any) => c.id === comentarioId ? { ...c, oculto: !ocultoAtual } : c)
+        )
+    }
+
+    const nivelInfo = NIVEL_META.find(n => n.id === (nivelAtual?.nivel ?? 1)) || NIVEL_META[0]
+
+    return (
+        <div className="space-y-5">
+            {/* Toast */}
+            <AnimatePresence>
+                {nivelToast && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                        className={`flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold border
+                            ${nivelToast.type === 'success'
+                                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                                : 'bg-rose-500/15 border-rose-500/30 text-rose-400'}`}
+                    >
+                        {nivelToast.type === 'success' ? <CheckCircle size={16}/> : <AlertTriangle size={16}/>}
+                        {nivelToast.msg}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Nível atual */}
+            {nivelAtual && (
+                <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border ${nivelInfo.badge}`}>
+                    <span className="text-xl">{nivelInfo.emoji}</span>
+                    <div>
+                        <p className="text-xs font-black uppercase tracking-wider">{nivelInfo.label}</p>
+                        <p className="text-[10px] opacity-70 mt-0.5">
+                            {nivelAtual.validade
+                                ? `Válido até ${new Date(nivelAtual.validade + 'T12:00:00').toLocaleDateString('pt-BR')}`
+                                : 'Sem data de expiração'}
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Painel de definição de nível */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-4">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <Lock size={10}/> Nível de Acesso à Comunidade
+                </p>
+
+                <div className="grid grid-cols-2 gap-2">
+                    {NIVEL_META.map(n => (
+                        <button
+                            key={n.id}
+                            onClick={() => setNivelSelecionado(n.id)}
+                            className={`py-3 rounded-xl text-sm font-bold border transition-all flex items-center justify-center gap-2
+                                ${nivelSelecionado === n.id
+                                    ? `${n.color} text-white`
+                                    : 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300'}`}
+                        >
+                            <span>{n.emoji}</span> {n.label}
+                        </button>
+                    ))}
+                </div>
+
+                <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+                        Válido até (opcional)
+                    </label>
+                    <input
+                        type="date"
+                        value={validadeNivel}
+                        onChange={e => setValidadeNivel(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                    />
+                    <p className="text-[10px] text-slate-600 mt-1">Deixe em branco para acesso sem expiração</p>
+                </div>
+
+                <button
+                    onClick={salvarNivel}
+                    disabled={salvandoNivel}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-bold rounded-2xl transition-all"
+                >
+                    {salvandoNivel ? <Loader2 size={14} className="animate-spin"/> : <Shield size={14}/>}
+                    Salvar nível de acesso
+                </button>
+            </div>
+
+            {/* Comentários da paciente */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <MessageCircle size={10}/> Comentários no feed
+                </p>
+                {loadingComentarios ? (
+                    <div className="flex justify-center py-4"><Loader2 size={16} className="animate-spin text-slate-500"/></div>
+                ) : comentariosDaPaciente.length === 0 ? (
+                    <p className="text-xs text-slate-600 text-center py-2">Nenhum comentário desta paciente.</p>
+                ) : (
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {comentariosDaPaciente.map((c: any) => (
+                            <div key={c.id} className={`flex items-start gap-3 p-3 rounded-xl border transition-all
+                                ${c.oculto ? 'bg-white/[0.02] border-white/5 opacity-50' : 'bg-white/5 border-white/10'}`}>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs text-slate-300 leading-relaxed">{c.corpo}</p>
+                                    <p className="text-[10px] text-slate-600 mt-1">
+                                        {new Date(c.criado_em).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                        {c.oculto && <span className="ml-2 text-slate-700 font-bold">(oculto)</span>}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => toggleOcultarComentario(c.id, c.oculto)}
+                                    title={c.oculto ? 'Exibir comentário' : 'Ocultar comentário'}
+                                    className={`flex-shrink-0 p-1.5 rounded-lg transition-all
+                                        ${c.oculto
+                                            ? 'bg-white/5 text-slate-500 hover:text-emerald-400'
+                                            : 'bg-white/5 text-slate-600 hover:text-rose-400 hover:bg-rose-500/10'}`}
+                                >
+                                    {c.oculto ? <Eye size={12}/> : <EyeOff size={12}/>}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}
+
 // ─── Patient detail panel ─────────────────────────────────────────────────────
 const COMMON_RESTRICTIONS = ['Lactose', 'Glúten', 'Ovo', 'Frutos do mar', 'Amendoim', 'Soja', 'Nozes', 'Carne vermelha', 'Carne de porco', 'Vegetariana', 'Vegana']
 
@@ -716,7 +913,16 @@ function PatientDetail({ patient, onAction, onRefresh }: {
     const [showProtocolModal, setShowProtocolModal] = useState(false)
     const [showMessageModal, setShowMessageModal] = useState(false)
     const [showEditModal, setShowEditModal] = useState(false)
-    const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'health' | 'insights' | 'records'>('overview')
+    const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'health' | 'insights' | 'records' | 'comunidade'>('overview')
+
+    // Comunidade (nível de acesso)
+    const [nivelAtual, setNivelAtual] = useState<{ nivel: number; validade: string | null } | null>(null)
+    const [nivelSelecionado, setNivelSelecionado] = useState(1)
+    const [validadeNivel, setValidadeNivel] = useState('')
+    const [salvandoNivel, setSalvandoNivel] = useState(false)
+    const [nivelToast, setNivelToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+    const [comentariosDaPaciente, setComentariosDaPaciente] = useState<any[]>([])
+    const [loadingComentarios, setLoadingComentarios] = useState(false)
     const [showScheduleModal, setShowScheduleModal] = useState(false)
     const [restrictions, setRestrictions] = useState<string[]>([])
     const [customRestriction, setCustomRestriction] = useState('')
@@ -1041,10 +1247,10 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                 </div>
 
                 {/* Tabs */}
-                <div className="flex gap-1 bg-white/5 rounded-xl p-1 w-fit">
-                    {[['overview', 'Visão Geral'], ['history', 'Histórico'], ['health', 'Saúde'], ['insights', '✨ IA'], ['records', '🔒 Prontuário']].map(([id, label]) => (
+                <div className="flex gap-1 bg-white/5 rounded-xl p-1 w-fit overflow-x-auto">
+                    {[['overview', 'Visão Geral'], ['history', 'Histórico'], ['health', 'Saúde'], ['insights', '✨ IA'], ['records', '🔒 Prontuário'], ['comunidade', '👥 Comunidade']].map(([id, label]) => (
                         <button key={id} onClick={() => setActiveTab(id as any)}
-                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all
+                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap
                                 ${activeTab === id ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
                             {label}
                         </button>
@@ -1663,6 +1869,26 @@ function PatientDetail({ patient, onAction, onRefresh }: {
 
                 {activeTab === 'records' && (
                     <PatientRecordsPanel patientId={patient.id} />
+                )}
+
+                {activeTab === 'comunidade' && (
+                    <ComunidadeTab
+                        patientId={patient.id}
+                        nivelAtual={nivelAtual}
+                        nivelSelecionado={nivelSelecionado}
+                        setNivelSelecionado={setNivelSelecionado}
+                        validadeNivel={validadeNivel}
+                        setValidadeNivel={setValidadeNivel}
+                        salvandoNivel={salvandoNivel}
+                        setSalvandoNivel={setSalvandoNivel}
+                        setNivelAtual={setNivelAtual}
+                        nivelToast={nivelToast}
+                        setNivelToast={setNivelToast}
+                        comentariosDaPaciente={comentariosDaPaciente}
+                        setComentariosDaPaciente={setComentariosDaPaciente}
+                        loadingComentarios={loadingComentarios}
+                        setLoadingComentarios={setLoadingComentarios}
+                    />
                 )}
 
                 {activeTab === 'health' && (
