@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     restrictions     = [],
     preferences      = '',
     patient_id,
-    fase_reino,      // opcional — se não informado, busca da fase_paciente do BD
+    fase_reino,      // opcional — escolha manual da nutricionista (ver nota abaixo)
   } = body
 
   try {
@@ -72,7 +72,12 @@ export async function POST(request: NextRequest) {
     let patientWeight: number | undefined
     let patientGoal: string | undefined
     let allRestrictions = [...restrictions]
-    let faseReino: number | undefined = fase_reino ? Number(fase_reino) : undefined
+    // fase_reino aqui é a instrução clínica dietética (Anti-inflamatória, Hormonal etc.),
+    // hoje só suportada como escolha manual da nutricionista — o conceito de "fase" no
+    // banco (method_phases) passou a significar etapa da jornada, não tipo de intervenção
+    // clínica, então deixou de fazer sentido auto-derivar isso da fase atual da paciente.
+    // Este vínculo será refeito a nível de Protocolo na sub-fase 3 da arquitetura de Método.
+    const faseReino: number | undefined = fase_reino ? Number(fase_reino) : undefined
 
     if (patient_id) {
       const { data: patient } = await supabase
@@ -86,20 +91,6 @@ export async function POST(request: NextRequest) {
         patientWeight  = patient.current_weight
         patientGoal    = patient.primary_goal
         allRestrictions = [...new Set([...restrictions, ...(patient.dietary_restrictions || [])])]
-      }
-
-      // Buscar fase atual do REINO se não foi informada explicitamente
-      if (!faseReino) {
-        const { data: faseRow } = await supabase
-          .from('fase_paciente')
-          .select('fase_numero')
-          .eq('paciente_id', patient_id)
-          .eq('status', 'ativa')
-          .order('iniciada_em', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-
-        if (faseRow?.fase_numero) faseReino = faseRow.fase_numero
       }
     }
 

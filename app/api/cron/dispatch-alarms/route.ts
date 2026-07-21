@@ -107,7 +107,7 @@ async function handleDispatch(request: NextRequest) {
   })
 }
 
-// Dispara notificações personalizadas por Fase do Método REINO (Fase 3 do plano),
+// Dispara notificações personalizadas pela fase atual da jornada da paciente,
 // respeitando os horários preferidos e opt-ins de cada paciente.
 async function dispatchReinoNotifications(
   supabase: any,
@@ -126,11 +126,16 @@ async function dispatchReinoNotifications(
 
   const { data: fases } = await supabase
     .from('fase_paciente')
-    .select('paciente_id, fase')
+    .select('paciente_id, method_phases(name)')
     .in('paciente_id', pacienteIds)
     .is('fim', null)
+    .not('method_phase_id', 'is', null)
 
-  const faseByPaciente = new Map<string, number>((fases || []).map((f: any) => [f.paciente_id, f.fase]))
+  const faseByPaciente = new Map<string, string>(
+    (fases || [])
+      .filter((f: any) => f.method_phases?.name)
+      .map((f: any) => [f.paciente_id, f.method_phases.name])
+  )
 
   const { data: perfis } = await supabase
     .from('profiles')
@@ -142,7 +147,7 @@ async function dispatchReinoNotifications(
   const disparos: { pacienteId: string; tipo: TipoNotificacao }[] = []
 
   for (const pref of preferencias as any[]) {
-    if (!faseByPaciente.has(pref.paciente_id)) continue // sem fase REINO atribuída
+    if (!faseByPaciente.has(pref.paciente_id)) continue // sem fase atribuída
 
     if (pref.notif_refeicao && [pref.horario_cafe, pref.horario_almoco, pref.horario_lanche, pref.horario_jantar]
       .some((h: string | null) => h?.slice(0, 5) === currentTime)) {
@@ -165,7 +170,7 @@ async function dispatchReinoNotifications(
   for (const { pacienteId, tipo } of disparos) {
     const resultado = await enviarNotificacaoFase({
       pacienteId,
-      fase: faseByPaciente.get(pacienteId)!,
+      nomeFase: faseByPaciente.get(pacienteId)!,
       tipo,
       nomePaciente: nomeByPaciente.get(pacienteId)?.split(' ')[0],
     })

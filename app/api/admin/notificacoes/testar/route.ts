@@ -31,15 +31,16 @@ export async function POST(request: NextRequest) {
   // Busca fase vigente
   const { data: faseRow } = await supabase
     .from('fase_paciente')
-    .select('fase')
+    .select('method_phases(name)')
     .eq('paciente_id', paciente_id)
     .is('fim', null)
     .order('inicio', { ascending: false })
     .limit(1)
     .maybeSingle()
 
-  if (!faseRow) {
-    return NextResponse.json({ error: 'Paciente sem fase do REINO atribuída' }, { status: 422 })
+  const nomeFase = (faseRow as any)?.method_phases?.name
+  if (!nomeFase) {
+    return NextResponse.json({ error: 'Paciente sem fase atribuída' }, { status: 422 })
   }
 
   // Confirma que a paciente tem dispositivo registrado para push
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
 
   const resultado = await enviarNotificacaoFase({
     pacienteId: paciente_id,
-    fase: faseRow.fase,
+    nomeFase,
     tipo,
     nomePaciente: perfil?.name?.split(' ')[0],
   })

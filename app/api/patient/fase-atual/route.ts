@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data: fase, error } = await supabase
     .from('fase_paciente')
-    .select('fase, nome_fase, inicio, observacoes')
+    .select('inicio, observacoes, method_phases(id, name, description, order_index, method_id)')
     .eq('paciente_id', user.id)
     .is('fim', null)
     .order('inicio', { ascending: false })

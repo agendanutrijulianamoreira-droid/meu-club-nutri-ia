@@ -33,6 +33,7 @@ import {
     Building2,
     Package,
     ChefHat,
+    Map,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -70,6 +71,7 @@ import { VipSettingsView } from "./views/VipSettingsView"
 import { QuestionnairesView } from "./views/QuestionnairesView"
 import { CommunityView } from "./views/CommunityView"
 import { BillingView } from "./views/BillingView"
+import { MethodsView } from "./views/MethodsView"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -81,7 +83,7 @@ type ViewType =
     | 'appointments' | 'professionals' | 'product-gateway'
     | 'strategic-planner' | 'analytics' | 'patient-journey'
     | 'products' | 'approvals' | 'recipes' | 'manager-learning' | 'habits' | 'vip-settings'
-    | 'questionnaires' | 'community' | 'billing'
+    | 'questionnaires' | 'community' | 'billing' | 'methods'
 
 interface NavItem {
     id: ViewType
@@ -107,6 +109,14 @@ const navGroups: NavGroup[] = [
             { id: 'dashboard', label: 'Painel' },
             { id: 'analytics', label: 'Analytics' },
             { id: 'communication', label: 'Comunicação' },
+        ],
+    },
+    {
+        id: 'method',
+        groupIcon: Map,
+        label: 'Método',
+        items: [
+            { id: 'methods', label: 'Métodos e Fases' },
         ],
     },
     {
@@ -232,6 +242,7 @@ export default function AdminDashboard({
         const props = { setView: setActiveView, userName, tenantName, tenantId }
         switch (activeView) {
             case 'dashboard':          return <DashboardView {...props} />
+            case 'methods':            return <MethodsView setView={setActiveView} tenantId={tenantId} />
             case 'communication':      return <CommunicationCenterView setView={setActiveView} />
             case 'protocols':          return <ProtocolsView setView={setActiveView} tenantId={tenantId} />
             case 'patients':           return <PatientsView setView={setActiveView} />
