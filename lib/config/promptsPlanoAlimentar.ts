@@ -1,6 +1,11 @@
 /**
- * Instruções clínicas por fase do Método REINO
- * Injetadas no system prompt do gerador de plano alimentar.
+ * Instruções clínicas por perfil de intervenção dietética (Anti-inflamatória,
+ * Intestinal, Hormonal, Metabólica, Composição Corporal, Manutenção).
+ *
+ * Nota de arquitetura: "fase" aqui é um perfil clínico de escolha manual da
+ * nutricionista na geração de cardápio — NÃO é a fase da jornada da paciente
+ * (method_phases). Esse conteúdo será re-homed como Protocolo na sub-fase 3
+ * da arquitetura de Método Clínico (ver docs/plano em andamento).
  */
 
 export interface FaseReinoConfig {
@@ -114,7 +119,7 @@ export const FASES_REINO: Record<number, FaseReinoConfig> = {
 export function getPromptFaseReino(fase: number): string {
     const config = FASES_REINO[fase]
     if (!config) return ''
-    return `\n═══ FASE CLÍNICA DO MÉTODO REINO ═══\nFase ${config.numero} — ${config.nome}\nObjetivo: ${config.objetivo}\n\n${config.instrucoes}\n`
+    return `\n═══ PERFIL CLÍNICO DIETÉTICO ═══\nPerfil ${config.numero} — ${config.nome}\nObjetivo: ${config.objetivo}\n\n${config.instrucoes}\n`
 }
 
 export function getNomeFaseReino(fase: number): string {

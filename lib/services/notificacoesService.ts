@@ -1,21 +1,20 @@
-import { sortearMensagem, NOMES_FASE, TipoNotificacao } from '@/lib/config/mensagensNotificacao'
+import { sortearMensagem, TipoNotificacao } from '@/lib/config/mensagensNotificacao'
 import { sendPushToUser } from '@/lib/onesignal'
 
-// Envia notificação de fase REINO para uma paciente via OneSignal
-// (mesmo canal de push usado pelo restante do app — ver lib/onesignal.ts)
+// Envia notificação contextualizada à fase atual da paciente (method_phases)
+// via OneSignal (mesmo canal de push usado pelo restante do app — ver lib/onesignal.ts)
 export async function enviarNotificacaoFase(params: {
   pacienteId: string
-  fase: number
+  nomeFase: string
   tipo: TipoNotificacao
   nomePaciente?: string
 }): Promise<{ ok: boolean; erro?: string }> {
-  const { pacienteId, fase, tipo, nomePaciente } = params
+  const { pacienteId, nomeFase, tipo, nomePaciente } = params
 
-  const nomeFase = NOMES_FASE[fase] ?? `Fase ${fase}`
-  const corpo = sortearMensagem(fase, tipo)
+  const corpo = sortearMensagem(nomeFase, tipo)
 
   if (!corpo) {
-    return { ok: false, erro: `Sem mensagem para fase ${fase}, tipo ${tipo}` }
+    return { ok: false, erro: `Sem mensagem para fase ${nomeFase}, tipo ${tipo}` }
   }
 
   const titulos: Record<TipoNotificacao, string> = {
@@ -30,7 +29,7 @@ export async function enviarNotificacaoFase(params: {
     title: titulos[tipo],
     message: corpo,
     url: tipo === 'checkin' ? '/patient/progresso/checkin' : '/patient/diario',
-    data: { tipo, fase: String(fase) },
+    data: { tipo, fase: nomeFase },
   })
 
   if (!result.success) {

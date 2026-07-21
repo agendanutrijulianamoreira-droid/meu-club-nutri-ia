@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase-server"
 import { cookies } from "next/headers"
-import { NOMES_FASE } from "@/lib/config/mensagensNotificacao"
 
-// GET /api/admin/patients/[id]/fase → fase vigente da paciente
+// GET /api/admin/patients/[id]/fase → fase vigente da paciente (method_phases)
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
@@ -18,7 +17,7 @@ export async function GET(
 
   const { data: fase, error } = await supabase
     .from('fase_paciente')
-    .select('*')
+    .select('*, method_phases(id, name, description, sort_order, method_id)')
     .eq('paciente_id', params.id)
     .is('fim', null)
     .order('inicio', { ascending: false })
@@ -33,7 +32,7 @@ export async function GET(
   return NextResponse.json({ fase })
 }
 
-// POST /api/admin/patients/[id]/fase → atribuir nova fase
+// POST /api/admin/patients/[id]/fase → atribuir nova fase (method_phases)
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -46,16 +45,29 @@ export async function POST(
     .from('tenants').select('id').eq('owner_id', user.id).single()
   if (!tenant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  let body: { fase: number; observacoes?: string }
+  let body: { method_phase_id: string; observacoes?: string }
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
   }
 
-  const { fase, observacoes } = body
-  if (!fase || fase < 1 || fase > 6) {
-    return NextResponse.json({ error: 'Fase deve ser entre 1 e 6' }, { status: 400 })
+  const { method_phase_id, observacoes } = body
+  if (!method_phase_id) {
+    return NextResponse.json({ error: 'method_phase_id é obrigatório' }, { status: 400 })
+  }
+
+  // Nunca confiar no tenant_id vindo do body — resolve pelo owner_id e valida
+  // que a fase pertence ao tenant antes de atribuí-la.
+  const { data: phase } = await supabase
+    .from('method_phases')
+    .select('id')
+    .eq('id', method_phase_id)
+    .eq('tenant_id', tenant.id)
+    .single()
+
+  if (!phase) {
+    return NextResponse.json({ error: 'Fase não encontrada neste clube' }, { status: 404 })
   }
 
   // Encerra fase vigente anterior
@@ -70,13 +82,12 @@ export async function POST(
     .from('fase_paciente')
     .insert({
       paciente_id: params.id,
-      fase,
-      nome_fase: NOMES_FASE[fase],
+      method_phase_id,
       inicio: new Date().toISOString().split('T')[0],
       definida_por: user.id,
       observacoes: observacoes ?? null,
     })
-    .select()
+    .select('*, method_phases(id, name, description, sort_order, method_id)')
     .single()
 
   if (error) {

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { cookies } from 'next/headers'
 import { callClaude } from '@/lib/services/anthropic'
-import { NOMES_FASE } from '@/lib/config/mensagensNotificacao'
 
 function media(arr: (number | null | undefined)[]): number | null {
   const validos = arr.filter((v): v is number => v !== null && v !== undefined)
@@ -112,7 +111,7 @@ export async function POST(request: NextRequest) {
       .eq('paciente_id', patientId).gte('data', periodoInicioStr),
     supabase.from('metas_paciente').select('*')
       .eq('paciente_id', patientId).is('valida_ate', null).maybeSingle(),
-    supabase.from('fase_paciente').select('fase, nome_fase')
+    supabase.from('fase_paciente').select('method_phases(name)')
       .eq('paciente_id', patientId).is('fim', null).order('inicio', { ascending: false }).limit(1).maybeSingle(),
   ])
 
@@ -134,7 +133,7 @@ export async function POST(request: NextRequest) {
       nome: perfil.name,
       primary_goal: perfil.primary_goal,
       dietary_restrictions: perfil.dietary_restrictions,
-      fase_atual: faseRes.data ? `${faseRes.data.fase} - ${faseRes.data.nome_fase}` : null,
+      fase_atual: (faseRes.data as any)?.method_phases?.name ?? null,
     },
     periodo: { inicio: periodoInicioStr, fim: periodoFimStr, dias: periodoDias },
     adesao: {
@@ -193,12 +192,12 @@ export async function POST(request: NextRequest) {
 }
 
 async function gerarAnaliseClinica(dados: any): Promise<string> {
-  const prompt = `Você é um copiloto clínico para a nutricionista, especializada em saúde da mulher (SOP, endometriose, saúde intestinal, equilíbrio hormonal — Método REINO). Analise os dados desta paciente e gere uma síntese clínica objetiva para uso pré-consulta.
+  const prompt = `Você é um copiloto clínico para a nutricionista, especializada em saúde da mulher (SOP, endometriose, saúde intestinal, equilíbrio hormonal). Analise os dados desta paciente e gere uma síntese clínica objetiva para uso pré-consulta.
 
 PACIENTE: ${dados.paciente.nome}
 OBJETIVO PRINCIPAL: ${dados.paciente.primary_goal || 'Não informado'}
 RESTRIÇÕES ALIMENTARES: ${(dados.paciente.dietary_restrictions || []).join(', ') || 'Nenhuma'}
-FASE ATUAL DO REINO: ${dados.paciente.fase_atual || 'Não atribuída'}
+FASE ATUAL DA JORNADA: ${dados.paciente.fase_atual || 'Não atribuída'}
 PERÍODO ANALISADO: ${dados.periodo.inicio} a ${dados.periodo.fim}
 
 ADESÃO ALIMENTAR:

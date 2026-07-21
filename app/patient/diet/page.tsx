@@ -304,7 +304,7 @@ export default function PatientDietPage() {
                                             )}
                                             {mealPlan.fase_aplicada && (
                                                 <span className="shrink-0 flex items-center gap-1 text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 px-2 py-1 rounded-full font-bold">
-                                                    <Crown size={10} />F{mealPlan.fase_aplicada} {getNomeFaseReino(mealPlan.fase_aplicada)}
+                                                    <Crown size={10} />Perfil: {getNomeFaseReino(mealPlan.fase_aplicada)}
                                                 </span>
                                             )}
                                             {mealPlan.is_ai_generated && (
