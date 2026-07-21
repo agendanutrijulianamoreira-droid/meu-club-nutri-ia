@@ -51,7 +51,7 @@ interface RecipeSource {
 }
 
 const CATEGORY_BY_MEAL_TYPE: Record<string, string> = {
-  shot: 'shot',
+  shot: 'bebida',
   cafe_manha: 'café da manhã',
   colacao: 'lanche',
   lanche_manha: 'lanche',
@@ -63,9 +63,31 @@ const CATEGORY_BY_MEAL_TYPE: Record<string, string> = {
   meal: 'refeição',
 }
 
+async function resolveRecipeCategoryId(admin: ReturnType<typeof getSupabaseAdmin>, tenantId: string, categoryName: string): Promise<string | null> {
+  const { data: existing } = await admin
+    .from('clinical_categories')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('entity_type', 'recipe')
+    .eq('name', categoryName)
+    .maybeSingle()
+
+  if (existing) return existing.id
+
+  const { data: created } = await admin
+    .from('clinical_categories')
+    .insert({ tenant_id: tenantId, entity_type: 'recipe', name: categoryName })
+    .select('id')
+    .single()
+
+  return created?.id ?? null
+}
+
 /**
  * Salva refeições do cardápio qualitativo que têm modo de preparo (receita)
- * no banco de receitas do tenant (tabela 'recipes'), evitando duplicar por título.
+ * no banco de receitas do tenant (tabela 'recipes'), evitando duplicar por
+ * título. Composição gravada em recipe_components (ADR-0003 — referência
+ * a foods por food_id, nunca ingredientes copiados em JSON).
  */
 export async function saveRecipeFromItem(source: RecipeSource) {
   if (!source.title?.trim() || !source.instructions?.trim()) return
@@ -81,14 +103,42 @@ export async function saveRecipeFromItem(source: RecipeSource) {
 
   if (existing) return
 
-  await admin.from('recipes').insert({
+  const categoryName = CATEGORY_BY_MEAL_TYPE[source.mealType || ''] || 'refeição'
+  const categoryId = await resolveRecipeCategoryId(admin, source.tenantId, categoryName)
+
+  const { data: recipe, error } = await admin.from('recipes').insert({
     tenant_id: source.tenantId,
     title: source.title.trim(),
-    category: CATEGORY_BY_MEAL_TYPE[source.mealType || ''] || 'refeição',
-    ingredients: source.ingredients.map(item => ({ item })),
+    category_id: categoryId,
     instructions: source.instructions,
     image_url: source.imageUrl || null,
     is_ai_generated: true,
     access_tier: 'basic',
-  })
+  }).select('id').single()
+
+  if (error || !recipe) return
+
+  const names = Array.from(new Set(source.ingredients.map(i => i.trim()).filter(Boolean)))
+  if (names.length === 0) return
+
+  await upsertFoodsFromIngredients(names)
+
+  const searches = names.map(normalizeSearch)
+  const { data: foods } = await admin.from('foods').select('id, name_search').in('name_search', searches)
+  const foodIdBySearch = new Map((foods || []).map((f: any) => [f.name_search, f.id]))
+
+  const components = names
+    .map((name, i) => ({ name, food_id: foodIdBySearch.get(searches[i]) }))
+    .filter((c): c is { name: string; food_id: string } => Boolean(c.food_id))
+    .map((c, sort_order) => ({
+      recipe_id: recipe.id,
+      tenant_id: source.tenantId,
+      food_id: c.food_id,
+      serving_label: c.name,
+      sort_order,
+    }))
+
+  if (components.length > 0) {
+    await admin.from('recipe_components').insert(components)
+  }
 }

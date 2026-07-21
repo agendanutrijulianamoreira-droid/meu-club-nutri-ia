@@ -45,7 +45,7 @@ import { PatientsView } from "./views/PatientsView"
 import { RewardsView } from "./views/RewardsView"
 import { CheckinsView } from "./views/CheckinsView"
 import { SalesPageGenerator } from "./views/SalesPageGenerator"
-import { LibraryView } from "./views/LibraryView"
+import { ClinicalLibraryView } from "./views/ClinicalLibraryView"
 import { AISettingsView } from "./views/AISettingsView"
 import { SettingsView } from "./views/SettingsView"
 import { ClubPlanView } from "./views/ClubPlanView"
@@ -64,7 +64,6 @@ import { AnalyticsView } from "./views/AnalyticsView"
 import { JourneyView } from "./views/JourneyView"
 import { ProductsView } from "./views/ProductsView"
 import { ApprovalsView } from "./views/ApprovalsView"
-import { RecipesView } from "./views/RecipesView"
 import { ManagerLearningView } from "./views/ManagerLearningView"
 import { HabitsView } from "./views/HabitsView"
 import { VipSettingsView } from "./views/VipSettingsView"
@@ -78,11 +77,11 @@ import { MethodsView } from "./views/MethodsView"
 type ViewType =
     | 'dashboard' | 'communication' | 'protocols' | 'patients'
     | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits'
-    | 'library' | 'settings' | 'club-plan' | 'agents-dashboard'
+    | 'clinical-library' | 'settings' | 'club-plan' | 'agents-dashboard'
     | 'meal-plans'
     | 'appointments' | 'professionals' | 'product-gateway'
     | 'strategic-planner' | 'analytics' | 'patient-journey'
-    | 'products' | 'approvals' | 'recipes' | 'manager-learning' | 'habits' | 'vip-settings'
+    | 'products' | 'approvals' | 'manager-learning' | 'habits' | 'vip-settings'
     | 'questionnaires' | 'community' | 'billing' | 'methods'
 
 interface NavItem {
@@ -117,6 +116,7 @@ const navGroups: NavGroup[] = [
         label: 'Método',
         items: [
             { id: 'methods', label: 'Métodos e Fases' },
+            { id: 'clinical-library', label: 'Biblioteca Clínica' },
         ],
     },
     {
@@ -138,8 +138,6 @@ const navGroups: NavGroup[] = [
             { id: 'protocols', label: 'Protocolos' },
             { id: 'habits', label: 'Hábitos' },
             { id: 'meal-plans', label: 'Cardápios' },
-            { id: 'recipes', label: 'Receitas' },
-            { id: 'library', label: 'Biblioteca' },
             { id: 'rewards', label: 'Recompensas' },
             { id: 'questionnaires', label: 'Questionários' },
         ],
@@ -248,7 +246,7 @@ export default function AdminDashboard({
             case 'patients':           return <PatientsView setView={setActiveView} />
             case 'rewards':            return <RewardsView setView={setActiveView} />
             case 'checkins':           return <CheckinsView setView={setActiveView} />
-            case 'library':            return <LibraryView setView={setActiveView} />
+            case 'clinical-library':   return <ClinicalLibraryView setView={setActiveView} tenantId={tenantId} />
             case 'sales-page':         return <SalesPageGenerator setView={setActiveView} tenantId={tenantId} />
             case 'ai-brain':           return <AISettingsView setView={setActiveView} tenantId={tenantId} />
             case 'ai-credits':         return <AICreditsView setView={setActiveView} tenantId={tenantId} />
@@ -262,7 +260,6 @@ export default function AdminDashboard({
             case 'analytics':          return <AnalyticsView setView={setActiveView} />
             case 'products':           return <ProductsView setView={setActiveView} tenantId={tenantId} />
             case 'approvals':          return <ApprovalsView setView={setActiveView} tenantId={tenantId} />
-            case 'recipes':            return <RecipesView setView={setActiveView} tenantId={tenantId} />
             case 'habits':             return <HabitsView setView={setActiveView} tenantId={tenantId} />
             case 'vip-settings':       return <VipSettingsView setView={setActiveView} tenantId={tenantId} />
             case 'billing':            return <BillingView setView={setActiveView} tenantId={tenantId} />

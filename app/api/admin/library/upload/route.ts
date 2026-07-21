@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { cookies } from 'next/headers'
 import { PDFParse } from 'pdf-parse'
+import { insertComponentsFromIngredients, resolveCategoryId } from '@/lib/services/clinicalAssets'
 
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`
 
 interface ClassifiedItem {
-  type: 'recipe' | 'protocol' | 'challenge' | 'goal' | 'meal_plan' | 'notification_template'
+  type: 'recipe' | 'protocol' | 'challenge' | 'goal' | 'meal' | 'shot' | 'tea' | 'supplement' | 'material' | 'meal_plan' | 'notification_template'
   title: string
   data: Record<string, any>
 }
@@ -106,18 +107,44 @@ ${extractedText.substring(0, 8000)}
 Retorne um JSON estruturado exatamente neste formato (sem texto extra):
 
 {
-  "detected_type": "recipe|protocol|challenge|goal|meal_plan|notification_template|mixed|educational",
+  "detected_type": "recipe|protocol|challenge|goal|meal|shot|tea|supplement|material|meal_plan|notification_template|mixed|educational",
   "ai_summary": "resumo de 2-3 frases do conteúdo",
   "ai_tags": ["tag1", "tag2", "tag3"],
   "items": [
     {
-      "type": "recipe|protocol|challenge|goal|meal_plan|notification_template",
+      "type": "recipe|protocol|challenge|goal|meal|shot|tea|supplement|material|meal_plan|notification_template",
       "title": "título do item",
       "data": {
         // Para recipe:
-        // description, emoji, category (uma de: café da manhã|lanche|almoço|jantar|sobremesa|shot|bebida|refeição),
-        // dietary_tags (array), prep_time_min (número), servings (número),
-        // ingredients (array de {name, quantity}), instructions (texto), calories (número)
+        // description, category (nome livre, ex: café da manhã, lanche, almoço, jantar, sobremesa, bebida, refeição),
+        // dietary_tags (array), tags (array), prep_time_min (número), servings (número),
+        // ingredients (array de {name, quantity, unit}), instructions (texto), calories (número)
+
+        // Para meal (Refeição — composição reaproveitável de alimentos, NÃO é meal_plan):
+        // description, category (ex: café da manhã, lanche, almoço, jantar, ceia), notes,
+        // ingredients (array de {name, quantity, unit}), tags (array)
+
+        // Para shot:
+        // description, category (ex: anti-inflamatório, digestivo, energético, detox, imunidade),
+        // instructions, volume_ml (número), best_time, indications, contraindications,
+        // ingredients (array de {name, quantity, unit}), tags (array)
+
+        // Para tea:
+        // description, category (ex: digestivo, calmante, termogênico, diurético, imunidade),
+        // instructions, best_time, indications, contraindications,
+        // ingredients (array de {name, quantity, unit}), tags (array)
+
+        // Para supplement:
+        // description, category (ex: vitamina, mineral, proteína, ômega, probiótico, outro),
+        // default_dosage (número), dosage_unit, frequency, best_time, indications, contraindications, tags (array)
+
+        // Para material:
+        // description, category (ex: pdf, vídeo, infográfico, guia, artigo),
+        // estimated_minutes (número), author, source, tags (array)
+
+        // Para goal (Meta reutilizável — NÃO é um protocolo de hábito):
+        // description, goal_type (weight|habit|nutrition|exercise|wellness|custom),
+        // metric, target_value (número), unit, tags (array)
 
         // Para protocol:
         // description, emoji, category (uma de: detox|lowcarb|maintenance|challenge|seasonal|custom),
@@ -125,9 +152,6 @@ Retorne um JSON estruturado exatamente neste formato (sem texto extra):
 
         // Para challenge:
         // description, emoji, duration_days (número), prize_pool_coins (número), rewards_json (array)
-
-        // Para goal (protocolo de hábito, 7 dias):
-        // description, emoji, content (array de {day, title, tasks: [string]})
 
         // Para meal_plan:
         // description, goal, duration_days, target_kcal, tags (array),
@@ -146,8 +170,7 @@ REGRAS:
 - Extraia TODOS os itens distintos do documento
 - Se o documento tiver múltiplos tipos, coloque todos em "items"
 - Seja fiel ao conteúdo — não invente informações ausentes
-- category de recipe DEVE ser uma das opções listadas
-- category de protocol DEVE ser uma das opções listadas
+- "goal" é uma Meta reutilizável (ex: "Beber 2L de água"), não um protocolo de 7 dias — se o documento descrever um protocolo/desafio de dias com tarefas, classifique como "protocol" ou "challenge", não como "goal"
 - meal_type DEVE ser um de: cafe_manha|lanche_manha|almoco|lanche_tarde|jantar|ceia|shot`
 
     const geminiResp = await fetch(GEMINI_URL, {
@@ -177,22 +200,131 @@ REGRAS:
       try {
         switch (item.type) {
           case 'recipe': {
+            const categoryId = await resolveCategoryId(supabase, tenant.id, 'recipe', item.data.category)
             const { data: r } = await supabase.from('recipes').insert({
               tenant_id: tenant.id,
               title: item.title,
               description: item.data.description || null,
               emoji: item.data.emoji || '🍽️',
-              category: item.data.category || 'refeição',
+              category_id: categoryId,
               dietary_tags: item.data.dietary_tags || [],
+              tags: item.data.tags || [],
               prep_time_min: item.data.prep_time_min || null,
               servings: item.data.servings || 1,
-              ingredients: item.data.ingredients || [],
               instructions: item.data.instructions || '',
               calories: item.data.calories || null,
               is_ai_generated: true,
               access_tier: 'basic',
             }).select('id').single()
-            if (r) itemsCreated.push({ table: 'recipes', id: r.id, title: item.title })
+            if (r) {
+              itemsCreated.push({ table: 'recipes', id: r.id, title: item.title })
+              if (Array.isArray(item.data.ingredients) && item.data.ingredients.length > 0) {
+                await insertComponentsFromIngredients(supabase, 'recipe_components', 'recipe_id', r.id, tenant.id, item.data.ingredients)
+              }
+            }
+            break
+          }
+
+          case 'meal': {
+            const categoryId = await resolveCategoryId(supabase, tenant.id, 'meal', item.data.category)
+            const { data: m } = await supabase.from('meals').insert({
+              tenant_id: tenant.id,
+              title: item.title,
+              description: item.data.description || null,
+              category_id: categoryId,
+              notes: item.data.notes || null,
+              tags: item.data.tags || [],
+              is_ai_generated: true,
+            }).select('id').single()
+            if (m) {
+              itemsCreated.push({ table: 'meals', id: m.id, title: item.title })
+              if (Array.isArray(item.data.ingredients) && item.data.ingredients.length > 0) {
+                await insertComponentsFromIngredients(supabase, 'meal_components', 'meal_id', m.id, tenant.id, item.data.ingredients)
+              }
+            }
+            break
+          }
+
+          case 'shot': {
+            const categoryId = await resolveCategoryId(supabase, tenant.id, 'shot', item.data.category)
+            const { data: s } = await supabase.from('shots').insert({
+              tenant_id: tenant.id,
+              title: item.title,
+              description: item.data.description || null,
+              category_id: categoryId,
+              instructions: item.data.instructions || null,
+              volume_ml: item.data.volume_ml || null,
+              best_time: item.data.best_time || null,
+              indications: item.data.indications || null,
+              contraindications: item.data.contraindications || null,
+              tags: item.data.tags || [],
+              is_ai_generated: true,
+            }).select('id').single()
+            if (s) {
+              itemsCreated.push({ table: 'shots', id: s.id, title: item.title })
+              if (Array.isArray(item.data.ingredients) && item.data.ingredients.length > 0) {
+                await insertComponentsFromIngredients(supabase, 'shot_components', 'shot_id', s.id, tenant.id, item.data.ingredients)
+              }
+            }
+            break
+          }
+
+          case 'tea': {
+            const categoryId = await resolveCategoryId(supabase, tenant.id, 'tea', item.data.category)
+            const { data: t } = await supabase.from('teas').insert({
+              tenant_id: tenant.id,
+              title: item.title,
+              description: item.data.description || null,
+              category_id: categoryId,
+              instructions: item.data.instructions || null,
+              best_time: item.data.best_time || null,
+              indications: item.data.indications || null,
+              contraindications: item.data.contraindications || null,
+              tags: item.data.tags || [],
+              is_ai_generated: true,
+            }).select('id').single()
+            if (t) {
+              itemsCreated.push({ table: 'teas', id: t.id, title: item.title })
+              if (Array.isArray(item.data.ingredients) && item.data.ingredients.length > 0) {
+                await insertComponentsFromIngredients(supabase, 'tea_components', 'tea_id', t.id, tenant.id, item.data.ingredients)
+              }
+            }
+            break
+          }
+
+          case 'supplement': {
+            const categoryId = await resolveCategoryId(supabase, tenant.id, 'supplement', item.data.category)
+            const { data: sup } = await supabase.from('supplements').insert({
+              tenant_id: tenant.id,
+              title: item.title,
+              description: item.data.description || null,
+              category_id: categoryId,
+              default_dosage: item.data.default_dosage || null,
+              dosage_unit: item.data.dosage_unit || null,
+              frequency: item.data.frequency || null,
+              best_time: item.data.best_time || null,
+              indications: item.data.indications || null,
+              contraindications: item.data.contraindications || null,
+              tags: item.data.tags || [],
+              is_ai_generated: true,
+            }).select('id').single()
+            if (sup) itemsCreated.push({ table: 'supplements', id: sup.id, title: item.title })
+            break
+          }
+
+          case 'material': {
+            const categoryId = await resolveCategoryId(supabase, tenant.id, 'material', item.data.category)
+            const { data: mat } = await supabase.from('materials').insert({
+              tenant_id: tenant.id,
+              title: item.title,
+              description: item.data.description || null,
+              category_id: categoryId,
+              estimated_minutes: item.data.estimated_minutes || null,
+              author: item.data.author || null,
+              source: item.data.source || null,
+              tags: item.data.tags || [],
+            }).select('id').single()
+            if (mat) itemsCreated.push({ table: 'materials', id: mat.id, title: item.title })
             break
           }
 
@@ -213,18 +345,20 @@ REGRAS:
           }
 
           case 'goal': {
-            const { data: g } = await supabase.from('protocols').insert({
+            const { data: g } = await supabase.from('goals').insert({
               tenant_id: tenant.id,
               title: item.title,
               description: item.data.description || null,
               emoji: item.data.emoji || '🎯',
-              category: 'custom',
-              duration_days: 7,
-              content: item.data.content || [],
+              goal_type: item.data.goal_type || 'custom',
+              metric: item.data.metric || null,
+              target_value: item.data.target_value || null,
+              unit: item.data.unit || null,
+              tags: item.data.tags || [],
+              is_ai_generated: true,
               is_active: true,
-              is_public: false,
             }).select('id').single()
-            if (g) itemsCreated.push({ table: 'protocols', id: g.id, title: item.title })
+            if (g) itemsCreated.push({ table: 'goals', id: g.id, title: item.title })
             break
           }
 

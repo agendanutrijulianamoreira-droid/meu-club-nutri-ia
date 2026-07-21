@@ -1,6 +1,7 @@
 // Hooks para gerenciar dados do Supabase
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase-browser'
+import { BaseClinicalEntity, ClinicalCategory, duplicateAsset } from '@/lib/services/clinicalAssets'
 
 // ==========================================
 // PROTOCOLS
@@ -167,7 +168,21 @@ export interface Goal {
     is_active: boolean
     is_favorite: boolean
     content_json: any
+    // Contrato de Ativo Clínico (ADR-0002) — Metas viram um ativo de pleno
+    // direito, gerenciado pela Biblioteca Clínica (ADR-0001).
+    tags: string[]
+    image_url: string | null
+    sort_order: number
+    is_ai_generated: boolean
+    ai_summary: string | null
+    ai_keywords: string[]
+    indications: string | null
+    contraindications: string | null
+    embedding_status: string | null
+    last_ai_update: string | null
+    created_by: string | null
     created_at: string
+    updated_at: string
 }
 
 export function useGoals(tenantId?: string) {
@@ -223,9 +238,37 @@ export function useGoals(tenantId?: string) {
         if (!error) setGoals(prev => prev.map(g => g.id === id ? { ...g, is_favorite: !g.is_favorite } : g))
     }
 
+    const updateGoal = async (id: string, updates: Partial<Goal>) => {
+        try {
+            const { data, error } = await supabase
+                .from('goals')
+                .update(updates)
+                .eq('id', id)
+                .select()
+                .single()
+            if (error) throw error
+            setGoals(prev => prev.map(g => g.id === id ? data : g))
+            return { data, error: null }
+        } catch (err: any) {
+            return { data: null, error: err.message }
+        }
+    }
+
+    const toggleGoalActive = async (id: string) => {
+        const goal = goals.find(g => g.id === id)
+        if (!goal) return
+        return updateGoal(id, { is_active: !goal.is_active })
+    }
+
+    const duplicateGoal = async (id: string) => {
+        const result = await duplicateAsset<Goal>(supabase, 'goals', id)
+        if (result.data) setGoals(prev => [result.data as Goal, ...prev])
+        return result
+    }
+
     useEffect(() => { fetchGoals() }, [tenantId])
 
-    return { goals, loading, createGoal, deleteGoal, toggleGoalFavorite, refresh: fetchGoals }
+    return { goals, loading, createGoal, deleteGoal, toggleGoalFavorite, updateGoal, toggleGoalActive, duplicateGoal, refresh: fetchGoals }
 }
 
 // ==========================================
@@ -600,4 +643,252 @@ export function useProgress(assignmentId?: string) {
     }, [assignmentId])
 
     return { progress, loading, markItemCompleted, refresh: fetchProgress }
+}
+
+// ==========================================
+// ATIVOS CLÍNICOS (Biblioteca Clínica — ADR-0001/0002/0003)
+// Um hook genérico reaproveitado por todas as entidades, em vez de
+// reescrever a mesma lógica de CRUD 6 vezes.
+// ==========================================
+
+export interface Recipe extends BaseClinicalEntity {
+    category_id: string | null
+    emoji: string
+    meal_type: string[]
+    dietary_tags: string[]
+    prep_time_min: number | null
+    servings: number
+    instructions: string
+    calories: number | null
+    protein_g: number | null
+    carbs_g: number | null
+    fat_g: number | null
+    substitutions: any
+    access_tier: 'basic' | 'premium'
+}
+
+export interface Meal extends BaseClinicalEntity {
+    category_id: string | null
+    notes: string | null
+}
+
+export interface Shot extends BaseClinicalEntity {
+    category_id: string | null
+    instructions: string | null
+    volume_ml: number | null
+    best_time: string | null
+}
+
+export interface Tea extends BaseClinicalEntity {
+    category_id: string | null
+    instructions: string | null
+    best_time: string | null
+}
+
+export interface Supplement extends BaseClinicalEntity {
+    category_id: string | null
+    default_dosage: number | null
+    dosage_unit: string | null
+    frequency: string | null
+    best_time: string | null
+}
+
+export interface Material extends BaseClinicalEntity {
+    category_id: string | null
+    file_url: string | null
+    external_url: string | null
+    estimated_minutes: number | null
+    author: string | null
+    source: string | null
+}
+
+// Composição relacional (ADR-0003) — nunca JSON quando existe alternativa
+// relacional. Usada por meals/shots/teas/recipes.
+export interface ComponentRow {
+    id: string
+    tenant_id: string
+    quantity: number | null
+    unit: string | null
+    serving_label: string | null
+    sort_order: number
+    food_id: string | null
+    recipe_id: string | null
+    supplement_id: string | null
+    created_at: string
+}
+
+function useClinicalAssets<T extends BaseClinicalEntity>(table: string) {
+    const [items, setItems] = useState<T[]>([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+
+    const fetchItems = async () => {
+        try {
+            setLoading(true)
+            const { data, error } = await supabase
+                .from(table)
+                .select('*')
+                .order('sort_order', { ascending: true })
+
+            if (error) throw error
+            setItems(data || [])
+        } catch (err: any) {
+            setError(err.message)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const createItem = async (item: Partial<T>) => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            const { data, error } = await supabase
+                .from(table)
+                .insert([{ ...item, created_by: user?.id ?? null }])
+                .select()
+                .single()
+
+            if (error) throw error
+            setItems(prev => [...prev, data])
+            return { data, error: null }
+        } catch (err: any) {
+            return { data: null, error: err.message }
+        }
+    }
+
+    const updateItem = async (id: string, updates: Partial<T>) => {
+        try {
+            const { data, error } = await supabase
+                .from(table)
+                .update(updates)
+                .eq('id', id)
+                .select()
+                .single()
+
+            if (error) throw error
+            setItems(prev => prev.map(i => i.id === id ? data : i))
+            return { data, error: null }
+        } catch (err: any) {
+            return { data: null, error: err.message }
+        }
+    }
+
+    // "Arquivar" usa o mesmo mecanismo do toggle ativo/inativo (ADR-0002 —
+    // is_active boolean, sem terceiro estado).
+    const toggleActive = async (id: string) => {
+        const item = items.find(i => i.id === id)
+        if (!item) return { data: null, error: 'Item não encontrado' }
+        return updateItem(id, { is_active: !item.is_active } as Partial<T>)
+    }
+
+    const duplicateItem = async (id: string) => {
+        const result = await duplicateAsset<T>(supabase, table, id)
+        if (result.data) setItems(prev => [...prev, result.data as T])
+        return result
+    }
+
+    useEffect(() => { fetchItems() }, [])
+
+    return { items, loading, error, fetchItems, createItem, updateItem, toggleActive, duplicateItem }
+}
+
+export function useRecipes() { return useClinicalAssets<Recipe>('recipes') }
+export function useMeals() { return useClinicalAssets<Meal>('meals') }
+export function useShots() { return useClinicalAssets<Shot>('shots') }
+export function useTeas() { return useClinicalAssets<Tea>('teas') }
+export function useSupplements() { return useClinicalAssets<Supplement>('supplements') }
+export function useMaterials() { return useClinicalAssets<Material>('materials') }
+
+// Composição relacional de meals/shots/teas/recipes — mesmo padrão para as 4.
+function useAssetComponents(table: string, parentColumn: string, parentId?: string) {
+    const [components, setComponents] = useState<ComponentRow[]>([])
+    const [loading, setLoading] = useState(true)
+
+    const fetchComponents = async () => {
+        if (!parentId) { setComponents([]); setLoading(false); return }
+        setLoading(true)
+        const { data, error } = await supabase
+            .from(table)
+            .select('*')
+            .eq(parentColumn, parentId)
+            .order('sort_order', { ascending: true })
+        if (!error) setComponents(data || [])
+        setLoading(false)
+    }
+
+    const addComponent = async (component: Partial<ComponentRow> & { tenant_id: string }) => {
+        if (!parentId) return { data: null, error: 'Ativo pai não definido' }
+        try {
+            const { data, error } = await supabase
+                .from(table)
+                .insert([{ ...component, [parentColumn]: parentId, sort_order: components.length }])
+                .select()
+                .single()
+            if (error) throw error
+            setComponents(prev => [...prev, data])
+            return { data, error: null }
+        } catch (err: any) {
+            return { data: null, error: err.message }
+        }
+    }
+
+    const removeComponent = async (id: string) => {
+        try {
+            const { error } = await supabase.from(table).delete().eq('id', id)
+            if (error) throw error
+            setComponents(prev => prev.filter(c => c.id !== id))
+            return { error: null }
+        } catch (err: any) {
+            return { error: err.message }
+        }
+    }
+
+    useEffect(() => { fetchComponents() }, [parentId])
+
+    return { components, loading, addComponent, removeComponent, refresh: fetchComponents }
+}
+
+export function useMealComponents(mealId?: string) { return useAssetComponents('meal_components', 'meal_id', mealId) }
+export function useShotComponents(shotId?: string) { return useAssetComponents('shot_components', 'shot_id', shotId) }
+export function useTeaComponents(teaId?: string) { return useAssetComponents('tea_components', 'tea_id', teaId) }
+export function useRecipeComponents(recipeId?: string) { return useAssetComponents('recipe_components', 'recipe_id', recipeId) }
+
+// ==========================================
+// CATEGORIAS CLÍNICAS (clinical_categories)
+// ==========================================
+
+export function useClinicalCategories(entityType: ClinicalCategory['entity_type']) {
+    const [categories, setCategories] = useState<ClinicalCategory[]>([])
+    const [loading, setLoading] = useState(true)
+
+    const fetchCategories = async () => {
+        setLoading(true)
+        const { data, error } = await supabase
+            .from('clinical_categories')
+            .select('*')
+            .eq('entity_type', entityType)
+            .eq('is_active', true)
+            .order('sort_order', { ascending: true })
+        if (!error) setCategories(data || [])
+        setLoading(false)
+    }
+
+    const createCategory = async (name: string, tenantId: string) => {
+        try {
+            const { data, error } = await supabase
+                .from('clinical_categories')
+                .insert([{ tenant_id: tenantId, entity_type: entityType, name, sort_order: categories.length }])
+                .select()
+                .single()
+            if (error) throw error
+            setCategories(prev => [...prev, data])
+            return { data, error: null }
+        } catch (err: any) {
+            return { data: null, error: err.message }
+        }
+    }
+
+    useEffect(() => { fetchCategories() }, [entityType])
+
+    return { categories, loading, createCategory, refresh: fetchCategories }
 }

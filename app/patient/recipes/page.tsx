@@ -7,7 +7,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 
-interface Ingredient { item: string; quantity: string; note?: string }
+interface RecipeComponent { label: string; quantity: number | null; unit: string | null }
 interface Substitution { ingredient: string; substitute: string; reason: string }
 
 interface Recipe {
@@ -15,11 +15,11 @@ interface Recipe {
   title: string
   description: string | null
   emoji: string
-  category: string
+  category: string | null
   dietary_tags: string[]
   prep_time_min: number | null
   servings: number
-  ingredients: Ingredient[]
+  components: RecipeComponent[]
   instructions: string
   substitutions: Substitution[]
   calories: number | null
@@ -101,16 +101,16 @@ function RecipeCard({ recipe }: { recipe: Recipe }) {
               )}
 
               {/* Ingredientes */}
-              {recipe.ingredients?.length > 0 && (
+              {recipe.components?.length > 0 && (
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Ingredientes</p>
                   <ul className="space-y-1.5">
-                    {recipe.ingredients.map((ing, i) => (
+                    {recipe.components.map((c, i) => (
                       <li key={i} className="flex items-start gap-2 text-xs">
                         <span className="text-indigo-500 shrink-0 font-bold mt-0.5">·</span>
                         <span className="text-slate-300">
-                          <span className="font-semibold text-white">{ing.quantity}</span> {ing.item}
-                          {ing.note && <span className="text-slate-500"> — {ing.note}</span>}
+                          {c.quantity && <span className="font-semibold text-white">{c.quantity}{c.unit ? ` ${c.unit}` : ''} </span>}
+                          {c.label}
                         </span>
                       </li>
                     ))}
