@@ -28,7 +28,7 @@ export interface MealPlanPromptParams {
   patientGoal?:      string
   tenantMethodName?: string
   tenantSystemPrompt?: string
-  faseReino?:        number      // 1-6: fase clínica do Método REINO
+  faseReino?:        number      // 1-6: perfil clínico dietético (escolha manual da nutricionista — não é a fase da jornada do método)
   compactCatalog:    string      // saída de buildCompactCatalog()
 }
 
@@ -163,7 +163,7 @@ export function getMealPlanUserPrompt(params: MealPlanPromptParams): string {
 PACIENTE:
   Nome:          ${patientName}
   Objetivo:      ${patientGoal || goal}
-  Peso atual:    ${patientWeight ? patientWeight + 'kg' : 'não informado'}${faseReino ? `\n  Fase REINO:    ${faseReino}` : ''}
+  Peso atual:    ${patientWeight ? patientWeight + 'kg' : 'não informado'}${faseReino ? `\n  Perfil clínico: ${faseReino}` : ''}
 ` : ''
 
   const restrictionLine = restrictions.length > 0

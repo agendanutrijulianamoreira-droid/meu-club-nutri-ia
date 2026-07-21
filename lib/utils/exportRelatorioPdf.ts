@@ -60,7 +60,7 @@ export function exportRelatorioPdf({
   doc.setFontSize(9.5)
   doc.setTextColor(100, 100, 100)
   const meta = [
-    dados.paciente.fase_atual ? `Fase REINO: ${dados.paciente.fase_atual}` : null,
+    dados.paciente.fase_atual ? `Fase atual: ${dados.paciente.fase_atual}` : null,
     dados.paciente.primary_goal ? `Objetivo: ${dados.paciente.primary_goal}` : null,
     `Período: ${dados.periodo.inicio} a ${dados.periodo.fim}`,
   ].filter(Boolean).join("   ·   ")

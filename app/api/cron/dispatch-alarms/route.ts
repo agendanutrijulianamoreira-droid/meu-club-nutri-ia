@@ -15,7 +15,7 @@ const DEFAULT_PUSH: Record<string, { title: string; body: string }> = {
   custom:     { title: '⏰ Lembrete', body: 'Você tem um lembrete agendado para agora.' },
 }
 
-// Horários fixos para os tipos de notificação de fase REINO que não têm
+// Horários fixos para os tipos de notificação de fase que não têm
 // horário customizável em preferencias_notificacao (apenas refeições têm).
 const HORARIOS_HIDRATACAO = ['10:00', '15:30']
 const HORARIO_CHECKIN = '20:00'

@@ -733,7 +733,7 @@ export function AppointmentsView({ setView, tenantId, tenantName }: Appointments
                       <span className="text-slate-500"> ({relatorio.dados_json.adesao.dias_com_registro}/{relatorio.dados_json.adesao.total_dias} dias)</span>
                     </p>
                     {relatorio.dados_json.paciente.fase_atual && (
-                      <p className="text-slate-400 text-xs">Fase REINO: {relatorio.dados_json.paciente.fase_atual}</p>
+                      <p className="text-slate-400 text-xs">Fase atual: {relatorio.dados_json.paciente.fase_atual}</p>
                     )}
                   </div>
 

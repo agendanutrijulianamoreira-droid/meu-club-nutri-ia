@@ -192,12 +192,12 @@ export async function POST(request: NextRequest) {
 }
 
 async function gerarAnaliseClinica(dados: any): Promise<string> {
-  const prompt = `Você é um copiloto clínico para a nutricionista, especializada em saúde da mulher (SOP, endometriose, saúde intestinal, equilíbrio hormonal — Método REINO). Analise os dados desta paciente e gere uma síntese clínica objetiva para uso pré-consulta.
+  const prompt = `Você é um copiloto clínico para a nutricionista, especializada em saúde da mulher (SOP, endometriose, saúde intestinal, equilíbrio hormonal). Analise os dados desta paciente e gere uma síntese clínica objetiva para uso pré-consulta.
 
 PACIENTE: ${dados.paciente.nome}
 OBJETIVO PRINCIPAL: ${dados.paciente.primary_goal || 'Não informado'}
 RESTRIÇÕES ALIMENTARES: ${(dados.paciente.dietary_restrictions || []).join(', ') || 'Nenhuma'}
-FASE ATUAL DO REINO: ${dados.paciente.fase_atual || 'Não atribuída'}
+FASE ATUAL DA JORNADA: ${dados.paciente.fase_atual || 'Não atribuída'}
 PERÍODO ANALISADO: ${dados.periodo.inicio} a ${dados.periodo.fim}
 
 ADESÃO ALIMENTAR:
