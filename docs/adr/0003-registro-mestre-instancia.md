@@ -32,6 +32,14 @@ Como a referência ao mestre é sempre "ao vivo" (FK simples, sem snapshot), edi
 **Custos:**
 - Sem versionamento, editar um mestre pode alterar retroativamente a apresentação de prescrições antigas — aceito conscientemente por ora (ver seção anterior).
 
+## Requisito futuro: aviso de dependências antes de arquivar (Sub-fase 3/4)
+
+**Não implementado nesta Sub-fase 2** — registrado aqui porque é consequência direta e inevitável do princípio "Referenciar, nunca copiar" acima: a partir do momento em que `protocol_items`, `meal_plan_items` (e demais tabelas de instância futuras) passarem a referenciar de fato um ativo mestre por FK (Sub-fase 3 em diante), arquivar (`is_active = false`) ou excluir um Registro Mestre passa a ter efeito sobre todo consumidor vivo daquele mestre — uma receita usada em 3 protocolos ativos, uma meta usada em 2 desafios em andamento, etc.
+
+Requisito para quando essas tabelas de instância existirem: antes de permitir arquivar/excluir um ativo mestre pela UI da Biblioteca Clínica, verificar se existe alguma referência ativa (`protocol_items`, `meal_plan_items`, `challenge_goals` etc. com FK para aquele mestre) e, se houver, avisar a nutricionista explicitamente (quantas referências, em quais protocolos/dietas/desafios) antes de confirmar a ação — em vez de arquivar silenciosamente e deixar consumidores vivos apontando para um ativo inativo sem aviso. Não é bloqueio nem prevenção automática, apenas transparência antes da confirmação, no mesmo espírito do `confirm()` já aceito para ações destrutivas (Seção 9 do CLAUDE.md).
+
+Como no momento desta Sub-fase 2 não existe nenhuma tabela de instância referenciando os ativos por FK ainda (o vínculo real só nasce na Sub-fase 3), não há hoje nenhum caso real desse cenário — por isso o requisito fica documentado, não implementado.
+
 ## Referências
 
 - ADR-0001 (camadas da arquitetura e fonte única de verdade)
