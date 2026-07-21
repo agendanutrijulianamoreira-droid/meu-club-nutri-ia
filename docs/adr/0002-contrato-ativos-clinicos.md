@@ -19,7 +19,7 @@ id            uuid primary key default gen_random_uuid()
 tenant_id     uuid not null references tenants(id) on delete cascade
 title         text not null
 description   text
-status        text not null default 'active' check (status in ('active','inactive'))
+is_active     boolean not null default true
 tags          text[] default '{}'
 image_url     text
 sort_order    integer not null default 0
@@ -32,6 +32,8 @@ created_at    timestamptz default now()
 updated_at    timestamptz default now()
 ```
 
+**Decisão sobre `is_active` vs. `status` (resolvida, não fica em aberto para a Sub-fase 2):** o contrato usa `is_active boolean`, não `status text`. Levantamento em `supabase/migrations/*.sql` mostra `is_active boolean` como padrão dominante e já estabelecido (7 migrations, incluindo `recipes`, `goals`, `methods`, `challenges`, `tenants`) — nenhuma migration do projeto usa `status text` para o conceito genérico "este registro está ativo/visível". Os poucos lugares com `status text + CHECK` no projeto (`meal_plans.status`: draft/published/archived; `protocol_assignments.status`: active/completed/paused/cancelled) representam um conceito diferente — **estado de um fluxo de trabalho com mais de duas fases**, não um toggle binário de visibilidade. Ativo Clínico (receita, suplemento, chá etc.) é fundamentalmente "visível ou não" na Biblioteca Clínica — não tem um fluxo de estados intermediários hoje —, então não há ganho arquitetural claro em introduzir `status text` só por uniformidade abstrata. Se uma entidade específica precisar de um fluxo de mais estados no futuro (ex.: "receita gerada por IA pendente de revisão"), isso é decisão local daquela entidade (um campo adicional próprio, seguindo o precedente de `meal_plans.status`), não uma mudança no contrato-base.
+
 (Colunas específicas de cada entidade — `ingredients`/`instructions` em `recipes`, `energy_kcal` em `foods`, etc. — continuam existindo além deste conjunto comum.)
 
 No TypeScript, cada hook/tipo de entidade estende uma interface compartilhada:
@@ -43,7 +45,7 @@ export interface BaseClinicalEntity {
     tenant_id: string
     title: string
     description: string | null
-    status: 'active' | 'inactive'
+    is_active: boolean
     tags: string[]
     image_url: string | null
     sort_order: number
@@ -61,9 +63,9 @@ export interface Supplement extends BaseClinicalEntity { /* campos específicos 
 // etc.
 ```
 
-RLS de todas essas tabelas segue o mesmo padrão já usado em `recipes` (admin gerencia via `profiles` + `role in ('admin','nutritionist')`; paciente lê linhas com `status = 'active'` do seu tenant).
+RLS de todas essas tabelas segue o mesmo padrão já usado em `recipes` (admin gerencia via `profiles` + `role in ('admin','nutritionist')`; paciente lê linhas com `is_active = true` do seu tenant).
 
-**Retrofit em tabelas existentes:** `recipes` (já existe desde antes desta reforma) recebe as colunas do contrato que ainda não tem (`status` — hoje usa `is_active boolean`, decisão de migração a avaliar na Sub-fase 2 se convertida ou mantida com um mapeamento —, `ai_summary`, `ai_keywords`, `indications`, `contraindications`, `sort_order`, `created_by`) via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, sem quebrar o que já existe. `goals` recebe o mesmo tratamento.
+**Retrofit em tabelas existentes:** `recipes` e `goals` já usam `is_active boolean` — nenhuma conversão necessária, o contrato confirma o padrão que elas já seguem. Recebem via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` apenas as colunas do contrato que ainda não têm (`ai_summary`, `ai_keywords`, `indications`, `contraindications`, `sort_order`, `created_by`), sem quebrar o que já existe.
 
 ## Consequências
 
@@ -73,7 +75,7 @@ RLS de todas essas tabelas segue o mesmo padrão já usado em `recipes` (admin g
 
 **Custos:**
 - Tabelas carregam colunas que podem ficar não usadas por um bom tempo em algumas entidades (ex.: `contraindications` em `materials` pode nunca ser preenchido) — aceitável, é o trade-off deliberado de "padronizar desde o nascimento" em vez de acumular migrações incrementais depois.
-- `status` como `text` com CHECK em vez do `is_active boolean` que `recipes`/`goals` já usam hoje é uma pequena divergência a resolver explicitamente na implementação da Sub-fase 2 (decisão: manter `is_active boolean` nas tabelas existentes por compatibilidade, ou converter tudo para `status text`, uniformizando). Fica registrado aqui para não ser esquecido — não decidido neste ADR.
+- Ao optar por `is_active boolean` em vez de `status text`, o contrato não cobre nativamente estados intermediários (ex.: "em revisão", "arquivado"). Se isso for necessário para uma entidade específica no futuro, a solução é um campo adicional próprio dessa entidade — não uma mudança retroativa no contrato-base.
 
 ## Referências
 
