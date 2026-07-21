@@ -12,6 +12,12 @@
 **Supabase:** `https://antszuxeairmbctwuafo.supabase.co`
 **Deployment:** Vercel
 
+### Princípio de arquitetura — Método Clínico (ver `docs/adr/`)
+
+O domínio clínico/nutricional está sendo evoluído (a partir de Jul/2026) para uma arquitetura de 8 camadas: **Método → Fase (etapa da jornada) → Protocolo (intervenção clínica) → Ativo Clínico (receitas, alimentos, refeições, shots, chás, suplementos, materiais — organizados pela Biblioteca Clínica, que é só uma interface, não uma tabela) → Dieta → Meta → Desafio → Paciente**.
+
+**Regra obrigatória para qualquer feature nova nesse domínio:** ela deve se encaixar em uma dessas 8 camadas. Nenhuma tabela/camada paralela deve ser criada por conveniência (ex.: um `meal_templates` ou `protocol_recipes_v2` por fora do modelo) sem um novo ADR justificando. Conteúdo reaproveitável (uma receita, uma meta) deve ter uma única fonte de verdade — outras entidades referenciam via FK, nunca duplicam em JSON. Detalhes e justificativa completa em `docs/adr/0001-camadas-metodo-clinico.md` e `docs/adr/0002-contrato-ativos-clinicos.md`.
+
 ---
 
 ## 2. STACK TÉCNICA
