@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   if (!tenant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await request.json()
-  const { method_id, name, description, order_index } = body
+  const { method_id, name, description, sort_order } = body
   if (!method_id || !name) {
     return NextResponse.json({ error: 'method_id e name são obrigatórios' }, { status: 400 })
   }
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       tenant_id: tenant.id,
       name,
       description: description ?? null,
-      order_index: order_index ?? 0,
+      sort_order: sort_order ?? 0,
     })
     .select()
     .single()
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ phase }, { status: 201 })
 }
 
-// PUT /api/admin/methods/phases → atualiza fase (name/description/order_index)
+// PUT /api/admin/methods/phases → atualiza fase (name/description/sort_order)
 export async function PUT(request: NextRequest) {
   const supabase = createSupabaseServerClient(cookies())
   const { data: { user } } = await supabase.auth.getUser()

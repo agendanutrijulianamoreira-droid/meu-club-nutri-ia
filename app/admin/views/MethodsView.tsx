@@ -22,7 +22,7 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 function PhaseRow({ phase, methodId, onSave, onDelete }: {
     phase: MethodPhase
     methodId: string
-    onSave: (id: string, methodId: string, updates: Partial<Pick<MethodPhase, 'name' | 'description' | 'order_index'>>) => Promise<any>
+    onSave: (id: string, methodId: string, updates: Partial<Pick<MethodPhase, 'name' | 'description' | 'sort_order'>>) => Promise<any>
     onDelete: (id: string, methodId: string) => Promise<any>
 }) {
     const [editing, setEditing] = useState(false)
@@ -62,7 +62,7 @@ function PhaseRow({ phase, methodId, onSave, onDelete }: {
     return (
         <div className="flex items-center gap-3 bg-white/[0.02] border border-white/8 rounded-2xl p-3 group">
             <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-indigo-500/15 border-indigo-500/25 text-indigo-400 flex-shrink-0">
-                Fase {phase.order_index + 1}
+                Fase {phase.sort_order + 1}
             </span>
             <div className="flex-1 min-w-0">
                 <p className="text-sm text-white font-medium truncate">{phase.name}</p>
@@ -101,7 +101,7 @@ function MethodCard({ method, tenantId, createPhase, updatePhase, deletePhase, u
             method_id: method.id,
             tenant_id: tenantId,
             name: newPhaseName.trim(),
-            order_index: method.method_phases.length,
+            sort_order: method.method_phases.length,
         })
         setNewPhaseName('')
         setAddingPhase(false)

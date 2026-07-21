@@ -17,7 +17,7 @@ export async function GET(
 
   const { data: fase, error } = await supabase
     .from('fase_paciente')
-    .select('*, method_phases(id, name, description, order_index, method_id)')
+    .select('*, method_phases(id, name, description, sort_order, method_id)')
     .eq('paciente_id', params.id)
     .is('fim', null)
     .order('inicio', { ascending: false })
@@ -87,7 +87,7 @@ export async function POST(
       definida_por: user.id,
       observacoes: observacoes ?? null,
     })
-    .select('*, method_phases(id, name, description, order_index, method_id)')
+    .select('*, method_phases(id, name, description, sort_order, method_id)')
     .single()
 
   if (error) {

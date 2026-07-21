@@ -25,7 +25,7 @@ export async function GET() {
 
   const methodsSorted = (methods || []).map((m: any) => ({
     ...m,
-    method_phases: (m.method_phases || []).sort((a: any, b: any) => a.order_index - b.order_index),
+    method_phases: (m.method_phases || []).sort((a: any, b: any) => a.sort_order - b.sort_order),
   }))
 
   return NextResponse.json({ methods: methodsSorted })
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
   const { data: method, error } = await supabase
     .from('methods')
-    .insert({ tenant_id: tenant.id, name, description: description ?? null })
+    .insert({ tenant_id: tenant.id, name, description: description ?? null, created_by: user.id })
     .select()
     .single()
 

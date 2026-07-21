@@ -8,8 +8,9 @@ export interface MethodPhase {
     tenant_id: string
     name: string
     description: string | null
-    order_index: number
+    sort_order: number
     created_at: string
+    updated_at: string
 }
 
 export interface Method {
@@ -20,6 +21,7 @@ export interface Method {
     is_active: boolean
     created_at: string
     updated_at: string
+    created_by: string | null
     method_phases: MethodPhase[]
 }
 
@@ -39,7 +41,7 @@ export function useMethods() {
             if (error) throw error
             const sorted = (data || []).map((m: any) => ({
                 ...m,
-                method_phases: (m.method_phases || []).sort((a: MethodPhase, b: MethodPhase) => a.order_index - b.order_index),
+                method_phases: (m.method_phases || []).sort((a: MethodPhase, b: MethodPhase) => a.sort_order - b.sort_order),
             }))
             setMethods(sorted)
         } catch (err: any) {
@@ -51,9 +53,10 @@ export function useMethods() {
 
     const createMethod = async (method: { name: string; description?: string | null; tenant_id: string }) => {
         try {
+            const { data: { user } } = await supabase.auth.getUser()
             const { data, error } = await supabase
                 .from('methods')
-                .insert([method])
+                .insert([{ ...method, created_by: user?.id ?? null }])
                 .select('*, method_phases(*)')
                 .single()
 
@@ -93,7 +96,7 @@ export function useMethods() {
         }
     }
 
-    const createPhase = async (phase: { method_id: string; tenant_id: string; name: string; description?: string | null; order_index: number }) => {
+    const createPhase = async (phase: { method_id: string; tenant_id: string; name: string; description?: string | null; sort_order: number }) => {
         try {
             const { data, error } = await supabase
                 .from('method_phases')
@@ -103,7 +106,7 @@ export function useMethods() {
 
             if (error) throw error
             setMethods(prev => prev.map(m => m.id === phase.method_id
-                ? { ...m, method_phases: [...m.method_phases, data].sort((a, b) => a.order_index - b.order_index) }
+                ? { ...m, method_phases: [...m.method_phases, data].sort((a, b) => a.sort_order - b.sort_order) }
                 : m))
             return { data, error: null }
         } catch (err: any) {
@@ -111,7 +114,7 @@ export function useMethods() {
         }
     }
 
-    const updatePhase = async (id: string, methodId: string, updates: Partial<Pick<MethodPhase, 'name' | 'description' | 'order_index'>>) => {
+    const updatePhase = async (id: string, methodId: string, updates: Partial<Pick<MethodPhase, 'name' | 'description' | 'sort_order'>>) => {
         try {
             const { data, error } = await supabase
                 .from('method_phases')
@@ -122,7 +125,7 @@ export function useMethods() {
 
             if (error) throw error
             setMethods(prev => prev.map(m => m.id === methodId
-                ? { ...m, method_phases: m.method_phases.map(p => p.id === id ? data : p).sort((a, b) => a.order_index - b.order_index) }
+                ? { ...m, method_phases: m.method_phases.map(p => p.id === id ? data : p).sort((a, b) => a.sort_order - b.sort_order) }
                 : m))
             return { data, error: null }
         } catch (err: any) {
