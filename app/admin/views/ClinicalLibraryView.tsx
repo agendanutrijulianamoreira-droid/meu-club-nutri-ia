@@ -202,7 +202,11 @@ interface EntityTabConfig {
     entityType: 'recipe' | 'meal' | 'shot' | 'tea' | 'supplement' | 'material'
     entityLabel: string
     entityLabelPlural: string
-    apiPath: string
+    // Endpoint de geração por IA (POST { theme, category_id }). Omitir para
+    // entidades sem geração por IA (ex.: materiais são sempre um arquivo/link
+    // anexado manualmente, não conteúdo autorável por IA) — some o botão
+    // "Gerar com IA" em vez de deixar um botão que sempre falharia.
+    generatePath?: string
     extraFields?: (values: AssetFormValues, setValue: (k: string, v: any) => void) => ReactNode
     renderExtra?: (item: any) => ReactNode
 }
@@ -238,11 +242,12 @@ function EntityTab({
     }
 
     const handleGenerateAI = async (theme: string, categoryId: string) => {
+        if (!config.generatePath) return
         setGenerating(true)
         try {
-            const res = await fetch(config.apiPath, {
+            const res = await fetch(config.generatePath, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode: 'ai', theme, category_id: categoryId }),
+                body: JSON.stringify({ theme, category_id: categoryId }),
             })
             const data = await res.json()
             if (!res.ok) { showToast('error', data.error || 'Erro na geração'); return }
@@ -264,7 +269,7 @@ function EntityTab({
                 entityLabel={config.entityLabel}
                 entityLabelPlural={config.entityLabelPlural}
                 onCreate={() => setEditing(null)}
-                onGenerateAI={() => setShowAI(true)}
+                onGenerateAI={config.generatePath ? () => setShowAI(true) : undefined}
                 onEdit={item => setEditing(item)}
                 onToggleActive={async id => {
                     const r = await hookResult.toggleActive(id)
@@ -289,7 +294,7 @@ function EntityTab({
                 />
             )}
 
-            {showAI && (
+            {showAI && config.generatePath && (
                 <AIGenerateModal
                     entityLabel={config.entityLabel}
                     categories={categories}
@@ -394,7 +399,7 @@ export function ClinicalLibraryView({ tenantId = '' }: { setView: (v: any) => vo
                             tenantId={tenantId}
                             hookResult={{ items: recipesHook.items, loading: recipesHook.loading, createItem: recipesHook.createItem, updateItem: recipesHook.updateItem, toggleActive: recipesHook.toggleActive, duplicateItem: recipesHook.duplicateItem, fetchItems: recipesHook.fetchItems }}
                             config={{
-                                entityType: 'recipe', entityLabel: 'Receita', entityLabelPlural: 'Receitas', apiPath: '/api/admin/recipes',
+                                entityType: 'recipe', entityLabel: 'Receita', entityLabelPlural: 'Receitas', generatePath: '/api/admin/recipes/generate',
                                 extraFields: (values, setValue) => (
                                     <div className="grid grid-cols-3 gap-3">
                                         <div>
@@ -433,7 +438,7 @@ export function ClinicalLibraryView({ tenantId = '' }: { setView: (v: any) => vo
                             tenantId={tenantId}
                             hookResult={{ items: mealsHook.items, loading: mealsHook.loading, createItem: mealsHook.createItem, updateItem: mealsHook.updateItem, toggleActive: mealsHook.toggleActive, duplicateItem: mealsHook.duplicateItem, fetchItems: mealsHook.fetchItems }}
                             config={{
-                                entityType: 'meal', entityLabel: 'Refeição', entityLabelPlural: 'Refeições', apiPath: '/api/admin/meals',
+                                entityType: 'meal', entityLabel: 'Refeição', entityLabelPlural: 'Refeições', generatePath: '/api/admin/meals/generate',
                                 extraFields: (values, setValue) => (
                                     <div className="space-y-3">
                                         <div>
@@ -453,7 +458,7 @@ export function ClinicalLibraryView({ tenantId = '' }: { setView: (v: any) => vo
                             tenantId={tenantId}
                             hookResult={{ items: shotsHook.items, loading: shotsHook.loading, createItem: shotsHook.createItem, updateItem: shotsHook.updateItem, toggleActive: shotsHook.toggleActive, duplicateItem: shotsHook.duplicateItem, fetchItems: shotsHook.fetchItems }}
                             config={{
-                                entityType: 'shot', entityLabel: 'Shot', entityLabelPlural: 'Shots', apiPath: '/api/admin/shots',
+                                entityType: 'shot', entityLabel: 'Shot', entityLabelPlural: 'Shots', generatePath: '/api/admin/shots/generate',
                                 extraFields: (values, setValue) => (
                                     <div className="space-y-3">
                                         <div className="grid grid-cols-2 gap-3">
@@ -490,7 +495,7 @@ export function ClinicalLibraryView({ tenantId = '' }: { setView: (v: any) => vo
                             tenantId={tenantId}
                             hookResult={{ items: teasHook.items, loading: teasHook.loading, createItem: teasHook.createItem, updateItem: teasHook.updateItem, toggleActive: teasHook.toggleActive, duplicateItem: teasHook.duplicateItem, fetchItems: teasHook.fetchItems }}
                             config={{
-                                entityType: 'tea', entityLabel: 'Chá', entityLabelPlural: 'Chás', apiPath: '/api/admin/teas',
+                                entityType: 'tea', entityLabel: 'Chá', entityLabelPlural: 'Chás', generatePath: '/api/admin/teas/generate',
                                 extraFields: (values, setValue) => (
                                     <div className="space-y-3">
                                         <div>
@@ -515,7 +520,7 @@ export function ClinicalLibraryView({ tenantId = '' }: { setView: (v: any) => vo
                             tenantId={tenantId}
                             hookResult={{ items: supplementsHook.items, loading: supplementsHook.loading, createItem: supplementsHook.createItem, updateItem: supplementsHook.updateItem, toggleActive: supplementsHook.toggleActive, duplicateItem: supplementsHook.duplicateItem, fetchItems: supplementsHook.fetchItems }}
                             config={{
-                                entityType: 'supplement', entityLabel: 'Suplemento', entityLabelPlural: 'Suplementos', apiPath: '/api/admin/supplements',
+                                entityType: 'supplement', entityLabel: 'Suplemento', entityLabelPlural: 'Suplementos', generatePath: '/api/admin/supplements/generate',
                                 extraFields: (values, setValue) => (
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
@@ -554,7 +559,7 @@ export function ClinicalLibraryView({ tenantId = '' }: { setView: (v: any) => vo
                             tenantId={tenantId}
                             hookResult={{ items: materialsHook.items, loading: materialsHook.loading, createItem: materialsHook.createItem, updateItem: materialsHook.updateItem, toggleActive: materialsHook.toggleActive, duplicateItem: materialsHook.duplicateItem, fetchItems: materialsHook.fetchItems }}
                             config={{
-                                entityType: 'material', entityLabel: 'Material', entityLabelPlural: 'Materiais', apiPath: '/api/admin/materials',
+                                entityType: 'material', entityLabel: 'Material', entityLabelPlural: 'Materiais',
                                 extraFields: (values, setValue) => (
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="col-span-2">

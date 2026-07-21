@@ -12,7 +12,7 @@ interface AssetListProps<T extends BaseClinicalEntity & { category_id?: string |
     entityLabel: string
     entityLabelPlural: string
     onCreate: () => void
-    onGenerateAI: () => void
+    onGenerateAI?: () => void
     onEdit: (item: T) => void
     onToggleActive: (id: string) => void
     onDuplicate: (id: string) => void
@@ -60,10 +60,12 @@ export function AssetList<T extends BaseClinicalEntity & { category_id?: string 
                     className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${showInactive ? 'bg-white/10 border-white/20 text-white' : 'bg-white/5 border-white/10 text-slate-500'}`}>
                     {showInactive ? 'Mostrando arquivados' : 'Ocultando arquivados'}
                 </button>
+                {onGenerateAI && (
                 <button onClick={onGenerateAI}
                     className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-bold rounded-xl transition-all">
                     <Sparkles size={14} className="text-violet-400" /> Gerar com IA
                 </button>
+                )}
                 <button onClick={onCreate}
                     className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-2xl transition-all">
                     <Plus size={15} /> Nova {entityLabel}

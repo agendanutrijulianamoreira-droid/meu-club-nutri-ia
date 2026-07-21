@@ -53,6 +53,45 @@ export async function insertComponentsFromIngredients(
     if (rows.length > 0) await supabase.from(componentsTable).insert(rows)
 }
 
+export interface SubstitutionInput {
+    ingredient: string
+    substitute: string
+    reason?: string
+}
+
+// Resolve sugestões de substituição de ingrediente (ex.: geração por IA)
+// para linhas relacionais de recipe_substitutions, referenciando foods por
+// id nos dois lados (original e substituto) em vez de texto livre em JSON
+// (ADR-0003 — mesmo princípio de insertComponentsFromIngredients).
+export async function insertRecipeSubstitutions(
+    supabase: SupabaseClient,
+    recipeId: string,
+    tenantId: string,
+    substitutions: SubstitutionInput[]
+) {
+    const names = Array.from(new Set(
+        substitutions.flatMap(s => [s.ingredient?.trim(), s.substitute?.trim()]).filter(Boolean) as string[]
+    ))
+    if (names.length === 0) return
+
+    await upsertFoodsFromIngredients(names)
+
+    const searches = names.map(normalizeSearch)
+    const { data: foods } = await supabase.from('foods').select('id, name_search').in('name_search', searches)
+    const foodIdBySearch = new Map((foods || []).map((f: any) => [f.name_search, f.id]))
+
+    const rows = substitutions
+        .map(s => ({
+            original_food_id: foodIdBySearch.get(normalizeSearch(s.ingredient || '')),
+            substitute_food_id: foodIdBySearch.get(normalizeSearch(s.substitute || '')),
+            reason: s.reason || null,
+        }))
+        .filter(r => r.original_food_id && r.substitute_food_id)
+        .map((r, sort_order) => ({ ...r, recipe_id: recipeId, tenant_id: tenantId, sort_order }))
+
+    if (rows.length > 0) await supabase.from('recipe_substitutions').insert(rows)
+}
+
 // Resolve o nome de uma categoria para seu id em clinical_categories,
 // criando a categoria no tenant se ainda não existir (ex.: quando a IA de
 // classificação de biblioteca sugere um nome de categoria válido mas ainda
