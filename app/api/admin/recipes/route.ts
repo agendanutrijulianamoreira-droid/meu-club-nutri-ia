@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { callClaudeJSON } from '@/lib/services/anthropic'
+import { insertComponentsFromIngredients } from '@/lib/services/clinicalAssets'
 
 async function getTenant(supabase: any, userId: string) {
   const { data } = await supabase
@@ -19,15 +20,15 @@ export async function GET(request: NextRequest) {
   if (!tenant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { searchParams } = new URL(request.url)
-  const category = searchParams.get('category')
+  const categoryId = searchParams.get('category_id')
   const tag = searchParams.get('tag')
 
   let query = supabase.from('recipes')
-    .select('*')
+    .select('*, category:clinical_categories(id, name)')
     .eq('tenant_id', tenant.id)
-    .order('created_at', { ascending: false })
+    .order('sort_order', { ascending: true })
 
-  if (category) query = query.eq('category', category)
+  if (categoryId) query = query.eq('category_id', categoryId)
   if (tag) query = query.contains('dietary_tags', [tag])
 
   const { data: recipes, error } = await query
@@ -49,17 +50,15 @@ export async function POST(request: NextRequest) {
 
   // Modo IA: gerar receita completa
   if (body.mode === 'ai') {
-    const { theme, category, dietary_tags, access_tier } = body
+    const { theme, category_id, dietary_tags, access_tier } = body
     if (!theme?.trim()) return NextResponse.json({ error: 'Tema é obrigatório' }, { status: 400 })
 
     const systemPrompt = tenant.gpt_system_prompt || ''
-    const brandName = tenant.brand_name || 'VitaClub'
     const restrictionInfo = dietary_tags?.length
       ? `A receita DEVE ser adequada para: ${dietary_tags.join(', ')}.`
       : 'Sem restrições alimentares específicas.'
 
     const userPrompt = `Crie uma receita saudável com o tema: "${theme}".
-Categoria: ${category || 'refeição'}.
 ${restrictionInfo}
 Nível de acesso: ${access_tier === 'premium' ? 'Premium — inclua calorias e macros exatos' : 'Básico — qualitativo, sem cálculo obrigatório'}.
 
@@ -71,10 +70,11 @@ Retorne APENAS JSON válido com esta estrutura:
   "prep_time_min": número em minutos,
   "servings": número de porções,
   "ingredients": [
-    {"item": "nome do ingrediente", "quantity": "quantidade e unidade", "note": "opcional"}
+    {"name": "nome do ingrediente (ex: peito de frango)", "quantity": número ou texto, "unit": "g/ml/unidade/colher"}
   ],
   "instructions": "Modo de preparo em texto corrido, passos numerados",
   "dietary_tags": ["tags que se aplicam: lactose, gluten, vegana, vegetariana, etc"],
+  "tags": ["tags descritivas livres, ex: anti-inflamatório, detox"],
   "substitutions": [
     {"ingredient": "ingrediente original", "substitute": "substituição sugerida", "reason": "motivo"}
   ],
@@ -96,11 +96,11 @@ Retorne APENAS JSON válido com esta estrutura:
         title: result.title || theme,
         description: result.description || null,
         emoji: result.emoji || '🍽️',
-        category: category || 'refeição',
+        category_id: category_id || null,
         dietary_tags: result.dietary_tags || dietary_tags || [],
+        tags: result.tags || [],
         prep_time_min: result.prep_time_min || null,
         servings: result.servings || 1,
-        ingredients: result.ingredients || [],
         instructions: result.instructions || '',
         substitutions: result.substitutions || [],
         calories: result.calories || null,
@@ -113,6 +113,11 @@ Retorne APENAS JSON válido com esta estrutura:
       }).select().single()
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+      if (Array.isArray(result.ingredients) && result.ingredients.length > 0) {
+        await insertComponentsFromIngredients(supabase, 'recipe_components', 'recipe_id', data.id, tenant.id, result.ingredients)
+      }
+
       return NextResponse.json({ recipe: data })
     } catch (err: any) {
       console.error('[/api/admin/recipes POST ai]', err)
@@ -122,7 +127,7 @@ Retorne APENAS JSON válido com esta estrutura:
 
   // Modo manual
   const {
-    title, description, emoji, category, dietary_tags,
+    title, description, emoji, category_id, dietary_tags, tags,
     prep_time_min, servings, ingredients, instructions,
     substitutions, calories, protein_g, carbs_g, fat_g, access_tier,
   } = body
@@ -135,11 +140,11 @@ Retorne APENAS JSON válido com esta estrutura:
     title: title.trim(),
     description: description?.trim() || null,
     emoji: emoji || '🍽️',
-    category: category || 'refeição',
+    category_id: category_id || null,
     dietary_tags: dietary_tags || [],
+    tags: tags || [],
     prep_time_min: prep_time_min ? Number(prep_time_min) : null,
     servings: servings ? Number(servings) : 1,
-    ingredients: ingredients || [],
     instructions: instructions.trim(),
     substitutions: substitutions || [],
     calories: calories ? Number(calories) : null,
@@ -154,6 +159,10 @@ Retorne APENAS JSON válido com esta estrutura:
   if (error) {
     console.error('[/api/admin/recipes POST manual]', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  if (Array.isArray(ingredients) && ingredients.length > 0) {
+    await insertComponentsFromIngredients(supabase, 'recipe_components', 'recipe_id', data.id, tenant.id, ingredients)
   }
 
   return NextResponse.json({ recipe: data })
