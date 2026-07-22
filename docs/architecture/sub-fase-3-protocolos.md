@@ -1,10 +1,12 @@
 # Arquitetura da Sub-fase 3 — Protocolos
 
-**Status:** Em revisão — segunda versão, incorporando 6 ajustes pedidos pelo usuário (nenhum código implementado)
+**Status:** Em revisão — terceira versão. Segunda rodada de revisão do usuário concluída sem nenhuma inconsistência estrutural apontada; ajustes desta versão são refinamentos de documentação, não mudanças de modelo (nenhum código implementado)
 **Data:** 2026-07-21
 **Escopo deste documento:** modelagem e validação arquitetural apenas. Nenhuma migração, hook, rota ou tela foi criada a partir deste documento — isso só acontece após aprovação explícita, PR a PR, conforme o plano de implementação na Seção 9.
 
-**Mudanças desta revisão em relação à primeira versão:** (1) `goal_id` removido de `protocol_items` — Metas só se ligam a um Protocolo inteiro via `protocol_goals`, nunca a um item agendado (Seções 2.3/2.4); (2) `item_kind` (`clinical_asset`/`custom`) adicionado como discriminador explícito, em vez de inferir pela ausência de FKs (Seção 2.3); (3) `CHECK` fortalecido para amarrar `item_kind` à contagem de FKs preenchidas, não só `<= 1` (Seção 2.3); (4) `UNIQUE(assignment_id, protocol_item_id)` adicionada em `protocol_progress` (Seção 2.5); (5) denormalização de `tenant_id` e (6) referência "ao vivo" sem versionamento elevadas a decisões arquiteturais explícitas, com o cenário concreto de risco documentado (nova Seção 2.7); terminologia da Seção 3 corrigida de "referência polimórfica" para "nullable foreign keys mutuamente exclusivas"; PR1 (Seção 9) passou a incluir a correção do erro engolido em `seasonal-protocols/route.ts`.
+**Mudanças da segunda versão (primeira rodada de revisão):** (1) `goal_id` removido de `protocol_items` — Metas só se ligam a um Protocolo inteiro via `protocol_goals`, nunca a um item agendado (Seções 2.3/2.4); (2) `item_kind` (`clinical_asset`/`custom`) adicionado como discriminador explícito, em vez de inferir pela ausência de FKs (Seção 2.3); (3) `CHECK` fortalecido para amarrar `item_kind` à contagem de FKs preenchidas, não só `<= 1` (Seção 2.3); (4) `UNIQUE(assignment_id, protocol_item_id)` adicionada em `protocol_progress` (Seção 2.5); (5) denormalização de `tenant_id` e (6) referência "ao vivo" sem versionamento elevadas a decisões arquiteturais explícitas, com o cenário concreto de risco documentado (nova Seção 2.7); terminologia da Seção 3 corrigida de "referência polimórfica" para "nullable foreign keys mutuamente exclusivas"; PR1 (Seção 9) passou a incluir a correção do erro engolido em `seasonal-protocols/route.ts`.
+
+**Mudanças da terceira versão (segunda rodada de revisão):** regra de precedência dos overrides (`title`/`description`/`quantity`/`unit`/`serving_label`: NULL → usar o valor do Ativo Clínico) explicitada em texto na Seção 2.3, em vez de ficar implícita; nota de implementação sobre o duplo papel de `title`/`description` conforme `item_kind`, sinalizando (sem mudar o schema) que um DTO/ViewModel de leitura pode ser necessário se o builder acumular condicionais; nota sobre a evolução futura de `UNIQUE(assignment_id, protocol_item_id)` caso "refazer atividade" seja implementado um dia (Seção 2.5).
 
 ---
 
@@ -160,6 +162,18 @@ created_at       timestamptz DEFAULT now()
 
 **Colunas removidas** (substituídas pelas FKs acima): `type`, `ingredients text[]`, `recipe text`. Nenhuma delas tem dado real em produção hoje (as 14 linhas existentes já são órfãs, sem `protocol_days` correspondente).
 
+**Regra de precedência dos overrides (explicitada por pedido do usuário — antes ficava implícita).** Para `title`, `description`, `quantity`, `unit`, `serving_label` de um item com `item_kind='clinical_asset'`:
+
+```
+override (coluna de protocol_items) preenchido?
+  → sim: usar o valor do override
+  → não (NULL): usar o valor correspondente do Ativo Clínico referenciado
+```
+
+`title` é a única coluna com uma diferença adicional: `NOT NULL` no banco, mas semanticamente opcional como override — quando o valor gravado for igual ao padrão que a aplicação usaria de qualquer forma (ou quando a camada de aplicação decidir não gravar um valor próprio), ela grava o próprio título do mestre no momento da criação em vez de deixar uma cadeia de fallback em tempo de leitura só para essa coluna. Isso mantém a regra de precedência acima válida de forma uniforme para as 5 colunas, sem uma exceção especial só para `title`.
+
+**Nota para a implementação (ponto levantado na revisão, não é mudança de schema).** `title`/`description` cumprem dois papéis conforme `item_kind`: em `custom`, são o conteúdo principal do item; em `clinical_asset`, são um override opcional do mestre. O schema aceita essa dualidade de propósito — o ponto de atenção é só de código: se o builder (Seção 9, PR2) acabar cheio de `if (item_kind === 'custom') ... else ...` espalhados pela UI, vale a pena isolar essa distinção num DTO/ViewModel de leitura (ex. um `resolveDisplayFields(item)` que já devolve `{ title, description, quantity, unit, servingLabel }` resolvidos pela regra de precedência acima) em vez de multiplicar condicionais pela tela — sem exigir mudança nenhuma no schema proposto aqui.
+
 Índices:
 ```
 idx_protocol_items_day        (protocol_day_id, order_index)
@@ -218,6 +232,8 @@ ALTER TABLE protocol_progress
 ```
 
 Hoje essa coluna existe mas nunca teve uma constraint de FK de verdade — corrigido junto, já que estamos redesenhando `protocol_items` de qualquer forma. A `UNIQUE` é nova e fecha uma lacuna que a rota já pressupõe estar fechada, mas que hoje só é garantida pela ordem de operações do código, não pelo banco.
+
+**Nota para o futuro (levantada na revisão, não muda o design atual).** Esta `UNIQUE` assume "1 conclusão por item por atribuição", que é exatamente o comportamento de hoje (marcar/desmarcar, nunca duas conclusões do mesmo item). Se algum dia existir "refazer atividade" (múltiplas execuções do mesmo item, ex. um exercício repetido no mesmo dia), essa constraint precisaria evoluir — por exemplo para `UNIQUE (assignment_id, protocol_item_id, attempt_number)` ou incorporar `completed_at`/`checkin_date` na chave. Não é uma necessidade hoje; registrado aqui para quando (e se) essa funcionalidade for cogitada, em vez de descobrir a restrição da forma difícil.
 
 ### 2.6 RLS — reescrita obrigatória para `protocol_days`/`protocol_items`
 
