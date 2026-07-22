@@ -1,8 +1,10 @@
 # Arquitetura da Sub-fase 3 — Protocolos
 
-**Status:** Aprovado para implementação — quarta versão. Arquitetura sem pendências estruturais; ajustes desta versão são checklist de execução da migração do PR1 (**um deles corrigiu um bug real de ordem de operações**, ver abaixo), não mudanças de modelo.
+**Status:** PR1 aplicado em produção. Arquitetura sem pendências estruturais; ajustes desta versão são checklist de execução da migração do PR1 (**um deles corrigiu um bug real de ordem de operações**, ver abaixo), não mudanças de modelo.
 **Data:** 2026-07-21
 **Escopo deste documento:** modelagem e validação arquitetural. A implementação começa pelo **PR1** (Seção 9) seguindo exatamente a ordem de operações da Seção 2.8.
+
+**Correção pós-aplicação (achada ao aplicar o PR1 em produção, não em revisão):** a Seção 2.5 abaixo afirmava que `protocol_progress` não tinha `UNIQUE(assignment_id, protocol_item_id)` e que essa constraint precisava ser criada nesta sub-fase. Isso estava **errado** — essa `UNIQUE` já existia desde a criação original da tabela em `supabase/schema_extended.sql` (`CREATE TABLE protocol_progress (... UNIQUE(assignment_id, protocol_item_id))`), e passou despercebida tanto na investigação inicial quanto nas 3 rodadas de revisão que se seguiram, incluindo uma delas elogiando explicitamente essa "adição". A migração do PR1 tentou recriá-la, abortou com "constraint já existe", e foi corrigida para checar a existência antes de agir. A `FK` de `protocol_item_id → protocol_items(id) ON DELETE CASCADE` também já existia em produção (origem não rastreada em nenhuma migration do repositório), mas com a definição exata que este documento pretendia — sem impacto na modelagem, só na afirmação de que precisava ser criada. Ver Seção 2.5 corrigida e o cabeçalho da migração `20260722000004_protocolos_subfase3_pr1_schema.sql` para o relato completo.
 
 **Mudanças da segunda versão (primeira rodada de revisão):** (1) `goal_id` removido de `protocol_items` — Metas só se ligam a um Protocolo inteiro via `protocol_goals`, nunca a um item agendado (Seções 2.3/2.4); (2) `item_kind` (`clinical_asset`/`custom`) adicionado como discriminador explícito, em vez de inferir pela ausência de FKs (Seção 2.3); (3) `CHECK` fortalecido para amarrar `item_kind` à contagem de FKs preenchidas, não só `<= 1` (Seção 2.3); (4) `UNIQUE(assignment_id, protocol_item_id)` adicionada em `protocol_progress` (Seção 2.5); (5) denormalização de `tenant_id` e (6) referência "ao vivo" sem versionamento elevadas a decisões arquiteturais explícitas, com o cenário concreto de risco documentado (nova Seção 2.7); terminologia da Seção 3 corrigida de "referência polimórfica" para "nullable foreign keys mutuamente exclusivas"; PR1 (Seção 9) passou a incluir a correção do erro engolido em `seasonal-protocols/route.ts`.
 
@@ -224,23 +226,24 @@ Se, na prática de uso, surgir uma necessidade real de listar "todas as receitas
 
 `protocol_assignments` e `protocol_leads` já têm FKs, RLS e índices corretos (verificado na Sub-fase 1 e nesta investigação) — nenhuma mudança.
 
-`protocol_progress` recebe uma correção pontual:
+`protocol_progress` precisaria, no papel, de duas garantias:
 
 ```sql
 ALTER TABLE protocol_progress
   ADD CONSTRAINT protocol_progress_protocol_item_id_fkey
   FOREIGN KEY (protocol_item_id) REFERENCES protocol_items(id) ON DELETE CASCADE;
 
--- Revisão do usuário: impede duas linhas de progresso para o mesmo item na
--- mesma atribuição (hoje não há nada no banco impedindo isso — só a lógica
--- de aplicação em /api/patient/protocol-progress, que já checa "existing"
--- antes de marcar, mas sem garantia no nível do banco).
 ALTER TABLE protocol_progress
   ADD CONSTRAINT protocol_progress_assignment_item_unique
   UNIQUE (assignment_id, protocol_item_id);
 ```
 
-Hoje essa coluna existe mas nunca teve uma constraint de FK de verdade — corrigido junto, já que estamos redesenhando `protocol_items` de qualquer forma. A `UNIQUE` é nova e fecha uma lacuna que a rota já pressupõe estar fechada, mas que hoje só é garantida pela ordem de operações do código, não pelo banco.
+**Correção (achada ao aplicar a migração, não em revisão — ver nota no topo do documento):** as duas afirmações abaixo, presentes nas 4 primeiras versões deste documento, estavam erradas.
+
+- ~~"Hoje essa coluna existe mas nunca teve uma constraint de FK de verdade."~~ A FK **já existia** em produção (`protocol_item_id → protocol_items(id) ON DELETE CASCADE`) antes desta sub-fase — origem não rastreada em nenhuma migration do repositório, mas com a definição exata pretendida aqui.
+- ~~"A UNIQUE é nova."~~ A `UNIQUE(assignment_id, protocol_item_id)` **sempre existiu**, desde a criação original da tabela em `supabase/schema_extended.sql`. Não era uma lacuna "garantida só pela ordem de operações do código" — já era garantida pelo banco desde o início; a leitura do schema original simplesmente não notou essa linha na investigação inicial, e isso sobreviveu a 3 rodadas de revisão.
+
+Na prática, o PR1 não precisou criar nenhuma das duas — só confirmou (com uma consulta a `pg_constraint` antes de tentar) que ambas já satisfazem exatamente o desenho pretendido, e seguiu em frente.
 
 **Nota para o futuro (levantada na revisão, não muda o design atual).** Esta `UNIQUE` assume "1 conclusão por item por atribuição", que é exatamente o comportamento de hoje (marcar/desmarcar, nunca duas conclusões do mesmo item). Se algum dia existir "refazer atividade" (múltiplas execuções do mesmo item, ex. um exercício repetido no mesmo dia), essa constraint precisaria evoluir — por exemplo para `UNIQUE (assignment_id, protocol_item_id, attempt_number)` ou incorporar `completed_at`/`checkin_date` na chave. Não é uma necessidade hoje; registrado aqui para quando (e se) essa funcionalidade for cogitada, em vez de descobrir a restrição da forma difícil.
 
@@ -590,7 +593,7 @@ Mesma técnica já usada com sucesso na Sub-fase 2 (aditivo → cutover → limp
 - `tenant_id` em `protocol_days`/`protocol_items` (backfill antes de `NOT NULL`, Seção 2.8) + reescrita de RLS (leitura tenant-scoped, escrita admin) — sozinho, já conserta a escrita silenciosamente quebrada dos Protocolos Sazonais.
 - `item_kind` (`clinical_asset`/`custom`, `DEFAULT 'custom'`) + 6 FKs nullable (sem `goal_id`) + `quantity`/`unit`/`serving_label` em `protocol_items`, com o CHECK forte amarrando `item_kind` à contagem de FKs preenchidas, adicionado só depois do backfill (Seção 2.3/2.8) — **aditivo** (colunas antigas `type`/`ingredients`/`recipe` continuam existindo por enquanto).
 - `UNIQUE(protocol_id, day_number)` em `protocol_days`.
-- FK real + `UNIQUE(assignment_id, protocol_item_id)` em `protocol_progress`.
+- Confirmar (via `pg_constraint`, não assumir) FK + `UNIQUE(assignment_id, protocol_item_id)` em `protocol_progress` — ambas já existiam em produção antes desta sub-fase (Seção 2.5); a migração só as recria se realmente estiverem ausentes.
 - `protocols.method_phase_id` (nullable).
 - Tabela `protocol_goals` + RLS (única ligação de Metas a protocolo — nada em `protocol_items`).
 - Correção pontual em `app/api/admin/seasonal-protocols/route.ts`: parar de ignorar o erro do insert de `protocol_days`/`protocol_items` (hoje `if (dayError) continue` e nenhuma checagem no insert de items) — sem isso, mesmo com a RLS corrigida, uma falha futura (violação do novo CHECK, por exemplo) voltaria a desaparecer silenciosamente.
