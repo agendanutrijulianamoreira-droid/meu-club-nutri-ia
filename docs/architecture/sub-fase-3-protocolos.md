@@ -1,8 +1,10 @@
 # Arquitetura da Sub-fase 3 — Protocolos
 
-**Status:** Em revisão (nenhum código implementado)
+**Status:** Em revisão — segunda versão, incorporando 6 ajustes pedidos pelo usuário (nenhum código implementado)
 **Data:** 2026-07-21
 **Escopo deste documento:** modelagem e validação arquitetural apenas. Nenhuma migração, hook, rota ou tela foi criada a partir deste documento — isso só acontece após aprovação explícita, PR a PR, conforme o plano de implementação na Seção 9.
+
+**Mudanças desta revisão em relação à primeira versão:** (1) `goal_id` removido de `protocol_items` — Metas só se ligam a um Protocolo inteiro via `protocol_goals`, nunca a um item agendado (Seções 2.3/2.4); (2) `item_kind` (`clinical_asset`/`custom`) adicionado como discriminador explícito, em vez de inferir pela ausência de FKs (Seção 2.3); (3) `CHECK` fortalecido para amarrar `item_kind` à contagem de FKs preenchidas, não só `<= 1` (Seção 2.3); (4) `UNIQUE(assignment_id, protocol_item_id)` adicionada em `protocol_progress` (Seção 2.5); (5) denormalização de `tenant_id` e (6) referência "ao vivo" sem versionamento elevadas a decisões arquiteturais explícitas, com o cenário concreto de risco documentado (nova Seção 2.7); terminologia da Seção 3 corrigida de "referência polimórfica" para "nullable foreign keys mutuamente exclusivas"; PR1 (Seção 9) passou a incluir a correção do erro engolido em `seasonal-protocols/route.ts`.
 
 ---
 
@@ -110,18 +112,36 @@ id               uuid PK
 protocol_day_id  uuid NOT NULL REFERENCES protocol_days(id) ON DELETE CASCADE
 tenant_id        uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE   -- NOVA
 
--- Referência polimórfica ao Ativo Clínico (Seção 3) — no máximo 1 preenchida
+-- Discriminador explícito (revisão do usuário) — nunca inferido implicitamente
+-- pela ausência de FKs preenchidas.
+item_kind        text NOT NULL DEFAULT 'clinical_asset' CHECK (item_kind IN ('clinical_asset', 'custom'))
+
+-- Nullable foreign keys mutuamente exclusivas ao Ativo Clínico (Seção 3) —
+-- NÃO é polimorfismo de banco (não há entity_type/entity_id genérico); é uma
+-- coluna de FK por tipo, com no máximo 1 preenchida por linha.
+-- Nota: goal_id foi removida daqui na revisão do usuário — Metas só se ligam
+-- a um Protocolo inteiro via protocol_goals (Seção 2.4), nunca a um item
+-- agendado num dia/hora específico. Evita o item existir com dois
+-- significados possíveis (meta do plano inteiro vs. meta às 9h do Dia 2).
 recipe_id        uuid REFERENCES recipes(id)
 meal_id          uuid REFERENCES meals(id)
 shot_id          uuid REFERENCES shots(id)
 tea_id           uuid REFERENCES teas(id)
 supplement_id    uuid REFERENCES supplements(id)
 material_id      uuid REFERENCES materials(id)
-goal_id          uuid REFERENCES goals(id)
-CHECK (num_nonnulls(recipe_id, meal_id, shot_id, tea_id, supplement_id, material_id, goal_id) <= 1)
+
+-- CHECK forte (revisão do usuário): não basta "no máximo 1" — item_kind e a
+-- contagem de FKs preenchidas precisam concordar entre si, sem brecha para
+-- item_kind='custom' com uma FK esquecida preenchida, nem 'clinical_asset'
+-- sem nenhuma referência de fato.
+CHECK (
+  (item_kind = 'custom'         AND num_nonnulls(recipe_id, meal_id, shot_id, tea_id, supplement_id, material_id) = 0)
+  OR
+  (item_kind = 'clinical_asset' AND num_nonnulls(recipe_id, meal_id, shot_id, tea_id, supplement_id, material_id) = 1)
+)
 
 -- Override de instância (ADR-0003) — sempre presentes, mesmo quando referenciam um mestre
-title            text NOT NULL      -- se nenhum Ativo referenciado: texto livre do item (ex. "Beba 2L de água"); se referenciado: override opcional do título do mestre
+title            text NOT NULL      -- se item_kind='custom': texto livre do item (ex. "Beba 2L de água"); se 'clinical_asset': override opcional do título do mestre
 description      text               -- idem, override opcional
 quantity         numeric            -- porção/dosagem específica desta ocorrência
 unit             text
@@ -144,16 +164,16 @@ created_at       timestamptz DEFAULT now()
 ```
 idx_protocol_items_day        (protocol_day_id, order_index)
 idx_protocol_items_tenant     (tenant_id)
+idx_protocol_items_kind       (item_kind)
 idx_protocol_items_recipe     (recipe_id)     WHERE recipe_id IS NOT NULL
 idx_protocol_items_meal       (meal_id)       WHERE meal_id IS NOT NULL
 idx_protocol_items_shot       (shot_id)       WHERE shot_id IS NOT NULL
 idx_protocol_items_tea        (tea_id)        WHERE tea_id IS NOT NULL
 idx_protocol_items_supplement (supplement_id) WHERE supplement_id IS NOT NULL
 idx_protocol_items_material   (material_id)   WHERE material_id IS NOT NULL
-idx_protocol_items_goal       (goal_id)       WHERE goal_id IS NOT NULL
 ```
 
-Os 7 índices parciais por FK não são só para leitura — são exatamente o que o requisito "aviso de dependências antes de arquivar", documentado no ADR-0003 na Sub-fase 2 (e que ali ficou apenas registrado, sem FK real para verificar), precisa para ser eficiente: `SELECT count(*) FROM protocol_items WHERE recipe_id = $1` deixa de ser um full scan.
+Os 6 índices parciais por FK não são só para leitura — são exatamente o que o requisito "aviso de dependências antes de arquivar", documentado no ADR-0003 na Sub-fase 2 (e que ali ficou apenas registrado, sem FK real para verificar), precisa para ser eficiente: `SELECT count(*) FROM protocol_items WHERE recipe_id = $1` deixa de ser um full scan.
 
 ### 2.4 `protocol_goals` (nova — única tabela de junção `protocol_*` desta sub-fase)
 
@@ -168,6 +188,8 @@ UNIQUE (protocol_id, goal_id)
 ```
 
 Índices: `idx_protocol_goals_protocol (protocol_id)`, `idx_protocol_goals_goal (goal_id)`, `idx_protocol_goals_tenant (tenant_id)`.
+
+**Metas só existem aqui — nunca em `protocol_items`.** Revisão importante do usuário: a primeira versão deste documento também permitia `protocol_items.goal_id`, o que dava à Meta dois significados possíveis ao mesmo tempo (algo do protocolo inteiro **ou** algo agendado às 9h do Dia 2). `goal_id` foi removida de `protocol_items` (Seção 2.3) — uma Meta só pode se ligar a um Protocolo como um todo, através desta tabela. Sem ambiguidade.
 
 **Nota importante — desvio deliberado do esboço original.** O planejamento de alto nível herdado da Sub-fase 1 sugeria 8 tabelas de junção (`protocol_recipes`, `protocol_foods`, `protocol_meals`, `protocol_shots`, `protocol_teas`, `protocol_supplements`, `protocol_materials`, `protocol_goals`) para representar "quais ativos este protocolo disponibiliza", separado do cronograma dia-a-dia (`protocol_items`). Neste detalhamento, **essa ideia foi reduzida a apenas `protocol_goals`**, pelo seguinte motivo:
 
@@ -185,9 +207,17 @@ Se, na prática de uso, surgir uma necessidade real de listar "todas as receitas
 ALTER TABLE protocol_progress
   ADD CONSTRAINT protocol_progress_protocol_item_id_fkey
   FOREIGN KEY (protocol_item_id) REFERENCES protocol_items(id) ON DELETE CASCADE;
+
+-- Revisão do usuário: impede duas linhas de progresso para o mesmo item na
+-- mesma atribuição (hoje não há nada no banco impedindo isso — só a lógica
+-- de aplicação em /api/patient/protocol-progress, que já checa "existing"
+-- antes de marcar, mas sem garantia no nível do banco).
+ALTER TABLE protocol_progress
+  ADD CONSTRAINT protocol_progress_assignment_item_unique
+  UNIQUE (assignment_id, protocol_item_id);
 ```
 
-Hoje essa coluna existe mas nunca teve uma constraint de FK de verdade — corrigido junto, já que estamos redesenhando `protocol_items` de qualquer forma.
+Hoje essa coluna existe mas nunca teve uma constraint de FK de verdade — corrigido junto, já que estamos redesenhando `protocol_items` de qualquer forma. A `UNIQUE` é nova e fecha uma lacuna que a rota já pressupõe estar fechada, mas que hoje só é garantida pela ordem de operações do código, não pelo banco.
 
 ### 2.6 RLS — reescrita obrigatória para `protocol_days`/`protocol_items`
 
@@ -209,19 +239,31 @@ CREATE POLICY "Admin manages own protocol_days"
 
 Isso fecha o vazamento cross-tenant de leitura e, ao mesmo tempo, corrige o bug de escrita silenciosa do Achado 0.2 — sem essa política de `ALL` para admin, a nova tela de Protocolos (Seção 9, PR2) teria exatamente o mesmo problema que os Sazonais têm hoje.
 
+**Nota adicional (revisão do usuário):** corrigir a política de RLS resolve a causa raiz do Achado 0.2, mas não resolve o hábito de código que a mascarou por tanto tempo. `app/api/admin/seasonal-protocols/route.ts` hoje ignora o erro do insert de `protocol_days` (`if (dayError) continue`) e nem verifica o erro do insert de `protocol_items`. Mesmo com a RLS corrigida, o PR de implementação (Seção 9, PR1) deve parar de engolir essas exceções — qualquer falha futura (violação do novo CHECK, FK inválida, etc.) precisa aparecer para quem está debugando, não desaparecer silenciosamente de novo.
+
+### 2.7 Decisões arquiteturais explícitas (não são efeitos colaterais)
+
+Duas escolhas deste documento têm consequência real em produção e merecem ser lidas como **decisão consciente**, não como detalhe implícito de implementação.
+
+**`tenant_id` denormalizado em `protocol_days` e `protocol_items` é proposital.** Tecnicamente, `tenant_id` já é alcançável por join (`protocol_items → protocol_days → protocols → tenant_id`) — repeti-lo em cada tabela é redundância de dado. A decisão de denormalizar mesmo assim é a mesma já tomada para toda a Biblioteca Clínica na Sub-fase 2: RLS que depende de um join de 2-3 níveis (`EXISTS (... JOIN protocol_days ON ... JOIN protocols ON ...)`) fica mais lenta e mais fácil de errar (um join esquecido nessa cadeia reabre exatamente o vazamento cross-tenant do Achado 0.2) do que uma política que compara `tenant_id` direto na própria linha. O custo é 2 colunas a mais e a obrigação de manter esse valor sincronizado no momento do insert (nunca muda depois, já que um dia/item não migra de protocolo) — trade-off aceito conscientemente em favor de RLS simples e correta.
+
+**Ativos Clínicos são referenciados "ao vivo", sem versionamento — isso é uma decisão arquitetural, não uma limitação esquecida.** Cenário concreto trazido na revisão: uma paciente está no Dia 5 de um protocolo; a nutricionista edita a receita referenciada no Dia 3 (que a paciente já cumpriu) ou no Dia 7 (que ela ainda vai ver); como `protocol_items.recipe_id` é uma referência viva (sem snapshot), a paciente passa a ver a versão atual da receita em qualquer dia ainda não renderizado/cumprido, inclusive dias já cumpridos se a tela de histórico re-consultar o mestre em vez de guardar o que foi mostrado. Isso **já é o comportamento de hoje** (tanto `protocols.content` quanto a Biblioteca Clínica em geral não têm snapshot), mas a Sub-fase 3 o formaliza como o modelo definitivo de todo protocolo, então fica documentado aqui como escolha deliberada: **esta arquitetura assume referências "ao vivo" — alterar um Ativo Clínico impacta todos os protocolos (e, futuramente, dietas) que o referenciam, retroativamente, sem aviso.** Se isso se tornar um problema real de uso (nutricionista editando receitas de protocolos em andamento com frequência), a resposta é o `protocol_versions` esboçado na Seção 6 — não implementado agora, mas o risco está registrado como decisão, não como descuido.
+
 ---
 
 ## 3. Modelagem de `Protocol Item` — comparação de alternativas
 
 Esta é a decisão de modelagem mais importante da sub-fase, porque `protocol_items` é a tabela mais consultada do sistema (todo carregamento da Home da paciente passa por ela).
 
-### Alternativa A — Referência polimórfica (colunas de FK nulas na própria tabela)
+**Nota de terminologia (revisão do usuário):** a versão anterior deste documento chamava a Alternativa A de "referência polimórfica". Isso é impreciso — polimorfismo, no sentido de banco de dados, normalmente descreve uma FK genérica (`entity_type` + `entity_id`), que **não** é o que está sendo proposto aqui e resolveria a integridade referencial de forma muito mais fraca (o banco não consegue validar `entity_id` contra múltiplas tabelas possíveis). O nome correto do que a Alternativa A realmente é: **nullable foreign keys mutuamente exclusivas** — uma coluna de FK de verdade por tipo, cada uma validável pelo banco, com no máximo uma preenchida por linha. Renomeado abaixo para evitar essa confusão.
 
-Uma coluna de FK nullable por tipo de Ativo Clínico na própria `protocol_items`, com `CHECK (num_nonnulls(...) <= 1)`. É exatamente o padrão já usado e aprovado em `shot_components`/`tea_components`/`meal_components`/`recipe_components` (Sub-fase 2), estendido de "componente de uma receita" para "item de um dia de protocolo".
+### Alternativa A — Nullable foreign keys mutuamente exclusivas (colunas de FK nulas na própria tabela)
+
+Uma coluna de FK nullable por tipo de Ativo Clínico na própria `protocol_items`, com um discriminador explícito (`item_kind`, Seção 2.3) e `CHECK` amarrando `item_kind` à contagem de FKs preenchidas. É exatamente o padrão já usado e aprovado em `shot_components`/`tea_components`/`meal_components`/`recipe_components` (Sub-fase 2), estendido de "componente de uma receita" para "item de um dia de protocolo".
 
 ### Alternativa B — Tabela de junção por tipo
 
-Uma tabela por tipo de ativo: `protocol_recipe_items`, `protocol_meal_items`, `protocol_shot_items`, etc. (7 tabelas), cada uma com FK `NOT NULL` para seu tipo específico.
+Uma tabela por tipo de ativo: `protocol_recipe_items`, `protocol_meal_items`, `protocol_shot_items`, etc. (6 tabelas), cada uma com FK `NOT NULL` para seu tipo específico.
 
 ### Alternativa C — Supertipo/Subtipo
 
@@ -229,18 +271,18 @@ Uma tabela por tipo de ativo: `protocol_recipe_items`, `protocol_meal_items`, `p
 
 ### Comparação
 
-| Critério | A — Referência polimórfica | B — Junção por tipo | C — Supertipo/Subtipo |
+| Critério | A — Nullable FKs mutuamente exclusivas | B — Junção por tipo | C — Supertipo/Subtipo |
 |---|---|---|---|
-| Renderizar 1 dia inteiro (a consulta mais frequente do sistema) | 1 query, `ORDER BY order_index` | `UNION ALL` de 7 tabelas ou 7 queries | `LEFT JOIN` com até 7 tabelas filhas |
-| Suporte a "item livre" (água, exercício, sem Ativo Clínico) | Grátis — todas as FKs nulas | Precisa de uma 8ª tabela `protocol_custom_items` | Precisa de uma 8ª subtabela ou de nulos na supertabela mesmo assim |
+| Renderizar 1 dia inteiro (a consulta mais frequente do sistema) | 1 query, `ORDER BY order_index` | `UNION ALL` de 6 tabelas ou 6 queries | `LEFT JOIN` com até 6 tabelas filhas |
+| Suporte a "item livre" (água, exercício, sem Ativo Clínico) | Grátis — `item_kind='custom'`, todas as FKs nulas | Precisa de uma 7ª tabela `protocol_custom_items` | Precisa de uma 7ª subtabela ou de nulos na supertabela mesmo assim |
 | Adicionar um tipo de ativo novo no futuro | 1 `ALTER TABLE ADD COLUMN` + 1 cláusula no CHECK | 1 tabela nova + reescrever toda consulta de listagem | 1 tabela filha nova, mesma reescrita de consulta |
 | Consistência com o que já foi construído (Sub-fase 2) | Idêntico ao padrão já revisado e aprovado | Diferente sem motivo — mesmo domínio, modelagem distinta | Diferente sem motivo |
-| Pureza normalizada (3NF) | Colunas majoritariamente nulas (7 colunas, no máx. 1 preenchida) | Total | Quase total (campos comuns ficam limpos) |
+| Pureza normalizada (3NF) | Colunas majoritariamente nulas (6 colunas, no máx. 1 preenchida) | Total | Quase total (campos comuns ficam limpos) |
 | Custo real dado o volume de dados (um protocolo tem ~7-30 dias × ~3-6 itens ≈ 100-200 linhas) | Irrelevante nesse volume | Ganho teórico não paga o custo de leitura | Ganho teórico não paga o custo de leitura |
 
 ### Decisão: Alternativa A
 
-A pureza normalizada de B/C é real, mas o domínio aqui não tem volume que justifique o custo: nenhum protocolo terá dezenas de milhares de itens. A consulta que mais importa — "traga o dia de hoje, ordenado" — é executada a cada carregamento da Home da paciente, e a Alternativa A resolve isso com uma única query sem join extra. Além disso, adotar B ou C introduziria uma segunda forma de modelar "referência a Ativo Clínico" no mesmo código-base que já resolveu esse exato problema (composição de receita/shot/chá/refeição) do jeito A na Sub-fase 2 — inconsistência sem ganho real. Alternativa A também resolve "item sem Ativo Clínico" (água, exercício livre) de graça, sem precisar de uma 8ª tabela só para isso, o que está alinhado com ADR-0004 (nem tudo precisa virar um Ativo Clínico só para poder existir como item de protocolo).
+A pureza normalizada de B/C é real, mas o domínio aqui não tem volume que justifique o custo: nenhum protocolo terá dezenas de milhares de itens. A consulta que mais importa — "traga o dia de hoje, ordenado" — é executada a cada carregamento da Home da paciente, e a Alternativa A resolve isso com uma única query sem join extra. Além disso, adotar B ou C introduziria uma segunda forma de modelar "referência a Ativo Clínico" no mesmo código-base que já resolveu esse exato problema (composição de receita/shot/chá/refeição) do jeito A na Sub-fase 2 — inconsistência sem ganho real. Alternativa A também resolve "item sem Ativo Clínico" (água, exercício livre) de graça, com `item_kind='custom'` explícito em vez de precisar de uma 7ª tabela só para isso, o que está alinhado com ADR-0004 (nem tudo precisa virar um Ativo Clínico só para poder existir como item de protocolo).
 
 ---
 
@@ -253,9 +295,11 @@ A pureza normalizada de B/C é real, mas o domínio aqui não tem volume que jus
    → um dia por vez, ou os N dias de uma vez (duração define o esqueleto)
 3. Adicionar Itens a um dia
    → para cada item: "Selecionar da Biblioteca Clínica" (recipe/meal/shot/tea/
-     supplement/material/goal — reaproveita os pickers já existentes na
-     ClinicalLibraryView) OU "Item personalizado" (água, exercício livre — sem
-     Ativo Clínico, só texto)
+     supplement/material — reaproveita os pickers já existentes na
+     ClinicalLibraryView, item_kind='clinical_asset') OU "Item personalizado"
+     (água, exercício livre — sem Ativo Clínico, item_kind='custom', só texto).
+     Metas não aparecem aqui — elas se ligam ao protocolo inteiro no passo 4,
+     nunca a um item de um dia específico
    → se um Ativo foi referenciado: opcionalmente sobrescrever título/descrição/
      quantidade só para esta ocorrência (ADR-0003)
 4. Selecionar Metas do protocolo (opcional)
@@ -332,17 +376,18 @@ flowchart TD
     A[Método] --> B[Fase]
     B --> C[Protocolo]
     C --> D[Dia do Protocolo]
-    D --> E[Item do Protocolo]
-    E -.referencia.-> F[Ativo Clínico]
+    D --> E["Item do Protocolo (item_kind)"]
+    E -.referencia no máx 1.-> F[Ativo Clínico agendável]
     F --> F1[Receita]
     F --> F2[Refeição]
     F --> F3[Shot]
     F --> F4[Chá]
     F --> F5[Suplemento]
     F --> F6[Material]
-    F --> F7[Meta]
-    C -.declara foco em.-> F7
+    C -.declara foco em via protocol_goals.-> F7[Meta]
 ```
+
+Nota: Meta (`F7`) só se liga ao Protocolo como um todo (`protocol_goals`) — nunca a um Item individual. É a única entidade da Biblioteca Clínica que não aparece como possível referência de `protocol_items`, por não fazer sentido agendada num dia/hora (Seção 2.3/2.4).
 
 ### 8.2 Modelo relacional (ER)
 
@@ -358,13 +403,12 @@ erDiagram
     PROTOCOL_ASSIGNMENTS ||--o{ PROTOCOL_PROGRESS : gera
     PROTOCOL_ITEMS ||--o{ PROTOCOL_PROGRESS : "concluido via"
 
-    PROTOCOL_ITEMS }o--o| RECIPES : "referencia (0 ou 1 destas 7)"
+    PROTOCOL_ITEMS }o--o| RECIPES : "referencia (0 ou 1 destas 6, conforme item_kind)"
     PROTOCOL_ITEMS }o--o| MEALS : referencia
     PROTOCOL_ITEMS }o--o| SHOTS : referencia
     PROTOCOL_ITEMS }o--o| TEAS : referencia
     PROTOCOL_ITEMS }o--o| SUPPLEMENTS : referencia
     PROTOCOL_ITEMS }o--o| MATERIALS : referencia
-    PROTOCOL_ITEMS }o--o| GOALS : referencia
 
     PROTOCOLS {
         uuid id PK
@@ -388,13 +432,13 @@ erDiagram
         uuid id PK
         uuid protocol_day_id FK
         uuid tenant_id FK "novo"
+        text item_kind "clinical_asset ou custom, novo"
         uuid recipe_id FK "nullable"
         uuid meal_id FK "nullable"
         uuid shot_id FK "nullable"
         uuid tea_id FK "nullable"
         uuid supplement_id FK "nullable"
         uuid material_id FK "nullable"
-        uuid goal_id FK "nullable"
         text title "override ou item livre"
         numeric quantity
         int points
@@ -414,7 +458,7 @@ erDiagram
     PROTOCOL_PROGRESS {
         uuid id PK
         uuid assignment_id FK
-        uuid protocol_item_id FK "FK real, novo"
+        uuid protocol_item_id FK "FK real, novo; UNIQUE com assignment_id, novo"
         text proof_type
     }
 ```
@@ -426,8 +470,8 @@ flowchart LR
     A[Criar Protocolo] --> B[Adicionar Dias]
     B --> C[Adicionar Itens]
     C --> D{Selecionar origem}
-    D -->|Ativo da Biblioteca| E[Buscar em recipes/meals/shots/teas/supplements/materials/goals]
-    D -->|Item personalizado| F[Título/descrição livres]
+    D -->|Ativo da Biblioteca, item_kind=clinical_asset| E[Buscar em recipes/meals/shots/teas/supplements/materials]
+    D -->|Item personalizado, item_kind=custom| F[Título/descrição livres]
     E --> G[Opcional: override de instância]
     F --> H[Salvar item]
     G --> H
@@ -442,15 +486,16 @@ flowchart LR
 
 Mesma técnica já usada com sucesso na Sub-fase 2 (aditivo → cutover → limpeza), para nunca deixar o app quebrado entre merges.
 
-**PR 1 — Fundação de schema (só banco, aditivo, corrige o bug do Achado 0.2)**
+**PR 1 — Fundação de schema (aditivo, corrige o bug do Achado 0.2 — inclui um pequeno ajuste de código, não é só banco)**
 - `tenant_id` em `protocol_days`/`protocol_items` + reescrita de RLS (leitura tenant-scoped, escrita admin) — sozinho, já conserta a escrita silenciosamente quebrada dos Protocolos Sazonais.
-- 7 FKs nullable + `quantity`/`unit`/`serving_label` em `protocol_items`, **aditivo** (colunas antigas `type`/`ingredients`/`recipe` continuam existindo por enquanto).
+- `item_kind` (`clinical_asset`/`custom`) + 6 FKs nullable (sem `goal_id`) + `quantity`/`unit`/`serving_label` em `protocol_items`, com o CHECK forte amarrando `item_kind` à contagem de FKs preenchidas (Seção 2.3) — **aditivo** (colunas antigas `type`/`ingredients`/`recipe` continuam existindo por enquanto).
 - `UNIQUE(protocol_id, day_number)` em `protocol_days`.
-- FK real em `protocol_progress.protocol_item_id`.
+- FK real + `UNIQUE(assignment_id, protocol_item_id)` em `protocol_progress`.
 - `protocols.method_phase_id` (nullable).
-- Tabela `protocol_goals` + RLS.
+- Tabela `protocol_goals` + RLS (única ligação de Metas a protocolo — nada em `protocol_items`).
+- Correção pontual em `app/api/admin/seasonal-protocols/route.ts`: parar de ignorar o erro do insert de `protocol_days`/`protocol_items` (hoje `if (dayError) continue` e nenhuma checagem no insert de items) — sem isso, mesmo com a RLS corrigida, uma falha futura (violação do novo CHECK, por exemplo) voltaria a desaparecer silenciosamente.
 - Reconfirmar contagens de produção antes de aplicar (Achado 0.3).
-- Teste: aplicar migração, `get_advisors`, teste manual de que o POST de Sazonais agora realmente persiste dias/itens.
+- Teste: aplicar migração, `get_advisors`, teste manual de que o POST de Sazonais agora realmente persiste dias/itens e que um erro proposital (ex. CHECK violado) aparece de forma visível.
 
 **PR 2 — Novo builder de Protocolos consumindo a Biblioteca Clínica**
 - Revive/adapta `useProtocolBuilder.ts` (ou hook novo) para escrever nas colunas novas.
