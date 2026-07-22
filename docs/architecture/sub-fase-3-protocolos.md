@@ -1,12 +1,14 @@
 # Arquitetura da Sub-fase 3 — Protocolos
 
-**Status:** Em revisão — terceira versão. Segunda rodada de revisão do usuário concluída sem nenhuma inconsistência estrutural apontada; ajustes desta versão são refinamentos de documentação, não mudanças de modelo (nenhum código implementado)
+**Status:** Aprovado para implementação — quarta versão. Arquitetura sem pendências estruturais; ajustes desta versão são checklist de execução da migração do PR1 (**um deles corrigiu um bug real de ordem de operações**, ver abaixo), não mudanças de modelo.
 **Data:** 2026-07-21
-**Escopo deste documento:** modelagem e validação arquitetural apenas. Nenhuma migração, hook, rota ou tela foi criada a partir deste documento — isso só acontece após aprovação explícita, PR a PR, conforme o plano de implementação na Seção 9.
+**Escopo deste documento:** modelagem e validação arquitetural. A implementação começa pelo **PR1** (Seção 9) seguindo exatamente a ordem de operações da Seção 2.8.
 
 **Mudanças da segunda versão (primeira rodada de revisão):** (1) `goal_id` removido de `protocol_items` — Metas só se ligam a um Protocolo inteiro via `protocol_goals`, nunca a um item agendado (Seções 2.3/2.4); (2) `item_kind` (`clinical_asset`/`custom`) adicionado como discriminador explícito, em vez de inferir pela ausência de FKs (Seção 2.3); (3) `CHECK` fortalecido para amarrar `item_kind` à contagem de FKs preenchidas, não só `<= 1` (Seção 2.3); (4) `UNIQUE(assignment_id, protocol_item_id)` adicionada em `protocol_progress` (Seção 2.5); (5) denormalização de `tenant_id` e (6) referência "ao vivo" sem versionamento elevadas a decisões arquiteturais explícitas, com o cenário concreto de risco documentado (nova Seção 2.7); terminologia da Seção 3 corrigida de "referência polimórfica" para "nullable foreign keys mutuamente exclusivas"; PR1 (Seção 9) passou a incluir a correção do erro engolido em `seasonal-protocols/route.ts`.
 
 **Mudanças da terceira versão (segunda rodada de revisão):** regra de precedência dos overrides (`title`/`description`/`quantity`/`unit`/`serving_label`: NULL → usar o valor do Ativo Clínico) explicitada em texto na Seção 2.3, em vez de ficar implícita; nota de implementação sobre o duplo papel de `title`/`description` conforme `item_kind`, sinalizando (sem mudar o schema) que um DTO/ViewModel de leitura pode ser necessário se o builder acumular condicionais; nota sobre a evolução futura de `UNIQUE(assignment_id, protocol_item_id)` caso "refazer atividade" seja implementado um dia (Seção 2.5).
+
+**Mudanças da quarta versão (checklist de migração do PR1, terceira rodada de revisão) — nova Seção 2.8:** (1) confirmado que o PR1 é 100% aditivo; (2) confirmado que as 6 novas FKs em `protocol_items` são nullable desde o início; (3) **bug real encontrado e corrigido**: `item_kind` tinha `DEFAULT 'clinical_asset'` na versão anterior — combinado com as 14 linhas legadas órfãs de `protocol_items` (0 FKs preenchidas, por serem colunas novas), isso violaria o próprio `CHECK` no momento de aplicar a migração; corrigido para `DEFAULT 'custom'` (Seção 2.3), com a ordem de operações completa (colunas → backfill → `CHECK`) documentada na Seção 2.8; (4) estratégia de backfill de `tenant_id` detalhada, incluindo a exclusão das 14 linhas órfãs de `protocol_items` (não alcançáveis pelo backfill via join, por não terem `protocol_days` correspondente) antes de tornar a coluna `NOT NULL`.
 
 ---
 
@@ -115,8 +117,13 @@ protocol_day_id  uuid NOT NULL REFERENCES protocol_days(id) ON DELETE CASCADE
 tenant_id        uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE   -- NOVA
 
 -- Discriminador explícito (revisão do usuário) — nunca inferido implicitamente
--- pela ausência de FKs preenchidas.
-item_kind        text NOT NULL DEFAULT 'clinical_asset' CHECK (item_kind IN ('clinical_asset', 'custom'))
+-- pela ausência de FKs preenchidas. DEFAULT 'custom' (não 'clinical_asset')
+-- é deliberado: é o único valor compatível com toda linha legada existente
+-- no momento da migração, que não tem nenhuma das 6 FKs abaixo preenchida
+-- (são colunas novas). Ver Seção 2.8 para a ordem de operações completa.
+-- A aplicação (PR2) sempre grava item_kind explicitamente ao criar um item
+-- novo — o DEFAULT só existe para não quebrar o backfill de linhas antigas.
+item_kind        text NOT NULL DEFAULT 'custom' CHECK (item_kind IN ('clinical_asset', 'custom'))
 
 -- Nullable foreign keys mutuamente exclusivas ao Ativo Clínico (Seção 3) —
 -- NÃO é polimorfismo de banco (não há entity_type/entity_id genérico); é uma
@@ -264,6 +271,48 @@ Duas escolhas deste documento têm consequência real em produção e merecem se
 **`tenant_id` denormalizado em `protocol_days` e `protocol_items` é proposital.** Tecnicamente, `tenant_id` já é alcançável por join (`protocol_items → protocol_days → protocols → tenant_id`) — repeti-lo em cada tabela é redundância de dado. A decisão de denormalizar mesmo assim é a mesma já tomada para toda a Biblioteca Clínica na Sub-fase 2: RLS que depende de um join de 2-3 níveis (`EXISTS (... JOIN protocol_days ON ... JOIN protocols ON ...)`) fica mais lenta e mais fácil de errar (um join esquecido nessa cadeia reabre exatamente o vazamento cross-tenant do Achado 0.2) do que uma política que compara `tenant_id` direto na própria linha. O custo é 2 colunas a mais e a obrigação de manter esse valor sincronizado no momento do insert (nunca muda depois, já que um dia/item não migra de protocolo) — trade-off aceito conscientemente em favor de RLS simples e correta.
 
 **Ativos Clínicos são referenciados "ao vivo", sem versionamento — isso é uma decisão arquitetural, não uma limitação esquecida.** Cenário concreto trazido na revisão: uma paciente está no Dia 5 de um protocolo; a nutricionista edita a receita referenciada no Dia 3 (que a paciente já cumpriu) ou no Dia 7 (que ela ainda vai ver); como `protocol_items.recipe_id` é uma referência viva (sem snapshot), a paciente passa a ver a versão atual da receita em qualquer dia ainda não renderizado/cumprido, inclusive dias já cumpridos se a tela de histórico re-consultar o mestre em vez de guardar o que foi mostrado. Isso **já é o comportamento de hoje** (tanto `protocols.content` quanto a Biblioteca Clínica em geral não têm snapshot), mas a Sub-fase 3 o formaliza como o modelo definitivo de todo protocolo, então fica documentado aqui como escolha deliberada: **esta arquitetura assume referências "ao vivo" — alterar um Ativo Clínico impacta todos os protocolos (e, futuramente, dietas) que o referenciam, retroativamente, sem aviso.** Se isso se tornar um problema real de uso (nutricionista editando receitas de protocolos em andamento com frequência), a resposta é o `protocol_versions` esboçado na Seção 6 — não implementado agora, mas o risco está registrado como decisão, não como descuido.
+
+### 2.8 Estratégia de migração segura para o PR1 (checklist de execução, não mudança de arquitetura)
+
+Validação pedida pelo usuário antes de iniciar o PR1 — quatro pontos, todos sobre **como** aplicar a migração da Seção 2 com segurança, não sobre o desenho em si.
+
+**1. 100% aditiva.** O PR1 não remove nenhuma coluna. `protocol_items.type`/`.ingredients`/`.recipe` continuam existindo (removidas só no PR4); `protocols.content` continua existindo e sendo o que `ProtocolsView.tsx` lê/escreve até o PR2 trocar isso. Nenhum código atual quebra entre o merge do PR1 e o do PR2.
+
+**2. Novas FKs em `protocol_items` nullable desde o início.** Já é o próprio desenho da Seção 2.3 — `recipe_id`/`meal_id`/`shot_id`/`tea_id`/`supplement_id`/`material_id` são nullable por definição (é isso que viabiliza `item_kind='custom'`). Nenhuma delas vira `NOT NULL` em momento algum desta sub-fase.
+
+**3. Ordem de operações para o `CHECK` não invalidar as 14 linhas legadas órfãs — risco real encontrado e corrigido.** A Seção 2.3 originalmente tinha `item_kind DEFAULT 'clinical_asset'`. Isso quebraria a própria migração: as 14 linhas de `protocol_items` já existentes (órfãs, ver Achado 0.3) não têm nenhuma das 6 novas FKs preenchida (são colunas novas, nascem `NULL`) — se essas linhas herdassem `item_kind='clinical_asset'` por default, o `CHECK` (que exige exatamente 1 FK preenchida para esse valor) rejeitaria a própria migração ao tentar validar as linhas existentes. **Corrigido:** o `DEFAULT` da coluna passou a ser `'custom'` (já ajustado na Seção 2.3), que é o único valor compatível com 0 FKs preenchidas — exatamente o estado de qualquer linha legada. Ordem de execução dentro do PR1:
+
+```sql
+-- a) novas colunas, sem CHECK ainda
+ALTER TABLE protocol_items ADD COLUMN item_kind text NOT NULL DEFAULT 'custom';
+ALTER TABLE protocol_items ADD COLUMN recipe_id uuid REFERENCES recipes(id);
+-- ... demais 5 FKs, todas nullable, sem dado (colunas novas)
+
+-- b) só então o CHECK, com todas as linhas já em um estado consistente
+ALTER TABLE protocol_items ADD CONSTRAINT protocol_items_kind_check CHECK (
+  (item_kind = 'custom'         AND num_nonnulls(recipe_id, meal_id, shot_id, tea_id, supplement_id, material_id) = 0)
+  OR
+  (item_kind = 'clinical_asset' AND num_nonnulls(recipe_id, meal_id, shot_id, tea_id, supplement_id, material_id) = 1)
+);
+```
+A aplicação (PR2) segue livre para gravar `item_kind='clinical_asset'` explicitamente sempre que popular uma FK — o `DEFAULT 'custom'` só protege o backfill desta migração, não é o valor "normal" esperado em uso real.
+
+**4. Backfill de `tenant_id` — o passo mais sensível, com um risco concreto identificado agora.**
+
+`protocol_days.tenant_id` é backfillável sem ambiguidade: `protocol_days.protocol_id` é `NOT NULL` com FK válida para `protocols`, então todo `protocol_day` tem um `protocols.tenant_id` para copiar.
+```sql
+UPDATE protocol_days pd SET tenant_id = p.tenant_id FROM protocols p WHERE p.id = pd.protocol_id;
+```
+
+`protocol_items.tenant_id` tem um problema real: o backfill natural (`UPDATE protocol_items pi SET tenant_id = pd.tenant_id FROM protocol_days pd WHERE pd.id = pi.protocol_day_id`) **não alcança as 14 linhas órfãs conhecidas**, porque `protocol_day_id` delas não bate com nenhum `protocol_days.id` existente — não há linha para o join casar, então `tenant_id` ficaria `NULL` nelas, e o `ALTER COLUMN ... SET NOT NULL` subsequente falharia.
+
+**Resolução:** como parte do PR1, após reconfirmar a contagem fresca (Achado 0.3), se essas linhas continuarem órfãs, elas são **excluídas antes do backfill**:
+```sql
+DELETE FROM protocol_items WHERE protocol_day_id NOT IN (SELECT id FROM protocol_days);
+```
+Justificativa: essas linhas já são comprovadamente não-funcionais hoje — não aparecem em nenhuma tela (não há `protocol_days` válido para alcançá-las a partir de nenhum protocolo real) e não há forma correta de atribuir um `tenant_id` a uma linha sem um dia de protocolo válido. Mantê-las não preserva nenhum dado real, só impediria o `NOT NULL`. Se a contagem fresca mostrar algo diferente das 14 órfãs já conhecidas, este passo é revisado antes de aplicar — não é uma exclusão automática cega.
+
+Só depois desse delete + backfill limpo, `tenant_id` vira `NOT NULL` nas duas tabelas.
 
 ---
 
@@ -503,14 +552,14 @@ flowchart LR
 Mesma técnica já usada com sucesso na Sub-fase 2 (aditivo → cutover → limpeza), para nunca deixar o app quebrado entre merges.
 
 **PR 1 — Fundação de schema (aditivo, corrige o bug do Achado 0.2 — inclui um pequeno ajuste de código, não é só banco)**
-- `tenant_id` em `protocol_days`/`protocol_items` + reescrita de RLS (leitura tenant-scoped, escrita admin) — sozinho, já conserta a escrita silenciosamente quebrada dos Protocolos Sazonais.
-- `item_kind` (`clinical_asset`/`custom`) + 6 FKs nullable (sem `goal_id`) + `quantity`/`unit`/`serving_label` em `protocol_items`, com o CHECK forte amarrando `item_kind` à contagem de FKs preenchidas (Seção 2.3) — **aditivo** (colunas antigas `type`/`ingredients`/`recipe` continuam existindo por enquanto).
+- Seguir exatamente a ordem de operações da Seção 2.8: reconfirmar contagens (Achado 0.3) → excluir as linhas órfãs de `protocol_items` se ainda existirem → adicionar colunas novas (nullable) → backfill de `tenant_id` → `item_kind`/FKs → `CHECK` → só então `tenant_id NOT NULL`.
+- `tenant_id` em `protocol_days`/`protocol_items` (backfill antes de `NOT NULL`, Seção 2.8) + reescrita de RLS (leitura tenant-scoped, escrita admin) — sozinho, já conserta a escrita silenciosamente quebrada dos Protocolos Sazonais.
+- `item_kind` (`clinical_asset`/`custom`, `DEFAULT 'custom'`) + 6 FKs nullable (sem `goal_id`) + `quantity`/`unit`/`serving_label` em `protocol_items`, com o CHECK forte amarrando `item_kind` à contagem de FKs preenchidas, adicionado só depois do backfill (Seção 2.3/2.8) — **aditivo** (colunas antigas `type`/`ingredients`/`recipe` continuam existindo por enquanto).
 - `UNIQUE(protocol_id, day_number)` em `protocol_days`.
 - FK real + `UNIQUE(assignment_id, protocol_item_id)` em `protocol_progress`.
 - `protocols.method_phase_id` (nullable).
 - Tabela `protocol_goals` + RLS (única ligação de Metas a protocolo — nada em `protocol_items`).
 - Correção pontual em `app/api/admin/seasonal-protocols/route.ts`: parar de ignorar o erro do insert de `protocol_days`/`protocol_items` (hoje `if (dayError) continue` e nenhuma checagem no insert de items) — sem isso, mesmo com a RLS corrigida, uma falha futura (violação do novo CHECK, por exemplo) voltaria a desaparecer silenciosamente.
-- Reconfirmar contagens de produção antes de aplicar (Achado 0.3).
 - Teste: aplicar migração, `get_advisors`, teste manual de que o POST de Sazonais agora realmente persiste dias/itens e que um erro proposital (ex. CHECK violado) aparece de forma visível.
 
 **PR 2 — Novo builder de Protocolos consumindo a Biblioteca Clínica**
