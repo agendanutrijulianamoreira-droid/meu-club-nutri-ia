@@ -8,7 +8,9 @@
 
 **Mudanças da terceira versão (segunda rodada de revisão):** regra de precedência dos overrides (`title`/`description`/`quantity`/`unit`/`serving_label`: NULL → usar o valor do Ativo Clínico) explicitada em texto na Seção 2.3, em vez de ficar implícita; nota de implementação sobre o duplo papel de `title`/`description` conforme `item_kind`, sinalizando (sem mudar o schema) que um DTO/ViewModel de leitura pode ser necessário se o builder acumular condicionais; nota sobre a evolução futura de `UNIQUE(assignment_id, protocol_item_id)` caso "refazer atividade" seja implementado um dia (Seção 2.5).
 
-**Mudanças da quarta versão (checklist de migração do PR1, terceira rodada de revisão) — nova Seção 2.8:** (1) confirmado que o PR1 é 100% aditivo; (2) confirmado que as 6 novas FKs em `protocol_items` são nullable desde o início; (3) **bug real encontrado e corrigido**: `item_kind` tinha `DEFAULT 'clinical_asset'` na versão anterior — combinado com as 14 linhas legadas órfãs de `protocol_items` (0 FKs preenchidas, por serem colunas novas), isso violaria o próprio `CHECK` no momento de aplicar a migração; corrigido para `DEFAULT 'custom'` (Seção 2.3), com a ordem de operações completa (colunas → backfill → `CHECK`) documentada na Seção 2.8; (4) estratégia de backfill de `tenant_id` detalhada, incluindo a exclusão das 14 linhas órfãs de `protocol_items` (não alcançáveis pelo backfill via join, por não terem `protocol_days` correspondente) antes de tornar a coluna `NOT NULL`.
+**Mudanças da quarta versão (checklist de migração do PR1, terceira rodada de revisão) — nova Seção 2.8:** (1) confirmado que o PR1 é 100% aditivo; (2) confirmado que as 6 novas FKs em `protocol_items` são nullable desde o início; (3) **bug real encontrado e corrigido**: `item_kind` tinha `DEFAULT 'clinical_asset'` na versão anterior — combinado com as 14 linhas legadas órfãs de `protocol_items` (0 FKs preenchidas, por serem colunas novas), isso violaria o próprio `CHECK` no momento de aplicar a migração; corrigido para `DEFAULT 'custom'` (Seção 2.3), com a ordem de operações completa (colunas → backfill → `CHECK`) documentada na Seção 2.8; (4) estratégia de backfill de `tenant_id` detalhada, incluindo a exclusão das 14 linhas órfãs de `protocol_items` (não alcançáveis pelo backfill via join, por não terem `protocol_days` correspondente) antes de tornar a coluna `NOT NULL`; (5) disciplina de execução acrescentada — uma consulta de validação (deve retornar zero) antes de cada passo irreversível (`NOT NULL`, `CHECK`, FK, `UNIQUE`), interrompendo a migração em vez de corrigir dado no meio da execução.
+
+**Encerramento da fase de arquitetura:** três rodadas de revisão concluídas sem nenhuma pendência estrutural remanescente. A partir desta versão, o documento é a especificação oficial contra a qual o PR1 é implementado e revisado.
 
 ---
 
@@ -313,6 +315,38 @@ DELETE FROM protocol_items WHERE protocol_day_id NOT IN (SELECT id FROM protocol
 Justificativa: essas linhas já são comprovadamente não-funcionais hoje — não aparecem em nenhuma tela (não há `protocol_days` válido para alcançá-las a partir de nenhum protocolo real) e não há forma correta de atribuir um `tenant_id` a uma linha sem um dia de protocolo válido. Mantê-las não preserva nenhum dado real, só impediria o `NOT NULL`. Se a contagem fresca mostrar algo diferente das 14 órfãs já conhecidas, este passo é revisado antes de aplicar — não é uma exclusão automática cega.
 
 Só depois desse delete + backfill limpo, `tenant_id` vira `NOT NULL` nas duas tabelas.
+
+**Disciplina de execução (revisão do usuário): validar antes de cada passo irreversível, nunca "corrigir durante".** Antes de qualquer `SET NOT NULL`, `ADD CONSTRAINT ... CHECK` ou `ADD CONSTRAINT ... FOREIGN KEY` desta migração, rodar a consulta de validação correspondente e **interromper a migração se ela não retornar zero** — não tentar consertar dado no meio da execução:
+
+```sql
+-- antes de tenant_id NOT NULL (protocol_days)
+SELECT count(*) FROM protocol_days WHERE tenant_id IS NULL;                    -- deve ser 0
+
+-- antes de tenant_id NOT NULL (protocol_items)
+SELECT count(*) FROM protocol_items WHERE tenant_id IS NULL;                   -- deve ser 0
+
+-- antes do CHECK de item_kind/FKs
+SELECT count(*) FROM protocol_items
+WHERE NOT (
+  (item_kind = 'custom'         AND num_nonnulls(recipe_id, meal_id, shot_id, tea_id, supplement_id, material_id) = 0)
+  OR
+  (item_kind = 'clinical_asset' AND num_nonnulls(recipe_id, meal_id, shot_id, tea_id, supplement_id, material_id) = 1)
+);                                                                              -- deve ser 0
+
+-- antes da FK de protocol_progress.protocol_item_id
+SELECT count(*) FROM protocol_progress pp
+WHERE NOT EXISTS (SELECT 1 FROM protocol_items pi WHERE pi.id = pp.protocol_item_id);  -- deve ser 0
+
+-- antes da UNIQUE(assignment_id, protocol_item_id) em protocol_progress
+SELECT assignment_id, protocol_item_id, count(*)
+FROM protocol_progress GROUP BY 1, 2 HAVING count(*) > 1;                      -- deve retornar 0 linhas
+
+-- antes da UNIQUE(protocol_id, day_number) em protocol_days
+SELECT protocol_id, day_number, count(*)
+FROM protocol_days GROUP BY 1, 2 HAVING count(*) > 1;                          -- deve retornar 0 linhas
+```
+
+Qualquer uma dessas consultas retornando diferente de zero **para a migração**, sem tentar contornar no mesmo script — a causa é investigada e a Seção 2.8 (ou a contagem de produção do Achado 0.3) é revisada antes de tentar de novo. Isso mantém o processo previsível e o rollback simples (nada de estado parcialmente corrigido no meio de uma transação).
 
 ---
 
