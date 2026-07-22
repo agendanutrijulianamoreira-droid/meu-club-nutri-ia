@@ -155,10 +155,12 @@ CREATE INDEX IF NOT EXISTS idx_protocol_goals_tenant ON protocol_goals(tenant_id
 
 ALTER TABLE protocol_goals ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Tenant members can read protocol_goals" ON protocol_goals;
 CREATE POLICY "Tenant members can read protocol_goals"
   ON protocol_goals FOR SELECT
   USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.user_id = auth.uid() AND profiles.tenant_id = protocol_goals.tenant_id));
 
+DROP POLICY IF EXISTS "Admin manages own protocol_goals" ON protocol_goals;
 CREATE POLICY "Admin manages own protocol_goals"
   ON protocol_goals FOR ALL
   USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.user_id = auth.uid() AND profiles.tenant_id = protocol_goals.tenant_id AND profiles.role IN ('admin','nutritionist')));
@@ -177,18 +179,22 @@ CREATE POLICY "Admin manages own protocol_goals"
 DROP POLICY IF EXISTS "authenticated_read_protocol_days" ON protocol_days;
 DROP POLICY IF EXISTS "authenticated_read_protocol_items" ON protocol_items;
 
+DROP POLICY IF EXISTS "Tenant patients can read active protocol content days" ON protocol_days;
 CREATE POLICY "Tenant patients can read active protocol content days"
   ON protocol_days FOR SELECT
   USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.user_id = auth.uid() AND profiles.tenant_id = protocol_days.tenant_id));
 
+DROP POLICY IF EXISTS "Admin manages own protocol_days" ON protocol_days;
 CREATE POLICY "Admin manages own protocol_days"
   ON protocol_days FOR ALL
   USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.user_id = auth.uid() AND profiles.tenant_id = protocol_days.tenant_id AND profiles.role IN ('admin','nutritionist')));
 
+DROP POLICY IF EXISTS "Tenant patients can read active protocol content items" ON protocol_items;
 CREATE POLICY "Tenant patients can read active protocol content items"
   ON protocol_items FOR SELECT
   USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.user_id = auth.uid() AND profiles.tenant_id = protocol_items.tenant_id));
 
+DROP POLICY IF EXISTS "Admin manages own protocol_items" ON protocol_items;
 CREATE POLICY "Admin manages own protocol_items"
   ON protocol_items FOR ALL
   USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.user_id = auth.uid() AND profiles.tenant_id = protocol_items.tenant_id AND profiles.role IN ('admin','nutritionist')));
