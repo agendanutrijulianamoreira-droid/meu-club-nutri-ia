@@ -136,16 +136,21 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   for (const day of days) {
     const { data: dayRow, error: dayError } = await supabase
       .from('protocol_days')
-      .insert([{ protocol_id: params.id, day_number: day.day_number, title: day.title, subtitle: day.subtitle || null }])
+      .insert([{ protocol_id: params.id, tenant_id: tenant.id, day_number: day.day_number, title: day.title, subtitle: day.subtitle || null }])
       .select()
       .single()
 
-    if (dayError) continue
+    if (dayError) {
+      console.error('[seasonal-protocols] protocol_days insert', dayError)
+      return NextResponse.json({ error: `Falha ao salvar dia ${day.day_number}: ${dayError.message}` }, { status: 500 })
+    }
 
     const items = (day.items || []).map((item: any, idx: number) => ({
       protocol_day_id: dayRow.id,
+      tenant_id: tenant.id,
       time: item.time || null,
       type: item.meal_type || 'meal',
+      item_kind: 'custom',
       title: item.title,
       description: item.description || null,
       ingredients: item.ingredients || null,
@@ -158,7 +163,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       order_index: idx,
     }))
 
-    if (items.length > 0) await supabase.from('protocol_items').insert(items)
+    if (items.length > 0) {
+      const { error: itemsError } = await supabase.from('protocol_items').insert(items)
+      if (itemsError) {
+        console.error('[seasonal-protocols] protocol_items insert', itemsError)
+        return NextResponse.json({ error: `Falha ao salvar itens do dia ${day.day_number}: ${itemsError.message}` }, { status: 500 })
+      }
+    }
 
     for (const item of day.items || []) {
       if (item.recipe?.trim()) {
