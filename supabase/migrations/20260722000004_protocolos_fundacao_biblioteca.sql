@@ -13,6 +13,21 @@
 -- Nada é removido nesta PR: protocol_items.type/.ingredients/.recipe
 -- e protocols.content continuam existindo e em uso até o PR4.
 -- 2026-07-22
+--
+-- NOTA DE RECONCILIAÇÃO (2026-07-24, antes do merge, arquivo nunca
+-- aplicado em produção até este ponto): uma verificação de contagens
+-- de produção imediatamente antes do merge encontrou uma migração já
+-- aplicada diretamente no banco por fora do git (registrada no
+-- histórico do Supabase como "20260722015927 protocolos_subfase3_pr1_schema",
+-- sem arquivo correspondente em nenhuma branch deste repositório),
+-- criando um schema funcionalmente idêntico ao deste arquivo — mesmas
+-- colunas, tipos, defaults e FKs em protocol_items/protocol_days/
+-- protocol_goals/protocols. As únicas diferenças eram de nome
+-- (constraint UNIQUE de protocol_days e duas políticas de leitura),
+-- já reconciliadas abaixo adotando os nomes que já estavam em produção,
+-- em vez de criar objetos duplicados. Ver docs/architecture/sub-fase-3-protocolos.md
+-- para o registro completo dessa reconciliação e da mudança de contagem
+-- de protocol_items órfãos (14 em 21/07 → 0 em 22/07).
 -- ============================================================
 
 -- ------------------------------------------------------------
@@ -90,10 +105,27 @@ ALTER TABLE protocol_items ADD CONSTRAINT protocol_items_kind_check CHECK (
 
 -- ------------------------------------------------------------
 -- 4. protocol_days — UNIQUE(protocol_id, day_number) (Seção 2.2)
+--    Guardado via checagem em pg_constraint (em vez de DROP+ADD por
+--    nome fixo): reconciliação pós-rehearsal — este ambiente já tinha
+--    essa mesma UNIQUE aplicada por fora do git, sob o nome
+--    protocol_days_protocol_day_number_unique. Adota esse nome como
+--    canônico daqui em diante em vez de criar um segundo constraint
+--    redundante sob um nome diferente.
 -- ------------------------------------------------------------
 
-ALTER TABLE protocol_days DROP CONSTRAINT IF EXISTS protocol_days_protocol_id_day_number_key;
-ALTER TABLE protocol_days ADD CONSTRAINT protocol_days_protocol_id_day_number_key UNIQUE (protocol_id, day_number);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'protocol_days'::regclass
+      AND contype = 'u'
+      AND pg_get_constraintdef(oid) ILIKE '%(protocol_id, day_number)%'
+  ) THEN
+    ALTER TABLE protocol_days
+      ADD CONSTRAINT protocol_days_protocol_day_number_unique
+      UNIQUE (protocol_id, day_number);
+  END IF;
+END $$;
 
 -- ------------------------------------------------------------
 -- 5. protocol_progress — FK real + UNIQUE (Seção 2.5)
@@ -174,13 +206,20 @@ CREATE POLICY "Admin manages own protocol_goals"
 --    role) é negado por padrão pelo Postgres. Isso é a causa raiz
 --    de app/api/admin/seasonal-protocols/route.ts salvar o
 --    protocolo mas nunca salvar dias/itens.
+--
+--    Nomes das políticas reconciliados pós-rehearsal: este ambiente
+--    já tinha uma versão funcionalmente idêntica destas 4 políticas
+--    aplicada por fora do git (mesmo USING, nomes "...protocol_days"/
+--    "...protocol_items" em vez de "...protocol content days"/
+--    "...content items"). Adotados os nomes já existentes para não
+--    criar políticas de leitura duplicadas.
 -- ------------------------------------------------------------
 
 DROP POLICY IF EXISTS "authenticated_read_protocol_days" ON protocol_days;
 DROP POLICY IF EXISTS "authenticated_read_protocol_items" ON protocol_items;
 
-DROP POLICY IF EXISTS "Tenant patients can read active protocol content days" ON protocol_days;
-CREATE POLICY "Tenant patients can read active protocol content days"
+DROP POLICY IF EXISTS "Tenant patients can read active protocol_days" ON protocol_days;
+CREATE POLICY "Tenant patients can read active protocol_days"
   ON protocol_days FOR SELECT
   USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.user_id = auth.uid() AND profiles.tenant_id = protocol_days.tenant_id));
 
@@ -189,8 +228,8 @@ CREATE POLICY "Admin manages own protocol_days"
   ON protocol_days FOR ALL
   USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.user_id = auth.uid() AND profiles.tenant_id = protocol_days.tenant_id AND profiles.role IN ('admin','nutritionist')));
 
-DROP POLICY IF EXISTS "Tenant patients can read active protocol content items" ON protocol_items;
-CREATE POLICY "Tenant patients can read active protocol content items"
+DROP POLICY IF EXISTS "Tenant patients can read active protocol_items" ON protocol_items;
+CREATE POLICY "Tenant patients can read active protocol_items"
   ON protocol_items FOR SELECT
   USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.user_id = auth.uid() AND profiles.tenant_id = protocol_items.tenant_id));
 
