@@ -359,6 +359,23 @@ ALTER TABLE protocol_goals
 --    explicitamente na própria definição para não depender da
 --    ALTER FUNCTION separada de 20260514000003 sobreviver a um
 --    CREATE OR REPLACE futuro sem essa cláusula.
+--
+--    Achado P1 de uma segunda rodada de revisão (aplicado sobre este
+--    mesmo CREATE OR REPLACE, ainda dentro desta PR): sendo
+--    SECURITY DEFINER, esta função roda com privilégio elevado e
+--    NÃO está sujeita a RLS — as políticas de protocols/protocol_days/
+--    protocol_items/protocol_goals (Seções 8 e 7) simplesmente não se
+--    aplicam às queries daqui de dentro. Sem uma checagem própria, a
+--    função original (e a reescrita do achado P2 acima) permitia
+--    qualquer usuário autenticado — de QUALQUER tenant, já que o
+--    REVOKE de 20260514000003 só tira o EXECUTE de "anon", não de
+--    "authenticated"/PUBLIC — duplicar o protocolo de OUTRO tenant só
+--    sabendo o id (ex.: exposto publicamente em
+--    /api/public/protocols/[slug] para protocolos standalone).
+--    Corrigido com uma checagem explícita de autorização no início da
+--    função, replicando a mesma regra "admin/nutritionist do próprio
+--    tenant" já usada nas políticas de RLS desta migração — já que
+--    RLS não protege aqui, a função precisa se proteger sozinha.
 -- ------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION duplicate_protocol(p_protocol_id UUID)
@@ -369,6 +386,17 @@ DECLARE
     v_day RECORD;
     v_new_day_id UUID;
 BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM protocols p
+        JOIN profiles pr ON pr.tenant_id = p.tenant_id
+        WHERE p.id = p_protocol_id
+          AND pr.user_id = auth.uid()
+          AND pr.role IN ('admin', 'nutritionist')
+    ) THEN
+        RAISE EXCEPTION 'Não autorizada a duplicar este protocolo';
+    END IF;
+
     INSERT INTO protocols (
         title, description, duration_days, cover_image_url, category,
         tenant_id, is_template, method_phase_id
