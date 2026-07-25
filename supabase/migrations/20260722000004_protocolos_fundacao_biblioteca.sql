@@ -331,3 +331,84 @@ ALTER TABLE protocol_goals
   ADD CONSTRAINT protocol_goals_protocol_id_tenant_id_fkey
   FOREIGN KEY (protocol_id, tenant_id) REFERENCES protocols(id, tenant_id) ON DELETE CASCADE;
 
+-- ------------------------------------------------------------
+-- 11. duplicate_protocol (achado P2 da revisão do PR).
+--
+--    A RPC (legacy-manual-sql/fix_protocols_schema.sql) está viva —
+--    chamada pelo botão "Duplicar" real de ProtocolsView.tsx via
+--    useProtocols().duplicateProtocol() (lib/hooks/useDatabase.ts) —,
+--    ao contrário do que o Achado 0.3 deste documento presumia
+--    ("hoje órfã, só chamada pelo builder relacional sem link de
+--    menu" — essa frase descrevia lib/hooks/useProtocolBuilder.ts,
+--    que É órfão, mas useDatabase.ts::duplicateProtocol não é).
+--    Sem esta correção, duplicar qualquer protocolo com dias falharia
+--    na primeira linha copiada por violar o NOT NULL de tenant_id
+--    introduzido nesta mesma migração — inofensivo hoje só porque
+--    protocol_days está vazia em produção, mas quebraria assim que a
+--    primeira paciente/protocolo real tivesse dias.
+--
+--    Reescrita para: preencher tenant_id (reaproveitado do protocolo
+--    original) em protocol_days/protocol_items; copiar também
+--    item_kind e as 6 FKs de Ativo Clínico (sem isso, duplicar um
+--    protocolo silenciosamente perderia toda referência à Biblioteca
+--    Clínica assim que o PR2 passar a populá-las); copiar
+--    protocol_goals (ADR-0003 — referenciar, nunca copiar o ativo,
+--    mas a associação protocolo→meta em si deve ser duplicada).
+--    method_phase_id também passa a ser copiado (propriedade do
+--    protocolo, não um Ativo Clínico). SET search_path repetido
+--    explicitamente na própria definição para não depender da
+--    ALTER FUNCTION separada de 20260514000003 sobreviver a um
+--    CREATE OR REPLACE futuro sem essa cláusula.
+-- ------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION duplicate_protocol(p_protocol_id UUID)
+RETURNS UUID AS $$
+DECLARE
+    v_new_protocol_id UUID;
+    v_tenant_id UUID;
+    v_day RECORD;
+    v_new_day_id UUID;
+BEGIN
+    INSERT INTO protocols (
+        title, description, duration_days, cover_image_url, category,
+        tenant_id, is_template, method_phase_id
+    )
+    SELECT
+        title || ' (Cópia)', description, duration_days, cover_image_url, category,
+        tenant_id, is_template, method_phase_id
+    FROM protocols
+    WHERE id = p_protocol_id
+    RETURNING id, tenant_id INTO v_new_protocol_id, v_tenant_id;
+
+    FOR v_day IN (SELECT * FROM protocol_days WHERE protocol_id = p_protocol_id ORDER BY day_number) LOOP
+        INSERT INTO protocol_days (protocol_id, tenant_id, day_number, title, subtitle)
+        VALUES (v_new_protocol_id, v_tenant_id, v_day.day_number, v_day.title, v_day.subtitle)
+        RETURNING id INTO v_new_day_id;
+
+        INSERT INTO protocol_items (
+            protocol_day_id, tenant_id, time, type, item_kind, title, description,
+            ingredients, recipe, video_url, is_mandatory, points, points_camera,
+            points_gallery, image_url, order_index,
+            recipe_id, meal_id, shot_id, tea_id, supplement_id, material_id,
+            quantity, unit, serving_label
+        )
+        SELECT
+            v_new_day_id, v_tenant_id, time, type, item_kind, title, description,
+            ingredients, recipe, video_url, is_mandatory, points, points_camera,
+            points_gallery, image_url, order_index,
+            recipe_id, meal_id, shot_id, tea_id, supplement_id, material_id,
+            quantity, unit, serving_label
+        FROM protocol_items
+        WHERE protocol_day_id = v_day.id;
+    END LOOP;
+
+    INSERT INTO protocol_goals (protocol_id, goal_id, tenant_id, sort_order)
+    SELECT v_new_protocol_id, goal_id, v_tenant_id, sort_order
+    FROM protocol_goals
+    WHERE protocol_id = p_protocol_id;
+
+    RETURN v_new_protocol_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE EXECUTE ON FUNCTION public.duplicate_protocol(uuid) FROM anon;
