@@ -257,3 +257,77 @@ CREATE INDEX IF NOT EXISTS idx_protocol_items_shot ON protocol_items(shot_id) WH
 CREATE INDEX IF NOT EXISTS idx_protocol_items_tea ON protocol_items(tea_id) WHERE tea_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_protocol_items_supplement ON protocol_items(supplement_id) WHERE supplement_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_protocol_items_material ON protocol_items(material_id) WHERE material_id IS NOT NULL;
+
+-- ------------------------------------------------------------
+-- 10. Integridade cross-tenant (achado P1 da revisão do PR).
+--
+--    As políticas de escrita da Seção 8 (`USING (profiles.tenant_id =
+--    protocol_days.tenant_id)`) só validam que o admin pertence ao
+--    tenant_id GRAVADO na própria linha — não validam que esse
+--    tenant_id bate com o tenant_id do PROTOCOLO PAI referenciado por
+--    protocol_id. Sem essa amarração, um admin do Tenant A podia
+--    inserir um protocol_days com tenant_id=A mas protocol_id apontando
+--    para um protocolo do Tenant B (RLS passa, pois só olha o tenant_id
+--    da própria linha) — e, para um protocolo standalone público
+--    (`/api/public/protocols/[slug]`, que expõe o id publicamente),
+--    isso permitia injetar dias/itens na página de vendas de outro
+--    tenant. O mesmo valia para protocol_items→protocol_days e
+--    protocol_goals→protocols.
+--
+--    Corrigido com FK composta (protocol_id/protocol_day_id, tenant_id)
+--    contra uma UNIQUE(id, tenant_id) do pai — o banco passa a rejeitar
+--    fisicamente qualquer linha cujo tenant_id não bata com o do pai,
+--    independente da política de RLS. Achado adicional durante esta
+--    correção: protocol_items.protocol_day_id nunca teve FK real em
+--    produção (a única declaração conhecida, em
+--    legacy-manual-sql/fix_protocols_schema.sql, nunca chegou a rodar
+--    contra a tabela já existente — mesma classe de drift silencioso
+--    já documentada no Achado 0.2) — a FK composta abaixo também fecha
+--    essa lacuna de integridade referencial, não só a de tenant.
+-- ------------------------------------------------------------
+
+-- UNIQUE(id, tenant_id) guardado por existência (nunca DROP+ADD): as FKs
+-- compostas abaixo passam a depender deste índice, e um DROP incondicional
+-- falharia em reaplicações ("outros objetos dependem dele") — a UNIQUE
+-- em si nunca precisa mudar, só as FKs que a referenciam.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'protocols'::regclass AND contype = 'u'
+      AND pg_get_constraintdef(oid) ILIKE '%(id, tenant_id)%'
+  ) THEN
+    ALTER TABLE protocols ADD CONSTRAINT protocols_id_tenant_id_key UNIQUE (id, tenant_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'protocol_days'::regclass AND contype = 'u'
+      AND pg_get_constraintdef(oid) ILIKE '%(id, tenant_id)%'
+  ) THEN
+    ALTER TABLE protocol_days ADD CONSTRAINT protocol_days_id_tenant_id_key UNIQUE (id, tenant_id);
+  END IF;
+END $$;
+
+-- FKs compostas — seguras para DROP+ADD (nada depende delas).
+ALTER TABLE protocol_days DROP CONSTRAINT IF EXISTS protocol_days_protocol_id_fkey;
+ALTER TABLE protocol_days DROP CONSTRAINT IF EXISTS protocol_days_protocol_id_tenant_id_fkey;
+ALTER TABLE protocol_days
+  ADD CONSTRAINT protocol_days_protocol_id_tenant_id_fkey
+  FOREIGN KEY (protocol_id, tenant_id) REFERENCES protocols(id, tenant_id) ON DELETE CASCADE;
+
+ALTER TABLE protocol_items DROP CONSTRAINT IF EXISTS protocol_items_protocol_day_id_fkey;
+ALTER TABLE protocol_items DROP CONSTRAINT IF EXISTS protocol_items_protocol_day_id_tenant_id_fkey;
+ALTER TABLE protocol_items
+  ADD CONSTRAINT protocol_items_protocol_day_id_tenant_id_fkey
+  FOREIGN KEY (protocol_day_id, tenant_id) REFERENCES protocol_days(id, tenant_id) ON DELETE CASCADE;
+
+ALTER TABLE protocol_goals DROP CONSTRAINT IF EXISTS protocol_goals_protocol_id_fkey;
+ALTER TABLE protocol_goals DROP CONSTRAINT IF EXISTS protocol_goals_protocol_id_tenant_id_fkey;
+ALTER TABLE protocol_goals
+  ADD CONSTRAINT protocol_goals_protocol_id_tenant_id_fkey
+  FOREIGN KEY (protocol_id, tenant_id) REFERENCES protocols(id, tenant_id) ON DELETE CASCADE;
+
