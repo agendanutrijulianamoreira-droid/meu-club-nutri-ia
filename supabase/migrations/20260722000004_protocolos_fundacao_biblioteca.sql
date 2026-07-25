@@ -332,6 +332,90 @@ ALTER TABLE protocol_goals
   FOREIGN KEY (protocol_id, tenant_id) REFERENCES protocols(id, tenant_id) ON DELETE CASCADE;
 
 -- ------------------------------------------------------------
+-- 10b. Integridade cross-tenant nas FOLHAS (achado P2 da revisão do
+--    PR, mesma classe da Seção 10 acima, agora nas 6 FKs de Ativo
+--    Clínico de protocol_items e no goal_id de protocol_goals).
+--
+--    As FKs simples recipe_id/meal_id/.../material_id só provam que o
+--    Ativo Clínico referenciado existe — não que ele pertence ao
+--    mesmo tenant do item que o referencia. Um admin do Tenant A podia
+--    criar um protocol_item com tenant_id=A (RLS passa) mas recipe_id
+--    apontando para uma receita do Tenant B, vazando conteúdo privado
+--    de outro tenant (título/instruções) para dentro do próprio
+--    protocolo — e o mesmo valia para protocol_goals.goal_id.
+--
+--    Corrigido com o mesmo padrão da Seção 10: UNIQUE(id, tenant_id)
+--    em cada tabela da Biblioteca Clínica envolvida + FK composta
+--    (coluna_id, tenant_id). Como recipe_id/meal_id/etc. são nullable
+--    (só 1 das 6 preenchida por linha, via CHECK da Seção 3), a
+--    semântica padrão MATCH SIMPLE do Postgres já cobre isso de graça:
+--    uma FK composta com qualquer coluna NULL é automaticamente
+--    satisfeita, então as outras 5 FKs "vazias" de cada linha nunca
+--    bloqueiam o insert — só a FK cuja coluna está de fato preenchida
+--    passa a validar o tenant.
+-- ------------------------------------------------------------
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'recipes'::regclass AND contype = 'u' AND pg_get_constraintdef(oid) ILIKE '%(id, tenant_id)%') THEN
+    ALTER TABLE recipes ADD CONSTRAINT recipes_id_tenant_id_key UNIQUE (id, tenant_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'meals'::regclass AND contype = 'u' AND pg_get_constraintdef(oid) ILIKE '%(id, tenant_id)%') THEN
+    ALTER TABLE meals ADD CONSTRAINT meals_id_tenant_id_key UNIQUE (id, tenant_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'shots'::regclass AND contype = 'u' AND pg_get_constraintdef(oid) ILIKE '%(id, tenant_id)%') THEN
+    ALTER TABLE shots ADD CONSTRAINT shots_id_tenant_id_key UNIQUE (id, tenant_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'teas'::regclass AND contype = 'u' AND pg_get_constraintdef(oid) ILIKE '%(id, tenant_id)%') THEN
+    ALTER TABLE teas ADD CONSTRAINT teas_id_tenant_id_key UNIQUE (id, tenant_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'supplements'::regclass AND contype = 'u' AND pg_get_constraintdef(oid) ILIKE '%(id, tenant_id)%') THEN
+    ALTER TABLE supplements ADD CONSTRAINT supplements_id_tenant_id_key UNIQUE (id, tenant_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'materials'::regclass AND contype = 'u' AND pg_get_constraintdef(oid) ILIKE '%(id, tenant_id)%') THEN
+    ALTER TABLE materials ADD CONSTRAINT materials_id_tenant_id_key UNIQUE (id, tenant_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'goals'::regclass AND contype = 'u' AND pg_get_constraintdef(oid) ILIKE '%(id, tenant_id)%') THEN
+    ALTER TABLE goals ADD CONSTRAINT goals_id_tenant_id_key UNIQUE (id, tenant_id);
+  END IF;
+END $$;
+
+ALTER TABLE protocol_items DROP CONSTRAINT IF EXISTS protocol_items_recipe_id_fkey;
+ALTER TABLE protocol_items DROP CONSTRAINT IF EXISTS protocol_items_recipe_id_tenant_id_fkey;
+ALTER TABLE protocol_items ADD CONSTRAINT protocol_items_recipe_id_tenant_id_fkey
+  FOREIGN KEY (recipe_id, tenant_id) REFERENCES recipes(id, tenant_id);
+
+ALTER TABLE protocol_items DROP CONSTRAINT IF EXISTS protocol_items_meal_id_fkey;
+ALTER TABLE protocol_items DROP CONSTRAINT IF EXISTS protocol_items_meal_id_tenant_id_fkey;
+ALTER TABLE protocol_items ADD CONSTRAINT protocol_items_meal_id_tenant_id_fkey
+  FOREIGN KEY (meal_id, tenant_id) REFERENCES meals(id, tenant_id);
+
+ALTER TABLE protocol_items DROP CONSTRAINT IF EXISTS protocol_items_shot_id_fkey;
+ALTER TABLE protocol_items DROP CONSTRAINT IF EXISTS protocol_items_shot_id_tenant_id_fkey;
+ALTER TABLE protocol_items ADD CONSTRAINT protocol_items_shot_id_tenant_id_fkey
+  FOREIGN KEY (shot_id, tenant_id) REFERENCES shots(id, tenant_id);
+
+ALTER TABLE protocol_items DROP CONSTRAINT IF EXISTS protocol_items_tea_id_fkey;
+ALTER TABLE protocol_items DROP CONSTRAINT IF EXISTS protocol_items_tea_id_tenant_id_fkey;
+ALTER TABLE protocol_items ADD CONSTRAINT protocol_items_tea_id_tenant_id_fkey
+  FOREIGN KEY (tea_id, tenant_id) REFERENCES teas(id, tenant_id);
+
+ALTER TABLE protocol_items DROP CONSTRAINT IF EXISTS protocol_items_supplement_id_fkey;
+ALTER TABLE protocol_items DROP CONSTRAINT IF EXISTS protocol_items_supplement_id_tenant_id_fkey;
+ALTER TABLE protocol_items ADD CONSTRAINT protocol_items_supplement_id_tenant_id_fkey
+  FOREIGN KEY (supplement_id, tenant_id) REFERENCES supplements(id, tenant_id);
+
+ALTER TABLE protocol_items DROP CONSTRAINT IF EXISTS protocol_items_material_id_fkey;
+ALTER TABLE protocol_items DROP CONSTRAINT IF EXISTS protocol_items_material_id_tenant_id_fkey;
+ALTER TABLE protocol_items ADD CONSTRAINT protocol_items_material_id_tenant_id_fkey
+  FOREIGN KEY (material_id, tenant_id) REFERENCES materials(id, tenant_id);
+
+ALTER TABLE protocol_goals DROP CONSTRAINT IF EXISTS protocol_goals_goal_id_fkey;
+ALTER TABLE protocol_goals DROP CONSTRAINT IF EXISTS protocol_goals_goal_id_tenant_id_fkey;
+ALTER TABLE protocol_goals ADD CONSTRAINT protocol_goals_goal_id_tenant_id_fkey
+  FOREIGN KEY (goal_id, tenant_id) REFERENCES goals(id, tenant_id);
+
+-- ------------------------------------------------------------
 -- 11. duplicate_protocol (achado P2 da revisão do PR).
 --
 --    A RPC (legacy-manual-sql/fix_protocols_schema.sql) está viva —
