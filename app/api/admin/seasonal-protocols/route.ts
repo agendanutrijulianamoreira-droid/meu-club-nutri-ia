@@ -108,15 +108,6 @@ export async function POST(request: NextRequest) {
 
   if (protocolError) return NextResponse.json({ error: protocolError.message }, { status: 500 })
 
-  // tenant_id em protocol_days/protocol_items é NOT NULL desde a Sub-fase 3
-  // PR1 (denormalizado para RLS, ver ADR/documento de arquitetura) — precisa
-  // ser gravado explicitamente em todo INSERT novo.
-  //
-  // Erros de dia/item deixaram de ser engolidos (antes: `if (dayError)
-  // continue`, sem checar o insert de items) — a causa raiz era a RLS de
-  // protocol_days/protocol_items só ter política de leitura, corrigida na
-  // mesma migração. Agora qualquer falha de persistência é propagada para a
-  // nutricionista em vez de desaparecer silenciosamente.
   for (const day of days) {
     const { data: dayRow, error: dayError } = await supabase
       .from('protocol_days')
@@ -125,16 +116,16 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (dayError) {
-      console.error('[seasonal-protocols] insert protocol_days', dayError)
-      return NextResponse.json({ error: `Erro ao salvar o dia ${day.day_number}: ${dayError.message}` }, { status: 500 })
+      console.error('[seasonal-protocols] protocol_days insert', dayError)
+      return NextResponse.json({ error: `Falha ao salvar dia ${day.day_number}: ${dayError.message}` }, { status: 500 })
     }
 
     const items = (day.items || []).map((item: any, idx: number) => ({
       protocol_day_id: dayRow.id,
       tenant_id: tenant.id,
-      item_kind: 'custom',
       time: item.time || null,
       type: item.meal_type || 'meal',
+      item_kind: 'custom',
       title: item.title,
       description: item.description || null,
       ingredients: item.ingredients || null,
@@ -150,8 +141,8 @@ export async function POST(request: NextRequest) {
     if (items.length > 0) {
       const { error: itemsError } = await supabase.from('protocol_items').insert(items)
       if (itemsError) {
-        console.error('[seasonal-protocols] insert protocol_items', itemsError)
-        return NextResponse.json({ error: `Erro ao salvar os itens do dia ${day.day_number}: ${itemsError.message}` }, { status: 500 })
+        console.error('[seasonal-protocols] protocol_items insert', itemsError)
+        return NextResponse.json({ error: `Falha ao salvar itens do dia ${day.day_number}: ${itemsError.message}` }, { status: 500 })
       }
     }
 
