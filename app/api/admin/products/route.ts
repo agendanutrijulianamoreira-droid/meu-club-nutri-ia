@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
   const {
     name, slug, type, description, short_description,
     price_cents, price_cents_2027, stripe_price_id, payment_type, recurring_interval,
-    content_access, features, badge_text, highlight, sort_order,
+    content_access, features, specifications, badge_text, highlight, sort_order,
   } = body
 
   if (!name?.trim()) return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 })
@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
     recurring_interval: recurring_interval || null,
     content_access: content_access || {},
     features: features || [],
+    specifications: specifications || [],
     badge_text: badge_text?.trim() || null,
     highlight: highlight || false,
     sort_order: sort_order ?? 0,
