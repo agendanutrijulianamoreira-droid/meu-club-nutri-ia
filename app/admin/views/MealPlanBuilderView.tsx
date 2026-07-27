@@ -44,10 +44,13 @@ const MEAL_TYPES = [
   { value: 'almoco',       label: 'Almoço',           emoji: '🍽️', time: '12:00' },
   { value: 'lanche_tarde', label: 'Lanche da Tarde', emoji: '🥤', time: '16:00' },
   { value: 'jantar',       label: 'Jantar',           emoji: '🌙', time: '19:30' },
+  { value: 'ceia',         label: 'Ceia',             emoji: '😴', time: '21:00' },
   { value: 'cha_noturno',  label: 'Chá Noturno',     emoji: '🍵', time: '22:00' },
+  { value: 'pre_treino',   label: 'Pré-Treino',       emoji: '⚡' },
+  { value: 'intra_treino', label: 'Intra-Treino',     emoji: '💧' },
+  { value: 'pos_treino',   label: 'Pós-Treino',       emoji: '💪' },
   // legado — planos antigos
   { value: 'lanche_manha', label: 'Lanche da Manhã', emoji: '🍎', time: '10:00' },
-  { value: 'ceia',         label: 'Ceia',             emoji: '😴', time: '21:00' },
 ]
 
 const GOALS = ['emagrecimento', 'hipertrofia', 'manutenção', 'detox', 'anti-inflamatório', 'intestinal', 'energia']

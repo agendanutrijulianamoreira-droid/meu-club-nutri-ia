@@ -18,6 +18,9 @@ const SLOT_TIMES: Record<string, string> = {
   jantar:        '19:30',
   ceia:          '21:00',
   cha_noturno:   '22:00',
+  pre_treino:    '',
+  intra_treino:  '',
+  pos_treino:    '',
 }
 
 const SLOT_EMOJI: Record<string, string> = {
@@ -30,6 +33,9 @@ const SLOT_EMOJI: Record<string, string> = {
   jantar:        '🌙',
   ceia:          '😴',
   cha_noturno:   '🍵',
+  pre_treino:    '⚡',
+  intra_treino:  '💧',
+  pos_treino:    '💪',
 }
 
 export async function GET(request: NextRequest) {

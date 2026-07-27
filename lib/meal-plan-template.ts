@@ -23,11 +23,12 @@ export interface MealSlot {
   slot_key:   string   // 'shot', 'cafe_manha', etc.
   meal_type:  string   // mesmo valor → compatível com meal_plan_items.meal_type
   meal_label: string   // Label PT-BR
-  time:       string   // 'HH:MM'
+  time:       string | null // 'HH:MM', ou null para slots sem horário fixo (ex: pré/pós-treino)
   min_items:  number   // mínimo de itens esperados
   max_items:  number   // máximo de itens esperados
   optional:   boolean  // se pode ser omitido pela IA
   sort_order: number   // posição no dia
+  supplement_note?: string | null // orientação/sugestão de suplementação para este slot
 }
 
 /** Seleção mínima devolvida pela IA */
@@ -53,7 +54,7 @@ export interface ExpandedMealItem {
   day_number:         number
   meal_type:          string
   meal_label:         string
-  time:               string
+  time:               string | null
   sort_order:         number
   food_id:            string | null
   food_name:          string
@@ -82,7 +83,7 @@ export interface ExpandedDay {
 export interface ExpandedMealGroup {
   meal_type:  string
   meal_label: string
-  time:       string
+  time:       string | null
   items:      ExpandedMealItem[]
 }
 
@@ -105,6 +106,7 @@ export const MEAL_SLOTS: MealSlot[] = [
     max_items:  3,
     optional:   false,
     sort_order: 0,
+    supplement_note: 'Já funciona como suplementação natural (gengibre, cúrcuma, limão). Reforçar com colágeno hidrolisado ou vitamina C em pó quando o foco for pele/imunidade.',
   },
   {
     slot_key:   'cafe_manha',
@@ -157,6 +159,17 @@ export const MEAL_SLOTS: MealSlot[] = [
     sort_order: 5,
   },
   {
+    slot_key:   'ceia',
+    meal_type:  'ceia',
+    meal_label: 'Ceia',
+    time:       '21:00',
+    min_items:  1,
+    max_items:  3,
+    optional:   true,
+    sort_order: 6,
+    supplement_note: 'Magnésio quelado (200–400mg) ou chá de camomila/melissa favorecem o sono; evitar cafeína a partir das 16h.',
+  },
+  {
     slot_key:   'cha_noturno',
     meal_type:  'cha_noturno',
     meal_label: 'Chá Noturno',
@@ -164,7 +177,40 @@ export const MEAL_SLOTS: MealSlot[] = [
     min_items:  1,
     max_items:  1,
     optional:   true,
-    sort_order: 6,
+    sort_order: 7,
+  },
+  {
+    slot_key:   'pre_treino',
+    meal_type:  'pre_treino',
+    meal_label: 'Pré-Treino',
+    time:       null,
+    min_items:  0,
+    max_items:  2,
+    optional:   true,
+    sort_order: 8,
+    supplement_note: 'Cafeína (100–200mg) 30–45min antes do treino para performance; carboidrato de rápida absorção se o treino for em jejum prolongado.',
+  },
+  {
+    slot_key:   'intra_treino',
+    meal_type:  'intra_treino',
+    meal_label: 'Intra-Treino',
+    time:       null,
+    min_items:  0,
+    max_items:  1,
+    optional:   true,
+    sort_order: 9,
+    supplement_note: 'BCAA ou bebida isotônica com eletrólitos — apenas se o treino ultrapassar 60–90 minutos.',
+  },
+  {
+    slot_key:   'pos_treino',
+    meal_type:  'pos_treino',
+    meal_label: 'Pós-Treino',
+    time:       null,
+    min_items:  0,
+    max_items:  2,
+    optional:   true,
+    sort_order: 10,
+    supplement_note: 'Whey protein (20–30g) + carboidrato de rápida absorção em até 60min após o treino para otimizar a recuperação muscular.',
   },
 ]
 
