@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Plus, Trash2, Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Pencil } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useMethods, Method, MethodPhase } from "@/lib/hooks/useMethods"
+import { useUsagePatterns } from "@/lib/hooks/useUsagePatterns"
 
 interface MethodsViewProps {
     setView: (v: any) => void
@@ -93,6 +94,7 @@ function MethodCard({ method, tenantId, createPhase, updatePhase, deletePhase, u
     const [addingPhase, setAddingPhase] = useState(false)
     const [newPhaseName, setNewPhaseName] = useState('')
     const [savingPhase, setSavingPhase] = useState(false)
+    const { suggestions: phaseSuggestions, recordUsage: recordPhaseUsage } = useUsagePatterns('method_phase')
 
     const addPhase = async () => {
         if (!newPhaseName.trim()) return
@@ -103,6 +105,7 @@ function MethodCard({ method, tenantId, createPhase, updatePhase, deletePhase, u
             name: newPhaseName.trim(),
             sort_order: method.method_phases.length,
         })
+        recordPhaseUsage(newPhaseName, { name: newPhaseName.trim() })
         setNewPhaseName('')
         setAddingPhase(false)
         setSavingPhase(false)
@@ -136,7 +139,19 @@ function MethodCard({ method, tenantId, createPhase, updatePhase, deletePhase, u
                         ))}
 
                         {addingPhase ? (
-                            <div className="flex items-center gap-2">
+                            <div className="space-y-2">
+                                {phaseSuggestions.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {phaseSuggestions.map(s => (
+                                            <button key={s.id} onClick={() => setNewPhaseName(s.value.name)}
+                                                title="Usar esse nome de fase"
+                                                className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-slate-400 hover:border-indigo-500/30 hover:text-indigo-300 transition-all">
+                                                <Plus size={9} /> {s.value.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                <div className="flex items-center gap-2">
                                 <input value={newPhaseName} onChange={e => setNewPhaseName(e.target.value)}
                                     placeholder="Nome da nova fase (ex: Corrigindo a Rota)"
                                     className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50" />
@@ -148,6 +163,7 @@ function MethodCard({ method, tenantId, createPhase, updatePhase, deletePhase, u
                                     className="px-3 py-2 bg-white/5 hover:bg-white/10 text-slate-400 text-xs font-bold rounded-xl transition-all">
                                     Cancelar
                                 </button>
+                                </div>
                             </div>
                         ) : (
                             <button onClick={() => setAddingPhase(true)}

@@ -9,6 +9,7 @@ import {
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useProtocols } from "@/lib/hooks/useDatabase"
+import { useUsagePatterns } from "@/lib/hooks/useUsagePatterns"
 import { supabase } from "@/lib/supabase"
 import { ChallengesView } from "./ChallengesView"
 
@@ -506,6 +507,7 @@ function CreateProtocolForm({ tenantId, onClose, onSave, onUpdate, editingData, 
     const [isGenerating, setIsGenerating] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [aiError, setAiError] = useState('')
+    const { suggestions: taskSuggestions, recordUsage: recordTaskUsage } = useUsagePatterns('protocol_item')
 
     const generateWithAI = async () => {
         if (!formData.title) return
@@ -569,6 +571,26 @@ function CreateProtocolForm({ tenantId, onClose, onSave, onUpdate, editingData, 
             await onSave(protocolData)
         }
         setIsSaving(false)
+
+        // Atalho: memoriza as tarefas usadas pra sugerir na próxima vez —
+        // não bloqueia o save principal se falhar (ver useUsagePatterns).
+        for (const day of formData.days) {
+            for (const item of (day.items || [])) {
+                if (item.title?.trim()) {
+                    recordTaskUsage(item.title, {
+                        title: item.title,
+                        item_type: item.item_type || 'habit',
+                        points: item.points ?? 10,
+                    })
+                }
+            }
+        }
+    }
+
+    const addSuggestedBlock = (dayIndex: number, suggestion: { title: string; item_type: string; points: number }) => {
+        const newDays = [...formData.days]
+        newDays[dayIndex] = { ...newDays[dayIndex], items: [...(newDays[dayIndex].items || []), { ...suggestion }] }
+        setFormData({ ...formData, days: newDays })
     }
 
     const updateDayItem = (dayIndex: number, taskIndex: number, field: string, value: any) => {
@@ -747,6 +769,19 @@ function CreateProtocolForm({ tenantId, onClose, onSave, onUpdate, editingData, 
                                             <Plus size={12} /> Adicionar
                                         </button>
                                     </div>
+
+                                    {taskSuggestions.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 mb-3">
+                                            {taskSuggestions.map(s => (
+                                                <button key={s.id}
+                                                    onClick={() => addSuggestedBlock(selectedDay, s.value as any)}
+                                                    title="Adicionar essa tarefa"
+                                                    className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-slate-400 hover:border-indigo-500/30 hover:text-indigo-300 transition-all">
+                                                    <Plus size={9} /> {s.value.title}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
 
                                     <div className="space-y-2">
                                         {(formData.days[selectedDay].items || []).map((task: any, taskIdx: number) => (
