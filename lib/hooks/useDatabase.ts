@@ -7,6 +7,26 @@ import { BaseClinicalEntity, ClinicalCategory, duplicateAsset } from '@/lib/serv
 // PROTOCOLS
 // ==========================================
 
+export interface ProtocolItemRow {
+    id: string
+    protocol_day_id: string
+    time: string | null
+    type: string
+    title: string
+    description: string | null
+    points: number
+    order_index: number
+}
+
+export interface ProtocolDayRow {
+    id: string
+    protocol_id: string
+    day_number: number
+    title: string
+    subtitle: string | null
+    protocol_items: ProtocolItemRow[]
+}
+
 export interface Protocol {
     id: string
     tenant_id: string | null
@@ -21,6 +41,59 @@ export interface Protocol {
     is_active: boolean
     is_favorite: boolean
     created_at: string
+    protocol_days?: ProtocolDayRow[]
+}
+
+// Mapeia o item_type usado pelo formulário (UI) para o `type` gravado em
+// protocol_items — as duas telas de criação de protocolo (ProtocolsView e o
+// builder relacional em app/admin/protocols/new) usam vocabulários distintos.
+const PROTOCOL_ITEM_TYPE_MAP: Record<string, string> = {
+    meal: 'meal', shot: 'shot', water: 'water', workout: 'workout', content: 'content', custom: 'custom',
+    exercise: 'workout', habit: 'custom',
+}
+
+// Grava a estrutura de dias/tarefas de um protocolo em protocol_days/protocol_items
+// (fonte de verdade real — é o que o app da paciente e a página pública de
+// protocolos standalone leem). Substitui integralmente os dias existentes.
+async function replaceProtocolDays(protocolId: string, tenantId: string | null, days: any[]) {
+    const { error: delError } = await supabase.from('protocol_days').delete().eq('protocol_id', protocolId)
+    if (delError) throw delError
+
+    for (let i = 0; i < days.length; i++) {
+        const day = days[i]
+        const dayNumber = day.day ?? day.day_number ?? (i + 1)
+        const { data: dayRow, error: dayError } = await supabase
+            .from('protocol_days')
+            .insert([{
+                protocol_id: protocolId,
+                tenant_id: tenantId,
+                day_number: dayNumber,
+                title: day.title || `Dia ${dayNumber}`,
+                subtitle: day.subtitle || null,
+            }])
+            .select()
+            .single()
+
+        if (dayError) throw dayError
+
+        const items = (day.items || []).map((item: any, idx: number) => ({
+            protocol_day_id: dayRow.id,
+            tenant_id: tenantId,
+            type: PROTOCOL_ITEM_TYPE_MAP[item.item_type || item.type] || 'custom',
+            item_kind: 'custom',
+            time: item.time || null,
+            title: item.title || '',
+            description: item.description || null,
+            points: item.points ?? 10,
+            is_mandatory: true,
+            order_index: item.order_index ?? idx,
+        }))
+
+        if (items.length > 0) {
+            const { error: itemsError } = await supabase.from('protocol_items').insert(items)
+            if (itemsError) throw itemsError
+        }
+    }
 }
 
 export function useProtocols() {
@@ -33,8 +106,10 @@ export function useProtocols() {
             setLoading(true)
             let query = supabase
                 .from('protocols')
-                .select('*')
+                .select('*, protocol_days(*, protocol_items(*))')
                 .order('created_at', { ascending: false })
+                .order('day_number', { referencedTable: 'protocol_days', ascending: true })
+                .order('order_index', { referencedTable: 'protocol_days.protocol_items', ascending: true })
                 .limit(50)
 
             if (category) {
@@ -52,37 +127,46 @@ export function useProtocols() {
         }
     }
 
-    const createProtocol = async (protocol: Omit<Protocol, 'id' | 'created_at'>) => {
+    const createProtocol = async (protocol: Omit<Protocol, 'id' | 'created_at'> & { days?: any[] }) => {
         try {
+            const { days, ...protocolFields } = protocol as any
             const { data, error } = await supabase
                 .from('protocols')
-                .insert([protocol])
+                .insert([protocolFields])
                 .select()
                 .single()
 
             if (error) throw error
 
-            // Atualizar lista local
-            setProtocols(prev => [data, ...prev])
+            if (days && days.length > 0) {
+                await replaceProtocolDays(data.id, protocolFields.tenant_id ?? null, days)
+            }
+
+            // Refetch para trazer protocol_days/protocol_items recém-gravados
+            await fetchProtocols()
             return { data, error: null }
         } catch (err: any) {
             return { data: null, error: err.message }
         }
     }
 
-    const updateProtocol = async (id: string, updates: Partial<Protocol>) => {
+    const updateProtocol = async (id: string, updates: Partial<Protocol> & { days?: any[] }) => {
         try {
+            const { days, ...updateFields } = updates as any
             const { data, error } = await supabase
                 .from('protocols')
-                .update(updates)
+                .update(updateFields)
                 .eq('id', id)
                 .select()
                 .single()
 
             if (error) throw error
 
-            // Atualizar lista local
-            setProtocols(prev => prev.map(p => p.id === id ? data : p))
+            if (days) {
+                await replaceProtocolDays(id, data.tenant_id ?? null, days)
+            }
+
+            await fetchProtocols()
             return { data, error: null }
         } catch (err: any) {
             return { data: null, error: err.message }

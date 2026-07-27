@@ -20,7 +20,7 @@ export async function GET(
 
   const { data: plan, error: planError } = await supabase
     .from('meal_plans')
-    .select('*, profiles:patient_id (name, primary_goal, dietary_restrictions, current_plan)')
+    .select('*')
     .eq('id', params.id)
     .eq('tenant_id', tenant.id)
     .single()
@@ -28,6 +28,29 @@ export async function GET(
   if (planError || !plan) {
     return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
   }
+
+  // Paciente atribuída (se houver) — não é uma coluna de meal_plans, vem de meal_plan_assignments.
+  // meal_plan_assignments.user_id e profiles.user_id são FKs independentes para auth.users
+  // (não uma FK entre si), então o embed automático do PostgREST não resolve — busca em 2 passos.
+  const { data: assignment } = await supabase
+    .from('meal_plan_assignments')
+    .select('user_id')
+    .eq('meal_plan_id', params.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  let assignedPatient = null
+  if (assignment?.user_id) {
+    const { data: patientProfile } = await supabase
+      .from('profiles')
+      .select('name, primary_goal, dietary_restrictions, current_plan')
+      .eq('user_id', assignment.user_id)
+      .maybeSingle()
+    assignedPatient = patientProfile || null
+  }
+
+  const planWithPatient = { ...plan, profiles: assignedPatient }
 
   // Try meal_items table first (premium model), fall back to meal_plan_items
   let items: any[] = []
@@ -58,13 +81,15 @@ export async function GET(
     days[item.day_number][item.meal_type].push(item)
   }
 
-  return NextResponse.json({ plan, items, days })
+  return NextResponse.json({ plan: planWithPatient, items, days })
 }
 
 /**
  * PATCH /api/admin/meal-plans/[id]
- * Aprovar um plano alimentar (status -> active)
- * Body: { action: 'approve' | 'reject' | 'complete' }
+ * Body: { action: 'approve' | 'archive' } — status real da tabela é
+ * 'draft' | 'published' | 'archived' (CHECK meal_plans_status_check).
+ * 'active'/'pending_approval'/'completed' NÃO existem no schema e
+ * violam a constraint — não usar.
  */
 export async function PATCH(
   request: NextRequest,
@@ -85,19 +110,19 @@ export async function PATCH(
 
   if (action === 'approve') {
     updateData = {
-      status: 'active',
+      status: 'published',
       approved_by: user.id,
       approved_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
-  } else if (action === 'reject') {
+  } else if (action === 'archive') {
     updateData = {
-      status: 'pending_approval',
+      status: 'archived',
       updated_at: new Date().toISOString(),
     }
-  } else if (action === 'complete') {
+  } else if (action === 'unpublish') {
     updateData = {
-      status: 'completed',
+      status: 'draft',
       updated_at: new Date().toISOString(),
     }
   } else {
@@ -123,7 +148,8 @@ export async function PATCH(
 
 /**
  * DELETE /api/admin/meal-plans/[id]
- * Soft-delete: set status to 'completed'
+ * Soft-delete: set status to 'archived' (único valor terminal aceito
+ * pela CHECK meal_plans_status_check — 'completed' não existe no schema)
  */
 export async function DELETE(
   request: NextRequest,
@@ -139,7 +165,7 @@ export async function DELETE(
 
   const { error } = await supabase
     .from('meal_plans')
-    .update({ status: 'completed', updated_at: new Date().toISOString() })
+    .update({ status: 'archived', updated_at: new Date().toISOString() })
     .eq('id', params.id)
     .eq('tenant_id', tenant.id)
 

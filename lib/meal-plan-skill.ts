@@ -55,6 +55,8 @@ ${tenantSystemPrompt ? `FILOSOFIA DO MÉTODO:\n${tenantSystemPrompt}\n` : ''}${f
 6. Varie as proteínas ao longo dos dias (frango, carne, ovos, peixe, leguminosas).
 7. Respeite restrições alimentares informadas — sem exceção.
 8. Hidratação: inclua 2L/dia no contexto (não precisa listar como item).
+9. "pre_treino", "intra_treino" e "pos_treino" só devem aparecer se o contexto da paciente mencionar rotina de treino — nunca invente uma rotina de exercício que não foi informada.
+10. Quando um slot tiver orientação de suplementação (ver "SLOTS FIXOS" abaixo), incorpore uma sugestão curta no campo "note" do item correspondente — nunca prescreva dose fora do que já vem na orientação.
 
 ═══ PADRÃO DE QUALIDADE — REFERÊNCIA ═══
 
@@ -81,7 +83,7 @@ Exemplo de café da manhã anti-inflamatório:
 ═══ SLOTS FIXOS DO CARDÁPIO ═══
 
 ${MEAL_SLOTS.map(s =>
-  `${s.time}  [${s.slot_key}]  ${s.meal_label}  (${s.min_items}–${s.max_items} itens${s.optional ? ', opcional' : ''})`
+  `${s.time || 'variável'}  [${s.slot_key}]  ${s.meal_label}  (${s.min_items}–${s.max_items} itens${s.optional ? ', opcional' : ''})${s.supplement_note ? `\n    ↳ Suplementação: ${s.supplement_note}` : ''}`
 ).join('\n')}
 
 ═══ FORMATO DE SAÍDA — JSON COMPACTO ═══
@@ -124,8 +126,11 @@ Os campos de macros, labels e horários NÃO devem aparecer na saída — são c
           { "food_id": "uuid-exato", "quantity_g": 100 },
           { "food_id": "uuid-exato", "quantity_g": 10 }
         ],
-        "cha_noturno": [
-          { "food_id": "uuid-exato", "quantity_g": 200, "note": "Infusão por 5 min" }
+        "ceia": [
+          { "food_id": "uuid-exato", "quantity_g": 170, "note": "Magnésio quelado antes de dormir, se disponível" }
+        ],
+        "pos_treino": [
+          { "food_id": "uuid-exato", "quantity_g": 30, "note": "Whey protein, até 60min após o treino" }
         ]
       }
     }
@@ -133,8 +138,9 @@ Os campos de macros, labels e horários NÃO devem aparecer na saída — são c
 }
 
 ATENÇÃO:
-- O campo "note" é OPCIONAL — use apenas quando a preparação não for óbvia
-- "cha_noturno" é opcional — inclua apenas se complementar o plano calórico
+- O campo "note" é OPCIONAL — use apenas quando a preparação (ou a orientação de suplementação) não for óbvia
+- "ceia" e "cha_noturno" são opcionais — inclua apenas se complementar o plano calórico
+- "pre_treino"/"intra_treino"/"pos_treino" só entram se a paciente tiver rotina de treino informada no contexto
 - Varie os alimentos entre os dias — não repita as mesmas escolhas todo dia
 - Os UUIDs DEVEM ser exatamente como aparecem no catálogo fornecido`
 }

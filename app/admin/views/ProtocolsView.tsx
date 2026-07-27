@@ -356,7 +356,7 @@ function ProtocolCard({ protocol, onDelete, onEdit, onDuplicate, onToggleFavorit
     const [duplicating, setDuplicating] = useState(false)
     const [favoriting, setFavoriting] = useState(false)
 
-    const days = protocol.content?.length || protocol.content_json?.length || 0
+    const days = protocol.protocol_days?.length || protocol.content?.length || protocol.content_json?.length || 0
 
     return (
         <div className={`bg-white/5 border rounded-3xl p-5 group relative flex flex-col gap-4 transition-all hover:border-indigo-500/20
@@ -453,6 +453,36 @@ function ProtocolCard({ protocol, onDelete, onEdit, onDuplicate, onToggleFavorit
     )
 }
 
+// Type gravado em protocol_items -> item_type do formulário (select da UI só
+// tem 5 opções; 'content' legado cai em 'habit' por não ter equivalente direto).
+const DB_TYPE_TO_UI_ITEM_TYPE: Record<string, string> = {
+    meal: 'meal', shot: 'shot', water: 'water', workout: 'exercise', custom: 'habit', content: 'habit',
+}
+
+// Protocolos antigos (criados antes desta correção) ainda têm a estrutura de
+// dias presa em `content`/`content_json` — protocol_days nunca foi gravado.
+// Ao editar, preferimos os dados relacionais reais; só caímos para o JSON
+// legado se protocol_days ainda estiver vazio, para não perder o que a
+// nutricionista já tinha digitado.
+function daysFromProtocol(baseData: any): any[] {
+    if (baseData?.protocol_days?.length > 0) {
+        return baseData.protocol_days
+            .slice()
+            .sort((a: any, b: any) => a.day_number - b.day_number)
+            .map((d: any) => ({
+                day: d.day_number,
+                title: d.title,
+                items: (d.protocol_items || []).map((it: any) => ({
+                    title: it.title,
+                    item_type: DB_TYPE_TO_UI_ITEM_TYPE[it.type] || 'habit',
+                    description: it.description || '',
+                    points: it.points,
+                })),
+            }))
+    }
+    return baseData?.content || baseData?.content_json || []
+}
+
 // ─── Create Protocol Form ─────────────────────────────────────────────────────
 function CreateProtocolForm({ tenantId, onClose, onSave, onUpdate, editingData, templateData }: {
     tenantId: string
@@ -470,7 +500,7 @@ function CreateProtocolForm({ tenantId, onClose, onSave, onUpdate, editingData, 
         duration: baseData?.duration_days?.toString() || '7',
         description: baseData?.description || '',
         category: baseData?.category || 'custom',
-        days: baseData?.content || baseData?.content_json || [] as any[],
+        days: baseData ? daysFromProtocol(baseData) : [] as any[],
     })
     const [selectedDay, setSelectedDay] = useState<number | null>(null)
     const [isGenerating, setIsGenerating] = useState(false)
@@ -527,7 +557,7 @@ function CreateProtocolForm({ tenantId, onClose, onSave, onUpdate, editingData, 
             title: formData.title,
             description: formData.description,
             duration_days: parseInt(formData.duration),
-            content: formData.days,
+            days: formData.days,
             category: formData.category,
             is_active: false,
             is_favorite: false,
