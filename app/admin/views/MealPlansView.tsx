@@ -3,34 +3,30 @@
 import { useState, useEffect, useCallback } from "react"
 import {
   Utensils, CheckCircle2, Clock, XCircle, RefreshCw, Loader2,
-  ChevronDown, ChevronUp, AlertTriangle, Star, ArrowRightLeft, FileDown
+  ChevronDown, ChevronUp, AlertTriangle, Star, ArrowRightLeft, FileDown, Copy
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { exportMealPlanPdf } from "@/lib/utils/exportMealPlanPdf"
 
+// Schema real de `meal_plans` (ver supabase/migrations/20260321_foods_meal_plans.sql
+// + 20260519000006_premium_architecture.sql). status é CHECK'd para
+// 'draft' | 'published' | 'archived' — nunca pending_approval/active/completed.
 interface MealPlan {
   id: string
-  patient_id?: string
-  plan_tier: string
+  plan_tier?: string
   title: string
-  start_date?: string
-  end_date?: string
-  total_calories?: number
-  total_protein_g?: number
-  total_carbs_g?: number
-  total_fat_g?: number
-  status: 'pending_approval' | 'approved' | 'active' | 'completed'
+  status: 'draft' | 'published' | 'archived'
   approved_by?: string
   approved_at?: string
   created_by_agent?: string
   created_at: string
   updated_at: string
-  profiles?: { name: string; primary_goal?: string; dietary_restrictions?: string[] }
-  // Legacy fields
+  profiles?: { name: string; primary_goal?: string; dietary_restrictions?: string[] } | null
   description?: string
   goal?: string
   duration_days?: number
   target_kcal?: number
+  target_protein_g?: number
   is_ai_generated?: boolean
 }
 
@@ -39,15 +35,18 @@ interface MealItem {
   meal_plan_id: string
   day_number: number
   meal_type: string
+  meal_label?: string
   food_name: string
   quantity_g?: number
-  quantity_description?: string
-  calories?: number
-  protein_g?: number
-  carbs_g?: number
-  fat_g?: number
-  fiber_g?: number
-  notes?: string
+  serving_qty?: number
+  serving_label?: string
+  calc_kcal?: number
+  calc_protein_g?: number
+  calc_carbs_g?: number
+  calc_fat_g?: number
+  calc_fiber_g?: number
+  preparation_notes?: string
+  substitution_note?: string
   sort_order: number
 }
 
@@ -63,19 +62,24 @@ interface SubstituteFood {
 }
 
 const MEAL_TYPES_PT: Record<string, string> = {
+  shot: 'Shot Matinal',
   cafe_manha: 'Café da Manhã',
   lanche_manha: 'Lanche da Manhã',
+  colacao: 'Colação',
   almoco: 'Almoço',
   lanche_tarde: 'Lanche da Tarde',
   jantar: 'Jantar',
   ceia: 'Ceia',
+  cha_noturno: 'Hora do Chá',
+  pre_treino: 'Pré-Treino',
+  intra_treino: 'Intra-Treino',
+  pos_treino: 'Pós-Treino',
 }
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string; icon: any }> = {
-  pending_approval: { label: 'Aguardando Aprovação', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/25', icon: Clock },
-  approved: { label: 'Aprovado', color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/25', icon: CheckCircle2 },
-  active: { label: 'Ativo', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/25', icon: Star },
-  completed: { label: 'Concluído', color: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/25', icon: XCircle },
+  draft: { label: 'Rascunho', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/25', icon: Clock },
+  published: { label: 'Publicado', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/25', icon: Star },
+  archived: { label: 'Arquivado', color: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/25', icon: XCircle },
 }
 
 const TIER_META: Record<string, string> = {
@@ -84,12 +88,13 @@ const TIER_META: Record<string, string> = {
   vip: 'VIP',
 }
 
-type StatusFilter = 'all' | 'pending_approval' | 'active' | 'completed'
+type StatusFilter = 'all' | 'draft' | 'published' | 'archived'
 
 export function MealPlansView({ setView, tenantId = '', tenantName = '' }: { setView: (v: any) => void; tenantId?: string; tenantName?: string }) {
   const [plans, setPlans] = useState<MealPlan[]>([])
   const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending_approval')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('draft')
+  const [duplicating, setDuplicating] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [planDetail, setPlanDetail] = useState<{ items: MealItem[]; days: Record<string, Record<string, MealItem[]>> } | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
@@ -140,7 +145,7 @@ export function MealPlansView({ setView, tenantId = '', tenantName = '' }: { set
     }
   }
 
-  const handleApprove = async (planId: string) => {
+  const handlePublish = async (planId: string) => {
     setApproving(planId)
     try {
       const res = await fetch(`/api/admin/meal-plans/${planId}`, {
@@ -149,29 +154,44 @@ export function MealPlansView({ setView, tenantId = '', tenantName = '' }: { set
         body: JSON.stringify({ action: 'approve' }),
       })
       if (!res.ok) throw new Error('Erro')
-      showToast('success', 'Plano aprovado e ativado!')
+      showToast('success', 'Cardápio publicado!')
       loadPlans()
     } catch {
-      showToast('error', 'Erro ao aprovar plano')
+      showToast('error', 'Erro ao publicar cardápio')
     } finally {
       setApproving(null)
     }
   }
 
-  const handleComplete = async (planId: string) => {
+  const handleArchive = async (planId: string) => {
     setApproving(planId)
     try {
       const res = await fetch(`/api/admin/meal-plans/${planId}`, {
         method: 'DELETE',
       })
       if (!res.ok) throw new Error('Erro')
-      showToast('success', 'Plano marcado como concluído')
+      showToast('success', 'Cardápio arquivado')
       loadPlans()
       if (expandedId === planId) { setExpandedId(null); setPlanDetail(null) }
     } catch {
-      showToast('error', 'Erro ao concluir plano')
+      showToast('error', 'Erro ao arquivar cardápio')
     } finally {
       setApproving(null)
+    }
+  }
+
+  const handleDuplicate = async (planId: string) => {
+    setDuplicating(planId)
+    try {
+      const res = await fetch(`/api/admin/meal-plans/${planId}/duplicate`, { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Erro')
+      showToast('success', `Cardápio duplicado! (${json.items_copied} itens copiados, sem custo de IA)`)
+      loadPlans()
+    } catch (err: any) {
+      showToast('error', err.message || 'Erro ao duplicar cardápio')
+    } finally {
+      setDuplicating(null)
     }
   }
 
@@ -181,7 +201,7 @@ export function MealPlansView({ setView, tenantId = '', tenantName = '' }: { set
       title: plan.title,
       tenantName,
       patientName: plan.profiles?.name,
-      totalCalories: plan.total_calories || plan.target_kcal,
+      totalCalories: plan.target_kcal,
       durationDays: plan.duration_days,
       days: planDetail.days,
     })
@@ -194,7 +214,7 @@ export function MealPlansView({ setView, tenantId = '', tenantName = '' }: { set
     try {
       const params = new URLSearchParams()
       params.set('meal_item_id', item.id)
-      if (item.calories) params.set('calories', String(item.calories))
+      if (item.calc_kcal) params.set('calories', String(item.calc_kcal))
       const res = await fetch(`/api/admin/meal-plans/${item.meal_plan_id}/substitutions?${params}`)
       const json = await res.json()
       setSubstitutes(json.substitutes || [])
@@ -212,9 +232,9 @@ export function MealPlansView({ setView, tenantId = '', tenantName = '' }: { set
 
   const counts = {
     all: plans.length,
-    pending_approval: plans.filter(p => p.status === 'pending_approval').length,
-    active: plans.filter(p => p.status === 'active').length,
-    completed: plans.filter(p => p.status === 'completed').length,
+    draft: plans.filter(p => p.status === 'draft').length,
+    published: plans.filter(p => p.status === 'published').length,
+    archived: plans.filter(p => p.status === 'archived').length,
   }
 
   return (
@@ -256,9 +276,9 @@ export function MealPlansView({ setView, tenantId = '', tenantName = '' }: { set
       {/* Status filter tabs */}
       <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-2xl p-1 w-fit">
         {([
-          { id: 'pending_approval' as StatusFilter, label: `Pendentes (${counts.pending_approval})` },
-          { id: 'active' as StatusFilter, label: `Ativos (${counts.active})` },
-          { id: 'completed' as StatusFilter, label: `Concluídos (${counts.completed})` },
+          { id: 'draft' as StatusFilter, label: `Rascunhos (${counts.draft})` },
+          { id: 'published' as StatusFilter, label: `Publicados (${counts.published})` },
+          { id: 'archived' as StatusFilter, label: `Arquivados (${counts.archived})` },
           { id: 'all' as StatusFilter, label: `Todos (${counts.all})` },
         ] as const).map(t => (
           <button
@@ -286,9 +306,9 @@ export function MealPlansView({ setView, tenantId = '', tenantName = '' }: { set
           <Utensils size={40} className="mx-auto text-slate-600 mb-4" />
           <p className="text-white font-bold">Nenhum plano encontrado</p>
           <p className="text-slate-500 text-sm mt-1">
-            {statusFilter === 'pending_approval'
-              ? 'Nenhum plano aguardando aprovação.'
-              : 'Nenhum plano neste status.'}
+            {statusFilter === 'draft'
+              ? 'Nenhum rascunho no momento.'
+              : 'Nenhum cardápio neste status.'}
           </p>
         </div>
       )}
@@ -300,6 +320,7 @@ export function MealPlansView({ setView, tenantId = '', tenantName = '' }: { set
           const StatusIcon = statusMeta.icon
           const isExpanded = expandedId === plan.id
           const isApproving = approving === plan.id
+          const isDuplicating = duplicating === plan.id
 
           return (
             <motion.div
@@ -334,9 +355,7 @@ export function MealPlansView({ setView, tenantId = '', tenantName = '' }: { set
 
                   <div className="flex items-center gap-3 text-xs text-slate-500">
                     {plan.profiles?.name && <span>Paciente: <span className="text-slate-300">{plan.profiles.name}</span></span>}
-                    {(plan.total_calories || plan.target_kcal) && (
-                      <span>{plan.total_calories || plan.target_kcal} kcal/dia</span>
-                    )}
+                    {plan.target_kcal && <span>{plan.target_kcal} kcal/dia</span>}
                     {plan.duration_days && <span>{plan.duration_days} dias</span>}
                     <span>{new Date(plan.created_at).toLocaleDateString('pt-BR')}</span>
                   </div>
@@ -351,25 +370,35 @@ export function MealPlansView({ setView, tenantId = '', tenantName = '' }: { set
                     {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </button>
 
-                  {plan.status === 'pending_approval' && (
+                  <button
+                    onClick={() => handleDuplicate(plan.id)}
+                    disabled={isDuplicating}
+                    title="Duplicar sem gastar IA — cria uma cópia editável em rascunho"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white text-xs font-bold rounded-xl transition-all disabled:opacity-50"
+                  >
+                    {isDuplicating ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
+                    Duplicar
+                  </button>
+
+                  {plan.status === 'draft' && (
                     <button
-                      onClick={() => handleApprove(plan.id)}
+                      onClick={() => handlePublish(plan.id)}
                       disabled={isApproving}
                       className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all"
                     >
                       {isApproving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                      Aprovar
+                      Publicar
                     </button>
                   )}
 
-                  {plan.status === 'active' && (
+                  {plan.status === 'published' && (
                     <button
-                      onClick={() => handleComplete(plan.id)}
+                      onClick={() => handleArchive(plan.id)}
                       disabled={isApproving}
                       className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white text-xs font-bold rounded-xl transition-all disabled:opacity-50"
                     >
                       {isApproving ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
-                      Concluir
+                      Arquivar
                     </button>
                   )}
                 </div>
@@ -423,11 +452,11 @@ export function MealPlansView({ setView, tenantId = '', tenantName = '' }: { set
                                           <div className="flex-1 min-w-0">
                                             <p className="text-white text-sm">{item.food_name}</p>
                                             <div className="flex items-center gap-2 text-xs text-slate-600">
-                                              {(item.quantity_description || item.quantity_g) && (
-                                                <span>{item.quantity_description || `${item.quantity_g}g`}</span>
+                                              {(item.serving_label || item.quantity_g) && (
+                                                <span>{item.serving_label || `${item.quantity_g}g`}</span>
                                               )}
-                                              {item.calories && <span>{Math.round(item.calories)} kcal</span>}
-                                              {item.protein_g && <span>{Math.round(item.protein_g)}g prot</span>}
+                                              {item.calc_kcal !== undefined && item.calc_kcal !== null && <span>{Math.round(item.calc_kcal)} kcal</span>}
+                                              {item.calc_protein_g !== undefined && item.calc_protein_g !== null && <span>{Math.round(item.calc_protein_g)}g prot</span>}
                                             </div>
                                           </div>
                                           <button
