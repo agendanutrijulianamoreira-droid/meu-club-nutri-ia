@@ -182,6 +182,12 @@ serve(async (req) => {
         const tenants = await getActiveTenants(supabase, event.tenant_id)
 
         for (const tenant of tenants) {
+          // Distribuição do Planejamento Anual roda antes do early-continue de
+          // pacientes — não depende de haver pacientes (importante pra tenants
+          // recém-criados ainda sem nenhuma paciente).
+          const distributorResult = await runBusinessPlanDistributorAgent(supabase, tenant)
+          results.push(distributorResult)
+
           const patients = await buildPatientContexts(supabase, tenant)
           if (patients.length === 0) continue
 
@@ -301,6 +307,8 @@ serve(async (req) => {
           results.push(await runMealsAgent(supabase, event.tenant_id, event.user_id, event.payload))
         } else if (agentName === 'engagement' && event.payload?.post_id) {
           results.push(await runEngagementAgent(supabase, tenant, event.payload.post_id))
+        } else if (agentName === 'business_plan_distributor') {
+          results.push(await runBusinessPlanDistributorAgent(supabase, tenant))
         }
         break
       }
@@ -2028,6 +2036,157 @@ Retorne APENAS JSON:
     console.error('[upsell] Error:', err)
     if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'error', error_message: err.message, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
     return { agent_name: 'upsell', status: 'error', messages: [], tokens_used: totalTokens, duration_ms: elapsed, error: err.message }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AGENT: BUSINESS PLAN DISTRIBUTOR — distribui aos poucos os itens já
+// aprovados do Planejamento Anual (business_plan_items) para as tabelas
+// reais do sistema, um lote pequeno por rodada (mesmo espírito anti-
+// sobrecarga do agente de Upsell). Nunca mexe em item que não foi aprovado
+// manualmente antes — a IA só sugere, quem aprova é a nutricionista.
+// Tipos mecânicos e reversíveis (challenge, content_post, push_campaign) são
+// materializados direto. Tipos clínicos/comerciais sensíveis (protocol,
+// promotion, product_launch, special_event, email_campaign) nunca são
+// criados sozinhos — só um lembrete no inbox da nutricionista, mantendo
+// humano-no-loop para o que é consequente.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const ITEM_TYPE_LABELS_PT: Record<string, string> = {
+  challenge: 'desafio', protocol: 'protocolo', content_post: 'post de conteúdo',
+  push_campaign: 'campanha push', email_campaign: 'campanha de e-mail',
+  promotion: 'promoção', product_launch: 'lançamento de produto', special_event: 'evento especial',
+}
+
+async function runBusinessPlanDistributorAgent(
+  supabase: SupabaseClient,
+  tenant: TenantContext,
+): Promise<AgentResult> {
+  const start = Date.now()
+  const messages: AgentResult['messages'] = []
+
+  const { data: agentLog } = await supabase
+    .from('agent_logs')
+    .insert({ tenant_id: tenant.id, agent_name: 'business_plan_distributor', trigger_type: 'agent_chain', input_payload: {}, status: 'running' })
+    .select('id').single()
+
+  try {
+    const today = new Date().toISOString().split('T')[0]
+
+    const { data: items } = await supabase
+      .from('business_plan_items')
+      .select('*')
+      .eq('tenant_id', tenant.id)
+      .eq('status', 'approved')
+      .lte('scheduled_for', today)
+      .is('pushed_at', null)
+      .order('scheduled_for', { ascending: true })
+      .limit(5) // lote pequeno de propósito — distribuição gradual, não em massa
+
+    if (!items || items.length === 0) {
+      const elapsed = Date.now() - start
+      if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'skipped', output_payload: { reason: 'no_items_due' }, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+      return { agent_name: 'business_plan_distributor', status: 'skipped', messages: [], tokens_used: 0, duration_ms: elapsed }
+    }
+
+    let admins: Array<{ user_id: string }> | null = null
+    let materializedCount = 0
+    let remindedCount = 0
+
+    for (const item of items) {
+      const title = item.edited_title || item.title
+      const description = item.edited_description || item.description || ''
+
+      if (item.item_type === 'challenge') {
+        const details = item.details || {}
+        const { data: newChallenge } = await supabase
+          .from('challenges')
+          .insert({
+            tenant_id: tenant.id,
+            title,
+            description,
+            duration_days: details.duration_days || 7,
+            start_date: item.scheduled_for,
+            is_active: true,
+          })
+          .select('id').single()
+
+        await supabase.from('business_plan_items').update({
+          status: 'pushed', pushed_at: new Date().toISOString(),
+          pushed_ref_table: 'challenges', pushed_ref_id: newChallenge?.id || null,
+        }).eq('id', item.id)
+        materializedCount++
+
+      } else if (item.item_type === 'content_post' || item.item_type === 'push_campaign') {
+        // scheduled_events (Régua de Eventos) só entende event_type push|content —
+        // email_campaign não tem representação nativa aqui, por isso fica no ramo
+        // de lembrete abaixo em vez de virar uma linha mentirosa nesta tabela.
+        const { data: newEvent } = await supabase
+          .from('scheduled_events')
+          .insert({
+            tenant_id: tenant.id,
+            scheduled_date: item.scheduled_for,
+            event_type: item.item_type === 'push_campaign' ? 'push' : 'content',
+            title,
+            message: description,
+            status: 'scheduled',
+            metadata: { source: 'business_plan_item', business_plan_item_id: item.id },
+          })
+          .select('id').single()
+
+        await supabase.from('business_plan_items').update({
+          status: 'pushed', pushed_at: new Date().toISOString(),
+          pushed_ref_table: 'scheduled_events', pushed_ref_id: newEvent?.id || null,
+        }).eq('id', item.id)
+        materializedCount++
+
+      } else {
+        // protocol | promotion | product_launch | special_event | email_campaign:
+        // nunca criados sozinhos — só um lembrete pra nutricionista configurar.
+        if (admins === null) {
+          const { data } = await supabase.from('profiles').select('user_id').eq('tenant_id', tenant.id).in('role', ['admin', 'nutritionist'])
+          admins = data || []
+        }
+        for (const admin of admins) {
+          await supabase.from('inbox_messages').insert({
+            tenant_id: tenant.id, user_id: admin.user_id, agent_name: 'business_plan_distributor', agent_log_id: agentLog?.id,
+            title: `Hora de configurar: ${title}`,
+            body: `Seu Planejamento Anual previa isso para hoje (${ITEM_TYPE_LABELS_PT[item.item_type] || item.item_type}). ${description}`.trim(),
+            message_type: 'reminder', priority: 'normal',
+            cta_label: 'Ver Planejamento Anual', cta_url: '/admin?view=business-plan',
+            channels: ['inbox'], metadata: { business_plan_item_id: item.id, item_type: item.item_type },
+          })
+          messages.push({
+            user_id: admin.user_id, title: `Hora de configurar: ${title}`, body: description,
+            message_type: 'reminder', priority: 'normal',
+            cta_label: 'Ver Planejamento Anual', cta_url: '/admin?view=business-plan', channels: ['inbox'],
+          })
+        }
+        await supabase.from('business_plan_items').update({
+          status: 'pushed', pushed_at: new Date().toISOString(),
+          pushed_ref_table: 'reminder_sent', pushed_ref_id: null,
+        }).eq('id', item.id)
+        remindedCount++
+      }
+    }
+
+    const elapsed = Date.now() - start
+    if (agentLog?.id) {
+      await supabase.from('agent_logs').update({
+        status: 'success',
+        output_payload: { items_processed: items.length, materialized: materializedCount, reminders_sent: remindedCount },
+        duration_ms: elapsed, completed_at: new Date().toISOString(),
+      }).eq('id', agentLog.id)
+    }
+
+    return { agent_name: 'business_plan_distributor', status: 'success', messages, tokens_used: 0, duration_ms: elapsed }
+
+  } catch (err: any) {
+    const elapsed = Date.now() - start
+    console.error('[business_plan_distributor] Error:', err)
+    if (agentLog?.id) await supabase.from('agent_logs').update({ status: 'error', error_message: err.message, duration_ms: elapsed, completed_at: new Date().toISOString() }).eq('id', agentLog.id)
+    return { agent_name: 'business_plan_distributor', status: 'error', messages: [], tokens_used: 0, duration_ms: elapsed, error: err.message }
   }
 }
 

@@ -63,6 +63,7 @@ import { StrategicPlannerView } from "./views/StrategicPlannerView"
 import { AnalyticsView } from "./views/AnalyticsView"
 import { JourneyView } from "./views/JourneyView"
 import { ProductsView } from "./views/ProductsView"
+import { BusinessPlanView } from "./views/BusinessPlanView"
 import { ApprovalsView } from "./views/ApprovalsView"
 import { ManagerLearningView } from "./views/ManagerLearningView"
 import { HabitsView } from "./views/HabitsView"
@@ -82,7 +83,7 @@ type ViewType =
     | 'appointments' | 'professionals' | 'product-gateway'
     | 'strategic-planner' | 'analytics' | 'patient-journey'
     | 'products' | 'approvals' | 'manager-learning' | 'habits' | 'vip-settings'
-    | 'questionnaires' | 'community' | 'billing' | 'methods'
+    | 'questionnaires' | 'community' | 'billing' | 'methods' | 'business-plan'
 
 interface NavItem {
     id: ViewType
@@ -150,6 +151,7 @@ const navGroups: NavGroup[] = [
             { id: 'billing', label: 'Faturamento' },
             { id: 'club-plan', label: 'Plano do Clube' },
             { id: 'strategic-planner', label: 'Régua de Eventos' },
+            { id: 'business-plan', label: 'Planejamento Anual' },
             { id: 'vip-settings', label: 'Área VIP' },
             { id: 'community', label: 'Comunidade' },
             { id: 'sales-page', label: 'Página de Vendas' },
@@ -257,6 +259,7 @@ export default function AdminDashboard({
             case 'professionals':      return <ProfessionalsView setView={setActiveView} tenantId={tenantId} />
             case 'product-gateway':    return <ProductGatewayView setView={setActiveView} tenantId={tenantId} />
             case 'strategic-planner':  return <StrategicPlannerView setView={setActiveView} />
+            case 'business-plan':      return <BusinessPlanView setView={setActiveView} />
             case 'analytics':          return <AnalyticsView setView={setActiveView} />
             case 'products':           return <ProductsView setView={setActiveView} tenantId={tenantId} />
             case 'approvals':          return <ApprovalsView setView={setActiveView} tenantId={tenantId} />

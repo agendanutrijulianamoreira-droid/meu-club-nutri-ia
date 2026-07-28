@@ -151,13 +151,44 @@ Retorne JSON:
   "subject": "Linha de assunto do email",
   "html_body": "<p>Corpo do email em HTML simples...</p>"
 }`
+        } else if (task === 'generate-business-plan') {
+            const revenueGoal = sanitizeForPrompt(body.revenueGoalCents, 20)
+            const focusTheme = sanitizeForPrompt(body.focusTheme, 500)
+            const productsSummary = sanitizeForPrompt(body.productsSummary, 1500)
+            systemInstruction += `
+Tarefa: Rascunhar um planejamento anual de estratégia comercial e de conteúdo para o consultório, cobrindo os 12 meses do ano, para os dois planos pagos do clube: "tech_diet" (posicionado como o plano Premium/intermediário) e "vip" (o plano mais completo).
+Meta de faturamento do ano (em centavos, se informada): ${revenueGoal || 'não informada'}
+Foco/tema geral do ano: ${focusTheme || context || 'crescimento sustentável da comunidade'}
+Catálogo de produtos/serviços já existente (use como referência para os itens sugeridos, sem inventar produtos que não existem nesta lista quando ela for informada): ${productsSummary || 'nenhum catálogo informado'}
+Diretrizes importantes:
+- O objetivo é vender sem parecer que está vendendo — priorize itens de conteúdo, comunidade e valor percebido, com promoções pontuais e espaçadas, nunca um mês inteiro de puro CTA de venda.
+- Cada mês deve ter um tema claro e, quando fizer sentido, ser dividido em até 4 semanas com um foco específico.
+- "suggested_items" são só SUGESTÕES para revisão humana antes de qualquer coisa ser publicada — não afirme nada como certo, são propostas.
+- item_type deve ser um destes: challenge, protocol, content_post, push_campaign, email_campaign, promotion, product_launch, special_event.
+- club_tier indica pra qual público o item é: "tech_diet" (Premium), "vip", ou "both" se for pra ambos.
+Esquema de Retorno:
+{
+  "summary": "Resumo do racional geral da estratégia do ano (2-4 frases)",
+  "months": [
+    {
+      "month_number": 1,
+      "theme": "Tema do mês",
+      "focus_area": "Área de foco (ex: retenção, aquisição, upsell)",
+      "revenue_target_cents": 500000,
+      "weeks": [ { "week_number": 1, "theme": "Tema da semana" } ],
+      "suggested_items": [
+        { "item_type": "content_post", "club_tier": "both", "title": "Título", "description": "Breve descrição" }
+      ]
+    }
+  ]
+}`
         }
 
         const fullPrompt = prompt || `Gere um ${task} baseado no contexto: ${context}`
 
         const raw = await callClaudeJSON({
             system: systemInstruction,
-            maxTokens: 2000,
+            maxTokens: task === 'generate-business-plan' ? 8000 : 2000,
             messages: [{ role: 'user', content: fullPrompt }],
         })
 

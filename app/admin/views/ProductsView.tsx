@@ -7,6 +7,11 @@ import {
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
+interface ProductSpecification {
+  label: string
+  value: string
+}
+
 interface ContentAccess {
   protocols: boolean
   meal_plans: boolean
@@ -30,6 +35,7 @@ interface Product {
   recurring_interval: string | null
   content_access: ContentAccess
   features: string[]
+  specifications: ProductSpecification[]
   badge_text: string | null
   highlight: boolean
   is_active: boolean
@@ -117,6 +123,7 @@ function ProductForm({ product, onSave, onCancel }: {
     highlight: product?.highlight || false,
     features: (product?.features || []).join('\n'),
     content_access: product?.content_access || { ...DEFAULT_ACCESS },
+    specifications: (product?.specifications?.length ? product.specifications : [{ label: '', value: '' }]) as ProductSpecification[],
   })
   const [saving, setSaving] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
@@ -125,6 +132,11 @@ function ProductForm({ product, onSave, onCancel }: {
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }))
   const setAccess = (k: keyof ContentAccess, v: boolean) =>
     setForm(f => ({ ...f, content_access: { ...f.content_access, [k]: v } }))
+
+  const setSpec = (idx: number, field: 'label' | 'value', v: string) =>
+    setForm(f => ({ ...f, specifications: f.specifications.map((s, i) => i === idx ? { ...s, [field]: v } : s) }))
+  const addSpec = () => setForm(f => ({ ...f, specifications: [...f.specifications, { label: '', value: '' }] }))
+  const removeSpec = (idx: number) => setForm(f => ({ ...f, specifications: f.specifications.filter((_, i) => i !== idx) }))
 
   const generateDescription = async () => {
     if (!form.name.trim()) { setError('Digite o nome do produto primeiro'); return }
@@ -167,6 +179,9 @@ function ProductForm({ product, onSave, onCancel }: {
         badge_text: form.badge_text.trim() || null,
         highlight: form.highlight,
         features: form.features.split('\n').map(s => s.trim()).filter(Boolean),
+        specifications: form.specifications
+          .map(s => ({ label: s.label.trim(), value: s.value.trim() }))
+          .filter(s => s.label || s.value),
         content_access: form.content_access,
       }
       const res = await fetch('/api/admin/products', {
@@ -312,6 +327,32 @@ function ProductForm({ product, onSave, onCancel }: {
           className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 resize-none"/>
       </div>
 
+      {/* Especificações técnicas */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Especificações</label>
+          <button onClick={addSpec} className="flex items-center gap-1 text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors">
+            <Plus size={11}/> Adicionar
+          </button>
+        </div>
+        <div className="space-y-2">
+          {form.specifications.map((spec, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <input value={spec.label} onChange={e => setSpec(idx, 'label', e.target.value)}
+                placeholder="Duração"
+                className="w-1/3 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50"/>
+              <input value={spec.value} onChange={e => setSpec(idx, 'value', e.target.value)}
+                placeholder="90 dias"
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50"/>
+              <button onClick={() => removeSpec(idx)}
+                className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/15 text-slate-500 hover:text-rose-400 transition-all shrink-0">
+                <X size={14}/>
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Badge + Destaque */}
       <div className="grid grid-cols-2 gap-3 items-end">
         <div>
@@ -405,6 +446,15 @@ function ProductCard({ product, onEdit, onToggle, onDelete }: {
                 {ACCESS_LABELS[k]}
               </span>
             ))}
+        </div>
+      )}
+
+      {/* Especificações */}
+      {product.specifications?.length > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs text-slate-400">
+          {product.specifications.filter(s => s.label || s.value).map((s, i) => (
+            <span key={i}><span className="text-slate-500">{s.label}:</span> {s.value}</span>
+          ))}
         </div>
       )}
 

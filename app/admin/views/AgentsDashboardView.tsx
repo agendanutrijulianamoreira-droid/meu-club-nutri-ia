@@ -76,6 +76,7 @@ const AGENT_META: Record<string, { label: string; icon: typeof Bot; color: strin
   protocol: { label: 'Protocol', icon: BookOpen, color: 'text-indigo-400', desc: 'Transições fase' },
   community: { label: 'Community', icon: MessageCircle, color: 'text-emerald-400', desc: 'Posts diários' },
   community_moderation: { label: 'Moderation', icon: Eye, color: 'text-orange-400', desc: 'Auto-moderação' },
+  business_plan_distributor: { label: 'Plano Anual', icon: TrendingUp, color: 'text-violet-400', desc: 'Distribuição gradual' },
 }
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; icon: typeof CheckCircle2 }> = {

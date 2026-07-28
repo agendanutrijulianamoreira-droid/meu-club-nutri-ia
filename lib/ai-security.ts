@@ -93,6 +93,26 @@ export const MealPlanSchema = z.object({
   })).max(30),
 })
 
+export const BusinessPlanSchema = z.object({
+  summary: z.string().max(1500),
+  months: z.array(z.object({
+    month_number: z.number().int().min(1).max(12),
+    theme: z.string().max(200),
+    focus_area: z.string().max(200).optional().default(''),
+    revenue_target_cents: z.number().int().nonnegative().optional(),
+    weeks: z.array(z.object({
+      week_number: z.number().int().min(1).max(5),
+      theme: z.string().max(200),
+    })).max(5).optional().default([]),
+    suggested_items: z.array(z.object({
+      item_type: z.enum(['challenge', 'protocol', 'content_post', 'push_campaign', 'email_campaign', 'promotion', 'product_launch', 'special_event']),
+      club_tier: z.enum(['tech_diet', 'vip', 'both']),
+      title: z.string().max(200),
+      description: z.string().max(500).optional().default(''),
+    })).max(15).optional().default([]),
+  })).max(12),
+})
+
 export type GenerateTask =
   | 'generate-protocol'
   | 'generate-challenge'
@@ -100,6 +120,7 @@ export type GenerateTask =
   | 'marketing-suggestion'
   | 'checkin-analysis'
   | 'email-marketing'
+  | 'generate-business-plan'
 
 const VALID_TASKS = new Set<GenerateTask>([
   'generate-protocol',
@@ -108,6 +129,7 @@ const VALID_TASKS = new Set<GenerateTask>([
   'marketing-suggestion',
   'checkin-analysis',
   'email-marketing',
+  'generate-business-plan',
 ])
 
 export function isValidTask(task: string): task is GenerateTask {
@@ -127,5 +149,6 @@ export function validateGenerateOutput(task: GenerateTask, data: unknown) {
     case 'marketing-suggestion': return MarketingSchema.parse(data)
     case 'checkin-analysis':     return CheckinAnalysisSchema.parse(data)
     case 'email-marketing':      return EmailMarketingSchema.parse(data)
+    case 'generate-business-plan': return BusinessPlanSchema.parse(data)
   }
 }
