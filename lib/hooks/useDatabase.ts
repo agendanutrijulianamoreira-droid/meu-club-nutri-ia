@@ -799,6 +799,9 @@ export interface ComponentRow {
     recipe_id: string | null
     supplement_id: string | null
     created_at: string
+    food?: { name: string } | null
+    recipe?: { title: string } | null
+    supplement?: { title: string } | null
 }
 
 function useClinicalAssets<T extends BaseClinicalEntity>(table: string) {
@@ -884,16 +887,20 @@ export function useSupplements() { return useClinicalAssets<Supplement>('supplem
 export function useMaterials() { return useClinicalAssets<Material>('materials') }
 
 // Composição relacional de meals/shots/teas/recipes — mesmo padrão para as 4.
-function useAssetComponents(table: string, parentColumn: string, parentId?: string) {
+// recipeFk é o nome da coluna que referencia recipes (difere em recipe_components,
+// que já usa "recipe_id" pra apontar pro próprio pai e por isso guarda a
+// sub-receita usada como ingrediente em "component_recipe_id").
+function useAssetComponents(table: string, parentColumn: string, parentId?: string, recipeFk: string = 'recipe_id') {
     const [components, setComponents] = useState<ComponentRow[]>([])
     const [loading, setLoading] = useState(true)
+    const embedSelect = `*, food:foods(name), recipe:recipes!${recipeFk}(title), supplement:supplements(title)`
 
     const fetchComponents = async () => {
         if (!parentId) { setComponents([]); setLoading(false); return }
         setLoading(true)
         const { data, error } = await supabase
             .from(table)
-            .select('*')
+            .select(embedSelect)
             .eq(parentColumn, parentId)
             .order('sort_order', { ascending: true })
         if (!error) setComponents(data || [])
@@ -906,7 +913,7 @@ function useAssetComponents(table: string, parentColumn: string, parentId?: stri
             const { data, error } = await supabase
                 .from(table)
                 .insert([{ ...component, [parentColumn]: parentId, sort_order: components.length }])
-                .select()
+                .select(embedSelect)
                 .single()
             if (error) throw error
             setComponents(prev => [...prev, data])
@@ -932,10 +939,10 @@ function useAssetComponents(table: string, parentColumn: string, parentId?: stri
     return { components, loading, addComponent, removeComponent, refresh: fetchComponents }
 }
 
-export function useMealComponents(mealId?: string) { return useAssetComponents('meal_components', 'meal_id', mealId) }
-export function useShotComponents(shotId?: string) { return useAssetComponents('shot_components', 'shot_id', shotId) }
-export function useTeaComponents(teaId?: string) { return useAssetComponents('tea_components', 'tea_id', teaId) }
-export function useRecipeComponents(recipeId?: string) { return useAssetComponents('recipe_components', 'recipe_id', recipeId) }
+export function useMealComponents(mealId?: string) { return useAssetComponents('meal_components', 'meal_id', mealId, 'meal_components_recipe_id_fkey') }
+export function useShotComponents(shotId?: string) { return useAssetComponents('shot_components', 'shot_id', shotId, 'shot_components_recipe_id_fkey') }
+export function useTeaComponents(teaId?: string) { return useAssetComponents('tea_components', 'tea_id', teaId, 'tea_components_recipe_id_fkey') }
+export function useRecipeComponents(recipeId?: string) { return useAssetComponents('recipe_components', 'recipe_id', recipeId, 'recipe_components_component_recipe_id_fkey') }
 
 // ==========================================
 // CATEGORIAS CLÍNICAS (clinical_categories)

@@ -3,19 +3,7 @@
 import { useState } from "react"
 import { Plus, Trash2, Search } from "lucide-react"
 import { supabase } from "@/lib/supabase-browser"
-
-interface ComponentRow {
-    id: string
-    quantity: number | null
-    unit: string | null
-    serving_label: string | null
-    food_id: string | null
-    recipe_id: string | null
-    supplement_id: string | null
-    food?: { name: string } | null
-    recipe?: { title: string } | null
-    supplement?: { title: string } | null
-}
+import type { ComponentRow } from "@/lib/hooks/useDatabase"
 
 interface ComponentsHook {
     components: ComponentRow[]
@@ -56,7 +44,13 @@ export function ComponentsEditor({ hook, tenantId }: { hook: ComponentsHook; ten
         setAdding(false)
     }
 
-    const label = (c: ComponentRow) => c.serving_label || c.food?.name || c.recipe?.title || c.supplement?.title || '—'
+    // Nome do alimento/receita/suplemento é a informação principal — serving_label
+    // é só um detalhe de medida caseira (ex: "amassada", "a gosto"), nunca substitui o nome.
+    const label = (c: ComponentRow) => {
+        const name = c.food?.name || c.recipe?.title || c.supplement?.title
+        if (name && c.serving_label) return `${name} (${c.serving_label})`
+        return name || c.serving_label || '—'
+    }
 
     return (
         <div>
