@@ -63,7 +63,7 @@ export function GamificationHeader({
     }, [coins]);
 
     return (
-        <GlassCard className="p-6 mb-6" gradient>
+        <GlassCard className="p-6 mb-6">
             <div className="flex items-center justify-between">
 
                 {/* NutriCoins */}
