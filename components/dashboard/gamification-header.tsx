@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion, useSpring, useTransform } from 'framer-motion';
-import { Coins, TrendingUp, Zap } from 'lucide-react';
+import { Coins, Zap } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 
 interface GamificationHeaderProps {
@@ -14,12 +14,9 @@ interface GamificationHeaderProps {
 }
 
 /**
- * GamificationHeader - Header com NutriCoins animados
- * 
- * Features:
- * - Animação de contagem suave ao ganhar moedas
- * - Neon Green para indicar ganhos (Sistema de Não-Punição)
- * - Efeito de brilho ao receber recompensas
+ * Sua Jornada no Reino - Resumo de moedas, nível e streak
+ *
+ * Destaques em Ouro (#C9A435), sem neon e sem gradientes vibrantes.
  */
 export function GamificationHeader({
     userId,
@@ -64,52 +61,41 @@ export function GamificationHeader({
 
     return (
         <GlassCard className="p-6 mb-6">
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#C9A435] mb-4">
+                Sua Jornada no Reino
+            </p>
+
             <div className="flex items-center justify-between">
 
                 {/* NutriCoins */}
                 <div className="flex items-center gap-3 relative">
                     <motion.div
-                        className="relative"
-                        animate={showGainAnimation ? { scale: [1, 1.2, 1] } : {}}
+                        animate={showGainAnimation ? { scale: [1, 1.15, 1] } : {}}
                         transition={{ duration: 0.5 }}
                     >
-                        <div className="relative">
-                            <Coins className="w-10 h-10 text-amber-400" />
-
-                            {/* Brilho de ganho */}
-                            {showGainAnimation && (
-                                <motion.div
-                                    className="absolute inset-0 rounded-full bg-green-400/30 blur-xl"
-                                    initial={{ scale: 0.5, opacity: 0 }}
-                                    animate={{ scale: 2, opacity: [0, 1, 0] }}
-                                    transition={{ duration: 1 }}
-                                />
-                            )}
-                        </div>
+                        <Coins className="w-9 h-9 text-[#C9A435]" />
                     </motion.div>
 
                     <div>
-                        <div className="text-xs text-gray-400 uppercase tracking-wide">
+                        <div className="text-xs text-[#2B1A10]/50 uppercase tracking-wide">
                             NutriCoins
                         </div>
-                        <motion.div className="text-3xl font-bold text-white flex items-baseline gap-2">
+                        <div className="text-3xl font-bold text-[#2B1A10] flex items-baseline gap-2">
                             <motion.span>
                                 {displayCoins as any}
                             </motion.span>
 
-                            {/* Indicador de ganho (Neon Green) */}
                             {showGainAnimation && (
                                 <motion.span
-                                    className="text-lg text-green-400 flex items-center gap-1"
-                                    initial={{ opacity: 0, y: -10 }}
+                                    className="text-sm font-semibold text-[#C9A435]"
+                                    initial={{ opacity: 0, y: -6 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -20 }}
+                                    exit={{ opacity: 0, y: -10 }}
                                 >
-                                    <TrendingUp className="w-4 h-4" />
                                     +{lastGain}
                                 </motion.span>
                             )}
-                        </motion.div>
+                        </div>
                     </div>
                 </div>
 
@@ -118,13 +104,13 @@ export function GamificationHeader({
 
                     {/* XP e Level */}
                     <div className="text-right">
-                        <div className="text-xs text-gray-400 uppercase tracking-wide">
-                            Level
+                        <div className="text-xs text-[#2B1A10]/50 uppercase tracking-wide">
+                            Nível
                         </div>
-                        <div className="text-2xl font-bold text-violet-400">
+                        <div className="text-2xl font-bold text-[#2B1A10]">
                             {initialLevel}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-[#2B1A10]/40">
                             {initialXP} XP
                         </div>
                     </div>
@@ -132,14 +118,14 @@ export function GamificationHeader({
                     {/* Streak */}
                     {streak > 0 && (
                         <div className="text-right">
-                            <div className="text-xs text-gray-400 uppercase tracking-wide">
-                                Streak
+                            <div className="text-xs text-[#2B1A10]/50 uppercase tracking-wide">
+                                Sequência
                             </div>
-                            <div className="text-2xl font-bold text-orange-400 flex items-center justify-end gap-1">
-                                <Zap className="w-5 h-5 fill-orange-400" />
+                            <div className="text-2xl font-bold text-[#2B1A10] flex items-center justify-end gap-1">
+                                <Zap className="w-5 h-5 text-[#C9A435] fill-[#C9A435]" />
                                 {streak}
                             </div>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-[#2B1A10]/40">
                                 dias
                             </div>
                         </div>
@@ -148,14 +134,14 @@ export function GamificationHeader({
             </div>
 
             {/* Barra de Progresso para próximo nível */}
-            <div className="mt-4">
-                <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+            <div className="mt-5">
+                <div className="flex items-center justify-between text-xs text-[#2B1A10]/40 mb-1">
                     <span>Nível {initialLevel}</span>
                     <span>Nível {initialLevel + 1}</span>
                 </div>
-                <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-[#2B1A10]/[0.06] rounded-full overflow-hidden">
                     <motion.div
-                        className="h-full bg-gradient-to-r from-pink-500 to-violet-500"
+                        className="h-full bg-[#C9A435]"
                         initial={{ width: 0 }}
                         animate={{ width: `${(initialXP % 500) / 5}%` }}
                         transition={{ duration: 1, ease: 'easeOut' }}
