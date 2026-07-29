@@ -3,19 +3,20 @@
 @tailwind utilities;
 
 /*
- * Design tokens — VitaClub (redesign "acolhimento + sofisticação")
- * Fundo branco puro, verde sálvia como cor primária, tons terrosos
- * suaves (areia/nude/terracota) para superfícies secundárias.
+ * Design tokens — VitaClub "Rainha" (Nutri da Mulher Moderna)
+ * Fundo creme quente, marrom escuro para texto e ações primárias,
+ * ouro para destaques e badges de gamificação. Sage e terracota
+ * seguem como cores secundárias de apoio.
  */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 12 6.5% 15.1%;
-    --primary: 92.2 18.9% 42.5%;
-    --primary-foreground: 0 0% 100%;
-    --border: 20 5.9% 90%;
-    --input: 20 5.9% 90%;
-    --ring: 89.2 19.6% 61%;
+    --background: 41 42% 93%; /* Cream #F4EFE4 */
+    --foreground: 22 46% 12%; /* Marrom Escuro #2B1A10 */
+    --primary: 22 46% 12%; /* Marrom Escuro #2B1A10 */
+    --primary-foreground: 41 42% 93%; /* Cream #F4EFE4 */
+    --border: 38 30% 85%;
+    --input: 38 30% 85%;
+    --ring: 45 58% 50%; /* Ouro #C9A435 */
   }
 }
 
@@ -35,19 +36,12 @@
 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(107, 129, 88, 0.35); border-radius: 4px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(107, 129, 88, 0.55); }
 
-/* Shimmer Animation */
+/* Shimmer Animation (loading states) */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 15px rgba(107, 129, 88, 0.25); }
-  50% { box-shadow: 0 0 30px rgba(107, 129, 88, 0.45); }
-}
 .animate-shimmer {
   background-size: 200% 100%;
   animation: shimmer 3s ease-in-out infinite;
-}
-.animate-pulse-glow {
-  animation: pulse-glow 3s ease-in-out infinite;
 }
