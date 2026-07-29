@@ -71,10 +71,48 @@ export async function POST(request: NextRequest) {
         let systemInstruction = getGenerateSystemPrompt(brandName, methodName, personality, baseInstructions)
 
         if (task === 'generate-protocol') {
+            // Injeta os padrões que a nutricionista mais repete ao montar
+            // protocolos manualmente (usage_patterns, ver 20260728000003), pra
+            // gerar sugestões que já saem parecidas com o estilo dela — sem
+            // isso a IA gera title/item_type/points genéricos e ela edita quase
+            // tudo depois. Convite de contexto, não regra rígida; nunca falha
+            // a geração se a query der erro.
+            let learnedPatternsText = ''
+            if (profile?.tenant_id) {
+                try {
+                    const { data: patterns } = await supabase
+                        .from('usage_patterns')
+                        .select('value, usage_count')
+                        .eq('tenant_id', profile.tenant_id)
+                        .eq('scope', 'protocol_item')
+                        .order('usage_count', { ascending: false })
+                        .limit(8)
+
+                    if (patterns && patterns.length > 0) {
+                        const lines = patterns
+                            .map((p: any) => {
+                                const v = p.value || {}
+                                if (!v.title) return null
+                                return `- "${v.title}" (tipo: ${v.item_type || 'habit'}, ${v.points ?? 10} pts) — usado ${p.usage_count}x`
+                            })
+                            .filter(Boolean)
+                            .join('\n')
+                        if (lines) {
+                            learnedPatternsText = `
+Padrões que esta nutricionista mais repete ao montar protocolos manualmente (nomenclatura de tarefa, tipo e pontuação):
+${lines}
+Use como referência de estilo e consistência quando fizer sentido para o contexto pedido — não force encaixe se a tarefa não combinar.`
+                        }
+                    }
+                } catch (err) {
+                    console.error('[AI API] Failed to load usage_patterns', err)
+                }
+            }
+
             systemInstruction += `
 Tarefa: Gerar um protocolo nutricional.
-Contexto: ${context || 'Geral'}
-Esquema de Retorno: 
+Contexto: ${context || 'Geral'}${learnedPatternsText}
+Esquema de Retorno:
 {
   "title": "Título do Protocolo",
   "description": "Breve descrição",
