@@ -276,22 +276,18 @@ export default function AdminDashboard({
     }
 
     return (
-        <div className="min-h-screen bg-[#020617] text-slate-200 flex overflow-hidden">
-            {/* Background */}
-            <div className="fixed inset-0 bg-gradient-to-br from-[#020617] via-[#0f172a] to-[#1e1b4b] -z-10" />
-            <div className="fixed top-[-10%] right-[-10%] w-[500px] h-[500px] bg-indigo-600/5 blur-[120px] rounded-full -z-10" />
-            <div className="fixed bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-violet-600/5 blur-[120px] rounded-full -z-10" />
+        <div className="min-h-screen bg-background text-foreground flex overflow-hidden">
 
             {/* ── Mini Sidebar ──────────────────────────────────────────────── */}
             <aside
                 style={{ width: SIDEBAR_W }}
-                className="fixed left-0 top-0 h-full z-50 flex flex-col items-center bg-[#0d0d1a] border-r border-white/[0.07] shadow-xl"
+                className="fixed left-0 top-0 h-full z-50 flex flex-col items-center bg-white border-r border-[#2B1A10]/10 shadow-sm"
             >
                 {/* Logo mark */}
-                <div className="flex items-center justify-center h-16 w-full border-b border-white/[0.06]">
-                    <div className="h-8 w-8 rounded-lg bg-indigo-600/25 border border-indigo-400/30 flex items-center justify-center relative">
-                        <Brain size={15} className="text-indigo-400" />
-                        <span className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-indigo-500 rounded-full border border-[#0d0d1a]" />
+                <div className="flex items-center justify-center h-16 w-full border-b border-[#2B1A10]/10">
+                    <div className="h-8 w-8 rounded-lg bg-[#C9A435]/15 border border-[#C9A435]/30 flex items-center justify-center relative">
+                        <Brain size={15} className="text-[#C9A435]" />
+                        <span className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-[#C9A435] rounded-full border border-white" />
                     </div>
                 </div>
 
@@ -309,20 +305,20 @@ export default function AdminDashboard({
                                 title={group.label}
                                 onMouseEnter={() => { cancelClose(); setOpenGroupId(group.id) }}
                                 onMouseLeave={scheduleClose}
-                                className={`relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150
+                                className={`relative flex items-center justify-center w-10 h-10 rounded-xl transition-colors duration-150
                                     ${isGroupActive || isOpen
-                                        ? 'bg-indigo-600/20 text-indigo-400'
-                                        : 'text-slate-500 hover:bg-white/[0.05] hover:text-slate-300'
+                                        ? 'bg-[#2B1A10]/10 text-[#2B1A10]'
+                                        : 'text-[#2B1A10]/40 hover:bg-[#2B1A10]/5 hover:text-[#2B1A10]/70'
                                     }`}
                             >
                                 <Icon size={17} />
                                 {/* Active dot */}
                                 {isGroupActive && (
-                                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-indigo-400 rounded-r-full" />
+                                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-[#C9A435] rounded-r-full" />
                                 )}
                                 {/* Badge */}
                                 {hasBadge && (
-                                    <span className="absolute top-1 right-1 h-2 w-2 bg-rose-500 rounded-full border border-[#0d0d1a]" />
+                                    <span className="absolute top-1 right-1 h-2 w-2 bg-rose-500 rounded-full border border-white" />
                                 )}
                             </button>
                         )
@@ -343,13 +339,13 @@ export default function AdminDashboard({
                             exit={{ opacity: 0, x: -8 }}
                             transition={{ duration: 0.15, ease: 'easeOut' }}
                             style={{ left: SIDEBAR_W }}
-                            className="fixed top-0 h-full z-40 w-52 bg-[#11111f] border-r border-white/[0.08] shadow-2xl flex flex-col"
+                            className="fixed top-0 h-full z-40 w-52 bg-white border-r border-[#2B1A10]/10 shadow-xl flex flex-col"
                             onMouseEnter={cancelClose}
                             onMouseLeave={scheduleClose}
                         >
                             {/* Flyout header */}
-                            <div className="px-5 pt-6 pb-4 border-b border-white/[0.06]">
-                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
+                            <div className="px-5 pt-6 pb-4 border-b border-[#2B1A10]/10">
+                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#2B1A10]/40">
                                     {group.label}
                                 </p>
                             </div>
@@ -363,10 +359,10 @@ export default function AdminDashboard({
                                         <button
                                             key={item.id}
                                             onClick={() => navigate(item.id)}
-                                            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all duration-150 group
+                                            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-colors duration-150 group
                                                 ${isActive
-                                                    ? 'bg-indigo-600/20 text-white'
-                                                    : 'text-slate-400 hover:bg-white/[0.05] hover:text-white'
+                                                    ? 'bg-[#2B1A10]/10 text-[#2B1A10]'
+                                                    : 'text-[#2B1A10]/50 hover:bg-[#2B1A10]/5 hover:text-[#2B1A10]'
                                                 }`}
                                         >
                                             <span className={`text-[12px] font-medium ${isActive ? 'font-semibold' : ''}`}>
@@ -379,7 +375,7 @@ export default function AdminDashboard({
                                                     </span>
                                                 )}
                                                 {isActive && (
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-[#C9A435]" />
                                                 )}
                                             </div>
                                         </button>
@@ -405,26 +401,26 @@ export default function AdminDashboard({
                 className="flex-1 flex flex-col min-h-screen"
             >
                 {/* Top header */}
-                <div className="h-16 border-b border-white/5 px-8 flex items-center justify-between bg-slate-950/20 backdrop-blur-md flex-shrink-0">
+                <div className="h-16 border-b border-[#2B1A10]/10 px-8 flex items-center justify-between bg-white/70 backdrop-blur-md flex-shrink-0">
                     <div className="flex items-center gap-3">
-                        <span className="text-[9px] font-black text-slate-600 uppercase tracking-[0.3em]">Cenário</span>
-                        <div className="flex items-center gap-2 bg-indigo-600/10 px-3 py-1.5 rounded-lg border border-indigo-500/20">
-                            <ShieldCheck size={12} className="text-indigo-400" />
-                            <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Alta Performance</span>
+                        <span className="text-[9px] font-black text-[#2B1A10]/40 uppercase tracking-[0.3em]">Cenário</span>
+                        <div className="flex items-center gap-2 bg-[#C9A435]/10 px-3 py-1.5 rounded-lg border border-[#C9A435]/25">
+                            <ShieldCheck size={12} className="text-[#C9A435]" />
+                            <span className="text-[9px] font-black text-[#2B1A10] uppercase tracking-widest">Alta Performance</span>
                         </div>
                     </div>
                     <div className="flex items-center gap-5">
                         <div className="flex -space-x-2.5">
                             {[1, 2, 3].map(i => (
-                                <div key={i} className="h-8 w-8 rounded-full border-2 border-[#020617] bg-slate-800 overflow-hidden shadow-lg">
+                                <div key={i} className="h-8 w-8 rounded-full border-2 border-white bg-[#2B1A10]/10 overflow-hidden shadow-sm">
                                     <img src={`https://api.dicebear.com/9.x/micah/svg?seed=user${i}`} alt="" />
                                 </div>
                             ))}
-                            <div className="h-8 w-8 rounded-full border-2 border-[#020617] bg-indigo-600 flex items-center justify-center text-[9px] font-bold text-white shadow-lg">
+                            <div className="h-8 w-8 rounded-full border-2 border-white bg-[#2B1A10] flex items-center justify-center text-[9px] font-bold text-white shadow-sm">
                                 +12
                             </div>
                         </div>
-                        <div className="h-8 w-px bg-white/5" />
+                        <div className="h-8 w-px bg-[#2B1A10]/10" />
                         <UserDropdown userName={userName} role={role} openOverlay={openOverlay} router={router} />
                     </div>
                 </div>
@@ -473,14 +469,14 @@ function UserDropdown({ userName, role, openOverlay, router }: {
         <div className="relative">
             <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setIsOpen(o => !o)}>
                 <div className="text-right hidden sm:block">
-                    <p className="text-[10px] font-bold text-white group-hover:text-indigo-400 transition-colors uppercase tracking-widest leading-none">{userName}</p>
+                    <p className="text-[10px] font-bold text-[#2B1A10] group-hover:text-[#C9A435] transition-colors uppercase tracking-widest leading-none">{userName}</p>
                     <div className="flex items-center justify-end gap-1 mt-0.5">
-                        <p className="text-[8px] text-slate-600 font-black uppercase tracking-widest">{role === 'admin' ? 'Admin' : 'Nutricionista'}</p>
-                        <ChevronDown size={9} className={`text-slate-600 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                        <p className="text-[8px] text-[#2B1A10]/40 font-black uppercase tracking-widest">{role === 'admin' ? 'Admin' : 'Nutricionista'}</p>
+                        <ChevronDown size={9} className={`text-[#2B1A10]/40 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                     </div>
                 </div>
-                <div className="h-9 w-9 rounded-xl border border-white/10 p-0.5 group-hover:border-indigo-500/40 transition-all shadow-md overflow-hidden">
-                    <img src={`https://api.dicebear.com/9.x/micah/svg?seed=${userName}`} className="w-full h-full rounded-lg bg-slate-900" alt="admin" />
+                <div className="h-9 w-9 rounded-xl border border-[#2B1A10]/10 p-0.5 group-hover:border-[#C9A435]/50 transition-colors shadow-sm overflow-hidden">
+                    <img src={`https://api.dicebear.com/9.x/micah/svg?seed=${userName}`} className="w-full h-full rounded-lg bg-[#2B1A10]/10" alt="admin" />
                 </div>
             </div>
 
@@ -492,23 +488,23 @@ function UserDropdown({ userName, role, openOverlay, router }: {
                             initial={{ opacity: 0, y: 8, scale: 0.96 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                            className="absolute right-0 mt-3 w-56 bg-[#11111f] border border-white/10 rounded-2xl shadow-2xl p-2 z-50"
+                            className="absolute right-0 mt-3 w-56 bg-white border border-[#2B1A10]/10 rounded-2xl shadow-xl p-2 z-50"
                         >
                             <div className="space-y-0.5">
                                 {menuItems.map(item => (
                                     <button
                                         key={item.id}
                                         onClick={() => { item.onClick(); setIsOpen(false) }}
-                                        className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-white/[0.05] rounded-xl transition-all group"
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-[#2B1A10]/60 hover:text-[#2B1A10] hover:bg-[#2B1A10]/5 rounded-xl transition-colors group"
                                     >
-                                        <item.icon size={15} className="group-hover:text-indigo-400 transition-colors" />
+                                        <item.icon size={15} className="group-hover:text-[#C9A435] transition-colors" />
                                         <span className="text-[11px] font-semibold">{item.label}</span>
                                     </button>
                                 ))}
-                                <div className="h-px bg-white/5 my-1 mx-2" />
+                                <div className="h-px bg-[#2B1A10]/10 my-1 mx-2" />
                                 <button
                                     onClick={handleSignOut}
-                                    className="w-full flex items-center gap-3 px-4 py-3 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-all"
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 rounded-xl transition-colors"
                                 >
                                     <LogOut size={15} />
                                     <span className="text-[11px] font-semibold">Sair do Sistema</span>
