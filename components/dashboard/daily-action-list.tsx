@@ -28,20 +28,16 @@ const ACTION_ICONS = {
 };
 
 const ACTION_COLORS = {
-    water: 'text-blue-400',
-    workout: 'text-orange-400',
-    sleep: 'text-purple-400',
-    meal: 'text-green-400',
+    water: 'text-sky-700',
+    workout: 'text-terracotta-600',
+    sleep: 'text-brown-400',
+    meal: 'text-sage-600',
 };
 
 /**
- * DailyActionList - Checklist gamificado com confetes
- * 
- * Features:
- * - Checkboxes estilizados com animações
- * - Confete ao marcar (Efeito Vencedor)
- * - Sistema de Não-Punição: apenas reforço positivo
- * - Integração com Supabase daily_logs
+ * Seus Rituais de Hoje - Checklist diário com confete sutil
+ *
+ * Sistema de Não-Punição: apenas reforço positivo, sem cores neon.
  */
 export function DailyActionList({
     userId,
@@ -57,10 +53,10 @@ export function DailyActionList({
     ]);
 
     /**
-     * Dispara confete com cores customizadas
+     * Dispara confete com as cores da marca
      */
     const triggerConfetti = () => {
-        const colors = ['#EC4899', '#8B5CF6', '#F59E0B', '#10B981'];
+        const colors = ['#C9A435', '#D06B42', '#82986C', '#F4EFE4'];
 
         confetti({
             particleCount: 50,
@@ -109,16 +105,16 @@ export function DailyActionList({
     const progressPercent = (completedCount / actions.length) * 100;
 
     return (
-        <GlassCardCompact className="space-y-4">
+        <GlassCardCompact className="space-y-5">
 
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h3 className="text-lg font-semibold text-white">
-                        Ações do Dia
+                    <h3 className="text-lg font-serif text-[#2B1A10]">
+                        Seus Rituais de Hoje
                     </h3>
-                    <p className="text-sm text-gray-400">
-                        {completedCount} de {actions.length} completas
+                    <p className="text-sm text-[#2B1A10]/50">
+                        {completedCount} de {actions.length} completos
                     </p>
                 </div>
 
@@ -127,27 +123,27 @@ export function DailyActionList({
                     className="text-right"
                     key={totalPoints}
                     initial={{ scale: 1 }}
-                    animate={{ scale: [1, 1.2, 1] }}
+                    animate={{ scale: [1, 1.1, 1] }}
                     transition={{ duration: 0.3 }}
                 >
-                    <div className="text-2xl font-bold text-green-400">
+                    <div className="text-2xl font-bold text-[#C9A435]">
                         +{totalPoints}
                     </div>
-                    <div className="text-xs text-gray-400">pontos</div>
+                    <div className="text-xs text-[#2B1A10]/40">pontos</div>
                 </motion.div>
             </div>
 
             {/* Barra de Progresso */}
-            <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+            <div className="h-1.5 bg-[#2B1A10]/[0.06] rounded-full overflow-hidden">
                 <motion.div
-                    className="h-full bg-gradient-to-r from-pink-500 to-violet-500"
+                    className="h-full bg-[#C9A435]"
                     initial={{ width: 0 }}
                     animate={{ width: `${progressPercent}%` }}
                     transition={{ duration: 0.5, ease: 'easeOut' }}
                 />
             </div>
 
-            {/* Lista de Ações */}
+            {/* Lista de Rituais */}
             <div className="space-y-2">
                 {actions.map((action, index) => {
                     const Icon = ACTION_ICONS[action.type];
@@ -159,31 +155,31 @@ export function DailyActionList({
                             onClick={() => toggleAction(action.id)}
                             className={`
                 w-full flex items-center gap-3 p-3 rounded-xl
-                transition-all duration-200
+                transition-colors duration-200
                 ${action.completed
-                                    ? 'bg-white/10 border border-green-400/30'
-                                    : 'bg-white/5 border border-white/10 hover:bg-white/10'
+                                    ? 'bg-[#C9A435]/10 border border-[#C9A435]/30'
+                                    : 'bg-[#2B1A10]/[0.03] border border-[#2B1A10]/10 hover:bg-[#2B1A10]/5'
                                 }
               `}
-                            initial={{ opacity: 0, y: 20 }}
+                            initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.1 }}
+                            transition={{ delay: index * 0.06 }}
                         >
 
                             {/* Checkbox customizado */}
                             <div className={`
                 relative w-6 h-6 rounded-lg border-2 flex-shrink-0
                 ${action.completed
-                                    ? 'bg-green-500 border-green-500'
-                                    : 'border-white/30'
+                                    ? 'bg-[#C9A435] border-[#C9A435]'
+                                    : 'border-[#2B1A10]/20'
                                 }
               `}>
                                 <AnimatePresence>
                                     {action.completed && (
                                         <motion.div
-                                            initial={{ scale: 0, rotate: -180 }}
-                                            animate={{ scale: 1, rotate: 0 }}
-                                            exit={{ scale: 0, rotate: 180 }}
+                                            initial={{ scale: 0 }}
+                                            animate={{ scale: 1 }}
+                                            exit={{ scale: 0 }}
                                             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                                         >
                                             <Check className="w-5 h-5 text-white absolute inset-0.5" />
@@ -198,7 +194,7 @@ export function DailyActionList({
                             {/* Label */}
                             <span className={`
                 flex-1 text-left text-sm font-medium
-                ${action.completed ? 'text-white line-through' : 'text-gray-300'}
+                ${action.completed ? 'text-[#2B1A10]/40 line-through' : 'text-[#2B1A10]/80'}
               `}>
                                 {action.label}
                             </span>
@@ -207,8 +203,8 @@ export function DailyActionList({
                             <span className={`
                 text-xs font-semibold px-2 py-1 rounded-full
                 ${action.completed
-                                    ? 'bg-green-500/20 text-green-400'
-                                    : 'bg-white/5 text-gray-400'
+                                    ? 'bg-[#C9A435]/15 text-[#C9A435]'
+                                    : 'bg-[#2B1A10]/5 text-[#2B1A10]/40'
                                 }
               `}>
                                 +{action.points}
@@ -223,12 +219,12 @@ export function DailyActionList({
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="text-center p-3 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-xl border border-green-500/20"
+                    className="text-center p-4 bg-[#C9A435]/10 rounded-xl border border-[#C9A435]/25"
                 >
-                    <p className="text-green-400 font-semibold">
-                        🎉 Dia completo, Rainha!
+                    <p className="text-[#2B1A10] font-serif text-lg">
+                        Dia completo, Rainha! 👑
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className="text-xs text-[#2B1A10]/50 mt-1">
                         Você é imparável! Continue assim.
                     </p>
                 </motion.div>

@@ -5,6 +5,7 @@ import { GamificationHeader } from '@/components/dashboard/gamification-header';
 import { DailyActionList } from '@/components/dashboard/daily-action-list';
 import { PanicButton } from '@/components/dashboard/panic-button';
 import { GlassCard } from '@/components/ui/glass-card';
+import { Button } from '@/components/ui/button';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { useDailyLogs } from '@/lib/hooks/useDailyLogs';
 import { supabase } from '@/lib/supabase-browser'
@@ -39,52 +40,44 @@ export default function DashboardPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-[#0f0c29] via-[#1a1744] to-[#0f0c29] flex items-center justify-center">
-                <div className="text-white text-xl">Carregando...</div>
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <div className="text-[#2B1A10]/60 text-xl font-serif">Carregando...</div>
             </div>
         );
     }
 
     if (!userId) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-[#0f0c29] via-[#1a1744] to-[#0f0c29] flex items-center justify-center">
+            <div className="min-h-screen bg-background flex items-center justify-center px-4">
                 <GlassCard className="p-8 max-w-md">
-                    <h2 className="text-white text-2xl font-bold mb-4">Bem-vinda! 👋</h2>
-                    <p className="text-gray-300 mb-6">
-                        Faça login para acessar seu dashboard personalizado.
+                    <h2 className="text-2xl font-serif text-[#2B1A10] mb-4">Bem-vinda! 👋</h2>
+                    <p className="text-[#2B1A10]/60 mb-6">
+                        Faça login para acessar seu espaço personalizado.
                     </p>
-                    <button
+                    <Button
+                        variant="primary"
+                        className="w-full"
                         onClick={() => window.location.href = '/login'}
-                        className="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-pink-500 to-violet-500 text-white font-semibold hover:shadow-lg transition-all"
                     >
                         Ir para Login
-                    </button>
+                    </Button>
                 </GlassCard>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-[#0f0c29] via-[#1a1744] to-[#0f0c29]">
+        <div className="min-h-screen bg-background">
 
             {/* Container Principal */}
-            <div className="max-w-4xl mx-auto px-4 py-8">
-
-                {/* Header de Gamificação */}
-                <GamificationHeader
-                    userId={userId}
-                    initialCoins={coins}
-                    initialXP={xp}
-                    initialLevel={level}
-                    streak={streak}
-                />
+            <div className="max-w-5xl mx-auto px-6 py-10 md:py-16">
 
                 {/* Saudação */}
-                <div className="mb-6">
-                    <h1 className="text-3xl font-bold text-white mb-2">
-                        Olá, {profile?.name || 'Rainha'}! 👑
+                <div className="mb-10">
+                    <h1 className="text-4xl font-serif text-[#2B1A10] mb-2">
+                        Olá, {profile?.name || 'Rainha'} 👑
                     </h1>
-                    <p className="text-gray-400">
+                    <p className="text-[#2B1A10]/50">
                         {new Date().toLocaleDateString('pt-BR', {
                             weekday: 'long',
                             year: 'numeric',
@@ -94,8 +87,19 @@ export default function DashboardPage() {
                     </p>
                 </div>
 
+                {/* Header de Gamificação */}
+                <div className="mb-10">
+                    <GamificationHeader
+                        userId={userId}
+                        initialCoins={coins}
+                        initialXP={xp}
+                        initialLevel={level}
+                        streak={streak}
+                    />
+                </div>
+
                 {/* Grid de Conteúdo */}
-                <div className="grid md:grid-cols-2 gap-6 mb-8">
+                <div className="grid md:grid-cols-2 gap-8 mb-10">
 
                     {/* Daily Actions */}
                     <div>
@@ -121,24 +125,24 @@ export default function DashboardPage() {
 
                     {/* Card de Objetivo */}
                     <GlassCard className="p-6">
-                        <h3 className="text-xl font-bold text-white mb-4">
-                            Seu Objetivo 🎯
+                        <h3 className="text-xl font-serif text-[#2B1A10] mb-4">
+                            Seu Objetivo
                         </h3>
-                        <p className="text-gray-300 text-sm mb-4">
+                        <p className="text-[#2B1A10]/60 text-sm mb-5">
                             {profile?.primary_goal || 'Definir objetivo principal'}
                         </p>
 
                         {/* Stats Rápidos */}
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-white/5 rounded-lg p-3">
-                                <div className="text-xs text-gray-400 mb-1">Plano Atual</div>
-                                <div className="text-white font-semibold capitalize">
+                            <div className="bg-[#2B1A10]/[0.03] rounded-lg p-3">
+                                <div className="text-xs text-[#2B1A10]/50 mb-1">Plano Atual</div>
+                                <div className="text-[#2B1A10] font-semibold capitalize">
                                     {plan === 'community' ? 'Community' : plan === 'tech_diet' ? 'Tech Diet' : 'VIP'}
                                 </div>
                             </div>
-                            <div className="bg-white/5 rounded-lg p-3">
-                                <div className="text-xs text-gray-400 mb-1">Check-ins</div>
-                                <div className="text-white font-semibold">
+                            <div className="bg-[#2B1A10]/[0.03] rounded-lg p-3">
+                                <div className="text-xs text-[#2B1A10]/50 mb-1">Check-ins</div>
+                                <div className="text-[#2B1A10] font-semibold">
                                     {todayLog ?
                                         [todayLog.water_check, todayLog.workout_check, todayLog.sleep_check, todayLog.meal_plan_check]
                                             .filter(Boolean).length
@@ -149,24 +153,24 @@ export default function DashboardPage() {
                         </div>
 
                         {/* Botão Atualizar Objetivo */}
-                        <button className="w-full mt-4 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm transition-colors">
+                        <Button variant="secondary" className="w-full mt-5">
                             Atualizar Objetivo
-                        </button>
+                        </Button>
                     </GlassCard>
                 </div>
 
                 {/* Info sobre Plano */}
                 {plan === 'community' && (
-                    <GlassCard className="p-6 bg-indigo-500/10 border-indigo-500/20">
-                        <h3 className="text-lg font-bold text-indigo-300 mb-2">
-                            ✨ Upgrade para Tech Diet ou VIP
+                    <GlassCard className="p-6 bg-[#C9A435]/10 border-[#C9A435]/25">
+                        <h3 className="text-lg font-serif text-[#2B1A10] mb-2">
+                            Upgrade para Tech Diet ou VIP
                         </h3>
-                        <p className="text-gray-300 text-sm mb-4">
+                        <p className="text-[#2B1A10]/60 text-sm mb-4">
                             Desbloqueie cardápios personalizados com IA, chat ilimitado e muito mais!
                         </p>
-                        <button className="px-6 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-all">
+                        <Button variant="primary">
                             Ver Planos
-                        </button>
+                        </Button>
                     </GlassCard>
                 )}
             </div>

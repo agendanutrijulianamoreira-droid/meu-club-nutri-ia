@@ -21,7 +21,49 @@ module.exports = {
                     DEFAULT: 'hsl(var(--primary))',
                     foreground: 'hsl(var(--primary-foreground))',
                 },
-                // Verde sálvia — cor primária da marca (botões e ações principais)
+                // Cream — fundo principal da marca "Rainha" (sofisticado, acolhedor)
+                cream: {
+                    DEFAULT: '#F4EFE4',
+                    50: '#FEFCF8',
+                    100: '#F4EFE4',
+                    200: '#EDE5D3',
+                    300: '#E3D7BC',
+                    400: '#D6C49F',
+                    500: '#C7AF7F',
+                    600: '#B39763',
+                    700: '#967D4F',
+                    800: '#786440',
+                    900: '#5F4F35',
+                },
+                // Marrom escuro — textos principais e botões primários
+                brown: {
+                    DEFAULT: '#2B1A10',
+                    50: '#F7F1EC',
+                    100: '#EDE0D5',
+                    200: '#D9C1AC',
+                    300: '#C09D7D',
+                    400: '#A17750',
+                    500: '#7D5A3A',
+                    600: '#5E4229',
+                    700: '#47301D',
+                    800: '#2B1A10',
+                    900: '#1C0F09',
+                },
+                // Ouro — destaques, ícones, badges de gamificação
+                gold: {
+                    DEFAULT: '#C9A435',
+                    50: '#FBF7EC',
+                    100: '#F5EACB',
+                    200: '#EAD595',
+                    300: '#DFC066',
+                    400: '#D4AF4A',
+                    500: '#C9A435',
+                    600: '#A98A2B',
+                    700: '#866D22',
+                    800: '#63511A',
+                    900: '#423613',
+                },
+                // Verde sálvia — cor secundária da marca (usos de apoio)
                 sage: {
                     50: '#F5F7F2',
                     100: '#E9EDE1',
@@ -34,7 +76,7 @@ module.exports = {
                     800: '#45523B',
                     900: '#3A4432',
                 },
-                // Terracota clara — acentos e destaques quentes
+                // Terracota clara — cor secundária de apoio (acentos quentes)
                 terracotta: {
                     50: '#FDF4F0',
                     100: '#FBE7DE',
@@ -71,6 +113,7 @@ module.exports = {
                 soft: '0 8px 24px -8px rgb(41 37 36 / 0.10), 0 2px 8px -4px rgb(41 37 36 / 0.05)',
                 'soft-lg': '0 16px 40px -12px rgb(41 37 36 / 0.12), 0 4px 12px -4px rgb(41 37 36 / 0.06)',
                 'soft-sage': '0 10px 28px -8px rgb(107 129 88 / 0.28)',
+                'soft-gold': '0 10px 28px -8px rgb(201 164 53 / 0.28)',
             },
             borderRadius: {
                 '4xl': '2rem',
