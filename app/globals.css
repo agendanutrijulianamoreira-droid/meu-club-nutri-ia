@@ -24,6 +24,11 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Títulos sempre em Playfair Display — sensação de editorial premium */
+  h1, h2, h3 {
+    @apply font-serif;
+  }
 }
 
 /* No Scrollbar */
