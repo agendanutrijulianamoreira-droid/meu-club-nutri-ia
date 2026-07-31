@@ -39,27 +39,30 @@ export async function GET(request: NextRequest) {
     if (!profiles || profiles.length === 0) return NextResponse.json({ patients: [] })
 
     const userIds = profiles.map(p => p.user_id)
+    const sixMonthsAgo = new Date(today)
+    sixMonthsAgo.setDate(sixMonthsAgo.getDate() - 180)
 
-    // 2. Logs last 7 days (for adherence rate)
-    const { data: logs } = await supabase
-        .from('daily_logs')
-        .select('user_id, log_date, meal_plan_check, water_check, workout_check')
-        .in('user_id', userIds)
-        .gte('log_date', sevenDaysAgo.toISOString().split('T')[0])
-
-    // 3. Latest weekly checkin per user
-    const { data: checkins } = await supabase
-        .from('weekly_checkin_responses')
-        .select('user_id, diet_score, ai_summary, ai_risk_level, ai_suggestion, created_at, had_binge, mood')
-        .in('user_id', userIds)
-        .order('created_at', { ascending: false })
-
-    // 4. Active protocol assignments
-    const { data: assignments } = await supabase
-        .from('protocol_assignments')
-        .select('user_id, protocol_id, start_date, status')
-        .in('user_id', userIds)
-        .eq('status', 'active')
+    // 2-4. Independent per-user queries fired in parallel instead of sequentially.
+    // Checkins are bounded to the last 180 days — only the most recent one per user
+    // is ever used, so there's no reason to pull years of history across the roster.
+    const [{ data: logs }, { data: checkins }, { data: assignments }] = await Promise.all([
+        supabase
+            .from('daily_logs')
+            .select('user_id, log_date, meal_plan_check, water_check, workout_check')
+            .in('user_id', userIds)
+            .gte('log_date', sevenDaysAgo.toISOString().split('T')[0]),
+        supabase
+            .from('weekly_checkin_responses')
+            .select('user_id, diet_score, ai_summary, ai_risk_level, ai_suggestion, created_at, had_binge, mood')
+            .in('user_id', userIds)
+            .gte('created_at', sixMonthsAgo.toISOString())
+            .order('created_at', { ascending: false }),
+        supabase
+            .from('protocol_assignments')
+            .select('user_id, protocol_id, start_date, status')
+            .in('user_id', userIds)
+            .eq('status', 'active'),
+    ])
 
     // Build maps
     const logsByUser: Record<string, any[]> = {}
