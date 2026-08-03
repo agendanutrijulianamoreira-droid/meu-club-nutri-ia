@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import {
     Activity, BarChart2, Grid2x2, X,
     MessageCircle, ScanLine, ShoppingBag, Ruler, Bell,
-    Inbox as InboxIcon, ClipboardList, CalendarDays,
+    Inbox as InboxIcon, ClipboardList, CalendarDays, Target,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase-browser"
 import { useOneSignal } from "@/lib/hooks/useOneSignal"
@@ -19,6 +19,7 @@ import { BottomNav } from "@/components/patient/BottomNav"
 // botão flutuante "Mais" — ver auditoria de sistema Jul/2026.
 const MORE_ITEMS = [
     { href: "/patient/habits",        label: "Hábitos",            desc: "Checklist diário de hábitos",                     icon: Activity },
+    { href: "/patient/goals",         label: "Metas",               desc: "Metas atribuídas pela sua nutricionista",         icon: Target },
     { href: "/patient/progresso",     label: "Progresso",          desc: "Evolução de peso, medidas e adesão",              icon: BarChart2 },
     { href: "/patient/chat",          label: "Chat com a IA",      desc: "Tire dúvidas com a assistente nutricional",       icon: MessageCircle },
     { href: "/patient/scanner",       label: "Scanner de produto", desc: "Aponte a câmera pro código de barras",            icon: ScanLine },
