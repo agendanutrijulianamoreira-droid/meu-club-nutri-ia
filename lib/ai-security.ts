@@ -93,6 +93,16 @@ export const MealPlanSchema = z.object({
   })).max(30),
 })
 
+export const GoalSchema = z.object({
+  title: z.string().max(200),
+  description: z.string().max(500).optional().default(''),
+  emoji: z.string().max(10).optional().default('🎯'),
+  goal_type: z.enum(['weight', 'habit', 'nutrition', 'exercise', 'wellness', 'custom']).optional().default('habit'),
+  metric: z.string().max(100).optional().default(''),
+  target_value: z.number().optional(),
+  unit: z.string().max(30).optional().default(''),
+})
+
 export const BusinessPlanSchema = z.object({
   summary: z.string().max(1500),
   months: z.array(z.object({
@@ -121,6 +131,7 @@ export type GenerateTask =
   | 'checkin-analysis'
   | 'email-marketing'
   | 'generate-business-plan'
+  | 'generate-goal'
 
 const VALID_TASKS = new Set<GenerateTask>([
   'generate-protocol',
@@ -130,6 +141,7 @@ const VALID_TASKS = new Set<GenerateTask>([
   'checkin-analysis',
   'email-marketing',
   'generate-business-plan',
+  'generate-goal',
 ])
 
 export function isValidTask(task: string): task is GenerateTask {
@@ -150,5 +162,6 @@ export function validateGenerateOutput(task: GenerateTask, data: unknown) {
     case 'checkin-analysis':     return CheckinAnalysisSchema.parse(data)
     case 'email-marketing':      return EmailMarketingSchema.parse(data)
     case 'generate-business-plan': return BusinessPlanSchema.parse(data)
+    case 'generate-goal':        return GoalSchema.parse(data)
   }
 }

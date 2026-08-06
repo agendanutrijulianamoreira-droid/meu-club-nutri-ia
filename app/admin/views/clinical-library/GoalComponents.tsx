@@ -127,13 +127,23 @@ export function CreateGoalForm({ tenantId, onClose, onSave }: {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    task: 'marketing-suggestion',
-                    context: `Crie uma sugestão de meta de saúde: ${form.title}`,
-                    prompt: `Sugira uma descrição motivacional curta para a meta: "${form.title}"`
+                    task: 'generate-goal',
+                    context: form.title,
+                    prompt: `Sugira uma meta de saúde a partir do título: "${form.title}"`
                 })
             })
             const data = await res.json()
-            if (data.message) setForm(prev => ({ ...prev, description: data.message }))
+            if (!res.ok) { setAiError(data.error || 'Erro ao gerar sugestão'); return }
+            setForm(prev => ({
+                ...prev,
+                title: data.title || prev.title,
+                description: data.description || prev.description,
+                emoji: data.emoji || prev.emoji,
+                goal_type: (data.goal_type as any) || prev.goal_type,
+                metric: data.metric || prev.metric,
+                target_value: data.target_value != null ? String(data.target_value) : prev.target_value,
+                unit: data.unit || prev.unit,
+            }))
         } catch (err: any) {
             setAiError('Erro ao gerar sugestão')
         } finally {

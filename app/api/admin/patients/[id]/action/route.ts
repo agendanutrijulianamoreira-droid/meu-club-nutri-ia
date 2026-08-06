@@ -80,6 +80,68 @@ export async function POST(
         return NextResponse.json({ success: true })
     }
 
+    // ── Assign goal (Meta) ───────────────────────────────────────────────────
+    // Diferente de protocolo, a paciente pode ter várias metas ativas ao mesmo
+    // tempo — não cancela nenhuma atribuição existente. Copia um snapshot dos
+    // dados do template `goals` (ver comentário na migration
+    // patient_goal_assignments) para que editar o template depois não altere
+    // retroativamente a meta em andamento.
+    if (action === 'assign-goal') {
+        const { goal_id } = body
+        if (!goal_id) return NextResponse.json({ error: 'goal_id required' }, { status: 400 })
+
+        const { data: goal } = await supabase
+            .from('goals').select('*').eq('id', goal_id).eq('tenant_id', tenant.id).single()
+        if (!goal) return NextResponse.json({ error: 'Meta não encontrada' }, { status: 404 })
+
+        const { data, error } = await supabase.from('patient_goal_assignments').insert({
+            user_id: patientId,
+            goal_id: goal.id,
+            tenant_id: tenant.id,
+            title: goal.title,
+            description: goal.description,
+            emoji: goal.emoji,
+            goal_type: goal.goal_type,
+            metric: goal.metric,
+            target_value: goal.target_value,
+            unit: goal.unit,
+            deadline: goal.deadline,
+            status: 'active',
+        }).select().single()
+
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+        await supabase.from('inbox_messages').insert({
+            tenant_id: tenant.id,
+            user_id: patientId,
+            agent_name: 'manual',
+            title: '🎯 Nova meta atribuída!',
+            body: `Você recebeu a meta "${goal.title}". Vamos juntas!`,
+            message_type: 'protocol',
+            priority: 'normal',
+            cta_label: 'Ver metas',
+            cta_url: '/patient/goals',
+            channels: ['inbox'],
+        })
+
+        return NextResponse.json({ success: true, assignment: data })
+    }
+
+    // ── Unassign goal (Meta) ─────────────────────────────────────────────────
+    if (action === 'unassign-goal') {
+        const { assignment_id } = body
+        if (!assignment_id) return NextResponse.json({ error: 'assignment_id required' }, { status: 400 })
+
+        const { error } = await supabase.from('patient_goal_assignments')
+            .update({ status: 'abandoned' })
+            .eq('id', assignment_id)
+            .eq('user_id', patientId)
+            .eq('tenant_id', tenant.id)
+
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ success: true })
+    }
+
     // ── Send rescue message ──────────────────────────────────────────────────
     if (action === 'send-rescue') {
         const firstName = profile.name?.split(' ')[0] || 'Rainha'

@@ -189,6 +189,20 @@ Retorne JSON:
   "subject": "Linha de assunto do email",
   "html_body": "<p>Corpo do email em HTML simples...</p>"
 }`
+        } else if (task === 'generate-goal') {
+            systemInstruction += `
+Tarefa: Sugerir uma meta de saúde/hábito para uma paciente, a partir de um título curto.
+Contexto/título informado: ${context || 'Meta geral de saúde'}
+Esquema de Retorno:
+{
+  "title": "Título da meta (pode refinar o título informado, curto)",
+  "description": "Descrição motivacional curta e prática (máx 2 frases)",
+  "emoji": "um emoji que represente a meta",
+  "goal_type": "weight|habit|nutrition|exercise|wellness|custom",
+  "metric": "nome da métrica, se fizer sentido (ex: litros, minutos, kg) ou vazio",
+  "target_value": 2,
+  "unit": "L, kg, min, etc — ou vazio se não houver valor numérico"
+}`
         } else if (task === 'generate-business-plan') {
             const revenueGoal = sanitizeForPrompt(body.revenueGoalCents, 20)
             const focusTheme = sanitizeForPrompt(body.focusTheme, 500)
