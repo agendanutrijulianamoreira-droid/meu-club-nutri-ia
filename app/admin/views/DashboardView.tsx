@@ -198,6 +198,8 @@ export function DashboardView({
     const [vipCount, setVipCount] = useState(0)
     const [trackingCount, setTrackingCount] = useState(0)
     const [communityPosts, setCommunityPosts] = useState<CommunityPostPreview[]>([])
+    const [quickPostText, setQuickPostText] = useState("")
+    const [postingQuick, setPostingQuick] = useState(false)
 
     useEffect(() => {
         const h = new Date().getHours()
@@ -206,6 +208,35 @@ export function DashboardView({
         else setGreeting("Boa noite")
         loadRealData()
     }, [])
+
+    const loadCommunityPosts = async () => {
+        try {
+            const res = await fetch('/api/admin/community')
+            if (res.ok) {
+                const data = await res.json()
+                setCommunityPosts((data.posts || []).slice(0, 4))
+            }
+        } catch {}
+    }
+
+    const handleQuickPost = async () => {
+        const text = quickPostText.trim()
+        if (!text || postingQuick) return
+        setPostingQuick(true)
+        try {
+            const res = await fetch('/api/admin/community', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ body: text, type: 'system' }),
+            })
+            if (res.ok) {
+                setQuickPostText('')
+                await loadCommunityPosts()
+            }
+        } finally {
+            setPostingQuick(false)
+        }
+    }
 
     const loadRealData = async () => {
         try {
@@ -299,13 +330,7 @@ export function DashboardView({
             } catch {}
 
             // 10. Postagens recentes da comunidade
-            try {
-                const res = await fetch('/api/admin/community')
-                if (res.ok) {
-                    const data = await res.json()
-                    setCommunityPosts((data.posts || []).slice(0, 4))
-                }
-            } catch {}
+            await loadCommunityPosts()
 
             // Build patient alerts (inactive patients = risk)
             const patientAlerts: PatientAlert[] = []
@@ -807,6 +832,23 @@ export function DashboardView({
                                 Ver tudo →
                             </button>
                         </div>
+
+                        {/* Composer rápido */}
+                        <div className="flex items-center gap-2 mb-5">
+                            <input
+                                value={quickPostText}
+                                onChange={e => setQuickPostText(e.target.value.slice(0, 1000))}
+                                onKeyDown={e => { if (e.key === 'Enter' && !postingQuick) handleQuickPost() }}
+                                placeholder="Publicar um anúncio rápido para o clube..."
+                                className="flex-1 bg-white/5 border border-white/10 text-sm text-slate-200 placeholder-slate-600 px-4 py-2.5 rounded-xl focus:outline-none focus:border-indigo-500/50"
+                            />
+                            <button onClick={handleQuickPost} disabled={!quickPostText.trim() || postingQuick}
+                                className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs font-bold rounded-xl transition-all">
+                                {postingQuick ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                                Publicar
+                            </button>
+                        </div>
+
                         {communityPosts.length === 0 ? (
                             <div className="text-center py-12">
                                 <Heart size={48} className="mx-auto mb-4 text-slate-700" />
