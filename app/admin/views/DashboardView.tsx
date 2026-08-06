@@ -4,11 +4,12 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import {
     TrendingUp, Users, AlertCircle, MessageCircle, CheckCircle,
     ChevronRight, Crown, DollarSign, ArrowUpRight, Zap, Calendar,
-    Trophy, Sparkles, Brain, Activity, Target, Flame, Clock,
+    Trophy, Sparkles, Brain, Activity, Flame, Clock,
     Bell, Send, BarChart2, ChevronUp, RefreshCw, Star, Award,
     Droplets, Check, X as XIcon, AlertTriangle, Heart,
     TrendingDown, Layers, Lightbulb, ChevronDown, Loader2,
-    UserCheck, Coins, FileText, Dumbbell, ShieldCheck
+    UserCheck, Coins, FileText, Dumbbell, ShieldCheck,
+    UserPlus, Gift, Pin, EyeOff, Stethoscope
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
@@ -68,6 +69,16 @@ interface ActiveProtocol {
     duration_days: number
     category: string
     scheduled_status: string
+    created_at: string
+}
+
+interface CommunityPostPreview {
+    id: string
+    body: string
+    author_name: string
+    is_pinned: boolean
+    oculto: boolean
+    reaction_count: number
     created_at: string
 }
 
@@ -159,8 +170,12 @@ function ProgressRing({ pct, size = 52, color = "#818cf8", rank }: { pct: number
 // MAIN DASHBOARD
 // ==========================================
 
-export function DashboardView({ setView, userName = '', tenantName = '', tenantId = '' }: {
+export function DashboardView({
+    setView, userName = '', tenantName = '', tenantId = '',
+    onNewPatient, onGoToVipPatients, onGoToTrackingPatients,
+}: {
     setView: (v: any) => void; userName?: string; tenantName?: string; tenantId?: string
+    onNewPatient?: () => void; onGoToVipPatients?: () => void; onGoToTrackingPatients?: () => void
 }) {
     const [greeting, setGreeting] = useState("")
     const [loading, setLoading] = useState(true)
@@ -179,6 +194,12 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
     const [activeProtocol, setActiveProtocol] = useState<ActiveProtocol | null>(null)
     const [checkinHistory, setCheckinHistory] = useState<number[]>([])
     const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0)
+    const [pendingRedemptionsCount, setPendingRedemptionsCount] = useState(0)
+    const [vipCount, setVipCount] = useState(0)
+    const [trackingCount, setTrackingCount] = useState(0)
+    const [communityPosts, setCommunityPosts] = useState<CommunityPostPreview[]>([])
+    const [quickPostText, setQuickPostText] = useState("")
+    const [postingQuick, setPostingQuick] = useState(false)
 
     useEffect(() => {
         const h = new Date().getHours()
@@ -187,6 +208,35 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
         else setGreeting("Boa noite")
         loadRealData()
     }, [])
+
+    const loadCommunityPosts = async () => {
+        try {
+            const res = await fetch('/api/admin/community')
+            if (res.ok) {
+                const data = await res.json()
+                setCommunityPosts((data.posts || []).slice(0, 4))
+            }
+        } catch {}
+    }
+
+    const handleQuickPost = async () => {
+        const text = quickPostText.trim()
+        if (!text || postingQuick) return
+        setPostingQuick(true)
+        try {
+            const res = await fetch('/api/admin/community', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ body: text, type: 'system' }),
+            })
+            if (res.ok) {
+                setQuickPostText('')
+                await loadCommunityPosts()
+            }
+        } finally {
+            setPostingQuick(false)
+        }
+    }
 
     const loadRealData = async () => {
         try {
@@ -199,7 +249,7 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
             // 2. All patients for this tenant
             const { data: patients, error: patientsErr } = await supabase
                 .from('profiles')
-                .select('id, name, email, current_plan, current_streak, total_xp, updated_at, last_checkin_date, role')
+                .select('id, user_id, name, email, current_plan, current_streak, total_xp, updated_at, last_checkin_date, role')
                 .eq('tenant_id', tenantId)
                 .eq('role', 'patient')
                 .order('updated_at', { ascending: false })
@@ -256,6 +306,31 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
                     .eq('status', 'pending')
                 setPendingApprovalsCount(pendingCount || 0)
             } catch {}
+
+            // 8. Pending reward redemptions (bônus aguardando entrega/aprovação)
+            try {
+                const { count: redemptionsCount } = await supabase
+                    .from('reward_redemptions')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('tenant_id', tenantId)
+                    .eq('status', 'pending')
+                setPendingRedemptionsCount(redemptionsCount || 0)
+            } catch {}
+
+            // 9. Segmentos: VIP e Em Acompanhamento Nutricional (protocolo ativo)
+            setVipCount(allPatients.filter(p => p.current_plan === 'vip').length)
+            try {
+                const { data: activeAssignments } = await supabase
+                    .from('protocol_assignments')
+                    .select('user_id')
+                    .eq('tenant_id', tenantId)
+                    .eq('status', 'active')
+                const trackingUserIds = new Set((activeAssignments || []).map(a => a.user_id))
+                setTrackingCount(allPatients.filter(p => trackingUserIds.has(p.user_id)).length)
+            } catch {}
+
+            // 10. Postagens recentes da comunidade
+            await loadCommunityPosts()
 
             // Build patient alerts (inactive patients = risk)
             const patientAlerts: PatientAlert[] = []
@@ -422,12 +497,30 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
         }
 
         const newPatients = alerts.filter(a => a.status === 'question').length
-        if (newPatients > 0 && items.length < 3) {
+        if (newPatients > 0 && items.length < 4) {
             items.push({
                 title: `${newPatients} nova${newPatients > 1 ? 's' : ''} paciente${newPatients > 1 ? 's' : ''} sem onboarding`,
                 desc: `Nunca fizeram check-in. Pode precisar de orientação.`,
                 action: () => setView('patients'),
                 color: 'violet',
+            })
+        }
+
+        if (pendingRedemptionsCount > 0 && items.length < 4) {
+            items.push({
+                title: `${pendingRedemptionsCount} resgate${pendingRedemptionsCount > 1 ? 's' : ''} de recompensa pendente${pendingRedemptionsCount > 1 ? 's' : ''}`,
+                desc: `Pacientes resgataram prêmios com NutriCoins e aguardam sua confirmação de entrega.`,
+                action: () => setView('rewards'),
+                color: 'violet',
+            })
+        }
+
+        if (stats.aiCreditsRemaining !== null && stats.aiCreditsRemaining < 20 && items.length < 4) {
+            items.push({
+                title: 'Créditos de IA acabando',
+                desc: `Restam ${stats.aiCreditsRemaining} créditos. Agentes e geração de conteúdo podem parar de funcionar.`,
+                action: () => setView('ai-credits'),
+                color: 'rose',
             })
         }
 
@@ -440,8 +533,8 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
             })
         }
 
-        return items.slice(0, 3)
-    }, [alerts, pendingApprovalsCount, activeProtocol, setView])
+        return items.slice(0, 4)
+    }, [alerts, pendingApprovalsCount, pendingRedemptionsCount, activeProtocol, stats.aiCreditsRemaining, setView])
 
     if (loading) {
         return (
@@ -473,9 +566,12 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
                         {tenantName}{methodName ? ` • Método ${methodName}` : ''} • {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
                     </p>
                 </div>
-                <div className="flex gap-3">
-                    <Button onClick={() => setView('club-plan')} variant="outline" className="h-10 border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl text-xs">
-                        <Calendar size={15} className="mr-2" /> Plano do Clube
+                <div className="flex flex-wrap gap-3">
+                    <Button onClick={() => onNewPatient ? onNewPatient() : setView('patients')} className="h-10 bg-white text-indigo-950 hover:bg-slate-100 rounded-xl font-black text-xs shadow-lg">
+                        <UserPlus size={15} className="mr-2" /> Cadastrar Membro
+                    </Button>
+                    <Button onClick={() => setView('business-plan')} variant="outline" className="h-10 border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl text-xs">
+                        <Calendar size={15} className="mr-2" /> Planejamento Geral
                     </Button>
                     <Button onClick={() => setView('communication')} className="h-10 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-indigo-900/30">
                         <Zap size={15} className="mr-2" /> Central de Ação
@@ -484,14 +580,14 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
             </div>
 
             {/* ============================================ */}
-            {/* 0. PRIORIDADES DO DIA — DINÂMICAS */}
+            {/* 0. PRIORIDADES DO DIA — DINÂMICAS (notificações importantes) */}
             {/* ============================================ */}
             {!loading && (
                 <div className="space-y-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2">
-                        <Target size={12} className="text-indigo-400" /> Hoje, {todayPriorities.length === 1 ? '1 prioridade' : `${todayPriorities.length} prioridades`}
+                        <Bell size={12} className="text-indigo-400" /> Hoje, {todayPriorities.length === 1 ? '1 prioridade' : `${todayPriorities.length} prioridades`}
                     </p>
-                    <div className={`grid gap-3 ${todayPriorities.length === 1 ? 'grid-cols-1' : todayPriorities.length === 2 ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 lg:grid-cols-3'}`}>
+                    <div className={`grid gap-3 ${todayPriorities.length === 1 ? 'grid-cols-1' : todayPriorities.length === 2 ? 'grid-cols-1 lg:grid-cols-2' : todayPriorities.length === 3 ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1 lg:grid-cols-2 xl:grid-cols-4'}`}>
                         {todayPriorities.map((item, i) => {
                             const colorMap: Record<string, { bg: string; border: string; text: string; btn: string }> = {
                                 rose:    { bg: 'bg-rose-500/5',    border: 'border-rose-500/20',    text: 'text-rose-400',    btn: 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border-rose-500/20' },
@@ -724,6 +820,67 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
                             </div>
                         )}
                     </div>
+
+                    {/* POSTAGENS DA COMUNIDADE */}
+                    <div className="rounded-3xl p-6 bg-white/5 border border-white/10 backdrop-blur-md shadow-xl">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                                <Heart size={16} className="text-rose-400" />
+                                Postagens da Comunidade
+                            </h3>
+                            <button onClick={() => setView('community')} className="text-[11px] font-black text-indigo-500 hover:text-indigo-400 uppercase tracking-widest transition">
+                                Ver tudo →
+                            </button>
+                        </div>
+
+                        {/* Composer rápido */}
+                        <div className="flex items-center gap-2 mb-5">
+                            <input
+                                value={quickPostText}
+                                onChange={e => setQuickPostText(e.target.value.slice(0, 1000))}
+                                onKeyDown={e => { if (e.key === 'Enter' && !postingQuick) handleQuickPost() }}
+                                placeholder="Publicar um anúncio rápido para o clube..."
+                                className="flex-1 bg-white/5 border border-white/10 text-sm text-slate-200 placeholder-slate-600 px-4 py-2.5 rounded-xl focus:outline-none focus:border-indigo-500/50"
+                            />
+                            <button onClick={handleQuickPost} disabled={!quickPostText.trim() || postingQuick}
+                                className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-xs font-bold rounded-xl transition-all">
+                                {postingQuick ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                                Publicar
+                            </button>
+                        </div>
+
+                        {communityPosts.length === 0 ? (
+                            <div className="text-center py-12">
+                                <Heart size={48} className="mx-auto mb-4 text-slate-700" />
+                                <p className="text-slate-500 font-bold">Nenhuma postagem ainda.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {communityPosts.map((post, i) => (
+                                    <motion.div key={post.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: i * 0.05 }}
+                                        onClick={() => setView('community')}
+                                        className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] transition-all cursor-pointer">
+                                        <div className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center font-bold text-slate-400 text-xs border border-white/10 shrink-0">
+                                            {post.author_name?.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || '??'}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="text-xs font-bold text-white truncate">{post.author_name}</h4>
+                                                {post.is_pinned && <Pin size={10} className="text-amber-400 shrink-0" />}
+                                                {post.oculto && <EyeOff size={10} className="text-slate-600 shrink-0" />}
+                                            </div>
+                                            <p className="text-xs text-slate-400 mt-0.5 line-clamp-2 leading-snug">{post.body}</p>
+                                        </div>
+                                        <div className="text-right shrink-0 flex items-center gap-1 text-slate-600">
+                                            <Heart size={11} />
+                                            <span className="text-[11px] font-bold">{post.reaction_count}</span>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* RIGHT COLUMN */}
@@ -748,6 +905,48 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
                             </div>
                         </div>
                     </motion.div>
+
+                    {/* GESTÃO DE CLIENTES — segmentos rápidos */}
+                    <div className="rounded-3xl p-6 bg-white/5 backdrop-blur-md border border-white/10 shadow-xl">
+                        <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em] font-black mb-4 flex items-center gap-2">
+                            <Crown size={14} className="text-amber-400" /> Gestão de Clientes
+                        </p>
+                        <div className="space-y-2">
+                            <button onClick={() => onGoToVipPatients ? onGoToVipPatients() : setView('patients')}
+                                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-amber-500/5 border border-amber-500/15 hover:bg-amber-500/10 hover:border-amber-500/30 transition-all text-left">
+                                <div className="bg-amber-500/15 border border-amber-500/25 p-2 rounded-xl shrink-0">
+                                    <Crown size={15} className="text-amber-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold text-white">Clientes VIP</p>
+                                    <p className="text-[10px] text-slate-500">Plano VIP ativo</p>
+                                </div>
+                                <span className="text-lg font-black text-amber-400">{vipCount}</span>
+                            </button>
+                            <button onClick={() => onGoToTrackingPatients ? onGoToTrackingPatients() : setView('patients')}
+                                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-indigo-500/5 border border-indigo-500/15 hover:bg-indigo-500/10 hover:border-indigo-500/30 transition-all text-left">
+                                <div className="bg-indigo-500/15 border border-indigo-500/25 p-2 rounded-xl shrink-0">
+                                    <Stethoscope size={15} className="text-indigo-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold text-white">Em Acompanhamento</p>
+                                    <p className="text-[10px] text-slate-500">Com protocolo ativo</p>
+                                </div>
+                                <span className="text-lg font-black text-indigo-400">{trackingCount}</span>
+                            </button>
+                            <button onClick={() => setView('rewards')}
+                                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-violet-500/5 border border-violet-500/15 hover:bg-violet-500/10 hover:border-violet-500/30 transition-all text-left">
+                                <div className="bg-violet-500/15 border border-violet-500/25 p-2 rounded-xl shrink-0">
+                                    <Gift size={15} className="text-violet-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold text-white">Com Bônus Pendente</p>
+                                    <p className="text-[10px] text-slate-500">Resgates aguardando entrega</p>
+                                </div>
+                                <span className="text-lg font-black text-violet-400">{pendingRedemptionsCount}</span>
+                            </button>
+                        </div>
+                    </div>
 
                     {/* RANKING */}
                     <div className="rounded-3xl p-6 bg-white/5 backdrop-blur-md border border-white/10 shadow-xl">
@@ -800,7 +999,9 @@ export function DashboardView({ setView, userName = '', tenantName = '', tenantI
                                 { label: 'Novo Check-in', icon: <MessageCircle size={16} />, view: 'checkins'      },
                                 { label: 'Pacientes',     icon: <Users          size={16} />, view: 'patients'     },
                                 { label: 'Comunicação',   icon: <Send           size={16} />, view: 'communication'},
+                                { label: 'Comunidade',    icon: <Heart          size={16} />, view: 'community'    },
                                 { label: 'Protocolos',    icon: <Layers         size={16} />, view: 'protocols'    },
+                                { label: 'Recompensas',   icon: <Gift           size={16} />, view: 'rewards'      },
                                 { label: 'Créditos IA',   icon: <Coins          size={16} />, view: 'ai-credits'   },
                                 { label: 'Config. IA',    icon: <Brain          size={16} />, view: 'ai-brain'     },
                             ].map((a) => (
