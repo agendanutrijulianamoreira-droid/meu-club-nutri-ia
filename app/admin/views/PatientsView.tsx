@@ -2561,12 +2561,20 @@ function ImportCSVModal({ onClose, onDone }: { onClose: () => void; onDone: () =
 }
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
-export function PatientsView({ setView }: { setView: (v: any) => void }) {
+interface PatientsViewProps {
+    setView: (v: any) => void
+    autoOpenRegister?: boolean
+    onAutoOpenConsumed?: () => void
+    initialFilter?: 'vip' | 'tracking' | null
+    onInitialFilterConsumed?: () => void
+}
+
+export function PatientsView({ setView, autoOpenRegister, onAutoOpenConsumed, initialFilter, onInitialFilterConsumed }: PatientsViewProps) {
     const [patients, setPatients] = useState<Patient[]>([])
     const [loading, setLoading] = useState(true)
     const [selectedId, setSelectedId] = useState<string | null>(null)
     const [search, setSearch] = useState('')
-    const [filter, setFilter] = useState<'all' | 'risk' | 'star' | 'active'>('all')
+    const [filter, setFilter] = useState<'all' | 'risk' | 'star' | 'active' | 'vip' | 'tracking'>('all')
     const [showRegister, setShowRegister] = useState(false)
     const [showImport, setShowImport] = useState(false)
     const [toast, setToast] = useState<string | null>(null)
@@ -2586,6 +2594,20 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
     }, [selectedId])
 
     useEffect(() => { refresh() }, [])
+
+    useEffect(() => {
+        if (autoOpenRegister) {
+            setShowRegister(true)
+            onAutoOpenConsumed?.()
+        }
+    }, [autoOpenRegister, onAutoOpenConsumed])
+
+    useEffect(() => {
+        if (initialFilter) {
+            setFilter(initialFilter)
+            onInitialFilterConsumed?.()
+        }
+    }, [initialFilter, onInitialFilterConsumed])
 
     const showToast = (msg: string) => {
         setToast(msg)
@@ -2639,7 +2661,10 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
 
     const filtered = patients.filter(p => {
         const ms = p.name.toLowerCase().includes(search.toLowerCase()) || p.email.toLowerCase().includes(search.toLowerCase())
-        const mf = filter === 'all' || p.status === filter
+        const mf = filter === 'all' ? true
+            : filter === 'vip' ? p.plan === 'vip'
+            : filter === 'tracking' ? p.hasActiveProtocol
+            : p.status === filter
         return ms && mf
     }).sort((a, b) => {
         const order: Record<string, number> = { risk: 0, star: 1, active: 2 }
@@ -2649,6 +2674,8 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
     const activePatient = patients.find(p => p.id === selectedId)
     const riskCount = patients.filter(p => p.status === 'risk').length
     const starCount = patients.filter(p => p.status === 'star').length
+    const vipCount = patients.filter(p => p.plan === 'vip').length
+    const trackingCount = patients.filter(p => p.hasActiveProtocol).length
 
     return (
         <div className="flex h-[calc(100vh-88px)] -m-8 overflow-hidden">
@@ -2700,7 +2727,7 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
 
                     {/* filters */}
                     <div className="flex gap-1 overflow-x-auto pb-0.5">
-                        {[['all','Todas'],['risk',`⚠️ ${riskCount}`],['star',`⭐ ${starCount}`]] .map(([v,l]) => (
+                        {[['all','Todas'],['risk',`⚠️ ${riskCount}`],['star',`⭐ ${starCount}`],['vip',`👑 ${vipCount}`],['tracking',`🩺 ${trackingCount}`]] .map(([v,l]) => (
                             <button key={v} onClick={() => setFilter(v as any)}
                                 className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border
                                     ${filter === v

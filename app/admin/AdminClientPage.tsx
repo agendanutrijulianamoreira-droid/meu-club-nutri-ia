@@ -199,8 +199,22 @@ export default function AdminDashboard({
     const [activeView, setActiveView] = useState<ViewType>('dashboard')
     const [openGroupId, setOpenGroupId] = useState<string | null>(null)
     const [pendingApprovals, setPendingApprovals] = useState(0)
+    const [patientsAutoOpen, setPatientsAutoOpen] = useState(false)
+    const [patientsInitialFilter, setPatientsInitialFilter] = useState<'vip' | 'tracking' | null>(null)
     const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const { openOverlay } = useOverlays()
+
+    const goToNewPatient = useCallback(() => {
+        setPatientsInitialFilter(null)
+        setPatientsAutoOpen(true)
+        setActiveView('patients')
+    }, [])
+
+    const goToPatientsFiltered = useCallback((filter: 'vip' | 'tracking') => {
+        setPatientsAutoOpen(false)
+        setPatientsInitialFilter(filter)
+        setActiveView('patients')
+    }, [])
 
     const scheduleClose = useCallback(() => {
         closeTimer.current = setTimeout(() => setOpenGroupId(null), 120)
@@ -241,11 +255,13 @@ export default function AdminDashboard({
     const renderView = () => {
         const props = { setView: setActiveView, userName, tenantName, tenantId }
         switch (activeView) {
-            case 'dashboard':          return <DashboardView {...props} />
+            case 'dashboard':          return <DashboardView {...props} onNewPatient={goToNewPatient} onGoToVipPatients={() => goToPatientsFiltered('vip')} onGoToTrackingPatients={() => goToPatientsFiltered('tracking')} />
             case 'methods':            return <MethodsView setView={setActiveView} tenantId={tenantId} />
             case 'communication':      return <CommunicationCenterView setView={setActiveView} />
             case 'protocols':          return <ProtocolsView setView={setActiveView} tenantId={tenantId} />
-            case 'patients':           return <PatientsView setView={setActiveView} />
+            case 'patients':           return <PatientsView setView={setActiveView}
+                                            autoOpenRegister={patientsAutoOpen} onAutoOpenConsumed={() => setPatientsAutoOpen(false)}
+                                            initialFilter={patientsInitialFilter} onInitialFilterConsumed={() => setPatientsInitialFilter(null)} />
             case 'rewards':            return <RewardsView setView={setActiveView} />
             case 'checkins':           return <CheckinsView setView={setActiveView} />
             case 'clinical-library':   return <ClinicalLibraryView setView={setActiveView} tenantId={tenantId} />
