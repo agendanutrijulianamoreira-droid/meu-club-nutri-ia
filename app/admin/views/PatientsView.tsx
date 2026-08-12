@@ -304,6 +304,153 @@ function AssignProtocolModal({ patientId, patientName, currentProtocol, onClose,
     )
 }
 
+// ─── Goals Assign Modal ───────────────────────────────────────────────────────
+// Diferente de protocolo, a paciente pode ter várias metas ativas ao mesmo
+// tempo — sem "atual" único, então o modal mostra as metas já atribuídas
+// (com opção de remover cada uma) e a biblioteca de metas disponíveis pra
+// atribuir mais.
+interface GoalAssignment {
+    id: string; goal_id: string | null; title: string; emoji: string
+    goal_type: string; target_value: number | null; unit: string | null; status: string
+}
+
+function AssignGoalModal({ patientId, patientName, onClose, onSuccess }: {
+    patientId: string; patientName: string
+    onClose: () => void; onSuccess: () => void
+}) {
+    const [goals, setGoals] = useState<any[]>([])
+    const [assignments, setAssignments] = useState<GoalAssignment[]>([])
+    const [loading, setLoading] = useState(true)
+    const [busy, setBusy] = useState<string | null>(null)
+    const [error, setError] = useState('')
+
+    const load = useCallback(() => {
+        setLoading(true)
+        Promise.all([
+            fetch('/api/admin/goals-list').then(r => r.ok ? r.json() : { goals: [] }),
+            fetch(`/api/admin/patients/${patientId}/goals`).then(r => r.ok ? r.json() : { assignments: [] }),
+        ])
+            .then(([g, a]) => { setGoals(g.goals || []); setAssignments(a.assignments || []) })
+            .finally(() => setLoading(false))
+    }, [patientId])
+
+    useEffect(() => { load() }, [load])
+
+    const activeAssignments = assignments.filter(a => a.status === 'active')
+    const activeGoalIds = new Set(activeAssignments.map(a => a.goal_id))
+
+    const handleAssign = async (goalId: string) => {
+        setBusy(goalId)
+        setError('')
+        try {
+            const res = await fetch(`/api/admin/patients/${patientId}/action`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'assign-goal', goal_id: goalId })
+            })
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}))
+                setError(data.error || 'Erro ao atribuir meta. Tente novamente.')
+                return
+            }
+            load()
+            onSuccess()
+        } catch {
+            setError('Erro de conexão. Tente novamente.')
+        } finally { setBusy(null) }
+    }
+
+    const handleUnassign = async (assignmentId: string) => {
+        setBusy(assignmentId)
+        setError('')
+        try {
+            const res = await fetch(`/api/admin/patients/${patientId}/action`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'unassign-goal', assignment_id: assignmentId })
+            })
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}))
+                setError(data.error || 'Erro ao remover meta. Tente novamente.')
+                return
+            }
+            load()
+            onSuccess()
+        } catch {
+            setError('Erro de conexão. Tente novamente.')
+        } finally { setBusy(null) }
+    }
+
+    return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={onClose}>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                onClick={e => e.stopPropagation()}
+                className="bg-slate-900 border border-white/10 rounded-3xl p-5 w-full max-w-sm shadow-2xl">
+                <div className="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 className="text-sm font-bold text-white">Metas da paciente</h2>
+                        <p className="text-[11px] text-slate-500 mt-0.5">{patientName}</p>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl"><X size={15} className="text-slate-400"/></button>
+                </div>
+
+                {error && (
+                    <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2 mb-3">{error}</p>
+                )}
+
+                {loading ? (
+                    <div className="py-8 flex justify-center"><Loader2 size={20} className="animate-spin text-slate-600"/></div>
+                ) : (
+                    <div className="space-y-4 max-h-96 overflow-y-auto">
+                        {activeAssignments.length > 0 && (
+                            <div className="space-y-2">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Ativas</p>
+                                {activeAssignments.map(a => (
+                                    <div key={a.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                                        <span className="text-lg">{a.emoji || '🎯'}</span>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-bold text-white truncate">{a.title}</p>
+                                            {a.target_value != null && (
+                                                <p className="text-[10px] text-slate-500">Meta: {a.target_value}{a.unit ? ` ${a.unit}` : ''}</p>
+                                            )}
+                                        </div>
+                                        <button onClick={() => handleUnassign(a.id)} disabled={!!busy}
+                                            className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all flex-shrink-0">
+                                            {busy === a.id ? <Loader2 size={12} className="animate-spin"/> : <X size={12}/>}
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Biblioteca de metas</p>
+                            {goals.filter(g => !activeGoalIds.has(g.id)).map(g => (
+                                <button key={g.id} onClick={() => handleAssign(g.id)} disabled={!!busy}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border bg-white/5 border-white/10 hover:border-indigo-500/30 transition-all text-left">
+                                    <span className="text-lg">{g.emoji || '🎯'}</span>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-white truncate">{g.title}</p>
+                                        {g.target_value != null && (
+                                            <p className="text-[10px] text-slate-500">Meta: {g.target_value}{g.unit ? ` ${g.unit}` : ''}</p>
+                                        )}
+                                    </div>
+                                    {busy === g.id && <Loader2 size={13} className="animate-spin text-indigo-400 flex-shrink-0"/>}
+                                </button>
+                            ))}
+                            {goals.filter(g => !activeGoalIds.has(g.id)).length === 0 && (
+                                <p className="text-center text-xs text-slate-600 py-4">
+                                    {goals.length === 0 ? 'Nenhuma meta na biblioteca. Crie uma na Biblioteca Clínica.' : 'Todas as metas da biblioteca já estão atribuídas.'}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </motion.div>
+        </motion.div>
+    )
+}
+
 // ─── Send Message Modal ───────────────────────────────────────────────────────
 function SendMessageModal({ patientId, patientName, onClose, onSuccess }: {
     patientId: string; patientName: string; onClose: () => void; onSuccess: () => void
@@ -911,6 +1058,7 @@ function PatientDetail({ patient, onAction, onRefresh }: {
 }) {
     const [actionLoading, setActionLoading] = useState<string | null>(null)
     const [showProtocolModal, setShowProtocolModal] = useState(false)
+    const [showGoalsModal, setShowGoalsModal] = useState(false)
     const [showMessageModal, setShowMessageModal] = useState(false)
     const [showEditModal, setShowEditModal] = useState(false)
     const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'health' | 'insights' | 'records' | 'comunidade'>('overview')
@@ -1442,6 +1590,17 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                                     </button>
                                 </div>
                             )}
+                        </div>
+
+                        {/* Metas — múltiplas metas ativas ao mesmo tempo, sem "atual" único */}
+                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                            <div className="flex items-center justify-between">
+                                <p className="text-xs font-bold text-slate-400 flex items-center gap-1.5"><Target size={13}/> Metas</p>
+                                <button onClick={() => setShowGoalsModal(true)}
+                                    className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors">
+                                    Gerenciar <ChevronRight size={11}/>
+                                </button>
+                            </div>
                         </div>
 
                         {/* Fase da jornada (Método) */}
@@ -2003,6 +2162,14 @@ function PatientDetail({ patient, onAction, onRefresh }: {
                         onSuccess={() => { setShowProtocolModal(false); onRefresh(); onAction('Protocolo atribuído!') }}
                     />
                 )}
+                {showGoalsModal && (
+                    <AssignGoalModal
+                        patientId={patient.id}
+                        patientName={patient.name}
+                        onClose={() => setShowGoalsModal(false)}
+                        onSuccess={() => onAction('Metas atualizadas!')}
+                    />
+                )}
                 {showMessageModal && (
                     <SendMessageModal
                         patientId={patient.id}
@@ -2394,12 +2561,20 @@ function ImportCSVModal({ onClose, onDone }: { onClose: () => void; onDone: () =
 }
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
-export function PatientsView({ setView }: { setView: (v: any) => void }) {
+interface PatientsViewProps {
+    setView: (v: any) => void
+    autoOpenRegister?: boolean
+    onAutoOpenConsumed?: () => void
+    initialFilter?: 'vip' | 'tracking' | null
+    onInitialFilterConsumed?: () => void
+}
+
+export function PatientsView({ setView, autoOpenRegister, onAutoOpenConsumed, initialFilter, onInitialFilterConsumed }: PatientsViewProps) {
     const [patients, setPatients] = useState<Patient[]>([])
     const [loading, setLoading] = useState(true)
     const [selectedId, setSelectedId] = useState<string | null>(null)
     const [search, setSearch] = useState('')
-    const [filter, setFilter] = useState<'all' | 'risk' | 'star' | 'active'>('all')
+    const [filter, setFilter] = useState<'all' | 'risk' | 'star' | 'active' | 'vip' | 'tracking'>('all')
     const [showRegister, setShowRegister] = useState(false)
     const [showImport, setShowImport] = useState(false)
     const [toast, setToast] = useState<string | null>(null)
@@ -2419,6 +2594,20 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
     }, [selectedId])
 
     useEffect(() => { refresh() }, [])
+
+    useEffect(() => {
+        if (autoOpenRegister) {
+            setShowRegister(true)
+            onAutoOpenConsumed?.()
+        }
+    }, [autoOpenRegister, onAutoOpenConsumed])
+
+    useEffect(() => {
+        if (initialFilter) {
+            setFilter(initialFilter)
+            onInitialFilterConsumed?.()
+        }
+    }, [initialFilter, onInitialFilterConsumed])
 
     const showToast = (msg: string) => {
         setToast(msg)
@@ -2472,7 +2661,10 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
 
     const filtered = patients.filter(p => {
         const ms = p.name.toLowerCase().includes(search.toLowerCase()) || p.email.toLowerCase().includes(search.toLowerCase())
-        const mf = filter === 'all' || p.status === filter
+        const mf = filter === 'all' ? true
+            : filter === 'vip' ? p.plan === 'vip'
+            : filter === 'tracking' ? p.hasActiveProtocol
+            : p.status === filter
         return ms && mf
     }).sort((a, b) => {
         const order: Record<string, number> = { risk: 0, star: 1, active: 2 }
@@ -2482,6 +2674,8 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
     const activePatient = patients.find(p => p.id === selectedId)
     const riskCount = patients.filter(p => p.status === 'risk').length
     const starCount = patients.filter(p => p.status === 'star').length
+    const vipCount = patients.filter(p => p.plan === 'vip').length
+    const trackingCount = patients.filter(p => p.hasActiveProtocol).length
 
     return (
         <div className="flex h-[calc(100vh-88px)] -m-8 overflow-hidden">
@@ -2533,7 +2727,7 @@ export function PatientsView({ setView }: { setView: (v: any) => void }) {
 
                     {/* filters */}
                     <div className="flex gap-1 overflow-x-auto pb-0.5">
-                        {[['all','Todas'],['risk',`⚠️ ${riskCount}`],['star',`⭐ ${starCount}`]] .map(([v,l]) => (
+                        {[['all','Todas'],['risk',`⚠️ ${riskCount}`],['star',`⭐ ${starCount}`],['vip',`👑 ${vipCount}`],['tracking',`🩺 ${trackingCount}`]] .map(([v,l]) => (
                             <button key={v} onClick={() => setFilter(v as any)}
                                 className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border
                                     ${filter === v
