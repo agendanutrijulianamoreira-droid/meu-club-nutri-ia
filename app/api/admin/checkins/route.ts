@@ -36,19 +36,24 @@ export async function GET(request: NextRequest) {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
     const userIds = patients.map(p => p.user_id)
+    const sixMonthsAgo = new Date(today)
+    sixMonthsAgo.setDate(sixMonthsAgo.getDate() - 180)
 
-    const { data: logs } = await supabase
-        .from('daily_logs')
-        .select('user_id, log_date, meal_plan_check, water_check, workout_check')
-        .in('user_id', userIds)
-        .gte('log_date', sevenDaysAgo.toISOString().split('T')[0])
-
-    // 3. Load latest weekly checkin responses
-    const { data: checkinResponses } = await supabase
-        .from('weekly_checkin_responses')
-        .select('user_id, diet_score, main_difficulty, bowel, had_binge, mood, extra_notes, ai_summary, ai_risk_level, ai_suggestion, week_start, created_at')
-        .in('user_id', userIds)
-        .order('created_at', { ascending: false })
+    // 2-3. Independent per-user queries fired in parallel instead of sequentially.
+    // Checkins bounded to the last 180 days — only the most recent one per user is used.
+    const [{ data: logs }, { data: checkinResponses }] = await Promise.all([
+        supabase
+            .from('daily_logs')
+            .select('user_id, log_date, meal_plan_check, water_check, workout_check')
+            .in('user_id', userIds)
+            .gte('log_date', sevenDaysAgo.toISOString().split('T')[0]),
+        supabase
+            .from('weekly_checkin_responses')
+            .select('user_id, diet_score, main_difficulty, bowel, had_binge, mood, extra_notes, ai_summary, ai_risk_level, ai_suggestion, week_start, created_at')
+            .in('user_id', userIds)
+            .gte('created_at', sixMonthsAgo.toISOString())
+            .order('created_at', { ascending: false }),
+    ])
 
     // Build a map of latest checkin per user
     const latestCheckin: Record<string, any> = {}

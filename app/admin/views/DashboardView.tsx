@@ -240,72 +240,64 @@ export function DashboardView({
 
     const loadRealData = async () => {
         try {
-            // 1. Tenant info
-            if (tenantId) {
-                const { data: tenant } = await supabase.from('tenants').select('method_name').eq('id', tenantId).single()
-                if (tenant?.method_name) setMethodName(tenant.method_name)
-            }
+            // 1-5. Independent queries fired in parallel instead of one-by-one
+            const [tenantRes, patientsRes, protocolsRes, creditsRes, approvalsRes] = await Promise.all([
+                tenantId
+                    ? supabase.from('tenants').select('method_name').eq('id', tenantId).single()
+                    : Promise.resolve({ data: null as { method_name?: string } | null }),
+                supabase
+                    .from('profiles')
+                    .select('id, user_id, name, email, current_plan, current_streak, total_xp, updated_at, last_checkin_date, role')
+                    .eq('tenant_id', tenantId)
+                    .eq('role', 'patient')
+                    .order('updated_at', { ascending: false }),
+                supabase
+                    .from('protocols')
+                    .select('id, title, description, duration_days, category, scheduled_status, created_at')
+                    .eq('tenant_id', tenantId)
+                    .order('created_at', { ascending: false }),
+                supabase.from('ai_credits').select('credits_remaining').eq('tenant_id', tenantId).single()
+                    .then(r => r, () => ({ data: null as { credits_remaining?: number } | null })),
+                supabase.from('agent_approval_queue').select('id', { count: 'exact', head: true })
+                    .eq('tenant_id', tenantId).eq('status', 'pending')
+                    .then(r => r, () => ({ count: 0 })),
+            ])
 
-            // 2. All patients for this tenant
-            const { data: patients, error: patientsErr } = await supabase
-                .from('profiles')
-                .select('id, user_id, name, email, current_plan, current_streak, total_xp, updated_at, last_checkin_date, role')
-                .eq('tenant_id', tenantId)
-                .eq('role', 'patient')
-                .order('updated_at', { ascending: false })
+            if (tenantRes.data?.method_name) setMethodName(tenantRes.data.method_name)
 
-            const allPatients = patients || []
+            const allPatients = patientsRes.data || []
+            const patientUserIds = allPatients.map(p => p.user_id).filter(Boolean) as string[]
             const today = new Date().toISOString().split('T')[0]
             const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-            // 3. Today's check-ins
-            const { count: todayCheckins } = await supabase
-                .from('daily_logs')
-                .select('id', { count: 'exact', head: true })
-                .eq('log_date', today)
-
-            // 4. Active protocols
-            const { data: protocols } = await supabase
-                .from('protocols')
-                .select('id, title, description, duration_days, category, scheduled_status, created_at')
-                .eq('tenant_id', tenantId)
-                .order('created_at', { ascending: false })
-
+            const protocols = protocolsRes.data
             const activeProtos = protocols?.filter(p => p.scheduled_status === 'active') || []
             if (activeProtos.length > 0) setActiveProtocol(activeProtos[0])
 
-            // 5. AI Credits (try, may not exist yet)
-            let aiCreditsRemaining: number | null = null
-            try {
-                const { data: credits } = await supabase
-                    .from('ai_credits')
-                    .select('credits_remaining')
-                    .eq('tenant_id', tenantId)
-                    .single()
-                if (credits) aiCreditsRemaining = credits.credits_remaining
-            } catch {}
+            const aiCreditsRemaining: number | null = creditsRes.data?.credits_remaining ?? null
 
-            // 6. Check-in history (last 7 days)
-            const last7days: number[] = []
-            for (let i = 6; i >= 0; i--) {
-                const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-                const { count } = await supabase
-                    .from('daily_logs')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('log_date', date)
-                last7days.push(count || 0)
-            }
-            setCheckinHistory(last7days)
+            setPendingApprovalsCount(approvalsRes.count || 0)
 
-            // 7. Pending agent approvals count
-            try {
-                const { count: pendingCount } = await supabase
-                    .from('agent_approval_queue')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('tenant_id', tenantId)
-                    .eq('status', 'pending')
-                setPendingApprovalsCount(pendingCount || 0)
-            } catch {}
+            // 6-7. Today's check-in count + last-7-days history, scoped to THIS tenant's
+            // patients (previously unscoped — counted check-ins from every tenant on the
+            // platform) and fetched in parallel instead of one query per day.
+            const historyDates = Array.from({ length: 7 }, (_, idx) => {
+                const daysAgo = 6 - idx
+                return new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            })
+
+            const countForDate = (date: string) =>
+                patientUserIds.length === 0
+                    ? Promise.resolve({ count: 0 })
+                    : supabase.from('daily_logs').select('id', { count: 'exact', head: true })
+                        .eq('log_date', date).in('user_id', patientUserIds)
+
+            const [todayRes, ...historyRes] = await Promise.all([
+                countForDate(today),
+                ...historyDates.map(countForDate),
+            ])
+            const todayCheckins = todayRes.count || 0
+            setCheckinHistory(historyRes.map(r => r.count || 0))
 
             // 8. Pending reward redemptions (bônus aguardando entrega/aprovação)
             try {
