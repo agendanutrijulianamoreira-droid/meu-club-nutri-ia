@@ -2,7 +2,8 @@
 
 import { Droplet, HeartPulse, RotateCcw, Sparkles } from "lucide-react"
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useMemo } from "react"
+import { usePatientHomeData } from "@/components/patient/PatientHomeDataProvider"
 
 type RescueState = { active: boolean; inactiveFullDays: number }
 
@@ -25,41 +26,37 @@ function localDateFromIso(value: string) {
 }
 
 export function PatientRescueMode() {
-  const [state, setState] = useState<RescueState>({ active: false, inactiveFullDays: 0 })
+  const { payload, loading, localDate: today } = usePatientHomeData()
 
-  useEffect(() => {
-    const detect = async () => {
-      const today = localDate()
-      const response = await fetch(`/api/patient/home?date=${today}`, { cache: "no-store" }).catch(() => null)
-      if (!response?.ok) return
-      const payload = await response.json()
-      const protocol = payload.protocol
-      if (!protocol?.assignmentId || !protocol?.startDate) return
+  const state = useMemo<RescueState>(() => {
+    if (!payload) return { active: false, inactiveFullDays: 0 }
 
-      const activityDates = new Set<string>()
-      for (const log of payload.dailyLogs || []) {
-        if (log.water_check || (log.water_ml || 0) > 0 || log.meal_plan_check || log.workout_check || log.daily_victory) activityDates.add(log.log_date)
-      }
-      for (const checkin of payload.checkins || []) {
-        if (checkin?.data) activityDates.add(checkin.data)
-      }
-      for (const row of payload.progressHistory || []) {
-        if (row.completed_at) activityDates.add(localDateFromIso(row.completed_at))
-        else if (row.checkin_date) activityDates.add(row.checkin_date)
-      }
+    const protocol = payload.protocol
+    if (!protocol?.assignmentId || !protocol?.startDate) return { active: false, inactiveFullDays: 0 }
 
-      if (activityDates.has(today)) return
-      const previousDates = [...activityDates].filter(date => date < today).sort()
-      const previousActivity = previousDates[previousDates.length - 1]
-      const baseline = previousActivity && previousActivity > protocol.startDate ? previousActivity : protocol.startDate
-      const inactiveFullDays = Math.max(0, differenceInCalendarDays(today, baseline) - 1)
-      setState({ active: inactiveFullDays >= 3, inactiveFullDays })
+    const activityDates = new Set<string>()
+    for (const log of payload.dailyLogs || []) {
+      if (log.water_check || (log.water_ml || 0) > 0 || log.meal_plan_check || log.workout_check || log.daily_victory) activityDates.add(log.log_date)
+    }
+    for (const checkin of payload.checkins || []) {
+      if (checkin?.data) activityDates.add(checkin.data)
+    }
+    for (const row of payload.progressHistory || []) {
+      if (row.completed_at) activityDates.add(localDateFromIso(row.completed_at))
+      else if (row.checkin_date) activityDates.add(row.checkin_date)
     }
 
-    detect()
-  }, [])
+    if (activityDates.has(today)) return { active: false, inactiveFullDays: 0 }
 
-  if (!state.active) return null
+    const previousDates = [...activityDates].filter(date => date < today).sort()
+    const previousActivity = previousDates[previousDates.length - 1]
+    const baseline = previousActivity && previousActivity > protocol.startDate ? previousActivity : protocol.startDate
+    const inactiveFullDays = Math.max(0, differenceInCalendarDays(today, baseline) - 1)
+
+    return { active: inactiveFullDays >= 3, inactiveFullDays }
+  }, [payload, today])
+
+  if (loading || !state.active) return null
 
   return (
     <div className="fixed inset-0 z-[90] overflow-y-auto bg-[#F4EFE4] text-[#2B1A10]">
