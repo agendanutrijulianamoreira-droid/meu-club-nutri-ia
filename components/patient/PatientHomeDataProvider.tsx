@@ -83,7 +83,22 @@ export function PatientHomeDataProvider({
     [payload, loading, error, localDate, readOnly, refresh],
   )
 
-  return <PatientHomeDataContext.Provider value={value}>{children}</PatientHomeDataContext.Provider>
+  const content = readOnly ? (
+    <div
+      onClickCapture={event => { event.preventDefault(); event.stopPropagation() }}
+      onSubmitCapture={event => { event.preventDefault(); event.stopPropagation() }}
+      onKeyDownCapture={event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          event.stopPropagation()
+        }
+      }}
+    >
+      {children}
+    </div>
+  ) : children
+
+  return <PatientHomeDataContext.Provider value={value}>{content}</PatientHomeDataContext.Provider>
 }
 
 export function usePatientHomeData() {
