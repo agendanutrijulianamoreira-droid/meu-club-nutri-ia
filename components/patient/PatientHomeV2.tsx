@@ -25,6 +25,7 @@ import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 
+import { PatientEvolutionSummary } from "@/components/patient/PatientEvolutionSummary"
 import { ReminderSettings } from "@/components/patient/ReminderSettings"
 import { ProgressRing } from "@/components/patient/ProgressRing"
 import { DAILY_LOG_XP } from "@/lib/gamification"
@@ -490,6 +491,8 @@ export function PatientHomeV2() {
               ) : null}
             </section>
           )}
+
+          <PatientEvolutionSummary />
 
           <section className="mb-5">
             <div className="flex items-center justify-between mb-3">
