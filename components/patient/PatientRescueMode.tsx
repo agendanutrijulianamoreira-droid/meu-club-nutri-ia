@@ -1,6 +1,6 @@
 "use client"
 
-import { Droplet, HeartPulse, Loader2, RotateCcw, Sparkles } from "lucide-react"
+import { Droplet, HeartPulse, RotateCcw, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 
@@ -103,10 +103,10 @@ export function PatientRescueMode() {
           return
         }
 
-        const previousActivity = [...activityDates]
+        const previousDates = [...activityDates]
           .filter(date => date < today)
           .sort()
-          .at(-1)
+        const previousActivity = previousDates[previousDates.length - 1]
 
         // Se nunca houve atividade, a data de início do protocolo vira o marco inicial.
         const baseline = previousActivity && previousActivity > assignment.start_date
