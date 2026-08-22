@@ -409,24 +409,6 @@ export function PatientHomeV2() {
             )}
           </section>
 
-          <section className="grid grid-cols-3 gap-2 mb-5">
-            <div className="rounded-2xl bg-white border border-[#2B1A10]/10 p-3 text-center shadow-sm">
-              <Flame size={17} className="mx-auto text-[#C9A435] mb-1" />
-              <p className="text-lg font-bold">{stats.currentStreak}</p>
-              <p className="text-[10px] text-[#2B1A10]/45">dias em sequência</p>
-            </div>
-            <div className="rounded-2xl bg-white border border-[#2B1A10]/10 p-3 text-center shadow-sm">
-              <Sparkles size={17} className="mx-auto text-[#C9A435] mb-1" />
-              <p className="text-lg font-bold">{stats.totalPoints}</p>
-              <p className="text-[10px] text-[#2B1A10]/45">XP acumulado</p>
-            </div>
-            <div className="rounded-2xl bg-white border border-[#2B1A10]/10 p-3 text-center shadow-sm">
-              <Crown size={17} className="mx-auto text-[#C9A435] mb-1" />
-              <p className="text-lg font-bold">{nutriCoins}</p>
-              <p className="text-[10px] text-[#2B1A10]/45">NutriCoins</p>
-            </div>
-          </section>
-
           {dietaHoje && dietaHoje.meta > 0 && (
             <Link href="/patient/diario" className="block mb-5 rounded-3xl bg-white border border-[#2B1A10]/10 p-4 shadow-sm">
               <div className="flex items-center gap-4">
@@ -469,6 +451,27 @@ export function PatientHomeV2() {
                 {savingVictory && <Loader2 size={11} className="animate-spin" />} Salvar vitória
               </button>
             )}
+          </section>
+
+          <section className="mb-5 rounded-2xl border border-[#2B1A10]/8 bg-white/70 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 mb-2.5">
+              <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-[#2B1A10]/35">Seu ritmo</p>
+              <p className="text-[10px] text-[#2B1A10]/35">Gamificação</p>
+            </div>
+            <div className="grid grid-cols-3 divide-x divide-[#2B1A10]/8">
+              <div className="flex items-center justify-center gap-2 px-2">
+                <Flame size={14} className="text-[#C9A435] shrink-0" />
+                <div className="min-w-0"><p className="text-sm font-bold leading-none">{stats.currentStreak}</p><p className="text-[9px] text-[#2B1A10]/40 mt-1">dias</p></div>
+              </div>
+              <div className="flex items-center justify-center gap-2 px-2">
+                <Sparkles size={14} className="text-[#C9A435] shrink-0" />
+                <div className="min-w-0"><p className="text-sm font-bold leading-none">{stats.totalPoints}</p><p className="text-[9px] text-[#2B1A10]/40 mt-1">XP</p></div>
+              </div>
+              <div className="flex items-center justify-center gap-2 px-2">
+                <Crown size={14} className="text-[#C9A435] shrink-0" />
+                <div className="min-w-0"><p className="text-sm font-bold leading-none">{nutriCoins}</p><p className="text-[9px] text-[#2B1A10]/40 mt-1">moedas</p></div>
+              </div>
+            </div>
           </section>
 
           {nextAppointment && (
