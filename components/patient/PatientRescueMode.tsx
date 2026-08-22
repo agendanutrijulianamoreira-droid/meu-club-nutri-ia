@@ -10,6 +10,8 @@ type RescueState = { active: boolean; inactiveFullDays: number }
 type PatientRescueModeProps = {
   embedded?: boolean
   readOnly?: boolean
+  forceActive?: boolean
+  forcedInactiveDays?: number
 }
 
 function localDate(date = new Date()) {
@@ -35,10 +37,16 @@ function RescueAction({ href, readOnly, children, className }: { href: string; r
   return <Link href={href} className={className}>{children}</Link>
 }
 
-export function PatientRescueMode({ embedded = false, readOnly = false }: PatientRescueModeProps) {
+export function PatientRescueMode({
+  embedded = false,
+  readOnly = false,
+  forceActive = false,
+  forcedInactiveDays,
+}: PatientRescueModeProps) {
   const { payload, loading, localDate: today } = usePatientHomeData()
 
   const state = useMemo<RescueState>(() => {
+    if (forceActive) return { active: true, inactiveFullDays: forcedInactiveDays ?? 4 }
     if (!payload) return { active: false, inactiveFullDays: 0 }
 
     const protocol = payload.protocol
@@ -64,7 +72,7 @@ export function PatientRescueMode({ embedded = false, readOnly = false }: Patien
     const inactiveFullDays = Math.max(0, differenceInCalendarDays(today, baseline) - 1)
 
     return { active: inactiveFullDays >= 3, inactiveFullDays }
-  }, [payload, today])
+  }, [payload, today, forceActive, forcedInactiveDays])
 
   if (loading || !state.active) return null
 
