@@ -29,6 +29,15 @@ function isAllowedLocalDate(value: unknown) {
     return Math.abs(candidate - current) <= 86400000
 }
 
+function privatePhotoPath(value: unknown, userId: string, itemId: string) {
+    if (typeof value !== 'string' || !value) return null
+    const marker = '/protocol-photos/'
+    const rawPath = value.includes(marker) ? value.split(marker).pop() || '' : value
+    const path = decodeURIComponent(rawPath.split('?')[0])
+    const expectedPrefix = `${userId}/${itemId}/`
+    return path.startsWith(expectedPrefix) ? path : null
+}
+
 export async function POST(request: NextRequest) {
     const supabase = createSupabaseServerClient(cookies())
     const { data: { user } } = await supabase.auth.getUser()
@@ -51,6 +60,11 @@ export async function POST(request: NextRequest) {
     }
     if (!isAllowedLocalDate(local_date)) {
         return NextResponse.json({ error: 'local_date inválida ou fora da janela permitida' }, { status: 400 })
+    }
+
+    const proofPath = proof_type === 'simple' ? null : privatePhotoPath(photo_url, user.id, protocol_item_id)
+    if (mark && proof_type !== 'simple' && !proofPath) {
+        return NextResponse.json({ error: 'Prova fotográfica inválida' }, { status: 400 })
     }
 
     const { data: assignment, error: assignmentError } = await supabase
@@ -109,7 +123,7 @@ export async function POST(request: NextRequest) {
                 checkin_date: local_date,
                 points_earned: itemPoints,
                 proof_type,
-                photo_url,
+                photo_url: proofPath,
             })
         if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
