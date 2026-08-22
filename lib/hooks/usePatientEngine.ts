@@ -1,26 +1,11 @@
-import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase-browser'
-import { differenceInDays, startOfDay, parseISO } from 'date-fns'
+import { useEffect, useState } from 'react'
 
-/**
- * Retorna a data local do usuário no formato YYYY-MM-DD.
- * Usa o fuso do browser (que reflete o fuso do dispositivo).
- * Ex: às 23:00 BRT (02:00 UTC do dia seguinte), retorna o dia correto em BRT.
- */
 function getLocalDate(): string {
     const now = new Date()
     const year = now.getFullYear()
     const month = String(now.getMonth() + 1).padStart(2, '0')
     const day = String(now.getDate()).padStart(2, '0')
     return `${year}-${month}-${day}`
-}
-
-/**
- * Retorna startOfDay usando a data LOCAL, não UTC.
- */
-function localStartOfDay(): Date {
-    const now = new Date()
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate())
 }
 
 export interface PatientEngineData {
@@ -54,7 +39,7 @@ export function usePatientEngine(): PatientEngineData {
         totalDays: 21,
         completionRate: 0,
         totalPoints: 0,
-        currentStreak: 0
+        currentStreak: 0,
     })
 
     useEffect(() => {
@@ -64,121 +49,34 @@ export function usePatientEngine(): PatientEngineData {
     async function fetchDailyData() {
         try {
             setLoading(true)
-            console.log('🔍 [PatientEngine] Iniciando busca de dados...')
+            const response = await fetch(`/api/patient/home?date=${getLocalDate()}`, { cache: 'no-store' })
+            if (!response.ok) throw new Error(`Falha ao carregar Home (${response.status})`)
 
-            const { data: { user } } = await supabase.auth.getUser()
-            console.log('👤 [PatientEngine] Usuário:', user?.id || 'NÃO AUTENTICADO')
+            const payload = await response.json()
+            const protocolData = payload.protocol
+            const profile = payload.profile
 
-            if (!user) {
-                console.warn('⚠️ [PatientEngine] Sem usuário autenticado!')
-                setLoading(false)
-                return
-            }
-
-            // A. Buscar perfil do usuário para stats
-            const { data: userProfile } = await supabase
-                .from('profiles')
-                .select('nutri_coins, total_xp, current_streak')
-                .eq('user_id', user.id)
-                .single()
-
-            if (userProfile) {
-                setStats(prev => ({
-                    ...prev,
-                    totalPoints: userProfile.total_xp || 0,
-                    currentStreak: userProfile.current_streak || 0,
-                    nutriCoins: userProfile.nutri_coins || 0
-                }))
-            }
-
-            // B. Buscar Atribuição Ativa (protocol_assignments)
-            console.log('🔎 [PatientEngine] Buscando assignments para user:', user.id)
-            const { data: assignments, error: assignError } = await supabase
-                .from('protocol_assignments')
-                .select(`
-                    *,
-                    protocol:protocols (*)
-                `)
-                .eq('user_id', user.id)
-                .eq('status', 'active')
-                .order('created_at', { ascending: false })
-                .limit(1)
-
-            console.log('📦 [PatientEngine] Assignments encontrados:', assignments)
-            console.log('❌ [PatientEngine] Erro assignments:', assignError)
-
-            const assignment = assignments?.[0]
-
-            if (assignment && assignment.protocol) {
-                // C. Calcular Dia Atual baseado na data de início
-                // ⚡ TIMEZONE FIX: Usar data LOCAL, não UTC
-                const todayLocal = localStartOfDay()
-                const startDate = parseISO(assignment.start_date)
-                const startLocal = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
-
-                const daysPassed = differenceInDays(todayLocal, startLocal)
-                const currentDay = Math.max(1, daysPassed + 1)
-
+            if (protocolData?.protocol) {
                 setActiveProtocol({
-                    ...assignment.protocol,
-                    assignmentId: assignment.id,
-                    startDate: assignment.start_date
+                    ...protocolData.protocol,
+                    assignmentId: protocolData.assignmentId,
+                    startDate: protocolData.startDate,
                 })
-
-                // D. Buscar dias do protocolo
-                const { data: protocolDays } = await supabase
-                    .from('protocol_days')
-                    .select('id, day_number, title')
-                    .eq('protocol_id', assignment.protocol.id)
-                    .eq('day_number', currentDay)
-                    .single()
-
-                // E. Buscar itens do dia atual
-                if (protocolDays) {
-                    const { data: items } = await supabase
-                        .from('protocol_items')
-                        .select('*')
-                        .eq('protocol_day_id', protocolDays.id)
-                        .order('time', { ascending: true })
-
-                    setCurrentDayItems(items || [])
-
-                    // F. Buscar progresso de hoje (protocol_progress)
-                    // ⚡ TIMEZONE FIX: Usar checkin_date (DATE puro) com data local
-                    const todayStr = getLocalDate()
-                    const { data: progressData } = await supabase
-                        .from('protocol_progress')
-                        .select('protocol_item_id, completed_at, checkin_date')
-                        .eq('assignment_id', assignment.id)
-                        .eq('checkin_date', todayStr) // ← DATE puro, sem timezone!
-
-                    const progressMap: Record<string, boolean> = {}
-                    progressData?.forEach((p: any) => {
-                        progressMap[p.protocol_item_id] = true
-                    })
-                    setProgress(progressMap)
-
-                    // G. Calcular taxa de conclusão
-                    const totalItems = items?.length || 1
-                    const completedItems = progressData?.length || 0
-                    const completionRate = Math.round((completedItems / totalItems) * 100)
-
-                    setStats(prev => ({
-                        ...prev,
-                        currentDay,
-                        totalDays: assignment.protocol.duration_days || 21,
-                        completionRate
-                    }))
-                } else {
-                    setCurrentDayItems([])
-                    setStats(prev => ({
-                        ...prev,
-                        currentDay,
-                        totalDays: assignment.protocol.duration_days || 21,
-                        completionRate: 0
-                    }))
-                }
+                setCurrentDayItems(protocolData.items || [])
+                setProgress(protocolData.progress || {})
+            } else {
+                setActiveProtocol(null)
+                setCurrentDayItems([])
+                setProgress({})
             }
+
+            setStats({
+                currentDay: protocolData?.currentDay || 1,
+                totalDays: protocolData?.protocol?.duration_days || 21,
+                completionRate: protocolData?.completionRate || 0,
+                totalPoints: profile?.total_xp || 0,
+                currentStreak: profile?.current_streak || 0,
+            })
         } catch (error) {
             console.error('Erro no motor da paciente:', error)
         } finally {
@@ -190,20 +88,14 @@ export function usePatientEngine(): PatientEngineData {
         itemId: string,
         currentStatus: boolean,
         proofType: 'simple' | 'camera' | 'gallery' = 'simple',
-        photoUrl: string | null = null
+        photoUrl: string | null = null,
     ) {
         if (!activeProtocol) return
 
         const newStatus = !currentStatus
-
-        // Optimistic UI update
         setProgress(prev => ({ ...prev, [itemId]: newStatus }))
 
         try {
-            // Escrita de XP centralizada no server (lib/services/gamification.ts) —
-            // o client não chama mais a RPC increment_user_points diretamente, e o
-            // valor de pontos por proof_type é resolvido lá a partir do protocol_item
-            // (nunca aceito do client, ver nota no route.ts).
             const res = await fetch('/api/patient/protocol-progress', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -218,18 +110,15 @@ export function usePatientEngine(): PatientEngineData {
             if (!res.ok) throw new Error(`Falha ao salvar checkin (${res.status})`)
             const { points_delta } = await res.json()
 
-            // Recalcular stats (progresso do dia + XP total exibido na Home)
             const totalItems = currentDayItems.length
             const completedCount = Object.values({ ...progress, [itemId]: newStatus }).filter(Boolean).length
             setStats(prev => ({
                 ...prev,
-                completionRate: Math.round((completedCount / totalItems) * 100),
-                totalPoints: Math.max(0, prev.totalPoints + points_delta)
+                completionRate: totalItems ? Math.round((completedCount / totalItems) * 100) : 0,
+                totalPoints: Math.max(0, prev.totalPoints + points_delta),
             }))
-
         } catch (error) {
             console.error('Erro ao salvar checkin:', error)
-            // Reverter em caso de erro
             setProgress(prev => ({ ...prev, [itemId]: currentStatus }))
         }
     }
@@ -241,6 +130,6 @@ export function usePatientEngine(): PatientEngineData {
         progress,
         stats,
         toggleCheckin,
-        refresh: fetchDailyData
+        refresh: fetchDailyData,
     }
 }
