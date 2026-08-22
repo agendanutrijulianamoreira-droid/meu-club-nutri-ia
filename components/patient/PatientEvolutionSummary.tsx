@@ -76,17 +76,6 @@ export function PatientEvolutionSummary() {
     const checkins = (payload.checkins || []) as CheckinRow[]
     const currentWeek = checkins.filter(row => row.data >= payload.weekStart)
     const previousWeek = checkins.filter(row => row.data >= payload.historyStart && row.data < payload.weekStart)
-    const logs = (payload.dailyLogs || []).filter((log: any) => log.log_date >= payload.weekStart)
-    const progressHistory = payload.progressHistory || []
-
-    const activeDates = new Set<string>()
-    logs.forEach((log: any) => {
-      if (log.water_check || (log.water_ml || 0) > 0 || log.meal_plan_check || log.workout_check || log.daily_victory) activeDates.add(log.log_date)
-    })
-    currentWeek.forEach(row => activeDates.add(row.data))
-    progressHistory
-      .filter((row: any) => row.checkin_date >= payload.weekStart)
-      .forEach((row: any) => activeDates.add(row.checkin_date))
 
     const candidateStarts = [
       payload.weekStart,
@@ -99,6 +88,18 @@ export function PatientEvolutionSummary() {
     const eligibleStart = candidateStarts[candidateStarts.length - 1] || payload.weekStart
     const eligibleDays = Math.min(7, daysInclusive(payload.today, eligibleStart))
 
+    const eligibleCheckins = currentWeek.filter(row => row.data >= eligibleStart)
+    const logs = (payload.dailyLogs || []).filter((log: any) => log.log_date >= eligibleStart)
+    const progressHistory = payload.progressHistory || []
+    const eligibleProgress = progressHistory.filter((row: any) => row.checkin_date >= eligibleStart)
+
+    const activeDates = new Set<string>()
+    logs.forEach((log: any) => {
+      if (log.water_check || (log.water_ml || 0) > 0 || log.meal_plan_check || log.workout_check || log.daily_victory) activeDates.add(log.log_date)
+    })
+    eligibleCheckins.forEach(row => activeDates.add(row.data))
+    eligibleProgress.forEach((row: any) => activeDates.add(row.checkin_date))
+
     const trends = [
       buildTrend("Energia", currentWeek.map(r => r.nivel_energia), previousWeek.map(r => r.nivel_energia), false),
       buildTrend("Inchaço", currentWeek.map(r => r.nivel_inchaco), previousWeek.map(r => r.nivel_inchaco), true),
@@ -108,11 +109,11 @@ export function PatientEvolutionSummary() {
     ].filter((trend): trend is Trend => !!trend)
 
     return {
-      checkinsThisWeek: currentWeek.length,
+      checkinsThisWeek: eligibleCheckins.length,
       hydrationDays: logs.filter((log: any) => !!log.water_check).length,
       activeDays: Math.min(eligibleDays, activeDates.size),
       eligibleDays,
-      missionsCompleted: progressHistory.filter((row: any) => row.checkin_date >= payload.weekStart).length,
+      missionsCompleted: eligibleProgress.length,
       trends: trends.slice(0, 3),
     }
   }, [payload])
