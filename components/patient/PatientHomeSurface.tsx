@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertTriangle, Loader2, RefreshCw } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Loader2, RefreshCw } from "lucide-react"
 
 import { usePatientHomeData } from "@/components/patient/PatientHomeDataProvider"
 import { PatientHomeV2 } from "@/components/patient/PatientHomeV2"
@@ -34,6 +34,8 @@ export function PatientHomeSurface() {
     )
   }
 
+  const protocolEnded = !!payload?.protocol?.ended
+
   return (
     <>
       {error && payload && (
@@ -43,7 +45,18 @@ export function PatientHomeSurface() {
           <button onClick={() => refresh()} className="text-xs font-bold underline underline-offset-2">Atualizar</button>
         </div>
       )}
-      <PatientRescueMode />
+      {protocolEnded && (
+        <div className="mx-auto max-w-[460px] px-4 pt-4 -mb-1">
+          <section className="rounded-2xl border border-[#C9A435]/25 bg-[#C9A435]/8 px-4 py-3 flex items-start gap-3 text-[#2B1A10]">
+            <div className="h-9 w-9 rounded-xl bg-white flex items-center justify-center shrink-0 text-[#9B7A16]"><CheckCircle2 size={18} /></div>
+            <div>
+              <p className="text-sm font-bold">Protocolo concluído</p>
+              <p className="text-xs text-[#2B1A10]/55 mt-0.5 leading-relaxed">Você chegou ao final desta etapa. Suas tarefas ficam pausadas enquanto o próximo passo do acompanhamento é definido.</p>
+            </div>
+          </section>
+        </div>
+      )}
+      {!protocolEnded && <PatientRescueMode />}
       <PatientHomeV2 />
     </>
   )
