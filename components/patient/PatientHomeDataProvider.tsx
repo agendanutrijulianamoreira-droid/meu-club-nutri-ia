@@ -31,7 +31,7 @@ export function PatientHomeDataProvider({
   staticPayload = false,
   readOnly = false,
 }: PatientHomeDataProviderProps) {
-  const localDate = useMemo(() => initialPayload?.today || getLocalDate(), [initialPayload?.today])
+  const [localDate, setLocalDate] = useState(() => initialPayload?.today || getLocalDate())
   const [payload, setPayload] = useState<any | null>(initialPayload)
   const [loading, setLoading] = useState(!initialPayload && !staticPayload)
   const [error, setError] = useState<string | null>(null)
@@ -39,10 +39,24 @@ export function PatientHomeDataProvider({
   useEffect(() => {
     if (staticPayload) {
       setPayload(initialPayload)
+      if (initialPayload?.today) setLocalDate(initialPayload.today)
       setLoading(false)
       setError(null)
     }
   }, [initialPayload, staticPayload])
+
+  useEffect(() => {
+    if (staticPayload) return
+
+    const syncDate = () => {
+      const nextDate = getLocalDate()
+      setLocalDate(current => current === nextDate ? current : nextDate)
+    }
+
+    syncDate()
+    const intervalId = window.setInterval(syncDate, 60_000)
+    return () => window.clearInterval(intervalId)
+  }, [staticPayload])
 
   const refresh = useCallback(async () => {
     if (staticPayload) return
