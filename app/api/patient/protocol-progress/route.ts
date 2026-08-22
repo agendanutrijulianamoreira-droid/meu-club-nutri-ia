@@ -29,9 +29,6 @@ function isAllowedLocalDate(value: unknown) {
     return Math.abs(candidate - current) <= 86400000
 }
 
-// Marca/desmarca um item do protocolo do dia e credita/estorna XP.
-// A data clínica vem do dispositivo da paciente e é validada contra a data
-// corrente de São Paulo para evitar deslocamento UTC perto da meia-noite.
 export async function POST(request: NextRequest) {
     const supabase = createSupabaseServerClient(cookies())
     const { data: { user } } = await supabase.auth.getUser()
@@ -56,14 +53,32 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'local_date inválida ou fora da janela permitida' }, { status: 400 })
     }
 
-    const { data: assignment } = await supabase
+    const { data: assignment, error: assignmentError } = await supabase
         .from('protocol_assignments')
-        .select('id, user_id')
+        .select('id, user_id, protocol_id')
         .eq('id', assignment_id)
         .single()
 
-    if (!assignment || assignment.user_id !== user.id) {
+    if (assignmentError || !assignment || assignment.user_id !== user.id) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const { data: item, error: itemError } = await supabase
+        .from('protocol_items')
+        .select('points, points_camera, points_gallery, protocol_day_id')
+        .eq('id', protocol_item_id)
+        .single()
+
+    if (itemError || !item) return NextResponse.json({ error: 'Item não encontrado' }, { status: 404 })
+
+    const { data: protocolDay, error: dayError } = await supabase
+        .from('protocol_days')
+        .select('protocol_id')
+        .eq('id', item.protocol_day_id)
+        .single()
+
+    if (dayError || !protocolDay || protocolDay.protocol_id !== assignment.protocol_id) {
+        return NextResponse.json({ error: 'Item não pertence ao protocolo atribuído' }, { status: 403 })
     }
 
     const { data: existing } = await supabase
@@ -78,13 +93,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (mark) {
-        const { data: item } = await supabase
-            .from('protocol_items')
-            .select('points, points_camera, points_gallery')
-            .eq('id', protocol_item_id)
-            .single()
-        if (!item) return NextResponse.json({ error: 'Item não encontrado' }, { status: 404 })
-
         const pointsByProof: Record<ProofType, number> = {
             simple: item.points ?? 10,
             gallery: item.points_gallery ?? item.points ?? 10,
