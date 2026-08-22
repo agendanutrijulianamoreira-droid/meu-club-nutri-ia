@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { cookies } from "next/headers"
 
 import { createSupabaseServerClient } from "@/lib/supabase-server"
+import { calcularAdesao } from "@/lib/utils/calcularAdesao"
 
 function parseDate(value: string) {
   const [year, month, day] = value.split("-").map(Number)
@@ -15,6 +16,14 @@ function dateString(date: Date) {
 function daysAgo(value: string, days: number) {
   const date = parseDate(value)
   date.setUTCDate(date.getUTCDate() - days)
+  return dateString(date)
+}
+
+function startOfWeekMonday(value: string) {
+  const date = parseDate(value)
+  const day = date.getUTCDay()
+  const diff = day === 0 ? 6 : day - 1
+  date.setUTCDate(date.getUTCDate() - diff)
   return dateString(date)
 }
 
@@ -33,6 +42,7 @@ export async function GET(request: NextRequest) {
     : new Date().toISOString().slice(0, 10)
   const historyStart = daysAgo(today, 13)
   const weekStart = daysAgo(today, 6)
+  const weeklyCheckinStart = startOfWeekMonday(today)
   const nowIso = new Date().toISOString()
 
   const [
@@ -43,6 +53,9 @@ export async function GET(request: NextRequest) {
     assignmentResult,
     phaseAssignmentResult,
     appointmentResult,
+    weeklyCheckinResult,
+    dietMetaResult,
+    dietEntriesResult,
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -93,7 +106,69 @@ export async function GET(request: NextRequest) {
       .gte("scheduled_at", nowIso)
       .order("scheduled_at", { ascending: true })
       .limit(1),
+    supabase
+      .from("weekly_checkin_responses")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("week_start", weeklyCheckinStart)
+      .maybeSingle(),
+    supabase
+      .from("metas_paciente")
+      .select("calorias_meta, proteina_meta_g, carboidrato_meta_g, lipideos_meta_g, fibra_meta_g")
+      .eq("paciente_id", user.id)
+      .lte("valida_de", today)
+      .or(`valida_ate.is.null,valida_ate.gte.${today}`)
+      .order("valida_de", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("diario_alimentar")
+      .select("calorias_calculadas, proteina_calculada, carboidrato_calculado, lipideos_calculado, fibra_calculada")
+      .eq("paciente_id", user.id)
+      .eq("data", today),
   ])
+
+  const profile = profileResult.data
+  const logs = logsResult.data || []
+  const checkins = checkinsResult.data || []
+  const todayLog = logs.find(row => row.log_date === today) || null
+
+  const dietMeta = dietMetaResult.data ?? {
+    calorias_meta: 1800,
+    proteina_meta_g: 100,
+    carboidrato_meta_g: 200,
+    lipideos_meta_g: 60,
+    fibra_meta_g: 25,
+  }
+  const dietSummary = calcularAdesao(dietEntriesResult.data || [], dietMeta)
+
+  let pendingQuestionnaires: Array<{ id: string; name: string }> = []
+  let nextReward: { name: string; cost: number; emoji: string } | null = null
+
+  if (profile?.tenant_id) {
+    const [activeQuestionnairesResult, answeredQuestionnairesResult, rewardsResult] = await Promise.all([
+      supabase
+        .from("questionnaires")
+        .select("id, name")
+        .eq("tenant_id", profile.tenant_id)
+        .eq("is_active", true),
+      supabase
+        .from("questionnaire_responses")
+        .select("questionnaire_id")
+        .eq("patient_id", user.id),
+      supabase
+        .from("reward_items")
+        .select("name, cost, emoji")
+        .gt("cost", profile.nutri_coins || 0)
+        .eq("is_active", true)
+        .order("cost", { ascending: true })
+        .limit(1),
+    ])
+
+    const answeredIds = new Set((answeredQuestionnairesResult.data || []).map(row => row.questionnaire_id))
+    pendingQuestionnaires = (activeQuestionnairesResult.data || []).filter(row => !answeredIds.has(row.id))
+    nextReward = rewardsResult.data?.[0] || null
+  }
 
   const assignment: any = assignmentResult.data
   let protocolData: any = null
@@ -174,13 +249,23 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({
+    userId: user.id,
     today,
     weekStart,
     historyStart,
-    profile: profileResult.data || null,
+    profile: profile || null,
     unreadCount: inboxResult.count || 0,
-    dailyLogs: logsResult.data || [],
-    checkins: checkinsResult.data || [],
+    dailyLogs: logs,
+    todayLog,
+    checkins,
+    dailyCheckinSubmitted: checkins.some(row => row.data === today),
+    weeklyCheckinSubmitted: !!weeklyCheckinResult.data,
+    pendingQuestionnaires,
+    dietToday: {
+      consumidas: dietSummary.calorias_consumidas,
+      meta: dietSummary.calorias_meta,
+    },
+    nextReward,
     protocol: protocolData,
     progressHistory,
     clinicalJourney,
