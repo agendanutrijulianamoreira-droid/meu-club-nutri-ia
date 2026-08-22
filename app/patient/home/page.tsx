@@ -1,12 +1,10 @@
 import { PatientHomeDataProvider } from "@/components/patient/PatientHomeDataProvider"
-import { PatientHomeV2 } from "@/components/patient/PatientHomeV2"
-import { PatientRescueMode } from "@/components/patient/PatientRescueMode"
+import { PatientHomeSurface } from "@/components/patient/PatientHomeSurface"
 
 export default function PatientHomePage() {
   return (
     <PatientHomeDataProvider>
-      <PatientRescueMode />
-      <PatientHomeV2 />
+      <PatientHomeSurface />
     </PatientHomeDataProvider>
   )
 }
