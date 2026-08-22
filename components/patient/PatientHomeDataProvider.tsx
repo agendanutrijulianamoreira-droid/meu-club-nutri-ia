@@ -31,7 +31,7 @@ export function PatientHomeDataProvider({
   staticPayload = false,
   readOnly = false,
 }: PatientHomeDataProviderProps) {
-  const [localDate, setLocalDate] = useState(() => initialPayload?.today || getLocalDate())
+  const [localDate, setLocalDate] = useState<string>(() => initialPayload?.today || getLocalDate())
   const [payload, setPayload] = useState<any | null>(initialPayload)
   const [loading, setLoading] = useState(!initialPayload && !staticPayload)
   const [error, setError] = useState<string | null>(null)
@@ -39,7 +39,7 @@ export function PatientHomeDataProvider({
   useEffect(() => {
     if (staticPayload) {
       setPayload(initialPayload)
-      if (initialPayload?.today) setLocalDate(initialPayload.today)
+      if (initialPayload?.today) setLocalDate(String(initialPayload.today))
       setLoading(false)
       setError(null)
     }
@@ -50,7 +50,7 @@ export function PatientHomeDataProvider({
 
     const syncDate = () => {
       const nextDate = getLocalDate()
-      setLocalDate(current => current === nextDate ? current : nextDate)
+      setLocalDate((current: string) => current === nextDate ? current : nextDate)
     }
 
     syncDate()
