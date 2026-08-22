@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { usePatientHomeData } from '@/components/patient/PatientHomeDataProvider'
 
+const EMPTY_ITEMS: any[] = []
+const EMPTY_PROGRESS: Record<string, boolean> = {}
+
 export interface PatientEngineData {
     loading: boolean
     activeProtocol: any
@@ -33,8 +36,8 @@ export function usePatientEngine(): PatientEngineData {
         startDate: protocolData.startDate,
     }) : null, [protocolData])
 
-    const baseItems = protocolData?.items || []
-    const baseProgress = protocolData?.progress || {}
+    const baseItems = protocolData?.items ?? EMPTY_ITEMS
+    const baseProgress = protocolData?.progress ?? EMPTY_PROGRESS
 
     const [progress, setProgress] = useState<Record<string, boolean>>({})
     const [stats, setStats] = useState({
