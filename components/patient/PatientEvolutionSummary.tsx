@@ -1,6 +1,6 @@
 "use client"
 
-import { Activity, CheckCircle2, Droplet, HeartPulse, Loader2, Minus, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
+import { CheckCircle2, ChevronRight, Droplet, HeartPulse, Loader2, Minus, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
 import Link from "next/link"
 import { useMemo } from "react"
 
@@ -124,7 +124,7 @@ export function PatientEvolutionSummary() {
 
   if (loading) {
     return (
-      <section className="mb-5 rounded-3xl bg-white border border-[#2B1A10]/10 p-5 shadow-sm flex items-center justify-center min-h-32">
+      <section className="mb-5 rounded-3xl bg-white border border-[#2B1A10]/10 p-4 shadow-sm flex items-center justify-center min-h-24">
         <Loader2 size={20} className="animate-spin text-[#C9A435]" />
       </section>
     )
@@ -134,79 +134,64 @@ export function PatientEvolutionSummary() {
 
   return (
     <section className="mb-5 text-[#2B1A10]">
-      <div className="mb-3">
-        <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#C9A435]">Últimos dias</p>
-        <h2 className="font-serif text-xl font-semibold mt-0.5">Sua evolução</h2>
+      <div className="flex items-end justify-between gap-3 mb-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#C9A435]">Sua semana</p>
+          <h2 className="font-serif text-xl font-semibold mt-0.5">Sua evolução</h2>
+        </div>
+        <Link href="/patient/progresso" className="text-[11px] font-bold text-[#2B1A10]/50 flex items-center gap-1 pb-0.5">
+          Ver detalhes <ChevronRight size={13} />
+        </Link>
       </div>
 
-      <div className="rounded-3xl bg-white border border-[#2B1A10]/10 p-5 shadow-sm">
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <div>
-            <p className="text-sm font-semibold">Consistência da semana</p>
-            <p className="text-xs text-[#2B1A10]/45 mt-0.5">
-              {data.activeDays} de {data.eligibleDays} {data.eligibleDays === 1 ? "dia elegível" : "dias elegíveis"} com algum registro
-            </p>
+      <div className="rounded-3xl bg-white border border-[#2B1A10]/10 p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">{data.activeDays} de {data.eligibleDays} {data.eligibleDays === 1 ? "dia ativo" : "dias ativos"}</p>
+            <p className="text-[11px] text-[#2B1A10]/45 mt-0.5">Consistência da semana</p>
           </div>
-          <div className="h-12 w-12 rounded-2xl bg-[#C9A435]/10 flex items-center justify-center text-[#9B7A16] font-bold text-sm shrink-0">
-            {consistency}%
-          </div>
+          <div className="rounded-xl bg-[#C9A435]/10 px-2.5 py-1.5 text-[#9B7A16] font-bold text-sm shrink-0">{consistency}%</div>
         </div>
 
-        <div className="h-2 rounded-full bg-[#2B1A10]/5 overflow-hidden mb-5">
+        <div className="h-1.5 rounded-full bg-[#2B1A10]/5 overflow-hidden mt-3 mb-4">
           <div className="h-full rounded-full bg-[#C9A435]" style={{ width: `${consistency}%` }} />
         </div>
 
-        <div className="grid grid-cols-3 gap-2 mb-5">
-          <div className="rounded-2xl bg-[#F4EFE4]/70 p-3 text-center">
-            <HeartPulse size={17} className="mx-auto text-[#C9A435] mb-1" />
-            <p className="text-lg font-bold">{data.checkinsThisWeek}</p>
-            <p className="text-[10px] text-[#2B1A10]/45">check-ins</p>
+        <div className="grid grid-cols-3 divide-x divide-[#2B1A10]/5 mb-4">
+          <div className="px-2 text-center">
+            <HeartPulse size={15} className="mx-auto text-[#C9A435] mb-1" />
+            <p className="text-base font-bold leading-none">{data.checkinsThisWeek}</p>
+            <p className="text-[9px] text-[#2B1A10]/45 mt-1">check-ins</p>
           </div>
-          <div className="rounded-2xl bg-[#F4EFE4]/70 p-3 text-center">
-            <Droplet size={17} className="mx-auto text-[#C9A435] mb-1" />
-            <p className="text-lg font-bold">{data.hydrationDays}/{data.eligibleDays}</p>
-            <p className="text-[10px] text-[#2B1A10]/45">meta de água</p>
+          <div className="px-2 text-center">
+            <Droplet size={15} className="mx-auto text-[#C9A435] mb-1" />
+            <p className="text-base font-bold leading-none">{data.hydrationDays}/{data.eligibleDays}</p>
+            <p className="text-[9px] text-[#2B1A10]/45 mt-1">água</p>
           </div>
-          <div className="rounded-2xl bg-[#F4EFE4]/70 p-3 text-center">
-            <CheckCircle2 size={17} className="mx-auto text-[#C9A435] mb-1" />
-            <p className="text-lg font-bold">{data.missionsCompleted}</p>
-            <p className="text-[10px] text-[#2B1A10]/45">missões feitas</p>
+          <div className="px-2 text-center">
+            <CheckCircle2 size={15} className="mx-auto text-[#C9A435] mb-1" />
+            <p className="text-base font-bold leading-none">{data.missionsCompleted}</p>
+            <p className="text-[9px] text-[#2B1A10]/45 mt-1">missões</p>
           </div>
         </div>
 
-        <div className="border-t border-[#2B1A10]/5 pt-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Activity size={15} className="text-[#C9A435]" />
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#2B1A10]/55">Sinais percebidos</p>
+        {data.trends.length ? (
+          <div className="flex flex-wrap gap-1.5 pt-3 border-t border-[#2B1A10]/5">
+            {data.trends.map(trend => {
+              const Icon = trend.direction === "better" ? TrendingUp : trend.direction === "worse" ? TrendingDown : Minus
+              return (
+                <span key={trend.label} className={`rounded-full px-2.5 py-1.5 text-[10px] font-bold flex items-center gap-1 ${trend.direction === "better" ? "bg-emerald-50 text-emerald-700" : trend.direction === "worse" ? "bg-amber-50 text-amber-700" : "bg-[#F4EFE4] text-[#2B1A10]/50"}`}>
+                  <Icon size={11} /> {trend.label} {trend.text}
+                </span>
+              )
+            })}
           </div>
-
-          {data.trends.length ? (
-            <div className="space-y-2.5">
-              {data.trends.map(trend => {
-                const Icon = trend.direction === "better" ? TrendingUp : trend.direction === "worse" ? TrendingDown : Minus
-                return (
-                  <div key={trend.label} className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-medium">{trend.label}</span>
-                    <span className={`text-xs font-bold flex items-center gap-1 ${trend.direction === "better" ? "text-emerald-700" : trend.direction === "worse" ? "text-amber-700" : "text-[#2B1A10]/45"}`}>
-                      <Icon size={13} /> {trend.text}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="rounded-2xl bg-[#F4EFE4]/60 px-4 py-3 flex items-start gap-2.5">
-              <Sparkles size={15} className="text-[#C9A435] mt-0.5 shrink-0" />
-              <p className="text-xs text-[#2B1A10]/55 leading-relaxed">
-                Continue fazendo seus check-ins. Quando houver dados suficientes de duas semanas, mostramos tendências reais.
-              </p>
-            </div>
-          )}
-        </div>
-
-        <Link href="/patient/progresso" className="mt-4 w-full rounded-2xl border border-[#2B1A10]/10 py-3 text-xs font-bold flex items-center justify-center hover:bg-[#F4EFE4]/50 transition">
-          Ver evolução completa
-        </Link>
+        ) : (
+          <div className="pt-3 border-t border-[#2B1A10]/5 flex items-start gap-2">
+            <Sparkles size={13} className="text-[#C9A435] mt-0.5 shrink-0" />
+            <p className="text-[11px] text-[#2B1A10]/50 leading-relaxed">Continue registrando. As tendências aparecem quando houver dados suficientes.</p>
+          </div>
+        )}
       </div>
     </section>
   )
