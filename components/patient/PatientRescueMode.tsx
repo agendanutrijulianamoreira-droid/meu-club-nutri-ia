@@ -2,10 +2,15 @@
 
 import { Droplet, HeartPulse, RotateCcw, Sparkles } from "lucide-react"
 import Link from "next/link"
-import { useMemo } from "react"
+import { ReactNode, useMemo } from "react"
 import { usePatientHomeData } from "@/components/patient/PatientHomeDataProvider"
 
 type RescueState = { active: boolean; inactiveFullDays: number }
+
+type PatientRescueModeProps = {
+  embedded?: boolean
+  readOnly?: boolean
+}
 
 function localDate(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
@@ -25,7 +30,12 @@ function localDateFromIso(value: string) {
   return localDate(new Date(value))
 }
 
-export function PatientRescueMode() {
+function RescueAction({ href, readOnly, children, className }: { href: string; readOnly: boolean; children: ReactNode; className: string }) {
+  if (readOnly) return <div className={className}>{children}</div>
+  return <Link href={href} className={className}>{children}</Link>
+}
+
+export function PatientRescueMode({ embedded = false, readOnly = false }: PatientRescueModeProps) {
   const { payload, loading, localDate: today } = usePatientHomeData()
 
   const state = useMemo<RescueState>(() => {
@@ -59,7 +69,7 @@ export function PatientRescueMode() {
   if (loading || !state.active) return null
 
   return (
-    <div className="fixed inset-0 z-[90] overflow-y-auto bg-[#F4EFE4] text-[#2B1A10]">
+    <div className={embedded ? "min-h-[760px] bg-[#F4EFE4] text-[#2B1A10] overflow-y-auto" : "fixed inset-0 z-[90] overflow-y-auto bg-[#F4EFE4] text-[#2B1A10]"}>
       <div className="min-h-full max-w-[460px] mx-auto px-5 py-10 flex flex-col justify-center">
         <div className="h-14 w-14 rounded-3xl bg-[#C9A435]/15 border border-[#C9A435]/20 flex items-center justify-center mb-6"><RotateCcw size={24} className="text-[#9B7A16]" /></div>
         <p className="text-[10px] uppercase tracking-[0.22em] font-bold text-[#C9A435]">Modo Resgate</p>
@@ -67,12 +77,12 @@ export function PatientRescueMode() {
         <p className="text-sm leading-relaxed text-[#2B1A10]/60 mt-3">Há {state.inactiveFullDays} dias completos sem registros. Você não precisa compensar nada nem recuperar tarefas atrasadas. Escolha apenas um passo simples para voltar ao ritmo.</p>
 
         <div className="mt-8 space-y-3">
-          <Link href="/patient/progresso/checkin" className="block rounded-3xl bg-[#2B1A10] text-[#F4EFE4] p-5 shadow-lg shadow-[#2B1A10]/10">
+          <RescueAction href="/patient/progresso/checkin" readOnly={readOnly} className="block rounded-3xl bg-[#2B1A10] text-[#F4EFE4] p-5 shadow-lg shadow-[#2B1A10]/10">
             <div className="flex items-center gap-4"><div className="h-11 w-11 rounded-2xl bg-[#C9A435] flex items-center justify-center shrink-0"><HeartPulse size={20} /></div><div><p className="text-[10px] uppercase tracking-[0.16em] font-bold text-[#C9A435]">Passo 1</p><p className="font-semibold mt-0.5">Me contar como estou hoje</p><p className="text-xs text-[#F4EFE4]/55 mt-1">Um check-in curto para retomar o acompanhamento.</p></div></div>
-          </Link>
-          <Link href="/patient/hidratacao" className="block rounded-3xl bg-white border border-[#2B1A10]/10 p-5 shadow-sm">
+          </RescueAction>
+          <RescueAction href="/patient/hidratacao" readOnly={readOnly} className="block rounded-3xl bg-white border border-[#2B1A10]/10 p-5 shadow-sm">
             <div className="flex items-center gap-4"><div className="h-11 w-11 rounded-2xl bg-[#C9A435]/10 flex items-center justify-center shrink-0"><Droplet size={20} className="text-[#C9A435]" /></div><div><p className="text-[10px] uppercase tracking-[0.16em] font-bold text-[#C9A435]">Passo 2</p><p className="font-semibold mt-0.5">Registrar água agora</p><p className="text-xs text-[#2B1A10]/45 mt-1">Comece pelo básico. O restante volta depois.</p></div></div>
-          </Link>
+          </RescueAction>
         </div>
 
         <div className="mt-7 rounded-2xl bg-white/60 border border-[#2B1A10]/5 px-4 py-3 flex items-start gap-2.5"><Sparkles size={15} className="text-[#C9A435] mt-0.5 shrink-0" /><p className="text-xs leading-relaxed text-[#2B1A10]/50">Assim que você registrar uma ação hoje, sua Home normal volta automaticamente com a jornada a partir de onde está.</p></div>
