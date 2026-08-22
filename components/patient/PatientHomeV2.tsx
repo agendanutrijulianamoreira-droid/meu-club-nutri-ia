@@ -26,6 +26,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { PatientEvolutionSummary } from "@/components/patient/PatientEvolutionSummary"
+import { usePatientHomeData } from "@/components/patient/PatientHomeDataProvider"
 import { ReminderSettings } from "@/components/patient/ReminderSettings"
 import { ProgressRing } from "@/components/patient/ProgressRing"
 import { DAILY_LOG_XP } from "@/lib/gamification"
@@ -60,40 +61,12 @@ type PriorityAction = {
   href?: string
 }
 
-function localDateString() {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
-}
-
-function weekFromDate(startDate: string) {
-  const [year, month, day] = startDate.split("-").map(Number)
-  if (!year || !month || !day) return 1
-
-  const start = new Date(year, month - 1, day)
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const elapsedDays = Math.max(0, Math.floor((today.getTime() - start.getTime()) / 86400000))
-  return Math.floor(elapsedDays / 7) + 1
-}
-
 export function PatientHomeV2() {
   const router = useRouter()
+  const { payload, localDate, refresh } = usePatientHomeData()
   const { loading, activeProtocol, currentDayItems, progress, stats, toggleCheckin } = usePatientEngine()
 
-  const [userId, setUserId] = useState<string | null>(null)
-  const [firstName, setFirstName] = useState("Rainha")
-  const [unreadCount, setUnreadCount] = useState(0)
   const [showReminders, setShowReminders] = useState(false)
-  const [dailyCheckinPending, setDailyCheckinPending] = useState(false)
-  const [weeklyCheckinPending, setWeeklyCheckinPending] = useState(false)
-  const [pendingQuestionnaires, setPendingQuestionnaires] = useState<Questionnaire[]>([])
-  const [nextAppointment, setNextAppointment] = useState<Appointment | null>(null)
-  const [currentPlan, setCurrentPlan] = useState("community")
-  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null)
-  const [nutriCoins, setNutriCoins] = useState(0)
-  const [nextReward, setNextReward] = useState<{ name: string; cost: number; emoji: string } | null>(null)
-  const [dietaHoje, setDietaHoje] = useState<{ consumidas: number; meta: number } | null>(null)
-  const [clinicalJourney, setClinicalJourney] = useState<ClinicalJourney | null>(null)
   const [quickTaps, setQuickTaps] = useState<Record<QuickTapKey, boolean>>({ water: false, meal: false, workout: false })
   const [dailyVictory, setDailyVictory] = useState("")
   const [savedVictory, setSavedVictory] = useState("")
@@ -104,155 +77,43 @@ export function PatientHomeV2() {
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
 
+  const userId = payload?.userId || null
+  const profile = payload?.profile || null
+  const firstName = profile?.name ? profile.name.split(" ")[0] : "Rainha"
+  const unreadCount = payload?.unreadCount || 0
+  const dailyCheckinPending = payload ? !payload.dailyCheckinSubmitted : false
+  const weeklyCheckinPending = payload ? !payload.weeklyCheckinSubmitted : false
+  const pendingQuestionnaires = (payload?.pendingQuestionnaires || []) as Questionnaire[]
+  const nextAppointment = (payload?.nextAppointment || null) as Appointment | null
+  const currentPlan = profile?.current_plan || "community"
+  const nutriCoins = profile?.nutri_coins || 0
+  const nextReward = payload?.nextReward as { name: string; cost: number; emoji: string } | null
+  const dietaHoje = payload?.dietToday as { consumidas: number; meta: number } | null
+  const clinicalJourney = (payload?.clinicalJourney || null) as ClinicalJourney | null
+
+  const trialDaysLeft = useMemo(() => {
+    if (currentPlan !== "community" || !profile) return null
+    const ref = profile.plan_expires_at
+      ? new Date(profile.plan_expires_at)
+      : profile.plan_started_at
+        ? new Date(new Date(profile.plan_started_at).getTime() + 15 * 86400000)
+        : profile.created_at
+          ? new Date(new Date(profile.created_at).getTime() + 15 * 86400000)
+          : null
+    return ref ? Math.max(0, Math.ceil((ref.getTime() - Date.now()) / 86400000)) : null
+  }, [currentPlan, profile])
+
   useEffect(() => {
-    const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-
-      const uid = session.user.id
-      setUserId(uid)
-      const today = localDateString()
-      const nowIso = new Date().toISOString()
-
-      const [
-        profileResult,
-        inboxResult,
-        dailyResult,
-        weeklyResult,
-        dietResult,
-        appointmentResult,
-        dailyLogResult,
-        phaseAssignmentResult,
-      ] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("name, tenant_id, current_plan, created_at, plan_started_at, plan_expires_at, nutri_coins")
-          .eq("user_id", uid)
-          .single(),
-        supabase
-          .from("inbox_messages")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", uid)
-          .eq("status", "unread"),
-        fetch(`/api/patient/checkin-diario?data=${today}`).then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) })).catch(() => ({ ok: false, data: {} })),
-        fetch("/api/patient/weekly-checkin").then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) })).catch(() => ({ ok: false, data: {} })),
-        fetch("/api/patient/diario/meta").then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) })).catch(() => ({ ok: false, data: {} })),
-        supabase
-          .from("appointments")
-          .select("scheduled_at, is_virtual, meeting_link, appointment_type")
-          .eq("patient_id", uid)
-          .in("status", ["scheduled", "confirmed"])
-          .gte("scheduled_at", nowIso)
-          .order("scheduled_at", { ascending: true })
-          .limit(1),
-        supabase
-          .from("daily_logs")
-          .select("water_check, meal_plan_check, workout_check, daily_victory")
-          .eq("user_id", uid)
-          .eq("log_date", today)
-          .maybeSingle(),
-        supabase
-          .from("fase_paciente")
-          .select("method_phase_id, inicio")
-          .eq("paciente_id", uid)
-          .is("fim", null)
-          .not("method_phase_id", "is", null)
-          .order("inicio", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-      ])
-
-      const profile = profileResult.data
-      if (profile?.name) setFirstName(profile.name.split(" ")[0])
-      if (profile?.current_plan) setCurrentPlan(profile.current_plan)
-      setNutriCoins(profile?.nutri_coins || 0)
-      setUnreadCount(inboxResult.count || 0)
-      setDailyCheckinPending(dailyResult.ok ? !dailyResult.data?.registro : false)
-      setWeeklyCheckinPending(weeklyResult.ok ? !weeklyResult.data?.submitted : false)
-
-      if (dietResult.ok && dietResult.data?.resumo) {
-        setDietaHoje({
-          consumidas: dietResult.data.resumo.calorias_consumidas,
-          meta: dietResult.data.resumo.calorias_meta,
-        })
-      }
-
-      if (appointmentResult.data?.[0]) setNextAppointment(appointmentResult.data[0] as Appointment)
-
-      if (dailyLogResult.data) {
-        setQuickTaps({
-          water: !!dailyLogResult.data.water_check,
-          meal: !!dailyLogResult.data.meal_plan_check,
-          workout: !!dailyLogResult.data.workout_check,
-        })
-        if (dailyLogResult.data.daily_victory) {
-          setDailyVictory(dailyLogResult.data.daily_victory)
-          setSavedVictory(dailyLogResult.data.daily_victory)
-        }
-      }
-
-      const phaseAssignment = phaseAssignmentResult.data
-      if (phaseAssignment?.method_phase_id && phaseAssignment.inicio) {
-        const { data: phase } = await supabase
-          .from("method_phases")
-          .select("name, description, sort_order, method_id")
-          .eq("id", phaseAssignment.method_phase_id)
-          .maybeSingle()
-
-        if (phase) {
-          let methodName: string | null = null
-          if (phase.method_id) {
-            const { data: method } = await supabase
-              .from("methods")
-              .select("name")
-              .eq("id", phase.method_id)
-              .maybeSingle()
-            methodName = method?.name || null
-          }
-
-          setClinicalJourney({
-            phaseName: phase.name,
-            phaseDescription: phase.description || null,
-            phaseNumber: (phase.sort_order ?? 0) + 1,
-            methodName,
-            startedAt: phaseAssignment.inicio,
-            weekNumber: weekFromDate(phaseAssignment.inicio),
-          })
-        }
-      }
-
-      if (profile?.current_plan === "community") {
-        const ref = profile.plan_expires_at
-          ? new Date(profile.plan_expires_at)
-          : profile.plan_started_at
-            ? new Date(new Date(profile.plan_started_at).getTime() + 15 * 86400000)
-            : profile.created_at
-              ? new Date(new Date(profile.created_at).getTime() + 15 * 86400000)
-              : null
-        if (ref) setTrialDaysLeft(Math.max(0, Math.ceil((ref.getTime() - Date.now()) / 86400000)))
-      }
-
-      if (profile?.tenant_id) {
-        const [activeQsResult, answeredResult] = await Promise.all([
-          supabase.from("questionnaires").select("id, name").eq("tenant_id", profile.tenant_id).eq("is_active", true),
-          supabase.from("questionnaire_responses").select("questionnaire_id").eq("patient_id", uid),
-        ])
-        const answeredIds = new Set((answeredResult.data || []).map((r: any) => r.questionnaire_id))
-        setPendingQuestionnaires((activeQsResult.data || []).filter((q: Questionnaire) => !answeredIds.has(q.id)))
-      }
-
-      const { data: rewards } = await supabase
-        .from("reward_items")
-        .select("name, cost, emoji")
-        .gt("cost", profile?.nutri_coins || 0)
-        .eq("is_active", true)
-        .order("cost", { ascending: true })
-        .limit(1)
-      if (rewards?.[0]) setNextReward(rewards[0])
-    }
-
-    init()
-  }, [])
+    const todayLog = payload?.todayLog
+    setQuickTaps({
+      water: !!todayLog?.water_check,
+      meal: !!todayLog?.meal_plan_check,
+      workout: !!todayLog?.workout_check,
+    })
+    const victory = todayLog?.daily_victory || ""
+    setDailyVictory(victory)
+    setSavedVictory(victory)
+  }, [payload?.todayLog])
 
   const completedCount = currentDayItems.filter(item => progress[item.id]).length
   const firstIncompleteItem = currentDayItems.find(item => !progress[item.id])
@@ -326,11 +187,15 @@ export function PatientHomeV2() {
     const colMap = { meal: "meal_plan_check", workout: "workout_check" } as const
     const { error } = await supabase.from("daily_logs").upsert({
       user_id: userId,
-      log_date: localDateString(),
+      log_date: localDate,
       [colMap[key]]: newValue,
     }, { onConflict: "user_id,log_date" })
 
-    if (error) setQuickTaps(prev => ({ ...prev, [key]: !newValue }))
+    if (error) {
+      setQuickTaps(prev => ({ ...prev, [key]: !newValue }))
+      return
+    }
+    await refresh()
   }
 
   const saveVictory = async () => {
@@ -339,10 +204,13 @@ export function PatientHomeV2() {
     setSavingVictory(true)
     const { error } = await supabase.from("daily_logs").upsert({
       user_id: userId,
-      log_date: localDateString(),
+      log_date: localDate,
       daily_victory: value,
     }, { onConflict: "user_id,log_date" })
-    if (!error) setSavedVictory(value)
+    if (!error) {
+      setSavedVictory(value)
+      await refresh()
+    }
     setSavingVictory(false)
   }
 
@@ -356,14 +224,12 @@ export function PatientHomeV2() {
     const file = event.target.files?.[0]
     const itemId = pendingItemRef.current
     event.target.value = ""
-    if (!file || !itemId) return
+    if (!file || !itemId || !userId) return
 
     setUploadingItemId(itemId)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
       const ext = file.name.split(".").pop() || "jpg"
-      const path = `${user.id}/${itemId}/${Date.now()}.${ext}`
+      const path = `${userId}/${itemId}/${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage.from("protocol-photos").upload(path, file, { upsert: true })
       let photoUrl: string | null = null
       if (!uploadError) photoUrl = supabase.storage.from("protocol-photos").getPublicUrl(path).data.publicUrl
