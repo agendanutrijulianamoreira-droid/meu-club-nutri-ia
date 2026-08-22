@@ -7,7 +7,15 @@ type PatientHomeContextValue = {
   loading: boolean
   error: string | null
   localDate: string
+  readOnly: boolean
   refresh: () => Promise<void>
+}
+
+type PatientHomeDataProviderProps = {
+  children: ReactNode
+  initialPayload?: any | null
+  staticPayload?: boolean
+  readOnly?: boolean
 }
 
 const PatientHomeDataContext = createContext<PatientHomeContextValue | null>(null)
@@ -17,13 +25,28 @@ function getLocalDate() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
 }
 
-export function PatientHomeDataProvider({ children }: { children: ReactNode }) {
-  const localDate = useMemo(() => getLocalDate(), [])
-  const [payload, setPayload] = useState<any | null>(null)
-  const [loading, setLoading] = useState(true)
+export function PatientHomeDataProvider({
+  children,
+  initialPayload = null,
+  staticPayload = false,
+  readOnly = false,
+}: PatientHomeDataProviderProps) {
+  const localDate = useMemo(() => initialPayload?.today || getLocalDate(), [initialPayload?.today])
+  const [payload, setPayload] = useState<any | null>(initialPayload)
+  const [loading, setLoading] = useState(!initialPayload && !staticPayload)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (staticPayload) {
+      setPayload(initialPayload)
+      setLoading(false)
+      setError(null)
+    }
+  }, [initialPayload, staticPayload])
+
   const refresh = useCallback(async () => {
+    if (staticPayload) return
+
     try {
       setError(null)
       const response = await fetch(`/api/patient/home?date=${localDate}`, { cache: "no-store" })
@@ -35,13 +58,16 @@ export function PatientHomeDataProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [localDate])
+  }, [localDate, staticPayload])
 
   useEffect(() => {
-    refresh()
-  }, [refresh])
+    if (!staticPayload) refresh()
+  }, [refresh, staticPayload])
 
-  const value = useMemo(() => ({ payload, loading, error, localDate, refresh }), [payload, loading, error, localDate, refresh])
+  const value = useMemo(
+    () => ({ payload, loading, error, localDate, readOnly, refresh }),
+    [payload, loading, error, localDate, readOnly, refresh],
+  )
 
   return <PatientHomeDataContext.Provider value={value}>{children}</PatientHomeDataContext.Provider>
 }
