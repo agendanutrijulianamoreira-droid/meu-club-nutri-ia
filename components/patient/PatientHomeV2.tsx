@@ -250,11 +250,6 @@ export function PatientHomeV2() {
 
   const PriorityIcon = priorityIcon
   const greeting = new Date().getHours() < 12 ? "Bom dia" : new Date().getHours() < 18 ? "Boa tarde" : "Boa noite"
-  const headerJourneyLabel = clinicalJourney
-    ? `Fase ${clinicalJourney.phaseNumber} · ${clinicalJourney.phaseName} · Semana ${clinicalJourney.weekNumber}`
-    : activeProtocol
-      ? `Dia ${stats.currentDay} de ${stats.totalDays} da sua jornada`
-      : "Seu acompanhamento, um passo de cada vez"
 
   return (
     <>
@@ -267,11 +262,10 @@ export function PatientHomeV2() {
 
       <main className="min-h-screen bg-background text-[#2B1A10]">
         <div className="max-w-[460px] mx-auto px-4 pt-6 pb-28">
-          <header className="flex items-start justify-between gap-4 mb-6">
+          <header className="flex items-start justify-between gap-4 mb-4">
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C9A435] mb-1">{greeting}</p>
               <h1 className="text-3xl font-serif font-semibold leading-tight">{firstName}</h1>
-              <p className="text-sm text-[#2B1A10]/50 mt-1 line-clamp-2">{headerJourneyLabel}</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button onClick={() => setShowReminders(true)} className="h-10 w-10 rounded-2xl bg-white border border-[#2B1A10]/10 flex items-center justify-center shadow-sm" aria-label="Lembretes">
@@ -285,48 +279,42 @@ export function PatientHomeV2() {
           </header>
 
           {(clinicalJourney || activeProtocol) && (
-            <section className="mb-4 rounded-3xl bg-white border border-[#2B1A10]/10 p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-[10px] uppercase tracking-[0.18em] font-bold text-[#C9A435]">Minha jornada</p>
-                    {clinicalJourney && (
-                      <span className="rounded-full bg-[#C9A435]/10 border border-[#C9A435]/20 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[#9B7A16]">
-                        Semana {clinicalJourney.weekNumber}
-                      </span>
-                    )}
-                  </div>
-
-                  {clinicalJourney ? (
-                    <>
-                      {clinicalJourney.methodName && <p className="text-[11px] text-[#2B1A10]/45 mt-2">{clinicalJourney.methodName}</p>}
-                      <h2 className="font-serif text-xl font-semibold mt-0.5">Fase {clinicalJourney.phaseNumber} · {clinicalJourney.phaseName}</h2>
-                      {clinicalJourney.phaseDescription && (
-                        <p className="text-xs text-[#2B1A10]/55 mt-2 leading-relaxed">{clinicalJourney.phaseDescription}</p>
-                      )}
-                    </>
-                  ) : (
-                    <h2 className="font-serif text-xl font-semibold truncate mt-1">{activeProtocol.title}</h2>
+            <section className="mb-4 rounded-3xl bg-white border border-[#2B1A10]/10 p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] uppercase tracking-[0.18em] font-bold text-[#C9A435]">Minha jornada</p>
+                <div className="flex items-center gap-2">
+                  {clinicalJourney && (
+                    <span className="rounded-full bg-[#C9A435]/10 border border-[#C9A435]/20 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[#9B7A16]">
+                      Semana {clinicalJourney.weekNumber}
+                    </span>
+                  )}
+                  {activeProtocol && !clinicalJourney && (
+                    <span className="text-[10px] font-bold text-[#C9A435]">Dia {stats.currentDay}/{stats.totalDays}</span>
                   )}
                 </div>
-
-                {activeProtocol && (
-                  <ProgressRing value={stats.completionRate} max={100} size={62} strokeWidth={5} color="#C9A435">
-                    <span className="text-[11px] font-bold">{stats.completionRate}%</span>
-                  </ProgressRing>
-                )}
               </div>
 
+              {clinicalJourney ? (
+                <div className="mt-2">
+                  {clinicalJourney.methodName && <p className="text-[10px] text-[#2B1A10]/40">{clinicalJourney.methodName}</p>}
+                  <h2 className="font-serif text-lg font-semibold mt-0.5">Fase {clinicalJourney.phaseNumber} · {clinicalJourney.phaseName}</h2>
+                  {clinicalJourney.phaseDescription && (
+                    <p className="text-xs text-[#2B1A10]/50 mt-1.5 leading-relaxed line-clamp-2">{clinicalJourney.phaseDescription}</p>
+                  )}
+                </div>
+              ) : (
+                <h2 className="font-serif text-lg font-semibold truncate mt-2">{activeProtocol.title}</h2>
+              )}
+
               {activeProtocol && (
-                <div className="mt-4 pt-4 border-t border-[#2B1A10]/5">
+                <div className="mt-3 pt-3 border-t border-[#2B1A10]/5">
                   <div className="flex items-center justify-between gap-3 mb-2">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-[#2B1A10]/40">Hoje</p>
-                      <p className="text-xs font-semibold mt-0.5">{completedCount} de {currentDayItems.length} ações concluídas</p>
-                    </div>
-                    <span className="text-[10px] font-bold text-[#C9A435]">Dia {stats.currentDay}/{stats.totalDays}</span>
+                    <p className="text-xs font-semibold">{completedCount} de {currentDayItems.length} ações concluídas</p>
+                    <span className="text-[10px] font-bold text-[#C9A435]">
+                      {clinicalJourney ? `Dia ${stats.currentDay}/${stats.totalDays} · ` : ""}{stats.completionRate}%
+                    </span>
                   </div>
-                  <div className="h-2 bg-[#2B1A10]/5 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-[#2B1A10]/5 rounded-full overflow-hidden">
                     <motion.div className="h-full bg-[#C9A435] rounded-full" initial={{ width: 0 }} animate={{ width: `${stats.completionRate}%` }} />
                   </div>
                 </div>
