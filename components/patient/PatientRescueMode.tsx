@@ -60,8 +60,8 @@ export function PatientRescueMode({
       if (checkin?.data) activityDates.add(checkin.data)
     }
     for (const row of payload.progressHistory || []) {
-      if (row.completed_at) activityDates.add(localDateFromIso(row.completed_at))
-      else if (row.checkin_date) activityDates.add(row.checkin_date)
+      if (row.checkin_date) activityDates.add(row.checkin_date)
+      else if (row.completed_at) activityDates.add(localDateFromIso(row.completed_at))
     }
 
     if (activityDates.has(today)) return { active: false, inactiveFullDays: 0 }
