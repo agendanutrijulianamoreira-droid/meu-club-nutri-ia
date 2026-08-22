@@ -95,7 +95,8 @@ export function PatientEvolutionSummary() {
       payload.profile?.created_at?.slice?.(0, 10),
     ].filter((value): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value))
 
-    const eligibleStart = candidateStarts.sort().at(-1) || payload.weekStart
+    candidateStarts.sort()
+    const eligibleStart = candidateStarts[candidateStarts.length - 1] || payload.weekStart
     const eligibleDays = Math.min(7, daysInclusive(payload.today, eligibleStart))
 
     const trends = [
