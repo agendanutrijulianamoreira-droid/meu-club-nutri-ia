@@ -2,7 +2,8 @@
 
 import { Activity, CheckCircle2, Droplet, HeartPulse, Loader2, Minus, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo } from "react"
+import { usePatientHomeData } from "@/components/patient/PatientHomeDataProvider"
 
 type CheckinRow = {
   data: string
@@ -15,11 +16,6 @@ type CheckinRow = {
 
 type Trend = { label: string; direction: "better" | "stable" | "worse"; text: string }
 type EvolutionData = { checkinsThisWeek: number; hydrationDays: number; activeDays: number; missionsCompleted: number; trends: Trend[] }
-
-function localDate() {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
-}
 
 function average(values: Array<number | null | undefined>) {
   const valid = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value))
@@ -40,49 +36,40 @@ function buildTrend(label: string, currentValues: Array<number | null | undefine
 }
 
 export function PatientEvolutionSummary() {
-  const [loading, setLoading] = useState(true)
-  const [data, setData] = useState<EvolutionData | null>(null)
+  const { payload, loading } = usePatientHomeData()
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const response = await fetch(`/api/patient/home?date=${localDate()}`, { cache: "no-store" })
-        if (!response.ok) return
-        const payload = await response.json()
-        const checkins = (payload.checkins || []) as CheckinRow[]
-        const currentWeek = checkins.filter(row => row.data >= payload.weekStart)
-        const previousWeek = checkins.filter(row => row.data >= payload.historyStart && row.data < payload.weekStart)
-        const logs = (payload.dailyLogs || []).filter((log: any) => log.log_date >= payload.weekStart)
-        const progressHistory = payload.progressHistory || []
+  const data = useMemo<EvolutionData | null>(() => {
+    if (!payload) return null
 
-        const activeDates = new Set<string>()
-        logs.forEach((log: any) => {
-          if (log.water_check || (log.water_ml || 0) > 0 || log.meal_plan_check || log.workout_check || log.daily_victory) activeDates.add(log.log_date)
-        })
-        currentWeek.forEach(row => activeDates.add(row.data))
-        progressHistory.filter((row: any) => row.checkin_date >= payload.weekStart).forEach((row: any) => activeDates.add(row.checkin_date))
+    const checkins = (payload.checkins || []) as CheckinRow[]
+    const currentWeek = checkins.filter(row => row.data >= payload.weekStart)
+    const previousWeek = checkins.filter(row => row.data >= payload.historyStart && row.data < payload.weekStart)
+    const logs = (payload.dailyLogs || []).filter((log: any) => log.log_date >= payload.weekStart)
+    const progressHistory = payload.progressHistory || []
 
-        const trends = [
-          buildTrend("Energia", currentWeek.map(r => r.nivel_energia), previousWeek.map(r => r.nivel_energia), false),
-          buildTrend("Inchaço", currentWeek.map(r => r.nivel_inchaco), previousWeek.map(r => r.nivel_inchaco), true),
-          buildTrend("Sono", currentWeek.map(r => r.qualidade_sono), previousWeek.map(r => r.qualidade_sono), false),
-          buildTrend("Ansiedade", currentWeek.map(r => r.nivel_ansiedade), previousWeek.map(r => r.nivel_ansiedade), true),
-          buildTrend("Compulsão", currentWeek.map(r => r.nivel_compulsao), previousWeek.map(r => r.nivel_compulsao), true),
-        ].filter((trend): trend is Trend => !!trend)
+    const activeDates = new Set<string>()
+    logs.forEach((log: any) => {
+      if (log.water_check || (log.water_ml || 0) > 0 || log.meal_plan_check || log.workout_check || log.daily_victory) activeDates.add(log.log_date)
+    })
+    currentWeek.forEach(row => activeDates.add(row.data))
+    progressHistory.filter((row: any) => row.checkin_date >= payload.weekStart).forEach((row: any) => activeDates.add(row.checkin_date))
 
-        setData({
-          checkinsThisWeek: currentWeek.length,
-          hydrationDays: logs.filter((log: any) => !!log.water_check).length,
-          activeDays: Math.min(7, activeDates.size),
-          missionsCompleted: progressHistory.filter((row: any) => row.checkin_date >= payload.weekStart).length,
-          trends: trends.slice(0, 3),
-        })
-      } finally {
-        setLoading(false)
-      }
+    const trends = [
+      buildTrend("Energia", currentWeek.map(r => r.nivel_energia), previousWeek.map(r => r.nivel_energia), false),
+      buildTrend("Inchaço", currentWeek.map(r => r.nivel_inchaco), previousWeek.map(r => r.nivel_inchaco), true),
+      buildTrend("Sono", currentWeek.map(r => r.qualidade_sono), previousWeek.map(r => r.qualidade_sono), false),
+      buildTrend("Ansiedade", currentWeek.map(r => r.nivel_ansiedade), previousWeek.map(r => r.nivel_ansiedade), true),
+      buildTrend("Compulsão", currentWeek.map(r => r.nivel_compulsao), previousWeek.map(r => r.nivel_compulsao), true),
+    ].filter((trend): trend is Trend => !!trend)
+
+    return {
+      checkinsThisWeek: currentWeek.length,
+      hydrationDays: logs.filter((log: any) => !!log.water_check).length,
+      activeDays: Math.min(7, activeDates.size),
+      missionsCompleted: progressHistory.filter((row: any) => row.checkin_date >= payload.weekStart).length,
+      trends: trends.slice(0, 3),
     }
-    load()
-  }, [])
+  }, [payload])
 
   const consistency = useMemo(() => data ? Math.round((data.activeDays / 7) * 100) : 0, [data])
   if (loading) return <section className="bg-background text-[#2B1A10]"><div className="max-w-[460px] mx-auto px-4 pb-5"><div className="rounded-3xl bg-white border border-[#2B1A10]/10 p-5 shadow-sm flex items-center justify-center min-h-32"><Loader2 size={20} className="animate-spin text-[#C9A435]" /></div></div></section>
