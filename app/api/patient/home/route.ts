@@ -164,18 +164,20 @@ export async function GET(request: NextRequest) {
     const [activeQuestionnairesResult, answeredQuestionnairesResult, rewardsResult] = await Promise.all([
       supabase
         .from("questionnaires")
-        .select("id, name")
+        .select("id, name, plan_filters")
         .eq("tenant_id", profile.tenant_id)
         .eq("is_active", true),
       supabase
         .from("questionnaire_responses")
         .select("questionnaire_id")
-        .eq("patient_id", user.id),
+        .eq("patient_id", user.id)
+        .eq("tenant_id", profile.tenant_id),
       supabase
         .from("reward_items")
         .select("name, cost, emoji")
+        .eq("tenant_id", profile.tenant_id)
         .gt("cost", profile.nutri_coins || 0)
-        .eq("is_active", true)
+        .eq("active", true)
         .order("cost", { ascending: true })
         .limit(1),
     ])
@@ -187,7 +189,14 @@ export async function GET(request: NextRequest) {
     }
 
     const answeredIds = new Set((answeredQuestionnairesResult.data || []).map(row => row.questionnaire_id))
-    pendingQuestionnaires = (activeQuestionnairesResult.data || []).filter(row => !answeredIds.has(row.id))
+    const currentPlan = String(profile.current_plan || "")
+    pendingQuestionnaires = (activeQuestionnairesResult.data || [])
+      .filter(row => {
+        const filters = Array.isArray(row.plan_filters) ? row.plan_filters : []
+        return filters.length === 0 || filters.includes(currentPlan)
+      })
+      .filter(row => !answeredIds.has(row.id))
+      .map(row => ({ id: row.id, name: row.name }))
     nextReward = rewardsResult.data?.[0] || null
   }
 
