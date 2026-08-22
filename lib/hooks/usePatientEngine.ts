@@ -1,12 +1,5 @@
-import { useEffect, useState } from 'react'
-
-function getLocalDate(): string {
-    const now = new Date()
-    const year = now.getFullYear()
-    const month = String(now.getMonth() + 1).padStart(2, '0')
-    const day = String(now.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-}
+import { useEffect, useMemo, useState } from 'react'
+import { usePatientHomeData } from '@/components/patient/PatientHomeDataProvider'
 
 export interface PatientEngineData {
     loading: boolean
@@ -30,9 +23,19 @@ export interface PatientEngineData {
 }
 
 export function usePatientEngine(): PatientEngineData {
-    const [loading, setLoading] = useState(true)
-    const [activeProtocol, setActiveProtocol] = useState<any>(null)
-    const [currentDayItems, setCurrentDayItems] = useState<any[]>([])
+    const { payload, loading, refresh } = usePatientHomeData()
+    const protocolData = payload?.protocol
+    const profile = payload?.profile
+
+    const baseActiveProtocol = useMemo(() => protocolData?.protocol ? ({
+        ...protocolData.protocol,
+        assignmentId: protocolData.assignmentId,
+        startDate: protocolData.startDate,
+    }) : null, [protocolData])
+
+    const baseItems = protocolData?.items || []
+    const baseProgress = protocolData?.progress || {}
+
     const [progress, setProgress] = useState<Record<string, boolean>>({})
     const [stats, setStats] = useState({
         currentDay: 1,
@@ -43,46 +46,15 @@ export function usePatientEngine(): PatientEngineData {
     })
 
     useEffect(() => {
-        fetchDailyData()
-    }, [])
-
-    async function fetchDailyData() {
-        try {
-            setLoading(true)
-            const response = await fetch(`/api/patient/home?date=${getLocalDate()}`, { cache: 'no-store' })
-            if (!response.ok) throw new Error(`Falha ao carregar Home (${response.status})`)
-
-            const payload = await response.json()
-            const protocolData = payload.protocol
-            const profile = payload.profile
-
-            if (protocolData?.protocol) {
-                setActiveProtocol({
-                    ...protocolData.protocol,
-                    assignmentId: protocolData.assignmentId,
-                    startDate: protocolData.startDate,
-                })
-                setCurrentDayItems(protocolData.items || [])
-                setProgress(protocolData.progress || {})
-            } else {
-                setActiveProtocol(null)
-                setCurrentDayItems([])
-                setProgress({})
-            }
-
-            setStats({
-                currentDay: protocolData?.currentDay || 1,
-                totalDays: protocolData?.protocol?.duration_days || 21,
-                completionRate: protocolData?.completionRate || 0,
-                totalPoints: profile?.total_xp || 0,
-                currentStreak: profile?.current_streak || 0,
-            })
-        } catch (error) {
-            console.error('Erro no motor da paciente:', error)
-        } finally {
-            setLoading(false)
-        }
-    }
+        setProgress(baseProgress)
+        setStats({
+            currentDay: protocolData?.currentDay || 1,
+            totalDays: protocolData?.protocol?.duration_days || 21,
+            completionRate: protocolData?.completionRate || 0,
+            totalPoints: profile?.total_xp || 0,
+            currentStreak: profile?.current_streak || 0,
+        })
+    }, [baseProgress, protocolData, profile])
 
     async function toggleCheckin(
         itemId: string,
@@ -90,7 +62,7 @@ export function usePatientEngine(): PatientEngineData {
         proofType: 'simple' | 'camera' | 'gallery' = 'simple',
         photoUrl: string | null = null,
     ) {
-        if (!activeProtocol) return
+        if (!baseActiveProtocol) return
 
         const newStatus = !currentStatus
         setProgress(prev => ({ ...prev, [itemId]: newStatus }))
@@ -100,7 +72,7 @@ export function usePatientEngine(): PatientEngineData {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    assignment_id: activeProtocol.assignmentId,
+                    assignment_id: baseActiveProtocol.assignmentId,
                     protocol_item_id: itemId,
                     mark: newStatus,
                     proof_type: proofType,
@@ -110,13 +82,15 @@ export function usePatientEngine(): PatientEngineData {
             if (!res.ok) throw new Error(`Falha ao salvar checkin (${res.status})`)
             const { points_delta } = await res.json()
 
-            const totalItems = currentDayItems.length
+            const totalItems = baseItems.length
             const completedCount = Object.values({ ...progress, [itemId]: newStatus }).filter(Boolean).length
             setStats(prev => ({
                 ...prev,
                 completionRate: totalItems ? Math.round((completedCount / totalItems) * 100) : 0,
                 totalPoints: Math.max(0, prev.totalPoints + points_delta),
             }))
+
+            await refresh()
         } catch (error) {
             console.error('Erro ao salvar checkin:', error)
             setProgress(prev => ({ ...prev, [itemId]: currentStatus }))
@@ -125,11 +99,11 @@ export function usePatientEngine(): PatientEngineData {
 
     return {
         loading,
-        activeProtocol,
-        currentDayItems,
+        activeProtocol: baseActiveProtocol,
+        currentDayItems: baseItems,
         progress,
         stats,
         toggleCheckin,
-        refresh: fetchDailyData,
+        refresh,
     }
 }
