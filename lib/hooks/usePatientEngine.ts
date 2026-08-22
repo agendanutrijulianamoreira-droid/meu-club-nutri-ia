@@ -34,6 +34,7 @@ export function usePatientEngine(): PatientEngineData {
         ...protocolData.protocol,
         assignmentId: protocolData.assignmentId,
         startDate: protocolData.startDate,
+        ended: !!protocolData.ended,
     }) : null, [protocolData])
 
     const baseItems = protocolData?.items ?? EMPTY_ITEMS
@@ -65,9 +66,14 @@ export function usePatientEngine(): PatientEngineData {
         proofType: 'simple' | 'camera' | 'gallery' = 'simple',
         photoUrl: string | null = null,
     ) {
-        if (readOnly || !baseActiveProtocol) return
+        if (readOnly || !baseActiveProtocol || baseActiveProtocol.ended) return
 
         const newStatus = !currentStatus
+        if (newStatus && proofType !== 'simple' && !photoUrl) {
+            console.error('Prova fotográfica obrigatória não foi enviada; check-in cancelado.')
+            return
+        }
+
         setProgress(prev => ({ ...prev, [itemId]: newStatus }))
 
         try {
