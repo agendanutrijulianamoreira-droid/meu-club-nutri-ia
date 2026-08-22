@@ -26,7 +26,7 @@ export interface PatientEngineData {
 }
 
 export function usePatientEngine(): PatientEngineData {
-    const { payload, loading, refresh } = usePatientHomeData()
+    const { payload, loading, refresh, readOnly, localDate } = usePatientHomeData()
     const protocolData = payload?.protocol
     const profile = payload?.profile
 
@@ -65,7 +65,7 @@ export function usePatientEngine(): PatientEngineData {
         proofType: 'simple' | 'camera' | 'gallery' = 'simple',
         photoUrl: string | null = null,
     ) {
-        if (!baseActiveProtocol) return
+        if (readOnly || !baseActiveProtocol) return
 
         const newStatus = !currentStatus
         setProgress(prev => ({ ...prev, [itemId]: newStatus }))
@@ -80,6 +80,7 @@ export function usePatientEngine(): PatientEngineData {
                     mark: newStatus,
                     proof_type: proofType,
                     photo_url: photoUrl,
+                    local_date: localDate,
                 }),
             })
             if (!res.ok) throw new Error(`Falha ao salvar checkin (${res.status})`)
