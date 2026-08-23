@@ -12,10 +12,14 @@ function localDate() {
 }
 
 export async function GET(request: NextRequest) {
+  if (!CRON_SECRET) {
+    console.error('[followup-engine] CRON_SECRET ausente; execução bloqueada por segurança.')
+    return NextResponse.json({ error: 'Cron configuration unavailable' }, { status: 503 })
+  }
+
   const auth = request.headers.get('authorization')
   const xSecret = request.headers.get('x-cron-secret')
-  const expectedBearer = CRON_SECRET ? `Bearer ${CRON_SECRET}` : ''
-  if (CRON_SECRET && auth !== expectedBearer && xSecret !== CRON_SECRET) {
+  if (auth !== `Bearer ${CRON_SECRET}` && xSecret !== CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -33,24 +37,25 @@ export async function GET(request: NextRequest) {
   for (const tenant of tenants || []) {
     const tenantId = tenant.id
     const steps: Record<string, unknown> = {}
-    let failed = false
+    const pipeline: Array<[string, string, Record<string, unknown>]> = [
+      ['snapshot', 'refresh_patient_operational_snapshot', { p_tenant_id: tenantId, p_reference_date: today }],
+      ['lifecycle', 'refresh_patient_lifecycle_states', { p_tenant_id: tenantId, p_reference_date: today }],
+      ['risk_tasks', 'sync_patient_followup_tasks', { p_tenant_id: tenantId, p_reference_date: today }],
+      ['phase_tasks', 'sync_phase_review_tasks', { p_tenant_id: tenantId, p_reference_date: today }],
+      ['feedback_tasks', 'sync_checkin_feedback_tasks', { p_tenant_id: tenantId, p_reference_date: today }],
+      ['lifecycle_tasks', 'sync_lifecycle_followup_tasks', { p_tenant_id: tenantId, p_reference_date: today }],
+      ['exit_rules', 'apply_followup_exit_rules', { p_tenant_id: tenantId }],
+    ]
 
-    const run = async (name: string, fn: string, args: Record<string, unknown>) => {
+    let failed = false
+    for (const [name, fn, args] of pipeline) {
       const { data, error: rpcError } = await admin.rpc(fn, args)
       if (rpcError) {
         steps[name] = { error: rpcError.message }
         failed = true
-      } else steps[name] = data ?? { ok: true }
-    }
-
-    await run('snapshot', 'refresh_patient_operational_snapshot', { p_tenant_id: tenantId, p_reference_date: today })
-    if (!failed) await run('lifecycle', 'refresh_patient_lifecycle_states', { p_tenant_id: tenantId, p_reference_date: today })
-    if (!failed) {
-      await run('risk_tasks', 'sync_patient_followup_tasks', { p_tenant_id: tenantId, p_reference_date: today })
-      await run('phase_tasks', 'sync_phase_review_tasks', { p_tenant_id: tenantId, p_reference_date: today })
-      await run('feedback_tasks', 'sync_checkin_feedback_tasks', { p_tenant_id: tenantId, p_reference_date: today })
-      await run('lifecycle_tasks', 'sync_lifecycle_followup_tasks', { p_tenant_id: tenantId, p_reference_date: today })
-      await run('exit_rules', 'apply_followup_exit_rules', { p_tenant_id: tenantId })
+        break
+      }
+      steps[name] = data ?? { ok: true }
     }
 
     results.push({ tenant_id: tenantId, ok: !failed, steps })

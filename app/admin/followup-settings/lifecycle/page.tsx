@@ -6,7 +6,7 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
 
-const DEFAULTS = { enabled:true, return_overdue_days:45, reactivation_after_days:30, protocol_completed_window_days:7, plan_expired_grace_days:0, manual_completed_only:true }
+const DEFAULTS = { enabled:true, return_overdue_days:45, reactivation_after_days:30, protocol_completed_window_days:7, plan_expired_grace_days:0 }
 const TASK_DEFAULTS = { enabled:true, awaiting_consultation:false, return_overdue:true, plan_expiring:true, plan_expired:true, protocol_completed:true, reactivation:true, task_time:'09:30', expiry_hours:72 }
 const METRIC_DEFAULTS = { window_days:30 }
 
@@ -31,7 +31,6 @@ async function save(formData: FormData) {
     reactivation_after_days: Math.max(1, Number(formData.get('reactivation_after_days') || 30)),
     protocol_completed_window_days: Math.max(0, Number(formData.get('protocol_completed_window_days') || 7)),
     plan_expired_grace_days: Math.max(0, Number(formData.get('plan_expired_grace_days') || 0)),
-    manual_completed_only: formData.get('manual_completed_only') === 'on',
   }
   const lifecycle_tasks = {
     enabled: formData.get('tasks_enabled') === 'on',
@@ -45,7 +44,7 @@ async function save(formData: FormData) {
     expiry_hours: Math.max(1, Number(formData.get('expiry_hours') || 72)),
   }
   const metrics = { window_days: Math.max(7, Number(formData.get('metrics_window_days') || 30)) }
-  await supabase.from('tenant_followup_settings').upsert({ tenant_id:tenantId, rules:{...current,lifecycle,lifecycle_tasks,metrics}, schema_version:1, updated_by:user.id, updated_at:new Date().toISOString() }, { onConflict:'tenant_id' })
+  await supabase.from('tenant_followup_settings').upsert({ tenant_id:tenantId, rules:{...current,lifecycle,lifecycle_tasks,metrics}, schema_version:2, updated_by:user.id, updated_at:new Date().toISOString() }, { onConflict:'tenant_id' })
   revalidatePath('/admin/followup-settings/lifecycle')
   redirect('/admin/followup-settings/lifecycle?saved=1')
 }
@@ -89,8 +88,8 @@ export default async function LifecycleSettings({ searchParams }:{searchParams?:
       </section>
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm space-y-3"><h2 className="text-lg font-black">Métricas</h2><Field name="metrics_window_days" label="Janela dos indicadores (dias)" value={m.window_days} min={7} /></section>
       <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 space-y-3">
-        <Toggle name="enabled" label="Ativar estados automáticos" checked={r.enabled} description="Desligando, o sistema deixa de recalcular estes estados." />
-        <Toggle name="manual_completed_only" label="“Acompanhamento concluído” somente por decisão manual" checked={r.manual_completed_only} description="Recomendado para preservar decisão clínica." />
+        <Toggle name="enabled" label="Ativar estados automáticos" checked={r.enabled} description="Desligando, o sistema limpa estados calculados pelo motor; overrides manuais continuam válidos." />
+        <div className="rounded-xl border border-amber-300/70 bg-white/60 p-3 text-sm text-slate-700"><strong>Acompanhamento concluído permanece decisão manual.</strong><span className="mt-1 block">O sistema não encerra acompanhamento por inferência. Se futuramente você definir critérios explícitos de encerramento, eles poderão virar regras configuráveis no Admin.</span></div>
       </section>
       <div className="flex justify-end"><button className="rounded-2xl bg-slate-900 px-6 py-3 text-sm font-black text-white">Salvar estados da jornada</button></div>
     </form>
