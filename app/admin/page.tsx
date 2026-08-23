@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ClipboardCheck, HeartPulse, Settings2 } from 'lucide-react';
+import { ClipboardCheck, HeartPulse, Settings2, SlidersHorizontal } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -23,6 +23,14 @@ function AdminDashboardWithAttention(props: DashboardProps) {
             <AdminDashboardClient {...props} />
             {props.tenantId && (
                 <div className="fixed bottom-5 right-5 z-[80] flex flex-col items-end gap-2">
+                    <Link
+                        href="/admin/followup-settings"
+                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/95 px-4 py-3 text-xs font-black text-slate-100 shadow-2xl shadow-black/30 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-950"
+                        aria-label="Configurar regras do motor de acompanhamento"
+                    >
+                        <SlidersHorizontal size={17} />
+                        Regras do acompanhamento
+                    </Link>
                     <Link
                         href="/admin/methods/phases"
                         className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/95 px-4 py-3 text-xs font-black text-slate-100 shadow-2xl shadow-black/30 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-950"
