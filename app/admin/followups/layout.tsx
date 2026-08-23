@@ -24,15 +24,22 @@ export default async function FollowupsLayout({ children }: { children: React.Re
   if (serviceRoleKey && supabaseUrl) {
     const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } })
     const today = localDate()
-    const { error: snapshotError } = await admin.rpc('refresh_patient_operational_snapshot', { p_tenant_id: viewer.tenant_id, p_reference_date: today })
-    if (!snapshotError) {
-      await admin.rpc('refresh_patient_lifecycle_states', { p_tenant_id: viewer.tenant_id, p_reference_date: today })
-      await Promise.all([
-        admin.rpc('sync_patient_followup_tasks', { p_tenant_id: viewer.tenant_id, p_reference_date: today }),
-        admin.rpc('sync_phase_review_tasks', { p_tenant_id: viewer.tenant_id, p_reference_date: today }),
-        admin.rpc('sync_checkin_feedback_tasks', { p_tenant_id: viewer.tenant_id, p_reference_date: today }),
-      ])
-      await admin.rpc('apply_followup_exit_rules', { p_tenant_id: viewer.tenant_id })
+    const pipeline: Array<[string, Record<string, unknown>]> = [
+      ['refresh_patient_operational_snapshot', { p_tenant_id: viewer.tenant_id, p_reference_date: today }],
+      ['refresh_patient_lifecycle_states', { p_tenant_id: viewer.tenant_id, p_reference_date: today }],
+      ['sync_patient_followup_tasks', { p_tenant_id: viewer.tenant_id, p_reference_date: today }],
+      ['sync_phase_review_tasks', { p_tenant_id: viewer.tenant_id, p_reference_date: today }],
+      ['sync_checkin_feedback_tasks', { p_tenant_id: viewer.tenant_id, p_reference_date: today }],
+      ['sync_lifecycle_followup_tasks', { p_tenant_id: viewer.tenant_id, p_reference_date: today }],
+      ['apply_followup_exit_rules', { p_tenant_id: viewer.tenant_id }],
+    ]
+
+    for (const [fn, args] of pipeline) {
+      const { error } = await admin.rpc(fn, args)
+      if (error) {
+        console.error(`[followups] Pipeline interrompido em ${fn}:`, error.message)
+        break
+      }
     }
   }
 
@@ -40,5 +47,6 @@ export default async function FollowupsLayout({ children }: { children: React.Re
     <Link href="/admin/followups/states" className="rounded-xl border border-white/10 bg-slate-900/95 px-4 py-2 text-xs font-black text-slate-100 shadow-2xl">Estados das pacientes</Link>
     <Link href="/admin/followup-settings/lifecycle" className="rounded-xl border border-white/10 bg-slate-900/95 px-4 py-2 text-xs font-black text-slate-100 shadow-2xl">Regras dos estados</Link>
     <Link href="/admin/followups/history" className="rounded-xl border border-white/10 bg-slate-900/95 px-4 py-2 text-xs font-black text-slate-100 shadow-2xl">Histórico</Link>
+    <Link href="/admin/followups/metrics" className="rounded-xl border border-white/10 bg-slate-900/95 px-4 py-2 text-xs font-black text-slate-100 shadow-2xl">Métricas</Link>
   </div></>
 }
