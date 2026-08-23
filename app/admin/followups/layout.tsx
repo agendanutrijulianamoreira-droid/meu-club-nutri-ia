@@ -8,31 +8,23 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 export const dynamic = 'force-dynamic'
 
 function localDate() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 }
 
 export default async function FollowupsLayout({ children }: { children: React.ReactNode }) {
   const supabase = createSupabaseServerClient(cookies())
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
-
   const { data: viewer } = await supabase.from('profiles').select('tenant_id, role').eq('user_id', user.id).maybeSingle()
   const role = String(viewer?.role || '').toLowerCase()
   if (!viewer?.tenant_id || !['admin', 'nutritionist', 'nutri'].includes(role)) redirect('/patient/home')
 
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-
   if (serviceRoleKey && supabaseUrl) {
     const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } })
     const today = localDate()
     const { error: snapshotError } = await admin.rpc('refresh_patient_operational_snapshot', { p_tenant_id: viewer.tenant_id, p_reference_date: today })
-
     if (!snapshotError) {
       await admin.rpc('refresh_patient_lifecycle_states', { p_tenant_id: viewer.tenant_id, p_reference_date: today })
       await Promise.all([
@@ -44,13 +36,9 @@ export default async function FollowupsLayout({ children }: { children: React.Re
     }
   }
 
-  return (
-    <>
-      {children}
-      <div className="fixed bottom-5 left-5 z-[90] flex gap-2">
-        <Link href="/admin/followups/states" className="rounded-xl border border-white/10 bg-slate-900/95 px-4 py-2 text-xs font-black text-slate-100 shadow-2xl">Estados das pacientes</Link>
-        <Link href="/admin/followups/history" className="rounded-xl border border-white/10 bg-slate-900/95 px-4 py-2 text-xs font-black text-slate-100 shadow-2xl">Histórico</Link>
-      </div>
-    </>
-  )
+  return <>{children}<div className="fixed bottom-5 left-5 z-[90] flex flex-wrap gap-2">
+    <Link href="/admin/followups/states" className="rounded-xl border border-white/10 bg-slate-900/95 px-4 py-2 text-xs font-black text-slate-100 shadow-2xl">Estados das pacientes</Link>
+    <Link href="/admin/followup-settings/lifecycle" className="rounded-xl border border-white/10 bg-slate-900/95 px-4 py-2 text-xs font-black text-slate-100 shadow-2xl">Regras dos estados</Link>
+    <Link href="/admin/followups/history" className="rounded-xl border border-white/10 bg-slate-900/95 px-4 py-2 text-xs font-black text-slate-100 shadow-2xl">Histórico</Link>
+  </div></>
 }
