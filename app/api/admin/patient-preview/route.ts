@@ -32,6 +32,10 @@ function calendarDaysBetween(later: string, earlier: string) {
   return Math.max(0, Math.floor((parseDate(later).getTime() - parseDate(earlier).getTime()) / 86400000))
 }
 
+function firstQueryError(results: Array<{ error?: { message?: string } | null }>) {
+  return results.find(result => result.error)?.error?.message || null
+}
+
 export async function GET(request: NextRequest) {
   const supabase = createSupabaseServerClient(cookies())
   const { data: { user } } = await supabase.auth.getUser()
@@ -109,27 +113,49 @@ export async function GET(request: NextRequest) {
     admin.from("diario_alimentar").select("calorias_calculadas, proteina_calculada, carboidrato_calculado, lipideos_calculado, fibra_calculada").eq("paciente_id", patientId).eq("data", today),
   ])
 
+  const initialError = firstQueryError([
+    inboxResult,
+    logsResult,
+    checkinsResult,
+    assignmentResult,
+    phaseAssignmentResult,
+    appointmentResult,
+    weeklyCheckinResult,
+    dietMetaResult,
+    dietEntriesResult,
+  ])
+  if (initialError) {
+    console.error("Falha ao montar preview da paciente:", initialError)
+    return NextResponse.json({ error: "Não foi possível carregar todos os dados do preview" }, { status: 503 })
+  }
+
   const logs = logsResult.data || []
   const checkins = checkinsResult.data || []
   const todayLog = logs.find(row => row.log_date === today) || null
-
-  const dietMeta = dietMetaResult.data ?? {
-    calorias_meta: 1800,
-    proteina_meta_g: 100,
-    carboidrato_meta_g: 200,
-    lipideos_meta_g: 60,
-    fibra_meta_g: 25,
-  }
-  const dietSummary = calcularAdesao(dietEntriesResult.data || [], dietMeta)
+  const dietMeta = dietMetaResult.data || null
+  const dietSummary = dietMeta ? calcularAdesao(dietEntriesResult.data || [], dietMeta) : null
 
   const [activeQuestionnairesResult, answeredQuestionnairesResult, rewardsResult] = await Promise.all([
-    admin.from("questionnaires").select("id, name").eq("tenant_id", patient.tenant_id).eq("is_active", true),
-    admin.from("questionnaire_responses").select("questionnaire_id").eq("patient_id", patientId),
-    admin.from("reward_items").select("name, cost, emoji").gt("cost", patient.nutri_coins || 0).eq("is_active", true).order("cost", { ascending: true }).limit(1),
+    admin.from("questionnaires").select("id, name, plan_filters").eq("tenant_id", patient.tenant_id).eq("is_active", true),
+    admin.from("questionnaire_responses").select("questionnaire_id").eq("patient_id", patientId).eq("tenant_id", patient.tenant_id),
+    admin.from("reward_items").select("name, cost, emoji").eq("tenant_id", patient.tenant_id).gt("cost", patient.nutri_coins || 0).eq("active", true).order("cost", { ascending: true }).limit(1),
   ])
 
+  const secondaryError = firstQueryError([activeQuestionnairesResult, answeredQuestionnairesResult, rewardsResult])
+  if (secondaryError) {
+    console.error("Falha ao carregar complementos do preview:", secondaryError)
+    return NextResponse.json({ error: "Não foi possível carregar todos os dados do preview" }, { status: 503 })
+  }
+
   const answeredIds = new Set((answeredQuestionnairesResult.data || []).map(row => row.questionnaire_id))
-  const pendingQuestionnaires = (activeQuestionnairesResult.data || []).filter(row => !answeredIds.has(row.id))
+  const currentPlan = String(patient.current_plan || "")
+  const pendingQuestionnaires = (activeQuestionnairesResult.data || [])
+    .filter(row => {
+      const filters = Array.isArray(row.plan_filters) ? row.plan_filters : []
+      return filters.length === 0 || filters.includes(currentPlan)
+    })
+    .filter(row => !answeredIds.has(row.id))
+    .map(row => ({ id: row.id, name: row.name }))
   const nextReward = rewardsResult.data?.[0] || null
 
   const assignment: any = assignmentResult.data
@@ -137,17 +163,33 @@ export async function GET(request: NextRequest) {
   let progressHistory: any[] = []
 
   if (assignment?.id && assignment?.protocol) {
-    const currentDay = Math.max(1, calendarDaysBetween(today, assignment.start_date) + 1)
+    const rawCurrentDay = Math.max(1, calendarDaysBetween(today, assignment.start_date) + 1)
+    const durationDays = Math.max(1, assignment.protocol.duration_days || 1)
+    const protocolEnded = rawCurrentDay > durationDays
+    const currentDay = Math.min(rawCurrentDay, durationDays)
+
     const [protocolDayResult, progressHistoryResult] = await Promise.all([
-      admin.from("protocol_days").select("id, day_number, title").eq("protocol_id", assignment.protocol.id).eq("day_number", currentDay).maybeSingle(),
+      protocolEnded
+        ? Promise.resolve({ data: null, error: null })
+        : admin.from("protocol_days").select("id, day_number, title").eq("protocol_id", assignment.protocol.id).eq("day_number", currentDay).maybeSingle(),
       admin.from("protocol_progress").select("protocol_item_id, completed_at, checkin_date").eq("assignment_id", assignment.id).gte("checkin_date", historyStart).lte("checkin_date", today),
     ])
+
+    const protocolError = firstQueryError([protocolDayResult, progressHistoryResult])
+    if (protocolError) {
+      console.error("Falha ao carregar protocolo do preview:", protocolError)
+      return NextResponse.json({ error: "Não foi possível carregar o protocolo do preview" }, { status: 503 })
+    }
 
     progressHistory = progressHistoryResult.data || []
     let items: any[] = []
     if (protocolDayResult.data?.id) {
-      const { data } = await admin.from("protocol_items").select("*").eq("protocol_day_id", protocolDayResult.data.id).order("time", { ascending: true })
-      items = data || []
+      const itemsResult = await admin.from("protocol_items").select("*").eq("protocol_day_id", protocolDayResult.data.id).order("time", { ascending: true })
+      if (itemsResult.error) {
+        console.error("Falha ao carregar itens do preview:", itemsResult.error.message)
+        return NextResponse.json({ error: "Não foi possível carregar as ações do preview" }, { status: 503 })
+      }
+      items = itemsResult.data || []
     }
 
     const todayProgress = progressHistory.filter(row => row.checkin_date === today)
@@ -159,6 +201,8 @@ export async function GET(request: NextRequest) {
       startDate: assignment.start_date,
       protocol: assignment.protocol,
       currentDay,
+      rawCurrentDay,
+      ended: protocolEnded,
       items,
       progress,
       completionRate,
@@ -168,13 +212,22 @@ export async function GET(request: NextRequest) {
   let clinicalJourney: any = null
   const phaseAssignment = phaseAssignmentResult.data
   if (phaseAssignment?.method_phase_id && phaseAssignment.inicio) {
-    const { data: phase } = await admin.from("method_phases").select("name, description, sort_order, method_id").eq("id", phaseAssignment.method_phase_id).maybeSingle()
+    const phaseResult = await admin.from("method_phases").select("name, description, sort_order, method_id").eq("id", phaseAssignment.method_phase_id).maybeSingle()
+    if (phaseResult.error) {
+      console.error("Falha ao carregar fase do preview:", phaseResult.error.message)
+      return NextResponse.json({ error: "Não foi possível carregar a jornada clínica do preview" }, { status: 503 })
+    }
 
+    const phase = phaseResult.data
     if (phase) {
       let methodName: string | null = null
       if (phase.method_id) {
-        const { data: method } = await admin.from("methods").select("name").eq("id", phase.method_id).maybeSingle()
-        methodName = method?.name || null
+        const methodResult = await admin.from("methods").select("name").eq("id", phase.method_id).maybeSingle()
+        if (methodResult.error) {
+          console.error("Falha ao carregar método do preview:", methodResult.error.message)
+          return NextResponse.json({ error: "Não foi possível carregar a jornada clínica do preview" }, { status: 503 })
+        }
+        methodName = methodResult.data?.name || null
       }
 
       clinicalJourney = {
@@ -202,10 +255,10 @@ export async function GET(request: NextRequest) {
       dailyCheckinSubmitted: checkins.some(row => row.data === today),
       weeklyCheckinSubmitted: !!weeklyCheckinResult.data,
       pendingQuestionnaires,
-      dietToday: {
+      dietToday: dietSummary ? {
         consumidas: dietSummary.calorias_consumidas,
         meta: dietSummary.calorias_meta,
-      },
+      } : null,
       nextReward,
       protocol: protocolData,
       progressHistory,
