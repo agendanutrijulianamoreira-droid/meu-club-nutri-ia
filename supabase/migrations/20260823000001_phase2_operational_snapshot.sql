@@ -145,7 +145,7 @@ BEGIN
   scored AS (
     SELECT
       b.*,
-      round((100.0 * b.active_days_7d / NULLIF(b.eligible_days, 0)))::numeric, 1) AS adherence_7d_calc,
+      round((100.0 * b.active_days_7d / NULLIF(b.eligible_days, 0))::numeric, 1) AS adherence_7d_calc,
       CASE
         WHEN b.days_inactive <= 1 THEN 0
         WHEN b.days_inactive <= 3 THEN 20
@@ -154,9 +154,10 @@ BEGIN
         WHEN b.days_inactive <= 13 THEN 80
         ELSE 100
       END AS inactivity_risk_calc,
-      GREATEST(0, LEAST(100,
-        round(100 - (100.0 * b.active_days_7d / NULLIF(b.eligible_days, 0)))::integer
-      )) AS adherence_risk_calc,
+      GREATEST(
+        0,
+        LEAST(100, round(100 - (100.0 * b.active_days_7d / NULLIF(b.eligible_days, 0)))::integer)
+      ) AS adherence_risk_calc,
       (
         b.onboarding_completed
         AND (
@@ -187,8 +188,9 @@ BEGIN
       END AS operational_status_calc,
       CASE
         WHEN s.days_inactive >= 10 OR s.consultation_overdue THEN 'critical'
-        WHEN s.days_inactive >= 7 OR s.plan_expiring_calc AND (s.plan_expires_at AT TIME ZONE 'America/Sao_Paulo')::date <= p_reference_date + 7
-          OR s.protocol_ending_calc AND s.active_protocol_end_date <= p_reference_date + 3 THEN 'today'
+        WHEN s.days_inactive >= 7
+          OR (s.plan_expiring_calc AND (s.plan_expires_at AT TIME ZONE 'America/Sao_Paulo')::date <= p_reference_date + 7)
+          OR (s.protocol_ending_calc AND s.active_protocol_end_date <= p_reference_date + 3) THEN 'today'
         WHEN s.days_inactive >= 4 OR s.checkin_overdue_calc OR s.plan_expiring_calc OR s.protocol_ending_calc THEN 'this_week'
         WHEN s.days_inactive BETWEEN 2 AND 3 THEN 'automatic'
         ELSE 'none'
@@ -273,13 +275,21 @@ BEGIN
     c.consultation_overdue,
     c.plan_expiring_calc,
     c.protocol_ending_calc,
-    jsonb_strip_nulls(jsonb_build_array(
-      CASE WHEN c.days_inactive >= 4 THEN jsonb_build_object('code','inactivity','days',c.days_inactive) END,
-      CASE WHEN c.checkin_overdue_calc THEN jsonb_build_object('code','checkin_overdue') END,
-      CASE WHEN c.consultation_overdue THEN jsonb_build_object('code','consultation_overdue') END,
-      CASE WHEN c.plan_expiring_calc THEN jsonb_build_object('code','plan_expiring','date',(c.plan_expires_at AT TIME ZONE 'America/Sao_Paulo')::date) END,
-      CASE WHEN c.protocol_ending_calc THEN jsonb_build_object('code','protocol_ending','date',c.active_protocol_end_date) END
-    ))
+    (CASE WHEN c.days_inactive >= 4
+      THEN jsonb_build_array(jsonb_build_object('code', 'inactivity', 'days', c.days_inactive))
+      ELSE '[]'::jsonb END)
+    || (CASE WHEN c.checkin_overdue_calc
+      THEN jsonb_build_array(jsonb_build_object('code', 'checkin_overdue'))
+      ELSE '[]'::jsonb END)
+    || (CASE WHEN c.consultation_overdue
+      THEN jsonb_build_array(jsonb_build_object('code', 'consultation_overdue'))
+      ELSE '[]'::jsonb END)
+    || (CASE WHEN c.plan_expiring_calc
+      THEN jsonb_build_array(jsonb_build_object('code', 'plan_expiring', 'date', (c.plan_expires_at AT TIME ZONE 'America/Sao_Paulo')::date))
+      ELSE '[]'::jsonb END)
+    || (CASE WHEN c.protocol_ending_calc
+      THEN jsonb_build_array(jsonb_build_object('code', 'protocol_ending', 'date', c.active_protocol_end_date))
+      ELSE '[]'::jsonb END)
   FROM classified c
   ON CONFLICT (user_id, calculated_date)
   DO UPDATE SET
