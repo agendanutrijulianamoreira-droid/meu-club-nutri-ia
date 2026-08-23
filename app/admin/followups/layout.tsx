@@ -46,10 +46,16 @@ export default async function FollowupsLayout({ children }: { children: React.Re
     })
 
     if (!snapshotError) {
-      await admin.rpc('sync_patient_followup_tasks', {
-        p_tenant_id: viewer.tenant_id,
-        p_reference_date: today,
-      })
+      await Promise.all([
+        admin.rpc('sync_patient_followup_tasks', {
+          p_tenant_id: viewer.tenant_id,
+          p_reference_date: today,
+        }),
+        admin.rpc('sync_phase_review_tasks', {
+          p_tenant_id: viewer.tenant_id,
+          p_reference_date: today,
+        }),
+      ])
     }
   }
 
