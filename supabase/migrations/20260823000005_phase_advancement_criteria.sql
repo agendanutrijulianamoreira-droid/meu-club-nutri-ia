@@ -22,3 +22,28 @@ ALTER TABLE public.method_phases
 
 COMMENT ON COLUMN public.method_phases.advancement_criteria IS
 'Critérios configuráveis no Admin para elegibilidade de avanço da fase. O motor apenas avalia esta configuração; decisão clínica final pode permanecer manual.';
+
+-- Mantém o alias de papel "nutri" coerente com o restante do Admin da Fase 2.
+DROP POLICY IF EXISTS "Admin manages own method_phases" ON public.method_phases;
+CREATE POLICY "Admin manages own method_phases"
+ON public.method_phases
+FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1
+    FROM public.profiles p
+    WHERE p.user_id = auth.uid()
+      AND p.tenant_id = method_phases.tenant_id
+      AND lower(COALESCE(p.role, '')) IN ('admin', 'nutritionist', 'nutri')
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1
+    FROM public.profiles p
+    WHERE p.user_id = auth.uid()
+      AND p.tenant_id = method_phases.tenant_id
+      AND lower(COALESCE(p.role, '')) IN ('admin', 'nutritionist', 'nutri')
+  )
+);
