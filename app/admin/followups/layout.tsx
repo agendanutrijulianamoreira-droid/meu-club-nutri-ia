@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
@@ -55,9 +56,24 @@ export default async function FollowupsLayout({ children }: { children: React.Re
           p_tenant_id: viewer.tenant_id,
           p_reference_date: today,
         }),
+        admin.rpc('sync_checkin_feedback_tasks', {
+          p_tenant_id: viewer.tenant_id,
+          p_reference_date: today,
+        }),
       ])
+
+      await admin.rpc('apply_followup_exit_rules', {
+        p_tenant_id: viewer.tenant_id,
+      })
     }
   }
 
-  return children
+  return (
+    <>
+      {children}
+      <Link href="/admin/followups/history" className="fixed bottom-5 left-5 z-[90] rounded-xl border border-white/10 bg-slate-900/95 px-4 py-2 text-xs font-black text-slate-100 shadow-2xl">
+        Histórico de intervenções
+      </Link>
+    </>
+  )
 }
