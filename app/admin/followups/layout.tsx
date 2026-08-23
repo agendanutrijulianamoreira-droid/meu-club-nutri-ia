@@ -55,7 +55,15 @@ export default async function FollowupsLayout({ children }: { children: React.Re
           p_tenant_id: viewer.tenant_id,
           p_reference_date: today,
         }),
+        admin.rpc('sync_checkin_feedback_tasks', {
+          p_tenant_id: viewer.tenant_id,
+          p_reference_date: today,
+        }),
       ])
+
+      await admin.rpc('apply_followup_exit_rules', {
+        p_tenant_id: viewer.tenant_id,
+      })
     }
   }
 
