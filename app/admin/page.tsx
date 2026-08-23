@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ClipboardCheck, HeartPulse } from 'lucide-react';
+import { ClipboardCheck, HeartPulse, Settings2 } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -23,6 +23,14 @@ function AdminDashboardWithAttention(props: DashboardProps) {
             <AdminDashboardClient {...props} />
             {props.tenantId && (
                 <div className="fixed bottom-5 right-5 z-[80] flex flex-col items-end gap-2">
+                    <Link
+                        href="/admin/methods/phases"
+                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/95 px-4 py-3 text-xs font-black text-slate-100 shadow-2xl shadow-black/30 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-950"
+                        aria-label="Configurar critérios de avanço de fase"
+                    >
+                        <Settings2 size={17} />
+                        Critérios de avanço
+                    </Link>
                     <Link
                         href="/admin/followups"
                         className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/95 px-4 py-3 text-xs font-black text-slate-100 shadow-2xl shadow-black/30 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-950"
@@ -54,13 +62,11 @@ export default async function AdminPage() {
         redirect('/login');
     }
 
-    // Admin client para bypassing RLS (Autocura)
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const supabaseAdmin = serviceRoleKey
         ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey)
         : null;
 
-    // Get profile to check tenant_id and role
     const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('tenant_id, role, name')
@@ -75,7 +81,6 @@ export default async function AdminPage() {
     const roleLower = (role || '').toLowerCase();
     const isAdmin = ['admin', 'nutritionist'].includes(roleLower);
 
-    // Fetch tenant brand_name using the resolved tenant_id
     let tenantName = '';
     const resolvedTenantId = profile?.tenant_id;
     if (resolvedTenantId && !isDemoTenant) {
@@ -106,17 +111,13 @@ export default async function AdminPage() {
         console.error("[Admin Guard] Profile Error:", profileError);
     }
 
-    // Props to pass to client dashboard
     const dashboardProps = { userName, tenantName, role: roleLower, tenantId: resolvedTenantId || '' };
 
-    // 1. Caminho Padrão: Tenant Válido (Não Demo) + Admin
     if (profile?.tenant_id && !isDemoTenant && isAdmin) {
         console.log("[Admin Guard] Access Granted (Standard)");
         return <AdminDashboardWithAttention {...dashboardProps} />;
     }
 
-    // 2. Autocura: Se admin sem tenant real, detectar mas NÃO mutar durante render.
-    // A mutação será feita pelo client via Server Action (repairProfileAction).
     if (isAdmin) {
         if (!profile?.tenant_id || isDemoTenant) {
             console.log("[Admin Guard] Missing real tenant for Admin. Passing needsRepair to client.");
@@ -126,7 +127,6 @@ export default async function AdminPage() {
                 redirect('/admin/clinic');
             }
 
-            // Apenas LEITURA: verificar se existe clínica para exibir o dashboard
             const { data: ownedTenants } = await supabaseAdmin
                 .from('tenants')
                 .select('id, brand_name')
@@ -134,7 +134,6 @@ export default async function AdminPage() {
                 .limit(1);
 
             if (ownedTenants && ownedTenants.length > 0) {
-                // Tem clínica, mas perfil está desatualizado → client vai reparar
                 const previewTenantName = ownedTenants[0].brand_name || '';
                 console.log("[Admin Guard] Found clinic, client will repair profile via Server Action.");
                 return <AdminDashboardWithAttention
@@ -151,18 +150,12 @@ export default async function AdminPage() {
         }
     }
 
-    // 4. Fallback de Segurança: Se não for admin, tchau!
-    // P0 Review fix: Sem fallback "bonzinho". Se não é admin/nutri, é paciente.
     if (session && !isAdmin) {
         console.log("[Admin Guard] User is not admin/nutritionist. Redirecting to patient home.");
         redirect('/patient/home');
     }
 
-    // Se chegou aqui e é admin, mas não caiu nos casos acima (ex: erro de leitura do profile),
-    // manda para login por segurança
     if (session && isAdmin) {
-        // Caso de borda: admin autenticado mas sem tenant resolvido (e não demo) e autocura falhou?
-        // Deixa passar se tiver profile, senão login.
         if (profile) return <AdminDashboardWithAttention {...dashboardProps} />;
     }
 
