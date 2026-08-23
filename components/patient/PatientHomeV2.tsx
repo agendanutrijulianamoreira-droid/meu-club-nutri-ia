@@ -231,9 +231,8 @@ export function PatientHomeV2() {
       const ext = file.name.split(".").pop() || "jpg"
       const path = `${userId}/${itemId}/${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage.from("protocol-photos").upload(path, file, { upsert: true })
-      let photoUrl: string | null = null
-      if (!uploadError) photoUrl = supabase.storage.from("protocol-photos").getPublicUrl(path).data.publicUrl
-      await toggleCheckin(itemId, !!progress[itemId], proofType, photoUrl)
+      if (uploadError) return
+      await toggleCheckin(itemId, !!progress[itemId], proofType, path)
     } finally {
       setUploadingItemId(null)
       pendingItemRef.current = null
@@ -444,7 +443,7 @@ export function PatientHomeV2() {
           <section className="mb-5 rounded-2xl border border-[#2B1A10]/8 bg-white/70 px-4 py-3">
             <div className="flex items-center justify-between gap-3 mb-2.5">
               <p className="text-[9px] uppercase tracking-[0.18em] font-bold text-[#2B1A10]/35">Seu ritmo</p>
-              <p className="text-[10px] text-[#2B1A10]/35">Gamificação</p>
+              <p className="text-[10px] text-[#2B1A10]/35">Conquistas</p>
             </div>
             <div className="grid grid-cols-3 divide-x divide-[#2B1A10]/8">
               <div className="flex items-center justify-center gap-2 px-2">
