@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/dispatch-alarms",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/followup-engine",
+      "schedule": "5 12 * * *"
     }
   ]
 }
