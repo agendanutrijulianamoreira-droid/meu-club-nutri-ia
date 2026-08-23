@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { HeartPulse } from 'lucide-react';
+import { ClipboardCheck, HeartPulse } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -22,14 +22,24 @@ function AdminDashboardWithAttention(props: DashboardProps) {
         <>
             <AdminDashboardClient {...props} />
             {props.tenantId && (
-                <Link
-                    href="/admin/attention"
-                    className="fixed bottom-5 right-5 z-[80] inline-flex items-center gap-2 rounded-2xl border border-amber-200/30 bg-amber-300 px-4 py-3 text-xs font-black text-slate-950 shadow-2xl shadow-black/30 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-slate-950"
-                    aria-label="Abrir fila Quem precisa de mim hoje"
-                >
-                    <HeartPulse size={17} />
-                    Quem precisa de mim hoje?
-                </Link>
+                <div className="fixed bottom-5 right-5 z-[80] flex flex-col items-end gap-2">
+                    <Link
+                        href="/admin/followups"
+                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/95 px-4 py-3 text-xs font-black text-slate-100 shadow-2xl shadow-black/30 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-950"
+                        aria-label="Abrir tarefas de acompanhamento"
+                    >
+                        <ClipboardCheck size={17} />
+                        Tarefas de acompanhamento
+                    </Link>
+                    <Link
+                        href="/admin/attention"
+                        className="inline-flex items-center gap-2 rounded-2xl border border-amber-200/30 bg-amber-300 px-4 py-3 text-xs font-black text-slate-950 shadow-2xl shadow-black/30 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-slate-950"
+                        aria-label="Abrir fila Quem precisa de mim hoje"
+                    >
+                        <HeartPulse size={17} />
+                        Quem precisa de mim hoje?
+                    </Link>
+                </div>
             )}
         </>
     );
