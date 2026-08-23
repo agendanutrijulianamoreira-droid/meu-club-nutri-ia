@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { HeartPulse } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -6,6 +8,32 @@ import AdminDashboardClient from './AdminClientPage';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+type DashboardProps = {
+    userName: string;
+    tenantName: string;
+    role: string;
+    tenantId: string;
+    needsRepair?: boolean;
+};
+
+function AdminDashboardWithAttention(props: DashboardProps) {
+    return (
+        <>
+            <AdminDashboardClient {...props} />
+            {props.tenantId && (
+                <Link
+                    href="/admin/attention"
+                    className="fixed bottom-5 right-5 z-[80] inline-flex items-center gap-2 rounded-2xl border border-amber-200/30 bg-amber-300 px-4 py-3 text-xs font-black text-slate-950 shadow-2xl shadow-black/30 transition hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-slate-950"
+                    aria-label="Abrir fila Quem precisa de mim hoje"
+                >
+                    <HeartPulse size={17} />
+                    Quem precisa de mim hoje?
+                </Link>
+            )}
+        </>
+    );
+}
 
 export default async function AdminPage() {
     const supabase = createSupabaseServerClient(cookies());
@@ -74,7 +102,7 @@ export default async function AdminPage() {
     // 1. Caminho Padrão: Tenant Válido (Não Demo) + Admin
     if (profile?.tenant_id && !isDemoTenant && isAdmin) {
         console.log("[Admin Guard] Access Granted (Standard)");
-        return <AdminDashboardClient {...dashboardProps} />;
+        return <AdminDashboardWithAttention {...dashboardProps} />;
     }
 
     // 2. Autocura: Se admin sem tenant real, detectar mas NÃO mutar durante render.
@@ -99,7 +127,7 @@ export default async function AdminPage() {
                 // Tem clínica, mas perfil está desatualizado → client vai reparar
                 const previewTenantName = ownedTenants[0].brand_name || '';
                 console.log("[Admin Guard] Found clinic, client will repair profile via Server Action.");
-                return <AdminDashboardClient
+                return <AdminDashboardWithAttention
                     userName={userName}
                     tenantName={previewTenantName}
                     role="admin"
@@ -120,14 +148,14 @@ export default async function AdminPage() {
         redirect('/patient/home');
     }
 
-    // Se chegou aqui e é admin, mas não caiu nos casos acima (ex: erro de leitura do profile), 
+    // Se chegou aqui e é admin, mas não caiu nos casos acima (ex: erro de leitura do profile),
     // manda para login por segurança
     if (session && isAdmin) {
         // Caso de borda: admin autenticado mas sem tenant resolvido (e não demo) e autocura falhou?
         // Deixa passar se tiver profile, senão login.
-        if (profile) return <AdminDashboardClient {...dashboardProps} />;
+        if (profile) return <AdminDashboardWithAttention {...dashboardProps} />;
     }
 
-    console.log("[Admin Guard] Access Denied. Redirecting to login.");
+    console.log("[Admin Guard] Access Denied. Redirecting to login");
     redirect('/login');
 }
