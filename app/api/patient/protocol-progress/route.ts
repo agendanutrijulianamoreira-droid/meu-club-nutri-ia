@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { awardPoints } from '@/lib/services/gamification'
 
 const PROOF_TYPES = ['simple', 'camera', 'gallery'] as const
-type ProofType = typeof PROOF_TYPES[number]
 
 function saoPauloDateString() {
     const parts = new Intl.DateTimeFormat('en-CA', {
@@ -67,85 +65,33 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Prova fotográfica inválida' }, { status: 400 })
     }
 
-    const { data: assignment, error: assignmentError } = await supabase
-        .from('protocol_assignments')
-        .select('id, user_id, protocol_id')
-        .eq('id', assignment_id)
-        .single()
+    const { data, error } = await supabase.rpc('apply_protocol_progress', {
+        p_assignment_id: assignment_id,
+        p_protocol_item_id: protocol_item_id,
+        p_mark: mark,
+        p_proof_type: proof_type,
+        p_photo_path: proofPath,
+        p_checkin_date: local_date,
+    })
 
-    if (assignmentError || !assignment || assignment.user_id !== user.id) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (error) {
+        console.error('Falha ao aplicar progresso do protocolo:', error)
+        const message = error.message || 'Não foi possível salvar o progresso'
+        const status = message.includes('Forbidden') || message.includes('Unauthorized')
+            ? 403
+            : message.includes('Item não encontrado')
+                ? 404
+                : message.includes('inválid') || message.includes('fora da janela')
+                    ? 400
+                    : 500
+        return NextResponse.json({ error: message }, { status })
     }
 
-    const { data: item, error: itemError } = await supabase
-        .from('protocol_items')
-        .select('points, points_camera, points_gallery, protocol_day_id')
-        .eq('id', protocol_item_id)
-        .single()
-
-    if (itemError || !item) return NextResponse.json({ error: 'Item não encontrado' }, { status: 404 })
-
-    const { data: protocolDay, error: dayError } = await supabase
-        .from('protocol_days')
-        .select('protocol_id')
-        .eq('id', item.protocol_day_id)
-        .single()
-
-    if (dayError || !protocolDay || protocolDay.protocol_id !== assignment.protocol_id) {
-        return NextResponse.json({ error: 'Item não pertence ao protocolo atribuído' }, { status: 403 })
-    }
-
-    const { data: existing } = await supabase
-        .from('protocol_progress')
-        .select('points_earned')
-        .eq('assignment_id', assignment_id)
-        .eq('protocol_item_id', protocol_item_id)
-        .maybeSingle()
-
-    if (mark && existing) {
-        return NextResponse.json({ success: true, points_delta: 0, already_marked: true })
-    }
-
-    if (mark) {
-        const pointsByProof: Record<ProofType, number> = {
-            simple: item.points ?? 10,
-            gallery: item.points_gallery ?? item.points ?? 10,
-            camera: item.points_camera ?? item.points ?? 10,
-        }
-        const itemPoints = pointsByProof[proof_type as ProofType]
-
-        const { error } = await supabase
-            .from('protocol_progress')
-            .insert({
-                assignment_id,
-                protocol_item_id,
-                completed_at: new Date().toISOString(),
-                checkin_date: local_date,
-                points_earned: itemPoints,
-                proof_type,
-                photo_url: proofPath,
-            })
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-        await awardPoints(supabase, user.id, itemPoints, 'protocol-progress mark')
-        return NextResponse.json({ success: true, points_delta: itemPoints })
-    }
-
-    if (!existing) {
-        return NextResponse.json({ success: true, points_delta: 0, already_unmarked: true })
-    }
-
-    const earnedPoints = existing.points_earned ?? 0
-
-    const { error } = await supabase
-        .from('protocol_progress')
-        .delete()
-        .eq('assignment_id', assignment_id)
-        .eq('protocol_item_id', protocol_item_id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-    if (earnedPoints !== 0) {
-        await awardPoints(supabase, user.id, -earnedPoints, 'protocol-progress unmark')
-    }
-    return NextResponse.json({ success: true, points_delta: -earnedPoints })
+    const result = Array.isArray(data) ? data[0] : data
+    return NextResponse.json({
+        success: true,
+        points_delta: result?.points_delta ?? 0,
+        already_marked: !!result?.already_marked,
+        already_unmarked: !!result?.already_unmarked,
+    })
 }
