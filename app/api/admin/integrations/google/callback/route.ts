@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getVitalConfig, getVitalSecret, requireStaffIntegrationContext, saveVitalSetting, jsonError } from '@/lib/integrations/vitalSettings'
+import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,6 +85,35 @@ export async function GET(req: NextRequest) {
         type: 'text', value: tokens.scope || '',
       }),
     ])
+
+    // A conexão acabou de ser validada: todas as consultas futuras ativas entram
+    // na fila idempotente. Nenhuma consulta passada é criada no Calendar.
+    const admin = getSupabaseAdmin()
+    const { data: appointments } = await admin
+      .from('appointments')
+      .select('id,tenant_id')
+      .eq('tenant_id', tenantId)
+      .in('status', ['scheduled', 'confirmed', 'in_progress'])
+      .gte('scheduled_at', new Date(Date.now() - 24 * 60 * 60_000).toISOString())
+      .limit(1000)
+
+    if (appointments?.length) {
+      const { error: queueError } = await admin.from('appointment_calendar_sync').upsert(
+        appointments.map(a => ({
+          tenant_id: a.tenant_id,
+          appointment_id: a.id,
+          provider: 'google',
+          status: 'pending',
+          attempt_count: 0,
+          next_attempt_at: null,
+          locked_at: null,
+          last_error: null,
+          updated_at: new Date().toISOString(),
+        })),
+        { onConflict: 'tenant_id,appointment_id,provider' },
+      )
+      if (queueError) console.error('[Google OAuth] calendar backfill queue failed', queueError.message)
+    }
 
     const res = NextResponse.redirect(new URL('/admin/settings/vital?google=connected', req.url))
     res.cookies.set('google_oauth_state', '', { maxAge: 0, path: '/' })
