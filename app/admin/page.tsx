@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { BarChart3, ClipboardCheck, HeartPulse, Settings2, SlidersHorizontal, UsersRound } from 'lucide-react';
+import { BarChart3, CalendarClock, ClipboardCheck, HeartPulse, Settings2, SlidersHorizontal, UsersRound } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -23,6 +23,7 @@ function AdminDashboardWithAttention(props: DashboardProps) {
             <AdminDashboardClient {...props} />
             {props.tenantId && (
                 <div className="fixed bottom-5 right-5 z-[80] flex flex-col items-end gap-2">
+                    <Link href="/admin/appointment-settings" className="inline-flex items-center gap-2 rounded-2xl border border-violet-200/30 bg-violet-200 px-4 py-3 text-xs font-black text-slate-950 shadow-2xl shadow-black/30 transition hover:bg-violet-100" aria-label="Configurar agenda e tipos de consulta"><CalendarClock size={17} />Configurações de consulta</Link>
                     <Link href="/admin/crm" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/95 px-4 py-3 text-xs font-black text-slate-100 shadow-2xl shadow-black/30 transition hover:bg-slate-800" aria-label="Abrir CRM e resgate"><UsersRound size={17} />CRM e resgate</Link>
                     <Link href="/admin/followups/metrics" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/95 px-4 py-3 text-xs font-black text-slate-100 shadow-2xl shadow-black/30 transition hover:bg-slate-800" aria-label="Abrir métricas do acompanhamento"><BarChart3 size={17} />Métricas do acompanhamento</Link>
                     <Link href="/admin/followup-settings" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-900/95 px-4 py-3 text-xs font-black text-slate-100 shadow-2xl shadow-black/30 transition hover:bg-slate-800" aria-label="Configurar regras do motor de acompanhamento"><SlidersHorizontal size={17} />Regras do acompanhamento</Link>
