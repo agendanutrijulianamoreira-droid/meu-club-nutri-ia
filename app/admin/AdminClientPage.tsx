@@ -1,43 +1,18 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import Link from "next/link"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase-browser"
 import { useOverlays } from "@/components/ui/OverlayStack"
 import {
-    LayoutDashboard,
-    Calendar,
-    Users,
-    Settings,
-    Sparkles,
-    FileText,
-    Trophy,
-    CreditCard,
-    BarChart3,
-    Crown,
-    MessageCircle,
-    Globe,
-    Brain,
-    BookOpen,
-    ShieldCheck,
-    Bot,
-    Utensils,
-    CalendarCheck,
-    Stethoscope,
-    ShoppingBag,
-    TrendingUp,
-    Inbox,
-    ChevronDown,
-    LogOut,
-    User as UserIcon,
-    Building2,
-    Package,
-    ChefHat,
-    Map,
+    LayoutDashboard, Users, Settings, FileText, BarChart3, Crown,
+    Brain, ShieldCheck, Bot, ChevronDown, ChevronRight, LogOut,
+    User as UserIcon, Building2, Map, CalendarDays, HeartPulse,
+    MessageSquareText, WalletCards, SlidersHorizontal, PanelLeftClose,
+    PanelLeftOpen, Sparkles, Stethoscope, ClipboardCheck, BriefcaseBusiness,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
-// Views
 import { DashboardView } from "./views/DashboardView"
 import { CommunicationCenterView } from "./views/CommunicationCenterView"
 import { ProtocolsView } from "./views/ProtocolsView"
@@ -73,112 +48,112 @@ import { CommunityView } from "./views/CommunityView"
 import { BillingView } from "./views/BillingView"
 import { MethodsView } from "./views/MethodsView"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type ViewType =
     | 'dashboard' | 'communication' | 'protocols' | 'patients'
     | 'rewards' | 'checkins' | 'sales-page' | 'ai-brain' | 'ai-credits'
     | 'clinical-library' | 'settings' | 'club-plan' | 'agents-dashboard'
-    | 'meal-plans'
-    | 'appointments' | 'professionals' | 'product-gateway'
+    | 'meal-plans' | 'appointments' | 'professionals' | 'product-gateway'
     | 'strategic-planner' | 'analytics' | 'patient-journey'
     | 'products' | 'approvals' | 'manager-learning' | 'habits' | 'vip-settings'
     | 'questionnaires' | 'community' | 'billing' | 'methods' | 'business-plan'
 
-interface NavItem {
-    id: ViewType
+type NavItem = {
     label: string
+    id?: ViewType
+    href?: string
     badge?: boolean
 }
 
-interface NavGroup {
+type NavGroup = {
     id: string
-    groupIcon: any
+    icon: any
     label: string
     items: NavItem[]
 }
 
-// ─── Nav data (one icon per group → flyout with sub-items) ───────────────────
-
 const navGroups: NavGroup[] = [
     {
-        id: 'overview',
-        groupIcon: LayoutDashboard,
-        label: 'Início',
-        items: [
+        id: 'overview', icon: LayoutDashboard, label: 'Início', items: [
             { id: 'dashboard', label: 'Painel' },
-            { id: 'analytics', label: 'Analytics' },
-            { id: 'communication', label: 'Comunicação' },
+            { id: 'analytics', label: 'Indicadores' },
+            { href: '/admin/attention', label: 'Quem precisa de mim hoje' },
+            { href: '/admin/followups', label: 'Tarefas de acompanhamento' },
         ],
     },
     {
-        id: 'method',
-        groupIcon: Map,
-        label: 'Método',
-        items: [
-            { id: 'methods', label: 'Métodos e Fases' },
-            { id: 'clinical-library', label: 'Biblioteca Clínica' },
-        ],
-    },
-    {
-        id: 'clinic',
-        groupIcon: Users,
-        label: 'Pacientes',
-        items: [
-            { id: 'patients', label: 'Minhas Pacientes' },
-            { id: 'checkins', label: 'Check-ins IA' },
-            { id: 'patient-journey', label: 'Jornada das Pacientes' },
-            { id: 'appointments', label: 'Agenda' },
-        ],
-    },
-    {
-        id: 'programs',
-        groupIcon: FileText,
-        label: 'Programas',
-        items: [
-            { id: 'protocols', label: 'Protocolos' },
-            { id: 'habits', label: 'Hábitos' },
-            { id: 'meal-plans', label: 'Cardápios' },
-            { id: 'rewards', label: 'Recompensas' },
+        id: 'patients', icon: Users, label: 'Pacientes', items: [
+            { id: 'patients', label: 'Minhas pacientes' },
+            { id: 'checkins', label: 'Check-ins' },
+            { id: 'patient-journey', label: 'Jornada das pacientes' },
             { id: 'questionnaires', label: 'Questionários' },
+            { href: '/admin/followups/metrics', label: 'Métricas de acompanhamento' },
         ],
     },
     {
-        id: 'club',
-        groupIcon: Crown,
-        label: 'Clube',
-        items: [
-            { id: 'billing', label: 'Faturamento' },
-            { id: 'club-plan', label: 'Plano do Clube' },
-            { id: 'strategic-planner', label: 'Régua de Eventos' },
-            { id: 'business-plan', label: 'Planejamento Anual' },
-            { id: 'vip-settings', label: 'Área VIP' },
-            { id: 'community', label: 'Comunidade' },
-            { id: 'sales-page', label: 'Página de Vendas' },
-            { id: 'product-gateway', label: 'Catálogo de Produtos' },
-            { id: 'products', label: 'Produtos' },
+        id: 'crm', icon: BriefcaseBusiness, label: 'CRM', items: [
+            { href: '/admin/crm', label: 'Painel e contatos' },
+            { href: '/admin/crm/rescue', label: 'Fila de resgate' },
+            { href: '/admin/crm/outcomes', label: 'Resultados' },
+            { href: '/admin/crm/metrics', label: 'Métricas' },
+            { href: '/admin/crm/stages', label: 'Etapas e jornada' },
+        ],
+    },
+    {
+        id: 'attendance', icon: CalendarDays, label: 'Atendimento', items: [
+            { id: 'appointments', label: 'Agenda' },
+            { href: '/admin/appointments/availability', label: 'Disponibilidade' },
+            { href: '/admin/appointment-settings', label: 'Configurações da agenda' },
+            { href: '/admin/appointments/communications', label: 'Confirmações e lembretes' },
             { id: 'professionals', label: 'Profissionais' },
         ],
     },
     {
-        id: 'ai',
-        groupIcon: Bot,
-        label: 'Inteligência',
-        items: [
+        id: 'clinical', icon: Stethoscope, label: 'Planejamento clínico', items: [
+            { id: 'methods', label: 'Métodos e fases' },
+            { id: 'clinical-library', label: 'Biblioteca clínica' },
+            { id: 'protocols', label: 'Protocolos e desafios' },
+            { id: 'meal-plans', label: 'Dietas e cardápios' },
+            { id: 'habits', label: 'Hábitos' },
+            { href: '/admin/methods/phases', label: 'Critérios de avanço' },
+        ],
+    },
+    {
+        id: 'communication', icon: MessageSquareText, label: 'Comunicação', items: [
+            { id: 'communication', label: 'Central de comunicação' },
+            { href: '/admin/appointments/communications/whatsapp', label: 'WhatsApp' },
+            { href: '/admin/appointments/communications/whatsapp/go-live', label: 'Go-live do WhatsApp' },
+            { id: 'community', label: 'Comunidade' },
+            { id: 'rewards', label: 'Recompensas' },
+        ],
+    },
+    {
+        id: 'business', icon: WalletCards, label: 'Negócio', items: [
+            { id: 'billing', label: 'Financeiro e faturamento' },
+            { id: 'club-plan', label: 'Plano do clube' },
+            { id: 'products', label: 'Produtos' },
+            { id: 'product-gateway', label: 'Catálogo' },
+            { id: 'sales-page', label: 'Página de vendas' },
+            { id: 'vip-settings', label: 'Área VIP' },
+            { id: 'strategic-planner', label: 'Régua de eventos' },
+            { id: 'business-plan', label: 'Planejamento anual' },
+        ],
+    },
+    {
+        id: 'intelligence', icon: Bot, label: 'Inteligência e ajustes', items: [
             { id: 'ai-brain', label: 'Laboratório IA' },
             { id: 'agents-dashboard', label: 'Agentes IA' },
             { id: 'approvals', label: 'Aprovações', badge: true },
-            { id: 'ai-credits', label: 'Créditos IA' },
             { id: 'manager-learning', label: 'Gerente IA' },
-            { id: 'settings', label: 'Configurações' },
+            { id: 'ai-credits', label: 'Créditos IA' },
+            { href: '/admin/followup-settings', label: 'Regras do acompanhamento' },
+            { id: 'settings', label: 'Configurações do clube' },
+            { href: '/admin/settings/vital', label: 'Chaves e integrações' },
         ],
     },
 ]
 
-// Sidebar width constant (keep in sync with ml- on main)
-const SIDEBAR_W = 60
-
-// ─── Main component ───────────────────────────────────────────────────────────
+const SIDEBAR_EXPANDED = 272
+const SIDEBAR_COLLAPSED = 76
 
 interface AdminDashboardProps {
     userName?: string
@@ -189,20 +164,54 @@ interface AdminDashboardProps {
 }
 
 export default function AdminDashboard({
-    userName = 'Admin',
-    tenantName = '',
-    role = 'admin',
-    tenantId = '',
-    needsRepair = false,
+    userName = 'Admin', tenantName = '', role = 'admin', tenantId = '', needsRepair = false,
 }: AdminDashboardProps) {
     const router = useRouter()
+    const { openOverlay } = useOverlays()
     const [activeView, setActiveView] = useState<ViewType>('dashboard')
-    const [openGroupId, setOpenGroupId] = useState<string | null>(null)
+    const [collapsed, setCollapsed] = useState(false)
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set(['overview']))
     const [pendingApprovals, setPendingApprovals] = useState(0)
     const [patientsAutoOpen, setPatientsAutoOpen] = useState(false)
     const [patientsInitialFilter, setPatientsInitialFilter] = useState<'vip' | 'tracking' | null>(null)
-    const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const { openOverlay } = useOverlays()
+
+    const activeGroupId = navGroups.find(g => g.items.some(i => i.id === activeView))?.id || 'overview'
+
+    useEffect(() => {
+        setExpandedGroups(prev => {
+            if (prev.has(activeGroupId)) return prev
+            const next = new Set(prev)
+            next.add(activeGroupId)
+            return next
+        })
+    }, [activeGroupId])
+
+    useEffect(() => {
+        const load = () => fetch('/api/admin/approvals?status=pending')
+            .then(r => r.json()).then(d => setPendingApprovals(d.pending_count || 0)).catch(() => {})
+        load()
+        const timer = setInterval(load, 60_000)
+        return () => clearInterval(timer)
+    }, [])
+
+    useEffect(() => {
+        if (needsRepair) repairProfile().then(r => { if (r.repaired) router.refresh() }).catch(console.error)
+    }, [needsRepair, router])
+
+    const toggleGroup = (id: string) => {
+        if (collapsed) {
+            setCollapsed(false)
+            setExpandedGroups(new Set([id]))
+            return
+        }
+        setExpandedGroups(prev => {
+            const next = new Set(prev)
+            next.has(id) ? next.delete(id) : next.add(id)
+            return next
+        })
+    }
+
+    const navigate = (id: ViewType) => setActiveView(id)
 
     const goToNewPatient = useCallback(() => {
         setPatientsInitialFilter(null)
@@ -216,242 +225,154 @@ export default function AdminDashboard({
         setActiveView('patients')
     }, [])
 
-    const scheduleClose = useCallback(() => {
-        closeTimer.current = setTimeout(() => setOpenGroupId(null), 120)
-    }, [])
-
-    const cancelClose = useCallback(() => {
-        if (closeTimer.current) clearTimeout(closeTimer.current)
-    }, [])
-
-    useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current) }, [])
-
-    // Poll pending approvals every 60s
-    useEffect(() => {
-        const load = () =>
-            fetch('/api/admin/approvals?status=pending')
-                .then(r => r.json())
-                .then(d => setPendingApprovals(d.pending_count || 0))
-                .catch(() => {})
-        load()
-        const t = setInterval(load, 60_000)
-        return () => clearInterval(t)
-    }, [])
-
-    useEffect(() => {
-        if (needsRepair) {
-            repairProfile().then(r => { if (r.repaired) router.refresh() }).catch(console.error)
-        }
-    }, [needsRepair, router])
-
-    // Detect which group the active view belongs to
-    const activeGroupId = navGroups.find(g => g.items.some(i => i.id === activeView))?.id ?? null
-
-    const navigate = (id: ViewType) => {
-        setActiveView(id)
-        setOpenGroupId(null)
-    }
-
     const renderView = () => {
         const props = { setView: setActiveView, userName, tenantName, tenantId }
         switch (activeView) {
-            case 'dashboard':          return <DashboardView {...props} onNewPatient={goToNewPatient} onGoToVipPatients={() => goToPatientsFiltered('vip')} onGoToTrackingPatients={() => goToPatientsFiltered('tracking')} />
-            case 'methods':            return <MethodsView setView={setActiveView} tenantId={tenantId} />
-            case 'communication':      return <CommunicationCenterView setView={setActiveView} />
-            case 'protocols':          return <ProtocolsView setView={setActiveView} tenantId={tenantId} />
-            case 'patients':           return <PatientsView setView={setActiveView}
-                                            autoOpenRegister={patientsAutoOpen} onAutoOpenConsumed={() => setPatientsAutoOpen(false)}
-                                            initialFilter={patientsInitialFilter} onInitialFilterConsumed={() => setPatientsInitialFilter(null)} />
-            case 'rewards':            return <RewardsView setView={setActiveView} />
-            case 'checkins':           return <CheckinsView setView={setActiveView} />
-            case 'clinical-library':   return <ClinicalLibraryView setView={setActiveView} tenantId={tenantId} />
-            case 'sales-page':         return <SalesPageGenerator setView={setActiveView} tenantId={tenantId} />
-            case 'ai-brain':           return <AISettingsView setView={setActiveView} tenantId={tenantId} />
-            case 'ai-credits':         return <AICreditsView setView={setActiveView} tenantId={tenantId} />
-            case 'agents-dashboard':   return <AgentsDashboardView setView={setActiveView} tenantId={tenantId} />
-            case 'patient-journey':    return <JourneyView setView={setActiveView} tenantId={tenantId} />
-            case 'meal-plans':         return <MealPlanBuilderView setView={setActiveView} tenantId={tenantId} />
-            case 'appointments':       return <AppointmentsView setView={setActiveView} tenantId={tenantId} tenantName={tenantName} />
-            case 'professionals':      return <ProfessionalsView setView={setActiveView} tenantId={tenantId} />
-            case 'product-gateway':    return <ProductGatewayView setView={setActiveView} tenantId={tenantId} />
-            case 'strategic-planner':  return <StrategicPlannerView setView={setActiveView} />
-            case 'business-plan':      return <BusinessPlanView setView={setActiveView} />
-            case 'analytics':          return <AnalyticsView setView={setActiveView} />
-            case 'products':           return <ProductsView setView={setActiveView} tenantId={tenantId} />
-            case 'approvals':          return <ApprovalsView setView={setActiveView} tenantId={tenantId} />
-            case 'habits':             return <HabitsView setView={setActiveView} tenantId={tenantId} />
-            case 'vip-settings':       return <VipSettingsView setView={setActiveView} tenantId={tenantId} />
-            case 'billing':            return <BillingView setView={setActiveView} tenantId={tenantId} />
-            case 'manager-learning':   return <ManagerLearningView setView={setActiveView} tenantId={tenantId} />
-            case 'questionnaires':     return <QuestionnairesView setView={setActiveView} tenantId={tenantId} />
-            case 'community':          return <CommunityView />
-            case 'settings':           return <SettingsView {...props} />
-            case 'club-plan':          return <ClubPlanView {...props} />
-            default:                   return <DashboardView {...props} />
+            case 'dashboard': return <DashboardView {...props} onNewPatient={goToNewPatient} onGoToVipPatients={() => goToPatientsFiltered('vip')} onGoToTrackingPatients={() => goToPatientsFiltered('tracking')} />
+            case 'methods': return <MethodsView setView={setActiveView} tenantId={tenantId} />
+            case 'communication': return <CommunicationCenterView setView={setActiveView} />
+            case 'protocols': return <ProtocolsView setView={setActiveView} tenantId={tenantId} />
+            case 'patients': return <PatientsView setView={setActiveView} autoOpenRegister={patientsAutoOpen} onAutoOpenConsumed={() => setPatientsAutoOpen(false)} initialFilter={patientsInitialFilter} onInitialFilterConsumed={() => setPatientsInitialFilter(null)} />
+            case 'rewards': return <RewardsView setView={setActiveView} />
+            case 'checkins': return <CheckinsView setView={setActiveView} />
+            case 'clinical-library': return <ClinicalLibraryView setView={setActiveView} tenantId={tenantId} />
+            case 'sales-page': return <SalesPageGenerator setView={setActiveView} tenantId={tenantId} />
+            case 'ai-brain': return <AISettingsView setView={setActiveView} tenantId={tenantId} />
+            case 'ai-credits': return <AICreditsView setView={setActiveView} tenantId={tenantId} />
+            case 'agents-dashboard': return <AgentsDashboardView setView={setActiveView} tenantId={tenantId} />
+            case 'patient-journey': return <JourneyView setView={setActiveView} tenantId={tenantId} />
+            case 'meal-plans': return <MealPlanBuilderView setView={setActiveView} tenantId={tenantId} />
+            case 'appointments': return <AppointmentsView setView={setActiveView} tenantId={tenantId} tenantName={tenantName} />
+            case 'professionals': return <ProfessionalsView setView={setActiveView} tenantId={tenantId} />
+            case 'product-gateway': return <ProductGatewayView setView={setActiveView} tenantId={tenantId} />
+            case 'strategic-planner': return <StrategicPlannerView setView={setActiveView} />
+            case 'business-plan': return <BusinessPlanView setView={setActiveView} />
+            case 'analytics': return <AnalyticsView setView={setActiveView} />
+            case 'products': return <ProductsView setView={setActiveView} tenantId={tenantId} />
+            case 'approvals': return <ApprovalsView setView={setActiveView} tenantId={tenantId} />
+            case 'habits': return <HabitsView setView={setActiveView} tenantId={tenantId} />
+            case 'vip-settings': return <VipSettingsView setView={setActiveView} tenantId={tenantId} />
+            case 'billing': return <BillingView setView={setActiveView} tenantId={tenantId} />
+            case 'manager-learning': return <ManagerLearningView setView={setActiveView} tenantId={tenantId} />
+            case 'questionnaires': return <QuestionnairesView setView={setActiveView} tenantId={tenantId} />
+            case 'community': return <CommunityView />
+            case 'settings': return <SettingsView {...props} />
+            case 'club-plan': return <ClubPlanView {...props} />
+            default: return <DashboardView {...props} />
         }
     }
 
-    return (
-        <div className="min-h-screen bg-background text-foreground flex overflow-hidden">
+    const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED
 
-            {/* ── Mini Sidebar ──────────────────────────────────────────────── */}
+    return (
+        <div className="min-h-screen bg-[#F4F7F6] text-[#1C2B27] flex">
             <aside
-                style={{ width: SIDEBAR_W }}
-                className="fixed left-0 top-0 h-full z-50 flex flex-col items-center bg-white border-r border-[#2B1A10]/10 shadow-sm"
+                style={{ width: sidebarWidth }}
+                className="fixed inset-y-0 left-0 z-50 flex flex-col bg-white border-r border-[#D3DEDB] shadow-[6px_0_28px_rgba(28,43,39,0.04)] transition-[width] duration-200"
             >
-                {/* Logo mark */}
-                <div className="flex items-center justify-center h-16 w-full border-b border-[#2B1A10]/10">
-                    <div className="h-8 w-8 rounded-lg bg-[#C9A435]/15 border border-[#C9A435]/30 flex items-center justify-center relative">
-                        <Brain size={15} className="text-[#C9A435]" />
-                        <span className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-[#C9A435] rounded-full border border-white" />
-                    </div>
+                <div className={`h-20 flex items-center border-b border-[#E0E8E6] ${collapsed ? 'justify-center px-2' : 'justify-between px-5'}`}>
+                    <button onClick={() => navigate('dashboard')} className="flex items-center gap-3 min-w-0" title="Ir para o painel">
+                        <div className="h-10 w-10 rounded-2xl bg-[#E2F3EF] border border-[#B8DED5] flex items-center justify-center shrink-0">
+                            <Brain size={20} className="text-[#0D7166]" />
+                        </div>
+                        {!collapsed && (
+                            <div className="text-left min-w-0">
+                                <p className="text-[15px] font-black leading-tight text-[#1C2B27] truncate">{tenantName || 'NutriOS'}</p>
+                                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#6B7975] mt-0.5">Gestão clínica</p>
+                            </div>
+                        )}
+                    </button>
+                    {!collapsed && (
+                        <button onClick={() => setCollapsed(true)} className="h-9 w-9 rounded-xl flex items-center justify-center text-[#667570] hover:text-[#0D7166] hover:bg-[#EAF5F2]" aria-label="Recolher menu"><PanelLeftClose size={18} /></button>
+                    )}
                 </div>
 
-                {/* Icon rail */}
-                <nav className="flex-1 flex flex-col items-center py-3 gap-1 w-full overflow-y-auto no-scrollbar">
-                    {navGroups.map((group) => {
-                        const Icon = group.groupIcon
-                        const isGroupActive = activeGroupId === group.id
-                        const isOpen = openGroupId === group.id
-                        const hasBadge = group.items.some(i => i.badge) && pendingApprovals > 0
+                {collapsed && (
+                    <button onClick={() => setCollapsed(false)} className="mx-auto mt-3 h-9 w-9 rounded-xl flex items-center justify-center text-[#667570] hover:text-[#0D7166] hover:bg-[#EAF5F2]" aria-label="Expandir menu"><PanelLeftOpen size={18} /></button>
+                )}
 
+                <nav className="flex-1 overflow-y-auto custom-scrollbar px-3 py-3 space-y-1">
+                    {navGroups.map(group => {
+                        const Icon = group.icon
+                        const groupActive = group.id === activeGroupId
+                        const expanded = !collapsed && expandedGroups.has(group.id)
+                        const groupBadge = group.items.some(i => i.badge) && pendingApprovals > 0
                         return (
-                            <button
-                                key={group.id}
-                                title={group.label}
-                                onMouseEnter={() => { cancelClose(); setOpenGroupId(group.id) }}
-                                onMouseLeave={scheduleClose}
-                                className={`relative flex items-center justify-center w-10 h-10 rounded-xl transition-colors duration-150
-                                    ${isGroupActive || isOpen
-                                        ? 'bg-[#2B1A10]/10 text-[#2B1A10]'
-                                        : 'text-[#2B1A10]/40 hover:bg-[#2B1A10]/5 hover:text-[#2B1A10]/70'
-                                    }`}
-                            >
-                                <Icon size={17} />
-                                {/* Active dot */}
-                                {isGroupActive && (
-                                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-[#C9A435] rounded-r-full" />
-                                )}
-                                {/* Badge */}
-                                {hasBadge && (
-                                    <span className="absolute top-1 right-1 h-2 w-2 bg-rose-500 rounded-full border border-white" />
-                                )}
-                            </button>
+                            <div key={group.id}>
+                                <button
+                                    onClick={() => toggleGroup(group.id)}
+                                    title={collapsed ? group.label : undefined}
+                                    className={`w-full flex items-center rounded-xl transition-colors ${collapsed ? 'justify-center h-11' : 'gap-3 px-3 py-2.5'} ${groupActive ? 'bg-[#E2F3EF] text-[#0D7166]' : 'text-[#4E5E5A] hover:bg-[#F0F4F3] hover:text-[#1C2B27]'}`}
+                                >
+                                    <div className="relative shrink-0">
+                                        <Icon size={18} strokeWidth={1.8} />
+                                        {groupBadge && collapsed && <span className="absolute -top-1.5 -right-1.5 h-2.5 w-2.5 rounded-full bg-red-500 border-2 border-white" />}
+                                    </div>
+                                    {!collapsed && (
+                                        <>
+                                            <span className="flex-1 text-left text-[13px] font-bold">{group.label}</span>
+                                            {groupBadge && <span className="min-w-[20px] h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center">{pendingApprovals > 9 ? '9+' : pendingApprovals}</span>}
+                                            <ChevronRight size={14} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
+                                        </>
+                                    )}
+                                </button>
+
+                                <AnimatePresence initial={false}>
+                                    {expanded && (
+                                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                                            <div className="ml-6 pl-3 border-l border-[#DCE5E3] py-1 space-y-0.5">
+                                                {group.items.map(item => {
+                                                    const active = item.id ? activeView === item.id : false
+                                                    const className = `w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-[12px] font-semibold transition-colors ${active ? 'bg-[#EAF5F2] text-[#0D7166]' : 'text-[#5C6B67] hover:bg-[#F4F7F6] hover:text-[#1C2B27]'}`
+                                                    const content = <><span>{item.label}</span>{item.badge && pendingApprovals > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center">{pendingApprovals > 9 ? '9+' : pendingApprovals}</span>}</>
+                                                    return item.href ? (
+                                                        <Link key={item.href} href={item.href} className={className}>{content}</Link>
+                                                    ) : (
+                                                        <button key={item.id} onClick={() => item.id && navigate(item.id)} className={className}>{content}</button>
+                                                    )
+                                                })}
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
                         )
                     })}
                 </nav>
 
+                {!collapsed && (
+                    <div className="border-t border-[#E0E8E6] p-3">
+                        <Link href="/admin/settings/vital" className="flex items-center gap-3 rounded-xl border border-[#B8DED5] bg-[#F1F9F7] px-3 py-3 text-[#0D7166] hover:bg-[#E2F3EF] transition-colors">
+                            <SlidersHorizontal size={17} />
+                            <div className="min-w-0">
+                                <p className="text-xs font-black">Chaves e integrações</p>
+                                <p className="text-[10px] text-[#5E726D] mt-0.5">Central de serviços vitais</p>
+                            </div>
+                        </Link>
+                    </div>
+                )}
             </aside>
 
-            {/* ── Flyout Submenu ────────────────────────────────────────────── */}
-            <AnimatePresence>
-                {openGroupId && (() => {
-                    const group = navGroups.find(g => g.id === openGroupId)!
-                    return (
-                        <motion.div
-                            key={openGroupId}
-                            initial={{ opacity: 0, x: -8 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -8 }}
-                            transition={{ duration: 0.15, ease: 'easeOut' }}
-                            style={{ left: SIDEBAR_W }}
-                            className="fixed top-0 h-full z-40 w-52 bg-white border-r border-[#2B1A10]/10 shadow-xl flex flex-col"
-                            onMouseEnter={cancelClose}
-                            onMouseLeave={scheduleClose}
-                        >
-                            {/* Flyout header */}
-                            <div className="px-5 pt-6 pb-4 border-b border-[#2B1A10]/10">
-                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#2B1A10]/40">
-                                    {group.label}
-                                </p>
-                            </div>
-
-                            {/* Sub-items */}
-                            <nav className="flex-1 px-3 py-3 overflow-y-auto no-scrollbar space-y-0.5">
-                                {group.items.map((item) => {
-                                    const isActive = activeView === item.id
-                                    const showBadge = item.badge && pendingApprovals > 0
-                                    return (
-                                        <button
-                                            key={item.id}
-                                            onClick={() => navigate(item.id)}
-                                            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-colors duration-150 group
-                                                ${isActive
-                                                    ? 'bg-[#2B1A10]/10 text-[#2B1A10]'
-                                                    : 'text-[#2B1A10]/50 hover:bg-[#2B1A10]/5 hover:text-[#2B1A10]'
-                                                }`}
-                                        >
-                                            <span className={`text-[12px] font-medium ${isActive ? 'font-semibold' : ''}`}>
-                                                {item.label}
-                                            </span>
-                                            <div className="flex items-center gap-1.5">
-                                                {showBadge && (
-                                                    <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-black">
-                                                        {pendingApprovals > 9 ? '9+' : pendingApprovals}
-                                                    </span>
-                                                )}
-                                                {isActive && (
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-[#C9A435]" />
-                                                )}
-                                            </div>
-                                        </button>
-                                    )
-                                })}
-                            </nav>
-                        </motion.div>
-                    )
-                })()}
-            </AnimatePresence>
-
-            {/* Backdrop click-away when flyout is open */}
-            {openGroupId && (
-                <div
-                    className="fixed inset-0 z-30"
-                    onClick={() => setOpenGroupId(null)}
-                />
-            )}
-
-            {/* ── Main Content ──────────────────────────────────────────────── */}
-            <main
-                style={{ marginLeft: SIDEBAR_W }}
-                className="flex-1 flex flex-col min-h-screen"
-            >
-                {/* Top header */}
-                <div className="h-16 border-b border-[#2B1A10]/10 px-8 flex items-center justify-between bg-white/70 backdrop-blur-md flex-shrink-0">
-                    <div className="flex items-center gap-3">
-                        <span className="text-[9px] font-black text-[#2B1A10]/40 uppercase tracking-[0.3em]">Cenário</span>
-                        <div className="flex items-center gap-2 bg-[#C9A435]/10 px-3 py-1.5 rounded-lg border border-[#C9A435]/25">
-                            <ShieldCheck size={12} className="text-[#C9A435]" />
-                            <span className="text-[9px] font-black text-[#2B1A10] uppercase tracking-widest">Alta Performance</span>
+            <main style={{ marginLeft: sidebarWidth }} className="flex-1 flex flex-col min-h-screen transition-[margin] duration-200 min-w-0">
+                <header className="h-20 px-5 md:px-8 flex items-center justify-between bg-white/92 backdrop-blur border-b border-[#D3DEDB] sticky top-0 z-30">
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#6B7975]">
+                            <ShieldCheck size={13} className="text-[#118C7E]" />
+                            Operação da clínica
                         </div>
+                        <p className="mt-1 text-sm font-bold text-[#1C2B27] truncate">{navGroups.find(g => g.id === activeGroupId)?.label || 'Painel'}</p>
                     </div>
-                    <div className="flex items-center gap-5">
-                        <div className="flex -space-x-2.5">
-                            {[1, 2, 3].map(i => (
-                                <div key={i} className="h-8 w-8 rounded-full border-2 border-white bg-[#2B1A10]/10 overflow-hidden shadow-sm">
-                                    <img src={`https://api.dicebear.com/9.x/micah/svg?seed=user${i}`} alt="" />
-                                </div>
-                            ))}
-                            <div className="h-8 w-8 rounded-full border-2 border-white bg-[#2B1A10] flex items-center justify-center text-[9px] font-bold text-white shadow-sm">
-                                +12
-                            </div>
-                        </div>
-                        <div className="h-8 w-px bg-[#2B1A10]/10" />
+                    <div className="flex items-center gap-3">
+                        <Link href="/admin/attention" className="hidden lg:flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100">
+                            <HeartPulse size={15} /> Prioridades do dia
+                        </Link>
                         <UserDropdown userName={userName} role={role} openOverlay={openOverlay} router={router} />
                     </div>
-                </div>
+                </header>
 
-                {/* Page content */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
                     <AnimatePresence mode="wait">
-                        <motion.div
-                            key={activeView}
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -8 }}
-                            transition={{ duration: 0.2, ease: 'easeOut' }}
-                            className="p-8 max-w-7xl mx-auto"
-                        >
+                        <motion.div key={activeView} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.16 }} className="p-4 md:p-7 xl:p-8 max-w-[1500px] mx-auto">
                             {renderView()}
                         </motion.div>
                     </AnimatePresence>
@@ -461,8 +382,6 @@ export default function AdminDashboard({
     )
 }
 
-// ─── User dropdown ────────────────────────────────────────────────────────────
-
 function UserDropdown({ userName, role, openOverlay, router }: {
     userName: string
     role: string
@@ -470,10 +389,9 @@ function UserDropdown({ userName, role, openOverlay, router }: {
     router: ReturnType<typeof useRouter>
 }) {
     const [isOpen, setIsOpen] = useState(false)
-
     const menuItems = [
-        { id: 'profile', label: 'Meu Perfil', icon: UserIcon, onClick: () => openOverlay({ id: 'account', content: <AccountOverlay index={0} />, title: 'Meu Perfil' }) },
-        { id: 'clinic', label: 'Contato da Clínica', icon: Building2, onClick: () => openOverlay({ id: 'clinic', content: <ClinicSettingsOverlay index={0} />, title: 'Contato da Clínica' }) },
+        { id: 'profile', label: 'Meu perfil', icon: UserIcon, onClick: () => openOverlay({ id: 'account', content: <AccountOverlay index={0} />, title: 'Meu Perfil' }) },
+        { id: 'clinic', label: 'Contato da clínica', icon: Building2, onClick: () => openOverlay({ id: 'clinic', content: <ClinicSettingsOverlay index={0} />, title: 'Contato da Clínica' }) },
     ]
 
     const handleSignOut = async () => {
@@ -483,49 +401,35 @@ function UserDropdown({ userName, role, openOverlay, router }: {
 
     return (
         <div className="relative">
-            <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setIsOpen(o => !o)}>
-                <div className="text-right hidden sm:block">
-                    <p className="text-[10px] font-bold text-[#2B1A10] group-hover:text-[#C9A435] transition-colors uppercase tracking-widest leading-none">{userName}</p>
-                    <div className="flex items-center justify-end gap-1 mt-0.5">
-                        <p className="text-[8px] text-[#2B1A10]/40 font-black uppercase tracking-widest">{role === 'admin' ? 'Admin' : 'Nutricionista'}</p>
-                        <ChevronDown size={9} className={`text-[#2B1A10]/40 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                    </div>
+            <button className="flex items-center gap-3 rounded-xl p-1.5 hover:bg-[#F0F4F3] transition-colors" onClick={() => setIsOpen(v => !v)}>
+                <div className="hidden sm:block text-right">
+                    <p className="text-xs font-bold text-[#1C2B27] leading-none">{userName}</p>
+                    <p className="text-[10px] text-[#6B7975] font-semibold mt-1">{role === 'admin' ? 'Administradora' : 'Nutricionista'}</p>
                 </div>
-                <div className="h-9 w-9 rounded-xl border border-[#2B1A10]/10 p-0.5 group-hover:border-[#C9A435]/50 transition-colors shadow-sm overflow-hidden">
-                    <img src={`https://api.dicebear.com/9.x/micah/svg?seed=${userName}`} className="w-full h-full rounded-lg bg-[#2B1A10]/10" alt="admin" />
+                <div className="h-9 w-9 rounded-xl border border-[#C7D4D1] overflow-hidden bg-[#EAF5F2]">
+                    <img src={`https://api.dicebear.com/9.x/micah/svg?seed=${userName}`} className="w-full h-full" alt="Perfil" />
                 </div>
-            </div>
+                <ChevronDown size={13} className={`text-[#667570] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
 
             <AnimatePresence>
                 {isOpen && (
                     <>
                         <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-                        <motion.div
-                            initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                            className="absolute right-0 mt-3 w-56 bg-white border border-[#2B1A10]/10 rounded-2xl shadow-xl p-2 z-50"
-                        >
-                            <div className="space-y-0.5">
-                                {menuItems.map(item => (
-                                    <button
-                                        key={item.id}
-                                        onClick={() => { item.onClick(); setIsOpen(false) }}
-                                        className="w-full flex items-center gap-3 px-4 py-3 text-[#2B1A10]/60 hover:text-[#2B1A10] hover:bg-[#2B1A10]/5 rounded-xl transition-colors group"
-                                    >
-                                        <item.icon size={15} className="group-hover:text-[#C9A435] transition-colors" />
-                                        <span className="text-[11px] font-semibold">{item.label}</span>
-                                    </button>
-                                ))}
-                                <div className="h-px bg-[#2B1A10]/10 my-1 mx-2" />
-                                <button
-                                    onClick={handleSignOut}
-                                    className="w-full flex items-center gap-3 px-4 py-3 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 rounded-xl transition-colors"
-                                >
-                                    <LogOut size={15} />
-                                    <span className="text-[11px] font-semibold">Sair do Sistema</span>
+                        <motion.div initial={{ opacity: 0, y: 8, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: .98 }} className="absolute right-0 mt-2 w-60 bg-white border border-[#D3DEDB] rounded-2xl shadow-xl p-2 z-50">
+                            {menuItems.map(item => (
+                                <button key={item.id} onClick={() => { item.onClick(); setIsOpen(false) }} className="w-full flex items-center gap-3 px-4 py-3 text-[#52615D] hover:text-[#1C2B27] hover:bg-[#F0F4F3] rounded-xl transition-colors">
+                                    <item.icon size={16} />
+                                    <span className="text-xs font-semibold">{item.label}</span>
                                 </button>
-                            </div>
+                            ))}
+                            <Link href="/admin/settings/vital" onClick={() => setIsOpen(false)} className="flex items-center gap-3 px-4 py-3 text-[#52615D] hover:text-[#0D7166] hover:bg-[#EAF5F2] rounded-xl transition-colors">
+                                <Settings size={16} /><span className="text-xs font-semibold">Chaves e integrações</span>
+                            </Link>
+                            <div className="h-px bg-[#E0E8E6] my-1 mx-2" />
+                            <button onClick={handleSignOut} className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-xl transition-colors">
+                                <LogOut size={16} /><span className="text-xs font-semibold">Sair do sistema</span>
+                            </button>
                         </motion.div>
                     </>
                 )}
