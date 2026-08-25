@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
     const steps: Record<string, unknown> = {}
     const pipeline: Array<[string, string, Record<string, unknown>]> = [
       ['appointment_no_shows', 'materialize_appointment_no_shows', { p_tenant_id: tenantId, p_now: nowIso }],
+      ['appointment_communications', 'materialize_appointment_communication_jobs', { p_tenant_id: tenantId, p_now: nowIso }],
       ['snapshot', 'refresh_patient_operational_snapshot', { p_tenant_id: tenantId, p_reference_date: today }],
       ['lifecycle', 'refresh_patient_lifecycle_states', { p_tenant_id: tenantId, p_reference_date: today }],
       ['risk_tasks', 'sync_patient_followup_tasks', { p_tenant_id: tenantId, p_reference_date: today }],
