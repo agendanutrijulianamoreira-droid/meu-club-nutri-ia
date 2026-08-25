@@ -204,10 +204,10 @@ async function saveCustom(form: FormData) {
 }
 
 function statusClass(status: string) {
-  if (status === 'valid') return 'bg-emerald-50 text-emerald-800 border-emerald-200'
-  if (status === 'configured') return 'bg-amber-50 text-amber-900 border-amber-200'
-  if (status === 'invalid') return 'bg-red-50 text-red-800 border-red-200'
-  return 'bg-[#F0F4F3] text-[#52615D] border-[#D3DEDB]'
+  if (status === 'valid') return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+  if (status === 'configured') return 'bg-amber-500/10 text-amber-400 border-amber-500/25'
+  if (status === 'invalid') return 'bg-rose-500/10 text-rose-400 border-rose-500/25'
+  return 'bg-white/5 text-slate-400 border-white/10'
 }
 
 function statusLabel(status: string) {
@@ -219,9 +219,9 @@ function statusLabel(status: string) {
 }
 
 function priorityClass(priority: Group['priority']) {
-  if (priority === 'Essencial') return 'bg-[#E2F3EF] text-[#0D7166] border-[#B8DED5]'
-  if (priority === 'Recomendado') return 'bg-amber-50 text-amber-900 border-amber-200'
-  return 'bg-[#F0F4F3] text-[#52615D] border-[#D3DEDB]'
+  if (priority === 'Essencial') return 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30'
+  if (priority === 'Recomendado') return 'bg-amber-500/10 text-amber-400 border-amber-500/25'
+  return 'bg-white/5 text-slate-400 border-white/10'
 }
 
 export default async function VitalSettings({ searchParams }: { searchParams?: { saved?: string; error?: string } }) {
@@ -240,53 +240,53 @@ export default async function VitalSettings({ searchParams }: { searchParams?: {
   const configuredGroups = GROUPS.filter(g => g.fields.some(f => map.has(`${f.provider}:${f.key}`))).length
 
   return (
-    <main className="min-h-screen bg-[#F4F7F6] text-[#1C2B27]">
+    <main className="min-h-screen bg-slate-950 text-white">
       <div className="mx-auto max-w-7xl px-4 md:px-7 py-7">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[.2em] text-[#0D7166]">Configurações · Integrações</p>
+            <p className="text-xs font-black uppercase tracking-[.2em] text-indigo-400">Configurações · Integrações</p>
             <h1 className="mt-1 text-3xl font-black">Central de serviços vitais</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[#5C6B67]">Conecte apenas ferramentas que reduzam trabalho operacional. Segredos ficam criptografados no Supabase Vault e nunca são exibidos novamente.</p>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">Conecte apenas ferramentas que reduzam trabalho operacional. Segredos ficam criptografados no Supabase Vault e nunca são exibidos novamente.</p>
           </div>
           <div className="flex gap-2">
-            <Link href="/admin" className="rounded-xl border border-[#C7D4D1] bg-white px-4 py-2 text-sm font-bold text-[#1C2B27] hover:bg-[#F0F4F3]">Voltar ao Admin</Link>
-            <Link href="/admin/appointments/communications/whatsapp/go-live" className="rounded-xl bg-[#118C7E] px-4 py-2 text-sm font-bold text-white hover:bg-[#0D7166]">Go-live WhatsApp</Link>
+            <Link href="/admin" className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white hover:bg-white/10">Voltar ao Admin</Link>
+            <Link href="/admin/appointments/communications/whatsapp/go-live" className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500">Go-live WhatsApp</Link>
           </div>
         </div>
 
-        {searchParams?.saved && <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">Configuração salva com segurança.</div>}
-        {searchParams?.error && <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">Não foi possível salvar. Revise os dados e tente novamente.</div>}
+        {searchParams?.saved && <div className="mb-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-400">Configuração salva com segurança.</div>}
+        {searchParams?.error && <div className="mb-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm font-bold text-rose-400">Não foi possível salvar. Revise os dados e tente novamente.</div>}
 
         <section className="mb-6 grid gap-4 lg:grid-cols-[300px_1fr]">
-          <div className="overflow-hidden rounded-3xl border border-[#D3DEDB] bg-white shadow-sm">
-            <div className="bg-[#173C35] p-5 text-white">
-              <p className="text-xs font-black uppercase tracking-[.18em] text-[#A9D8CD]">Clínica</p>
-              <p className="mt-3 text-xl font-black">{tenant?.brand_name || 'Minha clínica'}</p>
+          <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+            <div className="bg-indigo-500/10 border-b border-indigo-500/20 p-5">
+              <p className="text-xs font-black uppercase tracking-[.18em] text-indigo-400">Clínica</p>
+              <p className="mt-3 text-xl font-black text-white">{tenant?.brand_name || 'Minha clínica'}</p>
             </div>
             <div className="p-5 text-sm">
-              <p className="font-black">{name}</p>
-              <p className="mt-4 text-[10px] font-black uppercase tracking-wide text-[#6B7975]">Plano</p>
-              <p>{tenant?.plan_tier || '—'}</p>
-              <p className="mt-3 text-[10px] font-black uppercase tracking-wide text-[#6B7975]">WhatsApp</p>
-              <p className="font-bold">{channel?.whatsapp_activation_state || 'draft'} {channel?.whatsapp_pilot_mode ? '· piloto' : ''}</p>
+              <p className="font-black text-white">{name}</p>
+              <p className="mt-4 text-[10px] font-black uppercase tracking-wide text-slate-500">Plano</p>
+              <p className="text-slate-300">{tenant?.plan_tier || '—'}</p>
+              <p className="mt-3 text-[10px] font-black uppercase tracking-wide text-slate-500">WhatsApp</p>
+              <p className="font-bold text-slate-300">{channel?.whatsapp_activation_state || 'draft'} {channel?.whatsapp_pilot_mode ? '· piloto' : ''}</p>
             </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <div className="rounded-3xl border border-[#D3DEDB] bg-white p-5 shadow-sm">
-              <p className="text-xs font-black uppercase tracking-wide text-[#6B7975]">Prontidão essencial</p>
-              <p className="mt-2 text-4xl font-black">{configuredRequired}/{requiredFields.length}</p>
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#E4EBE9]"><div className="h-full bg-[#118C7E]" style={{ width: `${requiredFields.length ? configuredRequired / requiredFields.length * 100 : 0}%` }} /></div>
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500">Prontidão essencial</p>
+              <p className="mt-2 text-4xl font-black text-white">{configuredRequired}/{requiredFields.length}</p>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-indigo-500" style={{ width: `${requiredFields.length ? configuredRequired / requiredFields.length * 100 : 0}%` }} /></div>
             </div>
-            <div className="rounded-3xl border border-[#D3DEDB] bg-white p-5 shadow-sm">
-              <p className="text-xs font-black uppercase tracking-wide text-[#6B7975]">Segredos protegidos</p>
-              <p className="mt-2 text-4xl font-black">{(rows || []).filter((r: any) => r.value_type === 'secret').length}</p>
-              <p className="mt-3 text-sm text-[#5C6B67]">Valores permanecem somente no Vault.</p>
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500">Segredos protegidos</p>
+              <p className="mt-2 text-4xl font-black text-white">{(rows || []).filter((r: any) => r.value_type === 'secret').length}</p>
+              <p className="mt-3 text-sm text-slate-400">Valores permanecem somente no Vault.</p>
             </div>
-            <div className="rounded-3xl border border-[#D3DEDB] bg-white p-5 shadow-sm">
-              <p className="text-xs font-black uppercase tracking-wide text-[#6B7975]">Serviços iniciados</p>
-              <p className="mt-2 text-4xl font-black">{configuredGroups}/{GROUPS.length}</p>
-              <p className="mt-3 text-sm text-[#5C6B67]">Com pelo menos uma configuração cadastrada.</p>
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500">Serviços iniciados</p>
+              <p className="mt-2 text-4xl font-black text-white">{configuredGroups}/{GROUPS.length}</p>
+              <p className="mt-3 text-sm text-slate-400">Com pelo menos uma configuração cadastrada.</p>
             </div>
           </div>
         </section>
@@ -295,26 +295,26 @@ export default async function VitalSettings({ searchParams }: { searchParams?: {
           {GROUPS.map(group => {
             const groupConfigured = group.fields.filter(f => map.has(`${f.provider}:${f.key}`)).length
             return (
-              <section key={group.id} className="rounded-3xl border border-[#D3DEDB] bg-white p-5 shadow-sm">
+              <section key={group.id} className="rounded-3xl border border-white/10 bg-white/5 p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#E2F3EF] font-black text-[#0D7166]">{group.icon}</div>
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-500/10 font-black text-indigo-400">{group.icon}</div>
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="text-lg font-black">{group.title}</h2>
+                        <h2 className="text-lg font-black text-white">{group.title}</h2>
                         <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${priorityClass(group.priority)}`}>{group.priority}</span>
                       </div>
-                      <p className="mt-1 text-sm text-[#5C6B67]">{group.subtitle}</p>
+                      <p className="mt-1 text-sm text-slate-400">{group.subtitle}</p>
                     </div>
                   </div>
-                  <span className="rounded-full border border-[#D3DEDB] bg-[#F4F7F6] px-3 py-1 text-xs font-black text-[#52615D]">{groupConfigured}/{group.fields.length} configurados</span>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-slate-400">{groupConfigured}/{group.fields.length} configurados</span>
                 </div>
 
                 <div className="mt-5 grid gap-3 lg:grid-cols-2">
                   {group.fields.map(field => {
                     const row: any = map.get(`${field.provider}:${field.key}`)
                     return (
-                      <form action={saveSetting} key={`${field.provider}:${field.key}`} className="rounded-2xl border border-[#DCE5E3] bg-[#F9FBFA] p-4">
+                      <form action={saveSetting} key={`${field.provider}:${field.key}`} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                         <input type="hidden" name="category" value={field.category} />
                         <input type="hidden" name="provider" value={field.provider} />
                         <input type="hidden" name="key" value={field.key} />
@@ -324,8 +324,8 @@ export default async function VitalSettings({ searchParams }: { searchParams?: {
                         <input type="hidden" name="required" value={String(Boolean(field.required))} />
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-sm font-black">{field.label}{field.required && <span className="ml-1 text-red-500">*</span>}</p>
-                            <p className="mt-1 text-xs leading-relaxed text-[#667570]">{field.description}</p>
+                            <p className="text-sm font-black text-white">{field.label}{field.required && <span className="ml-1 text-rose-400">*</span>}</p>
+                            <p className="mt-1 text-xs leading-relaxed text-slate-400">{field.description}</p>
                           </div>
                           <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-black ${statusClass(row?.validation_status || 'unknown')}`}>{statusLabel(row?.validation_status || 'unknown')}</span>
                         </div>
@@ -335,9 +335,9 @@ export default async function VitalSettings({ searchParams }: { searchParams?: {
                             type={field.type === 'secret' ? 'password' : field.type === 'url' ? 'url' : 'text'}
                             defaultValue={field.type === 'secret' ? '' : row?.config_value || ''}
                             placeholder={field.type === 'secret' && row ? '••••••••  (substituir)' : field.placeholder || (field.type === 'secret' ? 'Cole o segredo' : '')}
-                            className="min-w-0 flex-1 rounded-xl border border-[#C7D4D1] bg-white px-3 py-2.5 text-sm text-[#1C2B27] placeholder:text-[#71807C] focus:border-[#118C7E] focus:outline-none"
+                            className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none"
                           />
-                          <button className="rounded-xl bg-[#173C35] px-4 py-2.5 text-xs font-black text-white hover:bg-[#0D7166]">{row ? 'Atualizar' : 'Salvar'}</button>
+                          <button className="rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-black text-white hover:bg-indigo-500">{row ? 'Atualizar' : 'Salvar'}</button>
                         </div>
                       </form>
                     )
@@ -347,17 +347,17 @@ export default async function VitalSettings({ searchParams }: { searchParams?: {
             )
           })}
 
-          <section className="rounded-3xl border border-dashed border-[#B7C8C4] bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-black">Integração personalizada</h2>
-            <p className="mt-1 text-sm text-[#5C6B67]">Cadastre qualquer serviço futuro sem precisar alterar o schema.</p>
+          <section className="rounded-3xl border border-dashed border-white/15 bg-white/5 p-5">
+            <h2 className="text-lg font-black text-white">Integração personalizada</h2>
+            <p className="mt-1 text-sm text-slate-400">Cadastre qualquer serviço futuro sem precisar alterar o schema.</p>
             <form action={saveCustom} className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-5">
-              <input name="provider" placeholder="Provedor (ex: canva)" className="rounded-xl border border-[#C7D4D1] bg-white px-3 py-2.5 text-sm" />
-              <input name="key" placeholder="Chave (ex: API_KEY)" className="rounded-xl border border-[#C7D4D1] bg-white px-3 py-2.5 text-sm font-mono" />
-              <input name="label" placeholder="Nome do campo" className="rounded-xl border border-[#C7D4D1] bg-white px-3 py-2.5 text-sm" />
-              <select name="type" className="rounded-xl border border-[#C7D4D1] bg-white px-3 py-2.5 text-sm"><option value="secret">Segredo</option><option value="text">Texto</option><option value="url">URL</option></select>
-              <div className="flex gap-2"><input name="value" type="password" placeholder="Valor" className="min-w-0 flex-1 rounded-xl border border-[#C7D4D1] bg-white px-3 py-2.5 text-sm" /><button className="rounded-xl bg-[#118C7E] px-4 py-2.5 text-xs font-black text-white">Adicionar</button></div>
+              <input name="provider" placeholder="Provedor (ex: canva)" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500" />
+              <input name="key" placeholder="Chave (ex: API_KEY)" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm font-mono text-white placeholder:text-slate-500" />
+              <input name="label" placeholder="Nome do campo" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500" />
+              <select name="type" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white"><option value="secret">Segredo</option><option value="text">Texto</option><option value="url">URL</option></select>
+              <div className="flex gap-2"><input name="value" type="password" placeholder="Valor" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500" /><button className="rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-black text-white hover:bg-indigo-500">Adicionar</button></div>
             </form>
-            {custom.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{custom.map((r: any) => <span key={`${r.provider}:${r.setting_key}`} className="rounded-full border border-[#D3DEDB] bg-[#F4F7F6] px-3 py-1 text-xs font-bold text-[#52615D]">{r.provider} · {r.label || r.setting_key}</span>)}</div>}
+            {custom.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{custom.map((r: any) => <span key={`${r.provider}:${r.setting_key}`} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-bold text-slate-400">{r.provider} · {r.label || r.setting_key}</span>)}</div>}
           </section>
         </div>
       </div>

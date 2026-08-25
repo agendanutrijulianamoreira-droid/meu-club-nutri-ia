@@ -3,29 +3,29 @@
 @tailwind utilities;
 
 /*
- * Design system v2 — clínica premium, legível e consistente.
- * A base visual agora prioriza contraste WCAG, hierarquia clara e estados
- * semânticos. O dourado continua como acento; teal assume ações/links.
+ * Design system — paleta escura oficial do VitaClub (ver CLAUDE.md §4).
+ * Todo o produto (admin e app da paciente) é construído sobre este fundo
+ * escuro; nunca reintroduzir um tema claro global sem migrar as telas.
  */
 @layer base {
   :root {
-    --background: 165 12% 96%;       /* #F4F7F6 */
-    --foreground: 165 20% 14%;       /* #1C2B27 */
+    --background: 222 47% 3%;        /* #020617 (slate-950) */
+    --foreground: 0 0% 100%;         /* white */
     --card: 0 0% 100%;
-    --card-foreground: 165 20% 14%;
-    --muted: 162 16% 93%;
-    --muted-foreground: 165 10% 38%;
-    --primary: 172 78% 31%;          /* teal #118C7E */
+    --card-foreground: 0 0% 100%;
+    --muted: 215 28% 17%;
+    --muted-foreground: 215 20% 65%; /* slate-400 */
+    --primary: 239 84% 67%;          /* indigo-600 */
     --primary-foreground: 0 0% 100%;
-    --secondary: 42 46% 93%;
-    --secondary-foreground: 165 20% 14%;
-    --border: 164 15% 84%;           /* #D3DEDB */
-    --input: 164 15% 80%;
-    --ring: 172 78% 31%;
-    --success: 151 64% 34%;
-    --warning: 39 78% 38%;
-    --danger: 0 58% 47%;
-    --info: 217 73% 51%;
+    --secondary: 215 28% 17%;
+    --secondary-foreground: 0 0% 100%;
+    --border: 0 0% 100% / 0.1;       /* white/10 */
+    --input: 0 0% 100% / 0.1;
+    --ring: 239 84% 67%;
+    --success: 152 76% 44%;          /* emerald-400 */
+    --warning: 43 96% 56%;           /* amber-400 */
+    --danger: 351 89% 71%;           /* rose-400 */
+    --info: 213 94% 68%;
   }
 
   * {
@@ -33,16 +33,16 @@
   }
 
   html {
-    color-scheme: light;
+    color-scheme: dark;
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-slate-950 text-white antialiased;
     min-width: 320px;
   }
 
   h1, h2, h3 {
-    @apply font-serif text-foreground;
+    @apply font-serif text-white;
   }
 
   input, textarea, select, button {
@@ -51,7 +51,7 @@
 
   input::placeholder,
   textarea::placeholder {
-    color: #71807C;
+    color: #64748b;
     opacity: 1;
   }
 
@@ -63,47 +63,47 @@
 
 @layer components {
   .surface {
-    @apply bg-white border border-[#D3DEDB] shadow-sm;
+    @apply bg-white/5 border border-white/10 shadow-sm;
   }
 
   .surface-muted {
-    @apply bg-[#F0F4F3] border border-[#D3DEDB];
+    @apply bg-white/[0.03] border border-white/10;
   }
 
   .text-primary-strong {
-    @apply text-[#1C2B27];
+    @apply text-white;
   }
 
   .text-secondary-readable {
-    @apply text-[#52615D];
+    @apply text-slate-400;
   }
 
   .text-muted-readable {
-    @apply text-[#6B7975];
+    @apply text-slate-500;
   }
 
   .action-primary {
-    @apply bg-[#118C7E] text-white hover:bg-[#0D7166] disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .action-secondary {
-    @apply bg-white text-[#1C2B27] border border-[#C7D4D1] hover:bg-[#F0F4F3];
+    @apply bg-white/5 text-white border border-white/10 hover:bg-white/10;
   }
 
   .nav-active {
-    @apply bg-[#E2F3EF] text-[#0D7166] border border-[#B8DED5];
+    @apply bg-indigo-500/10 text-indigo-400 border border-indigo-500/30;
   }
 
   .status-success {
-    @apply bg-emerald-50 text-emerald-800 border border-emerald-200;
+    @apply bg-emerald-500/10 text-emerald-400 border border-emerald-500/25;
   }
 
   .status-warning {
-    @apply bg-amber-50 text-amber-900 border border-amber-200;
+    @apply bg-amber-500/10 text-amber-400 border border-amber-500/25;
   }
 
   .status-danger {
-    @apply bg-red-50 text-red-800 border border-red-200;
+    @apply bg-rose-500/10 text-rose-400 border border-rose-500/25;
   }
 }
 

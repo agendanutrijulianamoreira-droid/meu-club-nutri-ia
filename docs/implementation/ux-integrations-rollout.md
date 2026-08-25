@@ -11,6 +11,9 @@ Transformar o produto em uma operação mais legível, previsível e rápida par
 5. **Segredos ficam no Vault:** a UI só cadastra/rotaciona; nunca reexibe credenciais privadas.
 6. **Go-live controlado:** integração externa nasce desligada e só entra em produção depois de teste com conta real.
 
+## Correção (Ago/2026)
+A Onda 1 trocou os tokens globais (`app/globals.css`) e 5 arquivos de shell/navegação (`AdminClientPage.tsx`, `settings/vital/page.tsx`, `patient/layout.tsx`, `BottomNav.tsx`) para um tema claro, mas nunca migrou as ~30 views do admin nem as páginas da paciente que continuavam no tema escuro documentado no `CLAUDE.md` §4. Resultado: texto branco sobre fundo branco, cards `bg-white/5` e bordas `border-white/10` praticamente invisíveis em quase todo o sistema e no app — exatamente o problema relatado pela usuária ("não dá pra ver algumas coisas"). Correção aplicada: os 5 arquivos de shell voltaram ao tema escuro aprovado (`bg-slate-950`, `indigo-600`, `emerald/amber/rose` semânticos), preservando a reorganização da sidebar por domínio, a remoção dos atalhos flutuantes e o catálogo de integrações — não houve retrocesso de estrutura, só de paleta. Não recriar um tema claro global sem migrar as views existentes na mesma leva.
+
 ## Onda 1 — Base visual e navegação
 ### Entregas
 - tokens semânticos de cor e contraste;

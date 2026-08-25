@@ -66,7 +66,7 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
     const isFullScreenRoute = pathname?.startsWith('/patient/diario/capturar') || pathname?.startsWith('/patient/diario/resultado')
 
     return (
-        <div className={isFullScreenRoute ? "min-h-screen" : "min-h-screen bg-[#F4F7F6] text-[#1C2B27] pb-24"}>
+        <div className={isFullScreenRoute ? "min-h-screen" : "min-h-screen bg-slate-950 text-white pb-24"}>
             <main className="relative z-0">{children}</main>
 
             {!isFullScreenRoute && (
@@ -74,11 +74,11 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
                     <button
                         onClick={() => setShowMore(true)}
                         aria-label="Abrir mais opções"
-                        className="fixed top-4 right-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl bg-white border border-[#D3DEDB] shadow-soft text-[#52615D] hover:text-[#0D7166] hover:border-[#B8DED5] transition-colors"
+                        className="fixed top-4 right-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl bg-white/5 border border-white/10 text-slate-400 hover:text-indigo-400 hover:border-indigo-500/30 transition-colors"
                     >
                         <Grid2x2 size={19} strokeWidth={1.8} />
                         {moreHasUnread && (
-                            <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-0.5 bg-[#C24141] rounded-full flex items-center justify-center text-[8px] font-black text-white">
+                            <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-0.5 bg-rose-500 rounded-full flex items-center justify-center text-[8px] font-black text-white">
                                 {unreadInbox > 9 ? '9+' : unreadInbox}
                             </span>
                         )}
@@ -90,20 +90,20 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
             <AnimatePresence>
                 {showMore && (
                     <>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowMore(false)} className="fixed inset-0 z-[60] bg-[#1C2B27]/45 backdrop-blur-sm" />
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowMore(false)} className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm" />
                         <motion.div
                             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
                             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                            className="fixed bottom-0 left-0 right-0 z-[70] bg-white border-t border-[#D3DEDB] rounded-t-3xl max-h-[82vh] overflow-y-auto safe-area-bottom shadow-[0_-18px_45px_rgba(28,43,39,0.14)]"
+                            className="fixed bottom-0 left-0 right-0 z-[70] bg-slate-900 border-t border-white/10 rounded-t-3xl max-h-[82vh] overflow-y-auto safe-area-bottom shadow-[0_-18px_45px_rgba(0,0,0,0.4)]"
                         >
                             <div className="max-w-md mx-auto px-4 pt-4 pb-8">
-                                <div className="w-12 h-1 rounded-full bg-[#D3DEDB] mx-auto mb-4" />
+                                <div className="w-12 h-1 rounded-full bg-white/15 mx-auto mb-4" />
                                 <div className="flex items-center justify-between mb-4">
                                     <div>
-                                        <h2 className="font-serif text-[#1C2B27] font-semibold text-lg">Mais opções</h2>
-                                        <p className="text-xs text-[#6B7975] mt-0.5">Recursos complementares do seu acompanhamento</p>
+                                        <h2 className="font-serif text-white font-semibold text-lg">Mais opções</h2>
+                                        <p className="text-xs text-slate-500 mt-0.5">Recursos complementares do seu acompanhamento</p>
                                     </div>
-                                    <button onClick={() => setShowMore(false)} aria-label="Fechar" className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#F0F4F3] text-[#52615D] hover:text-[#1C2B27] transition-all">
+                                    <button onClick={() => setShowMore(false)} aria-label="Fechar" className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 text-slate-400 hover:text-white transition-all">
                                         <X className="w-4 h-4" />
                                     </button>
                                 </div>
@@ -117,19 +117,19 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
                                                 key={item.href}
                                                 href={item.href}
                                                 onClick={() => setShowMore(false)}
-                                                className={`flex items-center gap-3 border rounded-2xl px-4 py-3 transition-all ${active ? 'bg-[#E2F3EF] border-[#B8DED5]' : 'bg-white border-[#DCE5E3] hover:border-[#B8DED5] hover:bg-[#F7FAF9]'}`}
+                                                className={`flex items-center gap-3 border rounded-2xl px-4 py-3 transition-all ${active ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-white/5 border-white/10 hover:border-indigo-500/30 hover:bg-white/[0.07]'}`}
                                             >
-                                                <div className="relative w-10 h-10 rounded-xl bg-[#EAF5F2] flex items-center justify-center shrink-0">
-                                                    <Icon size={18} strokeWidth={1.8} className="text-[#0D7166]" />
+                                                <div className="relative w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center shrink-0">
+                                                    <Icon size={18} strokeWidth={1.8} className="text-indigo-400" />
                                                     {showBadge && (
-                                                        <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-0.5 bg-[#C24141] rounded-full flex items-center justify-center text-[8px] font-black text-white">
+                                                        <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-0.5 bg-rose-500 rounded-full flex items-center justify-center text-[8px] font-black text-white">
                                                             {unreadInbox > 9 ? '9+' : unreadInbox}
                                                         </span>
                                                     )}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="text-[#1C2B27] text-sm font-semibold">{item.label}</p>
-                                                    <p className="text-[#667570] text-xs truncate">{item.desc}</p>
+                                                    <p className="text-white text-sm font-semibold">{item.label}</p>
+                                                    <p className="text-slate-500 text-xs truncate">{item.desc}</p>
                                                 </div>
                                             </Link>
                                         )
