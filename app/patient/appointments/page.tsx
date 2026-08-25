@@ -3,235 +3,54 @@
 import { useEffect, useMemo, useState } from "react"
 import { supabase } from "@/lib/supabase-browser"
 import { AnimatePresence, motion } from "framer-motion"
-import {
-    AlertCircle,
-    Calendar,
-    CheckCircle2,
-    ChevronLeft,
-    Clock,
-    ExternalLink,
-    Loader2,
-    MapPin,
-    Plus,
-    Search,
-    Video,
-    X,
-    XCircle,
-} from "lucide-react"
+import { AlertCircle, Calendar, CheckCircle2, ChevronLeft, Clock, ExternalLink, Loader2, MapPin, Plus, Search, Video, X, XCircle } from "lucide-react"
 import Link from "next/link"
 
-interface Appointment {
-    id: string
-    scheduled_at: string
-    duration_minutes: number
-    is_virtual: boolean
-    meeting_link?: string
-    location_address?: string
-    status: string
-    notes?: string
-    appointment_type?: { name: string; code: string } | null
-    nutritionist?: { name: string; avatar_url?: string } | null
+interface Appointment { id:string; scheduled_at:string; duration_minutes:number; is_virtual:boolean; meeting_link?:string; location_address?:string; status:string; notes?:string; appointment_type?:{name:string;code:string}|null; nutritionist?:{name:string;avatar_url?:string}|null }
+interface BookingType { id:string; name:string; duration_minutes:number; default_is_virtual:boolean }
+interface AvailableSlot { nutritionist_id:string; nutritionist_name:string; local_start:string; local_end:string; is_virtual:boolean }
+
+const STATUS_META:Record<string,{label:string;icon:typeof CheckCircle2;color:string;bg:string}>={
+    scheduled:{label:'Agendada',icon:Clock,color:'text-blue-400',bg:'bg-blue-500/10 border-blue-500/20'}, confirmed:{label:'Confirmada',icon:CheckCircle2,color:'text-emerald-400',bg:'bg-emerald-500/10 border-emerald-500/20'}, in_progress:{label:'Em andamento',icon:Clock,color:'text-violet-400',bg:'bg-violet-500/10 border-violet-500/20'}, completed:{label:'Realizada',icon:CheckCircle2,color:'text-slate-400',bg:'bg-slate-500/10 border-slate-500/20'}, cancelled:{label:'Cancelada',icon:XCircle,color:'text-rose-400',bg:'bg-rose-500/10 border-rose-500/20'}, no_show:{label:'Não realizada',icon:AlertCircle,color:'text-amber-400',bg:'bg-amber-500/10 border-amber-500/20'}
 }
 
-interface BookingType {
-    id: string
-    name: string
-    duration_minutes: number
-    default_is_virtual: boolean
+function addDays(dateText:string,days:number){const date=new Date(`${dateText}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+days);return date.toISOString().slice(0,10)}
+function localToday(timezone:string){return new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}
+function friendlyBookingError(code:string){
+    if(code==='limit')return'Você já atingiu o limite de consultas futuras definido pela clínica.'
+    if(code==='disabled')return'O autoagendamento está indisponível no momento.'
+    if(code==='type_disabled')return'Esse tipo de consulta não está mais disponível para autoagendamento.'
+    if(code==='profile_link')return'Seu cadastro precisa ser vinculado pela clínica antes de usar o autoagendamento.'
+    if(code==='conflict')return'Esse horário acabou de ser ocupado. Busque os horários novamente.'
+    if(code==='unavailable')return'Esse horário não está mais disponível. Busque novamente.'
+    return'Não foi possível concluir o agendamento. Tente buscar os horários novamente.'
 }
 
-interface AvailableSlot {
-    nutritionist_id: string
-    nutritionist_name: string
-    local_start: string
-    local_end: string
-    is_virtual: boolean
-}
+export default function PatientAppointmentsPage(){
+    const[appointments,setAppointments]=useState<Appointment[]>([]);const[loading,setLoading]=useState(true);const[filter,setFilter]=useState<'upcoming'|'past'>('upcoming');const[timezone,setTimezone]=useState('America/Sao_Paulo')
+    const[selfBookingEnabled,setSelfBookingEnabled]=useState(false);const[bookingTypes,setBookingTypes]=useState<BookingType[]>([]);const[bookingOpen,setBookingOpen]=useState(false);const[selectedTypeId,setSelectedTypeId]=useState('');const[searchDate,setSearchDate]=useState('');const[slots,setSlots]=useState<AvailableSlot[]>([]);const[slotsLoading,setSlotsLoading]=useState(false);const[selectedSlot,setSelectedSlot]=useState<AvailableSlot|null>(null);const[bookingLoading,setBookingLoading]=useState(false);const[bookingError,setBookingError]=useState('');const[bookingSuccess,setBookingSuccess]=useState('')
 
-const STATUS_META: Record<string, { label: string; icon: typeof CheckCircle2; color: string; bg: string }> = {
-    scheduled: { label: 'Agendada', icon: Clock, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
-    confirmed: { label: 'Confirmada', icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
-    in_progress: { label: 'Em andamento', icon: Clock, color: 'text-violet-400', bg: 'bg-violet-500/10 border-violet-500/20' },
-    completed: { label: 'Realizada', icon: CheckCircle2, color: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/20' },
-    cancelled: { label: 'Cancelada', icon: XCircle, color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
-    no_show: { label: 'Não realizada', icon: AlertCircle, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
-}
+    const loadAppointments=async(userId:string)=>{const{data}=await supabase.from('appointments').select(`id, scheduled_at, duration_minutes, is_virtual, meeting_link, location_address, status, notes, appointment_type:appointment_types!appointment_type_id(name, code), nutritionist:nutritionists!nutritionist_id(name, avatar_url)`).eq('patient_id',userId).order('scheduled_at',{ascending:true});setAppointments((data as any)||[])}
 
-function addDays(dateText: string, days: number) {
-    const date = new Date(`${dateText}T12:00:00Z`)
-    date.setUTCDate(date.getUTCDate() + days)
-    return date.toISOString().slice(0, 10)
-}
+    useEffect(()=>{let active=true;const load=async()=>{setLoading(true);const{data:{user}}=await supabase.auth.getUser();if(!user){if(active)setLoading(false);return}const[{data:settings},{data:types}]=await Promise.all([supabase.from('tenant_appointment_settings').select('timezone,patient_self_booking_enabled').maybeSingle(),supabase.from('appointment_types').select('id,name,duration_minutes,default_is_virtual').eq('active',true).eq('patient_self_booking_enabled',true).order('sort_order').order('name')]);if(!active)return;const tz=settings?.timezone||'America/Sao_Paulo';setTimezone(tz);setSelfBookingEnabled(Boolean(settings?.patient_self_booking_enabled));const availableTypes=(types as BookingType[])||[];setBookingTypes(availableTypes);if(availableTypes[0])setSelectedTypeId(availableTypes[0].id);setSearchDate(localToday(tz));await loadAppointments(user.id);if(active)setLoading(false)};load();return()=>{active=false}},[])
 
-function localToday(timezone: string) {
-    return new Intl.DateTimeFormat('en-CA', {
-        timeZone: timezone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-    }).format(new Date())
-}
+    const visible=useMemo(()=>{const now=Date.now();return appointments.filter(a=>{const scheduled=new Date(a.scheduled_at).getTime();if(filter==='upcoming')return a.status==='in_progress'||(['scheduled','confirmed'].includes(a.status)&&scheduled>=now);return['completed','cancelled','no_show'].includes(a.status)||(['scheduled','confirmed'].includes(a.status)&&scheduled<now)}).sort((a,b)=>{const left=new Date(a.scheduled_at).getTime(),right=new Date(b.scheduled_at).getTime();return filter==='upcoming'?left-right:right-left})},[appointments,filter])
+    const slotsByDay=useMemo(()=>{const groups=new Map<string,AvailableSlot[]>();slots.forEach(slot=>{const day=slot.local_start.slice(0,10);groups.set(day,[...(groups.get(day)||[]),slot])});return Array.from(groups.entries())},[slots])
+    const nextAppt=filter==='upcoming'?visible[0]:undefined;const selectedType=bookingTypes.find(t=>t.id===selectedTypeId)
+    const formatDate=(dateStr:string)=>{const date=new Date(dateStr);return{weekday:date.toLocaleDateString('pt-BR',{weekday:'long',timeZone:timezone}),date:date.toLocaleDateString('pt-BR',{day:'numeric',month:'long',timeZone:timezone}),time:date.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:timezone})}}
+    const formatLocalSlotDay=(value:string)=>new Intl.DateTimeFormat('pt-BR',{weekday:'long',day:'numeric',month:'long',timeZone:'UTC'}).format(new Date(`${value.slice(0,10)}T12:00:00Z`));const formatLocalSlotTime=(value:string)=>value.slice(11,16);const typeName=(a:Appointment)=>a.appointment_type?.name||'Consulta'
 
-function friendlyBookingError(message: string) {
-    const text = message.toLowerCase()
-    if (text.includes('limite de consultas futuras')) return 'Você já atingiu o limite de consultas futuras definido pela clínica.'
-    if (text.includes('autoagendamento não está habilitado')) return 'O autoagendamento está indisponível no momento.'
-    if (text.includes('não permite autoagendamento')) return 'Esse tipo de consulta não está mais disponível para autoagendamento.'
-    if (text.includes('cadastro precisa ser vinculado')) return 'Seu cadastro precisa ser vinculado pela clínica antes de usar o autoagendamento.'
-    if (text.includes('overlapping') || text.includes('conflicting key') || text.includes('appointments_no_overlapping_slots')) return 'Esse horário acabou de ser ocupado. Busque os horários novamente.'
-    if (text.includes('disponibilidade') || text.includes('bloqueado') || text.includes('antecedência') || text.includes('jornada')) return 'Esse horário não está mais disponível. Busque novamente.'
-    return 'Não foi possível concluir o agendamento. Tente buscar os horários novamente.'
-}
+    const searchSlots=async()=>{if(!selectedTypeId||!searchDate)return;setSlotsLoading(true);setBookingError('');setBookingSuccess('');setSelectedSlot(null);setSlots([]);try{const params=new URLSearchParams({type:selectedTypeId,from:searchDate,to:addDays(searchDate,6)});const response=await fetch(`/api/patient/appointments/self-booking?${params.toString()}`,{cache:'no-store'});const payload=await response.json();if(!response.ok)setBookingError(friendlyBookingError(String(payload.error||'')));else setSlots((payload.slots as AvailableSlot[])||[])}catch{setBookingError(friendlyBookingError('booking_failed'))}finally{setSlotsLoading(false)}}
+    const confirmBooking=async()=>{if(!selectedSlot||!selectedTypeId)return;setBookingLoading(true);setBookingError('');try{const response=await fetch('/api/patient/appointments/self-booking',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({appointment_type_id:selectedTypeId,nutritionist_id:selectedSlot.nutritionist_id,local_start:selectedSlot.local_start})});const payload=await response.json();if(!response.ok){setBookingError(friendlyBookingError(String(payload.error||'')));setSelectedSlot(null);return}const{data:{user}}=await supabase.auth.getUser();if(user)await loadAppointments(user.id);setFilter('upcoming');setBookingSuccess('Consulta agendada com sucesso.');setSlots([]);setSelectedSlot(null)}catch{setBookingError(friendlyBookingError('booking_failed'));setSelectedSlot(null)}finally{setBookingLoading(false)}}
 
-export default function PatientAppointmentsPage() {
-    const [appointments, setAppointments] = useState<Appointment[]>([])
-    const [loading, setLoading] = useState(true)
-    const [filter, setFilter] = useState<'upcoming' | 'past'>('upcoming')
-    const [timezone, setTimezone] = useState('America/Sao_Paulo')
-    const [selfBookingEnabled, setSelfBookingEnabled] = useState(false)
-    const [bookingTypes, setBookingTypes] = useState<BookingType[]>([])
-    const [bookingOpen, setBookingOpen] = useState(false)
-    const [selectedTypeId, setSelectedTypeId] = useState('')
-    const [searchDate, setSearchDate] = useState('')
-    const [slots, setSlots] = useState<AvailableSlot[]>([])
-    const [slotsLoading, setSlotsLoading] = useState(false)
-    const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null)
-    const [bookingLoading, setBookingLoading] = useState(false)
-    const [bookingError, setBookingError] = useState('')
-    const [bookingSuccess, setBookingSuccess] = useState('')
-
-    const loadAppointments = async (userId: string) => {
-        const { data } = await supabase
-            .from('appointments')
-            .select(`
-                id, scheduled_at, duration_minutes, is_virtual,
-                meeting_link, location_address, status, notes,
-                appointment_type:appointment_types!appointment_type_id(name, code),
-                nutritionist:nutritionists!nutritionist_id(name, avatar_url)
-            `)
-            .eq('patient_id', userId)
-            .order('scheduled_at', { ascending: true })
-        setAppointments((data as any) || [])
-    }
-
-    useEffect(() => {
-        let active = true
-        const load = async () => {
-            setLoading(true)
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) { if (active) setLoading(false); return }
-            const [{ data: settings }, { data: types }] = await Promise.all([
-                supabase.from('tenant_appointment_settings').select('timezone,patient_self_booking_enabled').maybeSingle(),
-                supabase.from('appointment_types').select('id,name,duration_minutes,default_is_virtual').eq('active', true).eq('patient_self_booking_enabled', true).order('sort_order').order('name'),
-            ])
-            if (!active) return
-            const tz = settings?.timezone || 'America/Sao_Paulo'
-            setTimezone(tz)
-            setSelfBookingEnabled(Boolean(settings?.patient_self_booking_enabled))
-            const availableTypes = (types as BookingType[]) || []
-            setBookingTypes(availableTypes)
-            if (availableTypes[0]) setSelectedTypeId(availableTypes[0].id)
-            setSearchDate(localToday(tz))
-            await loadAppointments(user.id)
-            if (active) setLoading(false)
-        }
-        load()
-        return () => { active = false }
-    }, [])
-
-    const visible = useMemo(() => {
-        const now = Date.now()
-        return appointments.filter((appointment) => {
-            const scheduled = new Date(appointment.scheduled_at).getTime()
-            if (filter === 'upcoming') return appointment.status === 'in_progress' || (['scheduled', 'confirmed'].includes(appointment.status) && scheduled >= now)
-            return ['completed', 'cancelled', 'no_show'].includes(appointment.status) || (['scheduled', 'confirmed'].includes(appointment.status) && scheduled < now)
-        }).sort((a, b) => {
-            const left = new Date(a.scheduled_at).getTime(); const right = new Date(b.scheduled_at).getTime()
-            return filter === 'upcoming' ? left - right : right - left
-        })
-    }, [appointments, filter])
-
-    const slotsByDay = useMemo(() => {
-        const groups = new Map<string, AvailableSlot[]>()
-        slots.forEach((slot) => {
-            const day = slot.local_start.slice(0, 10)
-            groups.set(day, [...(groups.get(day) || []), slot])
-        })
-        return Array.from(groups.entries())
-    }, [slots])
-
-    const nextAppt = filter === 'upcoming' ? visible[0] : undefined
-    const selectedType = bookingTypes.find((type) => type.id === selectedTypeId)
-
-    const formatDate = (dateStr: string) => {
-        const date = new Date(dateStr)
-        return {
-            weekday: date.toLocaleDateString('pt-BR', { weekday: 'long', timeZone: timezone }),
-            date: date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', timeZone: timezone }),
-            time: date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: timezone }),
-        }
-    }
-
-    const formatLocalSlotDay = (value: string) => new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${value.slice(0, 10)}T12:00:00Z`))
-    const formatLocalSlotTime = (value: string) => value.slice(11, 16)
-    const typeName = (appointment: Appointment) => appointment.appointment_type?.name || 'Consulta'
-
-    const searchSlots = async () => {
-        if (!selectedTypeId || !searchDate) return
-        setSlotsLoading(true); setBookingError(''); setBookingSuccess(''); setSelectedSlot(null); setSlots([])
-        const { data, error } = await supabase.rpc('patient_available_appointment_slots', {
-            p_appointment_type_id: selectedTypeId,
-            p_from_date: searchDate,
-            p_to_date: addDays(searchDate, 6),
-        })
-        if (error) setBookingError(friendlyBookingError(error.message))
-        else setSlots((data as AvailableSlot[]) || [])
-        setSlotsLoading(false)
-    }
-
-    const confirmBooking = async () => {
-        if (!selectedSlot || !selectedTypeId) return
-        setBookingLoading(true); setBookingError('')
-        const { error } = await supabase.rpc('patient_self_book_appointment', {
-            p_appointment_type_id: selectedTypeId,
-            p_nutritionist_id: selectedSlot.nutritionist_id,
-            p_local_start: selectedSlot.local_start,
-        })
-        if (error) {
-            setBookingError(friendlyBookingError(error.message)); setSelectedSlot(null); setBookingLoading(false); return
-        }
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) await loadAppointments(user.id)
-        setFilter('upcoming'); setBookingSuccess('Consulta agendada com sucesso.'); setSlots([]); setSelectedSlot(null); setBookingLoading(false)
-    }
-
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-[#0d1f14] pb-24">
-            <div className="sticky top-0 z-10 border-b border-white/5 bg-slate-950/90 px-4 pb-4 pt-12 backdrop-blur-xl">
-                <div className="mx-auto flex max-w-md items-center justify-between gap-3">
-                    <div className="flex items-center gap-3"><Link href="/patient/home" className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10"><ChevronLeft size={18} className="text-white" /></Link><div><h1 className="text-lg font-black text-white">Minhas Consultas</h1><p className="text-xs text-slate-500">Agendamentos com sua nutricionista</p></div></div>
-                    {selfBookingEnabled && bookingTypes.length > 0 && <button onClick={() => { setBookingOpen(!bookingOpen); setBookingError(''); setBookingSuccess('') }} className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white" aria-label="Agendar consulta">{bookingOpen ? <X size={18}/> : <Plus size={18}/>}</button>}
-                </div>
-            </div>
-
-            <div className="mx-auto max-w-md space-y-5 px-4 pt-6">
-                <AnimatePresence>
-                    {bookingOpen && selfBookingEnabled && bookingTypes.length > 0 && <motion.section initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="rounded-3xl border border-emerald-500/25 bg-emerald-950/30 p-5">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Agendar consulta</p><h2 className="mt-1 text-lg font-black text-white">Escolha um horário livre</h2><p className="mt-1 text-xs text-slate-400">Os horários abaixo já consideram agenda, buffer, bloqueios e antecedência da profissional.</p>
-                        <div className="mt-4 grid gap-3"><label className="grid gap-1 text-xs font-bold text-slate-300">Tipo de consulta<select value={selectedTypeId} onChange={(e)=>{setSelectedTypeId(e.target.value);setSlots([]);setSelectedSlot(null)}} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white">{bookingTypes.map((type)=><option key={type.id} value={type.id}>{type.name} · {type.duration_minutes} min · {type.default_is_virtual?'online':'presencial'}</option>)}</select></label><label className="grid gap-1 text-xs font-bold text-slate-300">Buscar a partir de<input value={searchDate} min={localToday(timezone)} onChange={(e)=>setSearchDate(e.target.value)} type="date" className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white"/></label><button onClick={searchSlots} disabled={slotsLoading} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white disabled:opacity-60">{slotsLoading?<Loader2 size={16} className="animate-spin"/>:<Search size={16}/>}Buscar próximos 7 dias</button></div>
-                        {bookingError && <div className="mt-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs font-bold text-rose-300">{bookingError}</div>}{bookingSuccess && <div className="mt-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs font-bold text-emerald-300">{bookingSuccess}</div>}
-                        {!slotsLoading && slots.length === 0 && !bookingError && <p className="mt-4 text-center text-xs text-slate-500">Busque uma semana para ver os horários disponíveis.</p>}
-                        {slotsByDay.length > 0 && <div className="mt-4 max-h-80 space-y-4 overflow-y-auto pr-1">{slotsByDay.map(([day,daySlots])=><div key={day}><p className="mb-2 text-xs font-black capitalize text-slate-300">{formatLocalSlotDay(day)}</p><div className="grid grid-cols-3 gap-2">{daySlots.map((slot)=><button key={`${slot.nutritionist_id}-${slot.local_start}`} onClick={()=>{setSelectedSlot(slot);setBookingError('')}} className={`rounded-xl border px-2 py-2 text-xs font-black ${selectedSlot?.nutritionist_id===slot.nutritionist_id&&selectedSlot?.local_start===slot.local_start?'border-emerald-400 bg-emerald-500/20 text-emerald-300':'border-white/10 bg-white/5 text-slate-300'}`}>{formatLocalSlotTime(slot.local_start)}<span className="mt-0.5 block truncate text-[9px] font-medium text-slate-500">{slot.nutritionist_name||'Nutricionista'}</span></button>)}</div></div>)}</div>}
-                        {selectedSlot && <div className="mt-4 rounded-2xl border border-emerald-500/25 bg-slate-950/50 p-4"><p className="text-xs text-slate-400">Confirme o horário</p><p className="mt-1 font-black capitalize text-white">{formatLocalSlotDay(selectedSlot.local_start)} às {formatLocalSlotTime(selectedSlot.local_start)}</p><p className="text-xs text-slate-500">{selectedType?.name} · {selectedType?.duration_minutes} min · {selectedSlot.nutritionist_name}</p><button onClick={confirmBooking} disabled={bookingLoading} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-black text-white disabled:opacity-60">{bookingLoading?<Loader2 size={16} className="animate-spin"/>:<CheckCircle2 size={16}/>}Confirmar agendamento</button></div>}
-                    </motion.section>}
-                </AnimatePresence>
-
-                {nextAppt && (() => { const { weekday, date, time } = formatDate(nextAppt.scheduled_at); return <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-3xl border border-emerald-500/25 bg-gradient-to-br from-emerald-900/40 to-teal-900/20 p-5"><p className="mb-3 text-[10px] font-black uppercase tracking-widest text-emerald-400">{nextAppt.status === 'in_progress' ? 'Consulta em andamento' : 'Próxima consulta'}</p><div className="flex items-start gap-4"><div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-emerald-500/25 bg-emerald-500/15"><Calendar size={20} className="text-emerald-400" /></div><div className="min-w-0 flex-1"><p className="font-bold capitalize text-white">{weekday}, {date}</p><p className="text-lg font-black text-emerald-400">{time}</p><p className="mt-0.5 text-sm text-slate-400">{typeName(nextAppt)} · {nextAppt.duration_minutes} min</p>{nextAppt.nutritionist?.name && <p className="mt-1 text-xs text-slate-500">com {nextAppt.nutritionist.name}</p>}</div></div>{nextAppt.notes && <div className="mt-3 rounded-2xl bg-white/5 p-3 text-xs text-slate-400">{nextAppt.notes}</div>}{nextAppt.is_virtual && nextAppt.meeting_link && <a href={nextAppt.meeting_link} target="_blank" rel="noopener noreferrer" className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 text-sm font-bold text-white hover:bg-emerald-500"><Video size={15} />Entrar na consulta</a>}{!nextAppt.is_virtual && nextAppt.location_address && <div className="mt-3 flex items-center gap-2 rounded-2xl bg-white/5 p-3"><MapPin size={14} className="flex-shrink-0 text-slate-500" /><p className="text-xs text-slate-400">{nextAppt.location_address}</p></div>}</motion.div> })()}
-
-                <div className="flex gap-1 rounded-2xl bg-white/5 p-1">{([['upcoming', 'Próximas'], ['past', 'Histórico']] as const).map(([value, label]) => <button key={value} onClick={() => setFilter(value)} className={`flex-1 rounded-xl py-2 text-sm font-bold ${filter === value ? 'bg-emerald-600 text-white' : 'text-slate-400'}`}>{label}</button>)}</div>
-                {loading ? <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-emerald-400" /></div> : visible.length === 0 ? <div className="py-12 text-center"><Calendar size={44} className="mx-auto mb-3 text-slate-700" /><p className="text-sm text-slate-500">{filter === 'upcoming' ? 'Nenhuma consulta agendada ainda.' : 'Sem histórico de consultas.'}</p></div> : <div className="space-y-3"><AnimatePresence>{visible.map((appointment, index) => { const { weekday, date, time } = formatDate(appointment.scheduled_at); const meta = STATUS_META[appointment.status] || STATUS_META.scheduled; return <motion.div key={appointment.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }} className="rounded-3xl border border-white/10 bg-white/[0.03] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><div className="mb-1 flex flex-wrap items-center gap-2"><span className="text-sm font-bold text-white">{typeName(appointment)}</span><span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${meta.bg} ${meta.color}`}>{meta.label}</span></div><p className="text-sm capitalize text-slate-400">{weekday}, {date}</p><p className="font-bold text-slate-300">{time} · {appointment.duration_minutes} min</p>{appointment.nutritionist?.name && <p className="mt-1 text-xs text-slate-600">com {appointment.nutritionist.name}</p>}</div><div className="flex items-center gap-1.5">{appointment.is_virtual ? <div className="rounded-xl bg-blue-500/10 p-2"><Video size={14} className="text-blue-400" /></div> : <div className="rounded-xl bg-slate-500/10 p-2"><MapPin size={14} className="text-slate-400" /></div>}{appointment.is_virtual && appointment.meeting_link && ['scheduled', 'confirmed', 'in_progress'].includes(appointment.status) && <a href={appointment.meeting_link} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-emerald-500/10 p-2 hover:bg-emerald-500/20"><ExternalLink size={14} className="text-emerald-400" /></a>}</div></div></motion.div> })}</AnimatePresence></div>}
-                <p className="text-center text-[10px] text-slate-700">Horários exibidos em {timezone}</p>
-            </div>
+    return <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-[#0d1f14] pb-24">
+        <div className="sticky top-0 z-10 border-b border-white/5 bg-slate-950/90 px-4 pb-4 pt-12 backdrop-blur-xl"><div className="mx-auto flex max-w-md items-center justify-between gap-3"><div className="flex items-center gap-3"><Link href="/patient/home" className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10"><ChevronLeft size={18} className="text-white"/></Link><div><h1 className="text-lg font-black text-white">Minhas Consultas</h1><p className="text-xs text-slate-500">Agendamentos com sua nutricionista</p></div></div>{selfBookingEnabled&&bookingTypes.length>0&&<button onClick={()=>{setBookingOpen(!bookingOpen);setBookingError('');setBookingSuccess('')}} className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white" aria-label="Agendar consulta">{bookingOpen?<X size={18}/>:<Plus size={18}/>}</button>}</div></div>
+        <div className="mx-auto max-w-md space-y-5 px-4 pt-6">
+            <AnimatePresence>{bookingOpen&&selfBookingEnabled&&bookingTypes.length>0&&<motion.section initial={{opacity:0,y:-8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} className="rounded-3xl border border-emerald-500/25 bg-emerald-950/30 p-5"><p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Agendar consulta</p><h2 className="mt-1 text-lg font-black text-white">Escolha um horário livre</h2><p className="mt-1 text-xs text-slate-400">Os horários já consideram agenda, buffer, bloqueios e antecedência da profissional.</p><div className="mt-4 grid gap-3"><label className="grid gap-1 text-xs font-bold text-slate-300">Tipo de consulta<select value={selectedTypeId} onChange={e=>{setSelectedTypeId(e.target.value);setSlots([]);setSelectedSlot(null)}} className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white">{bookingTypes.map(type=><option key={type.id} value={type.id}>{type.name} · {type.duration_minutes} min · {type.default_is_virtual?'online':'presencial'}</option>)}</select></label><label className="grid gap-1 text-xs font-bold text-slate-300">Buscar a partir de<input value={searchDate} min={localToday(timezone)} onChange={e=>setSearchDate(e.target.value)} type="date" className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white"/></label><button onClick={searchSlots} disabled={slotsLoading} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white disabled:opacity-60">{slotsLoading?<Loader2 size={16} className="animate-spin"/>:<Search size={16}/>}Buscar próximos 7 dias</button></div>{bookingError&&<div className="mt-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs font-bold text-rose-300">{bookingError}</div>}{bookingSuccess&&<div className="mt-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs font-bold text-emerald-300">{bookingSuccess}</div>}{!slotsLoading&&slots.length===0&&!bookingError&&<p className="mt-4 text-center text-xs text-slate-500">Busque uma semana para ver os horários disponíveis.</p>}{slotsByDay.length>0&&<div className="mt-4 max-h-80 space-y-4 overflow-y-auto pr-1">{slotsByDay.map(([day,daySlots])=><div key={day}><p className="mb-2 text-xs font-black capitalize text-slate-300">{formatLocalSlotDay(day)}</p><div className="grid grid-cols-3 gap-2">{daySlots.map(slot=><button key={`${slot.nutritionist_id}-${slot.local_start}`} onClick={()=>{setSelectedSlot(slot);setBookingError('')}} className={`rounded-xl border px-2 py-2 text-xs font-black ${selectedSlot?.nutritionist_id===slot.nutritionist_id&&selectedSlot?.local_start===slot.local_start?'border-emerald-400 bg-emerald-500/20 text-emerald-300':'border-white/10 bg-white/5 text-slate-300'}`}>{formatLocalSlotTime(slot.local_start)}<span className="mt-0.5 block truncate text-[9px] font-medium text-slate-500">{slot.nutritionist_name||'Nutricionista'}</span></button>)}</div></div>)}</div>}{selectedSlot&&<div className="mt-4 rounded-2xl border border-emerald-500/25 bg-slate-950/50 p-4"><p className="text-xs text-slate-400">Confirme o horário</p><p className="mt-1 font-black capitalize text-white">{formatLocalSlotDay(selectedSlot.local_start)} às {formatLocalSlotTime(selectedSlot.local_start)}</p><p className="text-xs text-slate-500">{selectedType?.name} · {selectedType?.duration_minutes} min · {selectedSlot.nutritionist_name}</p><button onClick={confirmBooking} disabled={bookingLoading} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-black text-white disabled:opacity-60">{bookingLoading?<Loader2 size={16} className="animate-spin"/>:<CheckCircle2 size={16}/>}Confirmar agendamento</button></div>}</motion.section>}</AnimatePresence>
+            {nextAppt&&(()=>{const{weekday,date,time}=formatDate(nextAppt.scheduled_at);return <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} className="rounded-3xl border border-emerald-500/25 bg-gradient-to-br from-emerald-900/40 to-teal-900/20 p-5"><p className="mb-3 text-[10px] font-black uppercase tracking-widest text-emerald-400">{nextAppt.status==='in_progress'?'Consulta em andamento':'Próxima consulta'}</p><div className="flex items-start gap-4"><div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-emerald-500/25 bg-emerald-500/15"><Calendar size={20} className="text-emerald-400"/></div><div className="min-w-0 flex-1"><p className="font-bold capitalize text-white">{weekday}, {date}</p><p className="text-lg font-black text-emerald-400">{time}</p><p className="mt-0.5 text-sm text-slate-400">{typeName(nextAppt)} · {nextAppt.duration_minutes} min</p>{nextAppt.nutritionist?.name&&<p className="mt-1 text-xs text-slate-500">com {nextAppt.nutritionist.name}</p>}</div></div>{nextAppt.notes&&<div className="mt-3 rounded-2xl bg-white/5 p-3 text-xs text-slate-400">{nextAppt.notes}</div>}{nextAppt.is_virtual&&nextAppt.meeting_link&&<a href={nextAppt.meeting_link} target="_blank" rel="noopener noreferrer" className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 text-sm font-bold text-white hover:bg-emerald-500"><Video size={15}/>Entrar na consulta</a>}{!nextAppt.is_virtual&&nextAppt.location_address&&<div className="mt-3 flex items-center gap-2 rounded-2xl bg-white/5 p-3"><MapPin size={14} className="flex-shrink-0 text-slate-500"/><p className="text-xs text-slate-400">{nextAppt.location_address}</p></div>}</motion.div>})()}
+            <div className="flex gap-1 rounded-2xl bg-white/5 p-1">{([['upcoming','Próximas'],['past','Histórico']] as const).map(([value,label])=><button key={value} onClick={()=>setFilter(value)} className={`flex-1 rounded-xl py-2 text-sm font-bold ${filter===value?'bg-emerald-600 text-white':'text-slate-400'}`}>{label}</button>)}</div>
+            {loading?<div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-emerald-400"/></div>:visible.length===0?<div className="py-12 text-center"><Calendar size={44} className="mx-auto mb-3 text-slate-700"/><p className="text-sm text-slate-500">{filter==='upcoming'?'Nenhuma consulta agendada ainda.':'Sem histórico de consultas.'}</p></div>:<div className="space-y-3"><AnimatePresence>{visible.map((appointment,index)=>{const{weekday,date,time}=formatDate(appointment.scheduled_at);const meta=STATUS_META[appointment.status]||STATUS_META.scheduled;return <motion.div key={appointment.id} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} transition={{delay:index*.04}} className="rounded-3xl border border-white/10 bg-white/[0.03] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><div className="mb-1 flex flex-wrap items-center gap-2"><span className="text-sm font-bold text-white">{typeName(appointment)}</span><span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${meta.bg} ${meta.color}`}>{meta.label}</span></div><p className="text-sm capitalize text-slate-400">{weekday}, {date}</p><p className="font-bold text-slate-300">{time} · {appointment.duration_minutes} min</p>{appointment.nutritionist?.name&&<p className="mt-1 text-xs text-slate-600">com {appointment.nutritionist.name}</p>}</div><div className="flex items-center gap-1.5">{appointment.is_virtual?<div className="rounded-xl bg-blue-500/10 p-2"><Video size={14} className="text-blue-400"/></div>:<div className="rounded-xl bg-slate-500/10 p-2"><MapPin size={14} className="text-slate-400"/></div>}{appointment.is_virtual&&appointment.meeting_link&&['scheduled','confirmed','in_progress'].includes(appointment.status)&&<a href={appointment.meeting_link} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-emerald-500/10 p-2 hover:bg-emerald-500/20"><ExternalLink size={14} className="text-emerald-400"/></a>}</div></div></motion.div>})}</AnimatePresence></div>}
+            <p className="text-center text-[10px] text-slate-700">Horários exibidos em {timezone}</p>
         </div>
-    )
+    </div>
 }
