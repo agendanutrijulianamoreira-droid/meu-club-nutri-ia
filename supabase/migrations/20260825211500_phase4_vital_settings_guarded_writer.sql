@@ -1,0 +1,2 @@
+grant execute on function public.upsert_tenant_vital_setting(text,text,text,text,text,text,text,boolean,boolean) to authenticated;
+comment on function public.upsert_tenant_vital_setting(text,text,text,text,text,text,text,boolean,boolean) is 'Writer autenticado intencional da Central de Configuracoes Vitais. SECURITY DEFINER necessario para Vault; deriva tenant exclusivamente de auth.uid(), exige role staff e nunca retorna segredo.';
