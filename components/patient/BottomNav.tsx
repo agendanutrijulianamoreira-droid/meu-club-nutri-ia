@@ -24,36 +24,25 @@ export function BottomNav() {
     const pathname = usePathname()
 
     return (
-        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-stone-100 safe-area-bottom">
-            <div className="max-w-md mx-auto flex items-center justify-around px-2">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur border-t border-[#D3DEDB] safe-area-bottom shadow-[0_-8px_26px_rgba(28,43,39,0.06)]">
+            <div className="max-w-md mx-auto flex items-center justify-around px-1">
                 {NAV_ITEMS.map((item) => {
-                    const isActive = pathname === item.href
+                    const isActive = pathname === item.href || pathname?.startsWith(item.href + '/')
                     const Icon = item.icon
 
                     if (item.highlight) {
                         return (
-                            <Link
-                                key={item.href}
-                                href={item.href}
-                                className="flex flex-col items-center gap-1.5 px-4 -translate-y-3"
-                            >
+                            <Link key={item.href} href={item.href} className="flex flex-col items-center gap-1 px-3 -translate-y-3 min-w-[64px]">
                                 <div
                                     className={cn(
-                                        "flex items-center justify-center w-12 h-12 rounded-full transition-colors",
-                                        isActive ? "bg-sage-600" : "bg-sage-500"
+                                        "flex items-center justify-center w-12 h-12 rounded-full transition-all border-2 border-white",
+                                        isActive ? "bg-[#0D7166]" : "bg-[#118C7E] hover:bg-[#0D7166]"
                                     )}
-                                    style={{ boxShadow: "0 10px 28px -8px rgb(107 129 88 / 0.45)" }}
+                                    style={{ boxShadow: "0 10px 26px -8px rgb(17 140 126 / 0.52)" }}
                                 >
-                                    <Icon size={20} strokeWidth={1.5} className="text-white" />
+                                    <Icon size={20} strokeWidth={1.8} className="text-white" />
                                 </div>
-                                <span
-                                    className={cn(
-                                        "text-[10px] font-semibold tracking-wide",
-                                        isActive ? "text-sage-600" : "text-stone-400"
-                                    )}
-                                >
-                                    {item.label}
-                                </span>
+                                <span className={cn("text-[10px] font-bold tracking-wide", isActive ? "text-[#0D7166]" : "text-[#52615D]")}>{item.label}</span>
                             </Link>
                         )
                     }
@@ -62,21 +51,13 @@ export function BottomNav() {
                         <Link
                             key={item.href}
                             href={item.href}
-                            className="flex flex-col items-center gap-1.5 px-4 py-3"
+                            className={cn(
+                                "flex flex-col items-center gap-1 px-2 py-3 min-w-[60px] rounded-xl transition-colors",
+                                isActive && "bg-[#E2F3EF]"
+                            )}
                         >
-                            <Icon
-                                size={22}
-                                strokeWidth={1.5}
-                                className={isActive ? "text-sage-600" : "text-stone-400"}
-                            />
-                            <span
-                                className={cn(
-                                    "text-[10px] font-semibold tracking-wide",
-                                    isActive ? "text-sage-600" : "text-stone-400"
-                                )}
-                            >
-                                {item.label}
-                            </span>
+                            <Icon size={21} strokeWidth={1.8} className={isActive ? "text-[#0D7166]" : "text-[#667570]"} />
+                            <span className={cn("text-[10px] font-bold tracking-wide", isActive ? "text-[#0D7166]" : "text-[#52615D]")}>{item.label}</span>
                         </Link>
                     )
                 })}

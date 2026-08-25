@@ -3,31 +3,107 @@
 @tailwind utilities;
 
 /*
- * Design tokens — VitaClub "Rainha" (Nutri da Mulher Moderna)
- * Fundo creme quente, marrom escuro para texto e ações primárias,
- * ouro para destaques e badges de gamificação. Sage e terracota
- * seguem como cores secundárias de apoio.
+ * Design system v2 — clínica premium, legível e consistente.
+ * A base visual agora prioriza contraste WCAG, hierarquia clara e estados
+ * semânticos. O dourado continua como acento; teal assume ações/links.
  */
 @layer base {
   :root {
-    --background: 41 42% 93%; /* Cream #F4EFE4 */
-    --foreground: 22 46% 12%; /* Marrom Escuro #2B1A10 */
-    --primary: 22 46% 12%; /* Marrom Escuro #2B1A10 */
-    --primary-foreground: 41 42% 93%; /* Cream #F4EFE4 */
-    --border: 38 30% 85%;
-    --input: 38 30% 85%;
-    --ring: 45 58% 50%; /* Ouro #C9A435 */
+    --background: 165 12% 96%;       /* #F4F7F6 */
+    --foreground: 165 20% 14%;       /* #1C2B27 */
+    --card: 0 0% 100%;
+    --card-foreground: 165 20% 14%;
+    --muted: 162 16% 93%;
+    --muted-foreground: 165 10% 38%;
+    --primary: 172 78% 31%;          /* teal #118C7E */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 42 46% 93%;
+    --secondary-foreground: 165 20% 14%;
+    --border: 164 15% 84%;           /* #D3DEDB */
+    --input: 164 15% 80%;
+    --ring: 172 78% 31%;
+    --success: 151 64% 34%;
+    --warning: 39 78% 38%;
+    --danger: 0 58% 47%;
+    --info: 217 73% 51%;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    min-width: 320px;
+  }
+
+  h1, h2, h3 {
+    @apply font-serif text-foreground;
+  }
+
+  input, textarea, select, button {
+    font: inherit;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #71807C;
+    opacity: 1;
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 
-@layer base {
-  body {
-    @apply bg-background text-foreground;
+@layer components {
+  .surface {
+    @apply bg-white border border-[#D3DEDB] shadow-sm;
   }
 
-  /* Títulos sempre em Playfair Display — sensação de editorial premium */
-  h1, h2, h3 {
-    @apply font-serif;
+  .surface-muted {
+    @apply bg-[#F0F4F3] border border-[#D3DEDB];
+  }
+
+  .text-primary-strong {
+    @apply text-[#1C2B27];
+  }
+
+  .text-secondary-readable {
+    @apply text-[#52615D];
+  }
+
+  .text-muted-readable {
+    @apply text-[#6B7975];
+  }
+
+  .action-primary {
+    @apply bg-[#118C7E] text-white hover:bg-[#0D7166] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .action-secondary {
+    @apply bg-white text-[#1C2B27] border border-[#C7D4D1] hover:bg-[#F0F4F3];
+  }
+
+  .nav-active {
+    @apply bg-[#E2F3EF] text-[#0D7166] border border-[#B8DED5];
+  }
+
+  .status-success {
+    @apply bg-emerald-50 text-emerald-800 border border-emerald-200;
+  }
+
+  .status-warning {
+    @apply bg-amber-50 text-amber-900 border border-amber-200;
+  }
+
+  .status-danger {
+    @apply bg-red-50 text-red-800 border border-red-200;
   }
 }
 
@@ -36,12 +112,11 @@
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* Custom Scrollbar */
-.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar { width: 5px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(107, 129, 88, 0.35); border-radius: 4px; }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(107, 129, 88, 0.55); }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(17, 140, 126, 0.28); border-radius: 6px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(17, 140, 126, 0.48); }
 
-/* Shimmer Animation (loading states) */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -51,7 +126,6 @@
   animation: shimmer 3s ease-in-out infinite;
 }
 
-/* Home da paciente — Vitória do dia compacta sem depender de :has(). */
 textarea[placeholder="O que você conseguiu fazer por você hoje?"] {
   min-height: 2.75rem;
   height: 2.75rem;
@@ -63,5 +137,5 @@ textarea[placeholder="O que você conseguiu fazer por você hoje?"]:focus {
   min-height: 5.5rem;
   height: 5.5rem;
   overflow: auto;
-  box-shadow: 0 8px 24px rgba(43, 26, 16, 0.07);
+  box-shadow: 0 8px 24px rgba(17, 140, 126, 0.10);
 }

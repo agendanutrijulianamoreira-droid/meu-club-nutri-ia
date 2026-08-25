@@ -13,18 +13,14 @@ import { supabase } from "@/lib/supabase-browser"
 import { useOneSignal } from "@/lib/hooks/useOneSignal"
 import { BottomNav } from "@/components/patient/BottomNav"
 
-// A bottom nav principal tem só 5 itens fixos (Início, Diário IA, Meu Plano,
-// Acervo, Comunidade). O resto das telas (Hábitos, Progresso, Chat, Scanner,
-// Loja, Medidas, Alarmes, Inbox, Questionários, Consultas) fica atrás do
-// botão flutuante "Mais" — ver auditoria de sistema Jul/2026.
 const MORE_ITEMS = [
     { href: "/patient/habits",        label: "Hábitos",            desc: "Checklist diário de hábitos",                     icon: Activity },
-    { href: "/patient/goals",         label: "Metas",               desc: "Metas atribuídas pela sua nutricionista",         icon: Target },
+    { href: "/patient/goals",         label: "Metas",              desc: "Metas atribuídas pela sua nutricionista",         icon: Target },
     { href: "/patient/progresso",     label: "Progresso",          desc: "Evolução de peso, medidas e adesão",              icon: BarChart2 },
     { href: "/patient/chat",          label: "Chat com a IA",      desc: "Tire dúvidas com a assistente nutricional",       icon: MessageCircle },
-    { href: "/patient/scanner",       label: "Scanner de produto", desc: "Aponte a câmera pro código de barras",            icon: ScanLine },
+    { href: "/patient/scanner",       label: "Scanner de produto", desc: "Aponte a câmera para o código de barras",         icon: ScanLine },
     { href: "/patient/store",         label: "Loja de prêmios",    desc: "Troque NutriCoins por recompensas",               icon: ShoppingBag },
-    { href: "/patient/measurements",  label: "Medidas corporais",  desc: "Peso, cintura e evolução",                        icon: Ruler },
+    { href: "/patient/measurements",  label: "Medidas corporais", desc: "Peso, cintura e evolução",                        icon: Ruler },
     { href: "/patient/alarms",        label: "Alarmes",            desc: "Lembretes de água, refeição e treino",            icon: Bell },
     { href: "/patient/inbox",         label: "Caixa de entrada",   desc: "Mensagens da nutri e dos agentes de IA",          icon: InboxIcon },
     { href: "/patient/questionnaires",label: "Questionários",      desc: "Formulários enviados pela nutri",                 icon: ClipboardList },
@@ -38,38 +34,21 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
     const [showMore, setShowMore] = useState(false)
 
     useEffect(() => { setShowMore(false) }, [pathname])
-
-    // Registrar token OneSignal para push notifications (lembretes e agentes)
     useOneSignal()
 
-    // Proteção: 
-    // 1. Redirecionar nutris que caírem aqui por engano
-    // 2. Forçar onboarding se não completou (trava-portas)
     useEffect(() => {
         const checkAccess = async () => {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
-
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('role, onboarding_completed')
-                .eq('user_id', user.id)
-                .single()
-
+            const { data: profile } = await supabase.from('profiles').select('role, onboarding_completed').eq('user_id', user.id).single()
             if (!profile) return
-
-            // Nutris → admin
             const role = profile.role || user.user_metadata?.user_type
             if (role === 'nutritionist' || role === 'admin') {
                 router.push('/admin')
                 return
             }
-
-            // Trava-portas: forçar onboarding (exceto se já está na página de onboarding)
             const isOnboardingPage = pathname === '/patient/onboarding'
-            if (!profile.onboarding_completed && !isOnboardingPage) {
-                router.push('/patient/onboarding')
-            }
+            if (!profile.onboarding_completed && !isOnboardingPage) router.push('/patient/onboarding')
         }
         checkAccess()
     }, [router, pathname])
@@ -84,61 +63,47 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
     }, [pathname])
 
     const moreHasUnread = pathname !== '/patient/inbox' && unreadInbox > 0
-    // Fluxo de captura/confirmação de refeição por foto não usa o chrome padrão
-    // (bottom nav, botão "Mais"): são telas de foco único, sem distração
-    const isFullScreenRoute = pathname?.startsWith('/patient/diario/capturar')
-        || pathname?.startsWith('/patient/diario/resultado')
+    const isFullScreenRoute = pathname?.startsWith('/patient/diario/capturar') || pathname?.startsWith('/patient/diario/resultado')
 
     return (
-        <div className={isFullScreenRoute ? "min-h-screen" : "min-h-screen bg-white pb-24"}>
-            {/* Main Content */}
-            <main className="relative z-0">
-                {children}
-            </main>
+        <div className={isFullScreenRoute ? "min-h-screen" : "min-h-screen bg-[#F4F7F6] text-[#1C2B27] pb-24"}>
+            <main className="relative z-0">{children}</main>
 
             {!isFullScreenRoute && (
                 <>
-                    {/* "Mais" — acesso flutuante ao resto das telas do app (Hábitos, Chat,
-                        Scanner, Loja, Medidas, Alarmes, Inbox, Questionários, Consultas);
-                        Início/Diário IA/Meu Plano/Acervo/Comunidade já vivem na bottom nav */}
                     <button
                         onClick={() => setShowMore(true)}
-                        className="fixed top-4 right-4 z-40 w-10 h-10 flex items-center justify-center rounded-full bg-white border border-stone-100 shadow-soft text-stone-400 hover:text-sage-600 transition-colors"
+                        aria-label="Abrir mais opções"
+                        className="fixed top-4 right-4 z-40 w-11 h-11 flex items-center justify-center rounded-2xl bg-white border border-[#D3DEDB] shadow-soft text-[#52615D] hover:text-[#0D7166] hover:border-[#B8DED5] transition-colors"
                     >
-                        <Grid2x2 size={18} strokeWidth={1.5} />
+                        <Grid2x2 size={19} strokeWidth={1.8} />
                         {moreHasUnread && (
-                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-terracotta-500 rounded-full flex items-center justify-center text-[8px] font-black text-white">
+                            <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-0.5 bg-[#C24141] rounded-full flex items-center justify-center text-[8px] font-black text-white">
                                 {unreadInbox > 9 ? '9+' : unreadInbox}
                             </span>
                         )}
                     </button>
-
-                    {/* Bottom Navigation */}
                     <BottomNav />
                 </>
             )}
 
-            {/* "Mais" — bottom sheet com o resto das telas do app */}
             <AnimatePresence>
                 {showMore && (
                     <>
-                        <motion.div
-                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            onClick={() => setShowMore(false)}
-                            className="fixed inset-0 z-[60] bg-stone-900/40 backdrop-blur-sm"
-                        />
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowMore(false)} className="fixed inset-0 z-[60] bg-[#1C2B27]/45 backdrop-blur-sm" />
                         <motion.div
                             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
                             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                            className="fixed bottom-0 left-0 right-0 z-[70] bg-white border-t border-stone-100 rounded-t-3xl max-h-[80vh] overflow-y-auto safe-area-bottom"
+                            className="fixed bottom-0 left-0 right-0 z-[70] bg-white border-t border-[#D3DEDB] rounded-t-3xl max-h-[82vh] overflow-y-auto safe-area-bottom shadow-[0_-18px_45px_rgba(28,43,39,0.14)]"
                         >
                             <div className="max-w-md mx-auto px-4 pt-4 pb-8">
+                                <div className="w-12 h-1 rounded-full bg-[#D3DEDB] mx-auto mb-4" />
                                 <div className="flex items-center justify-between mb-4">
-                                    <h2 className="font-serif text-stone-800 font-medium text-lg">Mais opções</h2>
-                                    <button
-                                        onClick={() => setShowMore(false)}
-                                        className="w-9 h-9 flex items-center justify-center rounded-2xl bg-sand-100 text-stone-500 hover:text-stone-800 transition-all"
-                                    >
+                                    <div>
+                                        <h2 className="font-serif text-[#1C2B27] font-semibold text-lg">Mais opções</h2>
+                                        <p className="text-xs text-[#6B7975] mt-0.5">Recursos complementares do seu acompanhamento</p>
+                                    </div>
+                                    <button onClick={() => setShowMore(false)} aria-label="Fechar" className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#F0F4F3] text-[#52615D] hover:text-[#1C2B27] transition-all">
                                         <X className="w-4 h-4" />
                                     </button>
                                 </div>
@@ -146,24 +111,25 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
                                     {MORE_ITEMS.map(item => {
                                         const Icon = item.icon
                                         const showBadge = item.href === '/patient/inbox' && unreadInbox > 0
+                                        const active = pathname === item.href || pathname?.startsWith(item.href + '/')
                                         return (
                                             <Link
                                                 key={item.href}
                                                 href={item.href}
                                                 onClick={() => setShowMore(false)}
-                                                className="flex items-center gap-3 bg-white border border-stone-100 hover:border-sage-300 rounded-2xl px-4 py-3 transition-all"
+                                                className={`flex items-center gap-3 border rounded-2xl px-4 py-3 transition-all ${active ? 'bg-[#E2F3EF] border-[#B8DED5]' : 'bg-white border-[#DCE5E3] hover:border-[#B8DED5] hover:bg-[#F7FAF9]'}`}
                                             >
-                                                <div className="relative w-10 h-10 rounded-xl bg-sand-100 flex items-center justify-center shrink-0">
-                                                    <Icon size={18} strokeWidth={1.5} className="text-sage-600" />
+                                                <div className="relative w-10 h-10 rounded-xl bg-[#EAF5F2] flex items-center justify-center shrink-0">
+                                                    <Icon size={18} strokeWidth={1.8} className="text-[#0D7166]" />
                                                     {showBadge && (
-                                                        <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-terracotta-500 rounded-full flex items-center justify-center text-[8px] font-black text-white">
+                                                        <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-0.5 bg-[#C24141] rounded-full flex items-center justify-center text-[8px] font-black text-white">
                                                             {unreadInbox > 9 ? '9+' : unreadInbox}
                                                         </span>
                                                     )}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="text-stone-800 text-sm font-medium">{item.label}</p>
-                                                    <p className="text-stone-400 text-xs truncate">{item.desc}</p>
+                                                    <p className="text-[#1C2B27] text-sm font-semibold">{item.label}</p>
+                                                    <p className="text-[#667570] text-xs truncate">{item.desc}</p>
                                                 </div>
                                             </Link>
                                         )
