@@ -1,13 +1,12 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Brain, Sparkles, ArrowRight, Zap } from 'lucide-react';
+import { Brain, Sparkles, ArrowRight, Zap, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LoginGatewayPage() {
     return (
         <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 overflow-hidden relative">
-            {/* Background glows */}
             <div className="absolute inset-0 pointer-events-none">
                 <div className="absolute top-0 left-1/4 w-[600px] h-[400px] bg-indigo-600/10 blur-[140px] rounded-full" />
                 <div className="absolute bottom-0 right-1/4 w-[500px] h-[400px] bg-emerald-500/8 blur-[140px] rounded-full" />
@@ -19,8 +18,7 @@ export default function LoginGatewayPage() {
                 transition={{ duration: 0.6 }}
                 className="w-full max-w-4xl relative z-10"
             >
-                {/* Header */}
-                <div className="text-center mb-14">
+                <div className="text-center mb-10">
                     <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-1.5 rounded-full mb-6">
                         <Zap size={12} className="text-indigo-400" />
                         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">VitaClub Platform</span>
@@ -31,9 +29,29 @@ export default function LoginGatewayPage() {
                     <p className="text-slate-500 text-base">Selecione como deseja acessar a plataforma</p>
                 </div>
 
-                {/* Cards */}
+                <div className="mb-5">
+                    <Link href="/admin/dashboard">
+                        <motion.div
+                            whileHover={{ scale: 1.01 }}
+                            whileTap={{ scale: 0.99 }}
+                            className="w-full flex items-center justify-between gap-4 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-6 py-4 cursor-pointer"
+                        >
+                            <div className="flex items-center gap-3 text-left">
+                                <div className="w-10 h-10 rounded-xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center">
+                                    <ShieldCheck size={18} className="text-amber-300" />
+                                </div>
+                                <div>
+                                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-300">Atalho temporário</p>
+                                    <p className="text-white font-black">Entrar no painel sem digitar a senha novamente</p>
+                                    <p className="text-slate-500 text-xs mt-0.5">Funciona enquanto sua sessão do nutricionista ainda puder ser renovada.</p>
+                                </div>
+                            </div>
+                            <ArrowRight size={18} className="text-amber-300 flex-shrink-0" />
+                        </motion.div>
+                    </Link>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {/* Nutricionista */}
                     <Link href="/login/nutricionista">
                         <motion.div
                             whileHover={{ scale: 1.02, y: -4 }}
@@ -61,7 +79,6 @@ export default function LoginGatewayPage() {
                         </motion.div>
                     </Link>
 
-                    {/* Paciente */}
                     <Link href="/login/paciente">
                         <motion.div
                             whileHover={{ scale: 1.02, y: -4 }}
