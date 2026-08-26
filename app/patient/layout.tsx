@@ -67,7 +67,7 @@ export default function PatientLayout({ children }: { children: ReactNode }) {
 
     return (
         <div className={isFullScreenRoute ? "min-h-screen theme-patient" : "theme-patient min-h-screen bg-[#F4EFE4] text-[#2B1A10] pb-24"}>
-            <main className="relative z-0">{children}</main>
+            <main className={`relative z-0 ${isFullScreenRoute ? '' : 'legacy-patient-light-bridge'}`}>{children}</main>
 
             {!isFullScreenRoute && (
                 <>

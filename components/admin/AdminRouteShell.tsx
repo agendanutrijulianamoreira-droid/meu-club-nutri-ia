@@ -60,7 +60,7 @@ export function AdminRouteShell({ children }: { children: React.ReactNode }) {
         <Link href="/admin" className="font-black text-sm">NutriOS</Link>
         <Link href="/admin/settings/vital" className="h-10 w-10 rounded-xl border border-[#D3DEDB] flex items-center justify-center text-[#52615D]" aria-label="Integrações"><SlidersHorizontal size={18} /></Link>
       </div>
-      {children}
+      <div className="legacy-admin-light-bridge">{children}</div>
     </div>
     {open && <div className="lg:hidden fixed inset-0 z-[90]">
       <button className="absolute inset-0 bg-black/35 backdrop-blur-[1px]" onClick={() => setOpen(false)} aria-label="Fechar navegação" />
