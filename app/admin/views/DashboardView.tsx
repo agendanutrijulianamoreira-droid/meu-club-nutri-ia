@@ -1,7 +1,7 @@
 "use client"
 
 import { DashboardQuickActions } from "../dashboard/DashboardQuickActions"
-import { DashboardHomeV5 } from "./DashboardHomeV5"
+import { DashboardHomeV6 } from "./DashboardHomeV6"
 import "../dashboard/dashboard-final.css"
 
 export function DashboardView({
@@ -21,7 +21,7 @@ export function DashboardView({
 }) {
   return <div className="dashboard-final">
     <div className="dashboard-mobile-safe-actions"><DashboardQuickActions tenantId={tenantId} /></div>
-    <DashboardHomeV5
+    <DashboardHomeV6
       setView={setView}
       userName={userName}
       tenantName={tenantName}
