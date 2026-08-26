@@ -1,7 +1,7 @@
 "use client"
 
 import { DashboardQuickActions } from "../dashboard/DashboardQuickActions"
-import { DashboardHomeV4 } from "./DashboardHomeV4"
+import { DashboardHomeV5 } from "./DashboardHomeV5"
 
 export function DashboardView({
   setView,
@@ -20,7 +20,7 @@ export function DashboardView({
 }) {
   return <>
     <DashboardQuickActions tenantId={tenantId} />
-    <DashboardHomeV4
+    <DashboardHomeV5
       setView={setView}
       userName={userName}
       tenantName={tenantName}
