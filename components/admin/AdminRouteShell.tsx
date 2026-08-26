@@ -6,11 +6,12 @@ import { useState } from "react"
 import {
   LayoutDashboard, Users, Briefcase, CalendarDays, Stethoscope,
   MessageSquareText, WalletCards, Bot, Settings, SlidersHorizontal,
-  Menu, X, ChevronRight, Gauge,
+  Menu, X, ChevronRight, Gauge, BellRing,
 } from "lucide-react"
 
 const PRIMARY = [
   { label: "Início", href: "/admin/dashboard", icon: LayoutDashboard, match: (p: string) => p === "/admin" || p.startsWith("/admin/dashboard") },
+  { label: "Pendências", href: "/admin/inbox", icon: BellRing, match: (p: string) => p.startsWith("/admin/inbox") },
   { label: "Pacientes", href: "/admin?view=patients", icon: Users, match: (p: string) => p.startsWith("/admin/patient") || p.startsWith("/admin/followup") },
   { label: "CRM", href: "/admin/crm", icon: Briefcase, match: (p: string) => p.startsWith("/admin/crm") },
   { label: "Atendimento", href: "/admin?view=appointments", icon: CalendarDays, match: (p: string) => p.startsWith("/admin/appointment") || p.startsWith("/admin/appointments") },
@@ -59,7 +60,7 @@ export function AdminRouteShell({ children }: { children: React.ReactNode }) {
       <div className="lg:hidden sticky top-0 z-40 h-16 bg-white/95 backdrop-blur border-b border-[#D3DEDB] px-4 flex items-center justify-between">
         <button onClick={() => setOpen(true)} className="h-10 w-10 rounded-xl border border-[#D3DEDB] flex items-center justify-center text-[#52615D]" aria-label="Abrir navegação"><Menu size={19} /></button>
         <Link href="/admin/dashboard" className="font-black text-sm">NutriOS</Link>
-        <Link href="/admin/settings/vital" className="h-10 w-10 rounded-xl border border-[#D3DEDB] flex items-center justify-center text-[#52615D]" aria-label="Integrações"><SlidersHorizontal size={18} /></Link>
+        <Link href="/admin/inbox" className="h-10 w-10 rounded-xl border border-[#D3DEDB] flex items-center justify-center text-[#52615D]" aria-label="Pendências"><BellRing size={18} /></Link>
       </div>
       <div className="legacy-admin-light-bridge">{children}</div>
     </div>
