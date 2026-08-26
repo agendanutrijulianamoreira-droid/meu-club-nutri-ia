@@ -2,14 +2,14 @@
 
 import Link from "next/link"
 import { useState, useEffect, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useOverlays } from "@/components/ui/OverlayStack"
 import {
     LayoutDashboard, Users, Settings,
     Brain, ShieldCheck, Bot, ChevronDown, ChevronRight, LogOut,
     User as UserIcon, Building2, CalendarDays, HeartPulse,
     MessageSquareText, WalletCards, SlidersHorizontal, PanelLeftClose,
-    PanelLeftOpen, Stethoscope, Briefcase,
+    PanelLeftOpen, Stethoscope, Briefcase, Menu, X,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -95,12 +95,16 @@ const navGroups: NavGroup[] = [
         { id: 'products', label: 'Produtos' }, { id: 'product-gateway', label: 'Catálogo' }, { id: 'sales-page', label: 'Página de vendas' },
         { id: 'vip-settings', label: 'Área VIP' }, { id: 'strategic-planner', label: 'Régua de eventos' }, { id: 'business-plan', label: 'Planejamento anual' },
     ]},
-    { id: 'intelligence', icon: Bot, label: 'Inteligência e ajustes', items: [
+    { id: 'intelligence', icon: Bot, label: 'Inteligência', items: [
         { id: 'ai-brain', label: 'Laboratório IA' }, { id: 'agents-dashboard', label: 'Agentes IA' },
         { id: 'approvals', label: 'Aprovações', badge: true }, { id: 'manager-learning', label: 'Gerente IA' },
         { id: 'ai-credits', label: 'Créditos IA' }, { href: '/admin/followup-settings', label: 'Regras do acompanhamento' },
-        { id: 'settings', label: 'Configurações do clube' }, { href: '/admin/settings/vital', label: 'Chaves e integrações' },
     ]},
+]
+
+const settingsLinks = [
+    { id: 'settings' as ViewType, label: 'Configurações do clube' },
+    { href: '/admin/settings/vital', label: 'Chaves e integrações' },
 ]
 
 const SIDEBAR_EXPANDED = 272
@@ -110,21 +114,25 @@ interface AdminDashboardProps { userName?: string; tenantName?: string; role?: s
 
 export default function AdminDashboard({ userName = 'Admin', tenantName = '', role = 'admin', tenantId = '', needsRepair = false }: AdminDashboardProps) {
     const router = useRouter()
+    const searchParams = useSearchParams()
     const { openOverlay } = useOverlays()
     const [activeView, setActiveView] = useState<ViewType>('dashboard')
     const [collapsed, setCollapsed] = useState(false)
-    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set(['overview']))
+    const [mobileOpen, setMobileOpen] = useState(false)
+    const [expandedGroup, setExpandedGroup] = useState('overview')
     const [pendingApprovals, setPendingApprovals] = useState(0)
     const [patientsAutoOpen, setPatientsAutoOpen] = useState(false)
     const [patientsInitialFilter, setPatientsInitialFilter] = useState<'vip' | 'tracking' | null>(null)
     const activeGroupId = navGroups.find(g => g.items.some(i => i.id === activeView))?.id || 'overview'
 
     useEffect(() => {
-        setExpandedGroups(prev => {
-            if (prev.has(activeGroupId)) return prev
-            const next = new Set(prev); next.add(activeGroupId); return next
-        })
-    }, [activeGroupId])
+        const requested = searchParams?.get('view') as ViewType | null
+        if (requested && navGroups.some(g => g.items.some(i => i.id === requested)) || requested === 'settings') {
+            if (requested) setActiveView(requested)
+        }
+    }, [searchParams])
+
+    useEffect(() => { setExpandedGroup(activeGroupId) }, [activeGroupId])
 
     useEffect(() => {
         const load = () => fetch('/api/admin/approvals?status=pending').then(r => r.json()).then(d => setPendingApprovals(d.pending_count || 0)).catch(() => {})
@@ -134,10 +142,10 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
     useEffect(() => { if (needsRepair) repairProfile().then(r => { if (r.repaired) router.refresh() }).catch(console.error) }, [needsRepair, router])
 
     const toggleGroup = (id: string) => {
-        if (collapsed) { setCollapsed(false); setExpandedGroups(new Set([id])); return }
-        setExpandedGroups(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
+        if (collapsed) { setCollapsed(false); setExpandedGroup(id); return }
+        setExpandedGroup(prev => prev === id ? '' : id)
     }
-    const navigate = (id: ViewType) => setActiveView(id)
+    const navigate = (id: ViewType) => { setActiveView(id); setMobileOpen(false) }
     const goToNewPatient = useCallback(() => { setPatientsInitialFilter(null); setPatientsAutoOpen(true); setActiveView('patients') }, [])
     const goToPatientsFiltered = useCallback((filter: 'vip' | 'tracking') => { setPatientsAutoOpen(false); setPatientsInitialFilter(filter); setActiveView('patients') }, [])
 
@@ -179,44 +187,49 @@ export default function AdminDashboard({ userName = 'Admin', tenantName = '', ro
     }
 
     const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED
+    const Sidebar = ({ mobile = false }: { mobile?: boolean }) => (
+        <aside style={mobile ? undefined : { width: sidebarWidth }} className={`${mobile ? 'w-[86vw] max-w-[300px]' : 'hidden md:flex'} h-full flex-col bg-white border-r border-[#D3DEDB] shadow-[6px_0_28px_rgba(28,43,39,0.04)]`}>
+            <div className={`h-20 flex items-center border-b border-[#E0E8E6] ${collapsed && !mobile ? 'justify-center px-2' : 'justify-between px-5'}`}>
+                <button onClick={() => navigate('dashboard')} className="flex items-center gap-3 min-w-0" title="Ir para o painel">
+                    <div className="h-10 w-10 rounded-2xl bg-[#E2F3EF] border border-[#B8DED5] flex items-center justify-center shrink-0"><Brain size={20} className="text-[#0D7166]" /></div>
+                    {(!collapsed || mobile) && <div className="text-left min-w-0"><p className="text-[15px] font-black leading-tight text-[#1C2B27] truncate">{tenantName || 'NutriOS'}</p><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#6B7975] mt-0.5">Gestão clínica</p></div>}
+                </button>
+                {mobile ? <button onClick={() => setMobileOpen(false)} className="h-9 w-9 rounded-xl flex items-center justify-center text-[#667570] hover:bg-[#F0F4F3]" aria-label="Fechar menu"><X size={18} /></button> : !collapsed && <button onClick={() => setCollapsed(true)} className="h-9 w-9 rounded-xl flex items-center justify-center text-[#667570] hover:text-[#0D7166] hover:bg-[#EAF5F2]" aria-label="Recolher menu"><PanelLeftClose size={18} /></button>}
+            </div>
+            {!mobile && collapsed && <button onClick={() => setCollapsed(false)} className="mx-auto mt-3 h-9 w-9 rounded-xl flex items-center justify-center text-[#667570] hover:text-[#0D7166] hover:bg-[#EAF5F2]" aria-label="Expandir menu"><PanelLeftOpen size={18} /></button>}
+            <nav className="flex-1 overflow-y-auto custom-scrollbar px-3 py-3 space-y-1">
+                {navGroups.map(group => {
+                    const Icon = group.icon, groupActive = group.id === activeGroupId, expanded = (!collapsed || mobile) && expandedGroup === group.id, groupBadge = group.items.some(i => i.badge) && pendingApprovals > 0
+                    return <div key={group.id}>
+                        <button onClick={() => toggleGroup(group.id)} title={collapsed && !mobile ? group.label : undefined} className={`w-full flex items-center rounded-xl transition-colors ${collapsed && !mobile ? 'justify-center h-11' : 'gap-3 px-3 py-2.5'} ${groupActive ? 'bg-[#E2F3EF] text-[#0D7166]' : 'text-[#4E5E5A] hover:bg-[#F0F4F3] hover:text-[#1C2B27]'}`}>
+                            <div className="relative shrink-0"><Icon size={18} strokeWidth={1.8} />{groupBadge && collapsed && !mobile && <span className="absolute -top-1.5 -right-1.5 h-2.5 w-2.5 rounded-full bg-red-500 border-2 border-white" />}</div>
+                            {(!collapsed || mobile) && <><span className="flex-1 text-left text-[13px] font-bold">{group.label}</span>{groupBadge && <span className="min-w-[20px] h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center">{pendingApprovals > 9 ? '9+' : pendingApprovals}</span>}<ChevronRight size={14} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} /></>}
+                        </button>
+                        <AnimatePresence initial={false}>{expanded && <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden"><div className="ml-6 pl-3 border-l border-[#DCE5E3] py-1 space-y-0.5">
+                            {group.items.map(item => {
+                                const active = item.id ? activeView === item.id : false
+                                const cls = `w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-[12px] font-semibold transition-colors ${active ? 'bg-[#EAF5F2] text-[#0D7166]' : 'text-[#5C6B67] hover:bg-[#F4F7F6] hover:text-[#1C2B27]'}`
+                                const content = <><span>{item.label}</span>{item.badge && pendingApprovals > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center">{pendingApprovals > 9 ? '9+' : pendingApprovals}</span>}</>
+                                return item.href ? <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className={cls}>{content}</Link> : <button key={item.id} onClick={() => item.id && navigate(item.id)} className={cls}>{content}</button>
+                            })}
+                        </div></motion.div>}</AnimatePresence>
+                    </div>
+                })}
+            </nav>
+            {(!collapsed || mobile) && <div className="border-t border-[#E0E8E6] p-3 space-y-1">{settingsLinks.map(item => item.href ? <Link key={item.href} href={item.href} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[#52615D] hover:bg-[#F0F4F3] hover:text-[#0D7166]"><SlidersHorizontal size={17} /><span className="text-xs font-bold">{item.label}</span></Link> : <button key={item.id} onClick={() => item.id && navigate(item.id)} className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-[#52615D] hover:bg-[#F0F4F3] hover:text-[#0D7166]"><Settings size={17} /><span className="text-xs font-bold">{item.label}</span></button>)}</div>}
+        </aside>
+    )
+
     return (
-        <div className="min-h-screen bg-[#F4F7F6] text-[#1C2B27] flex">
-            <aside style={{ width: sidebarWidth }} className="fixed inset-y-0 left-0 z-50 flex flex-col bg-white border-r border-[#D3DEDB] shadow-[6px_0_28px_rgba(28,43,39,0.04)] transition-[width] duration-200">
-                <div className={`h-20 flex items-center border-b border-[#E0E8E6] ${collapsed ? 'justify-center px-2' : 'justify-between px-5'}`}>
-                    <button onClick={() => navigate('dashboard')} className="flex items-center gap-3 min-w-0" title="Ir para o painel">
-                        <div className="h-10 w-10 rounded-2xl bg-[#E2F3EF] border border-[#B8DED5] flex items-center justify-center shrink-0"><Brain size={20} className="text-[#0D7166]" /></div>
-                        {!collapsed && <div className="text-left min-w-0"><p className="text-[15px] font-black leading-tight text-[#1C2B27] truncate">{tenantName || 'NutriOS'}</p><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#6B7975] mt-0.5">Gestão clínica</p></div>}
-                    </button>
-                    {!collapsed && <button onClick={() => setCollapsed(true)} className="h-9 w-9 rounded-xl flex items-center justify-center text-[#667570] hover:text-[#0D7166] hover:bg-[#EAF5F2]" aria-label="Recolher menu"><PanelLeftClose size={18} /></button>}
-                </div>
-                {collapsed && <button onClick={() => setCollapsed(false)} className="mx-auto mt-3 h-9 w-9 rounded-xl flex items-center justify-center text-[#667570] hover:text-[#0D7166] hover:bg-[#EAF5F2]" aria-label="Expandir menu"><PanelLeftOpen size={18} /></button>}
-                <nav className="flex-1 overflow-y-auto custom-scrollbar px-3 py-3 space-y-1">
-                    {navGroups.map(group => {
-                        const Icon = group.icon, groupActive = group.id === activeGroupId, expanded = !collapsed && expandedGroups.has(group.id), groupBadge = group.items.some(i => i.badge) && pendingApprovals > 0
-                        return <div key={group.id}>
-                            <button onClick={() => toggleGroup(group.id)} title={collapsed ? group.label : undefined} className={`w-full flex items-center rounded-xl transition-colors ${collapsed ? 'justify-center h-11' : 'gap-3 px-3 py-2.5'} ${groupActive ? 'bg-[#E2F3EF] text-[#0D7166]' : 'text-[#4E5E5A] hover:bg-[#F0F4F3] hover:text-[#1C2B27]'}`}>
-                                <div className="relative shrink-0"><Icon size={18} strokeWidth={1.8} />{groupBadge && collapsed && <span className="absolute -top-1.5 -right-1.5 h-2.5 w-2.5 rounded-full bg-red-500 border-2 border-white" />}</div>
-                                {!collapsed && <><span className="flex-1 text-left text-[13px] font-bold">{group.label}</span>{groupBadge && <span className="min-w-[20px] h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center">{pendingApprovals > 9 ? '9+' : pendingApprovals}</span>}<ChevronRight size={14} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} /></>}
-                            </button>
-                            <AnimatePresence initial={false}>{expanded && <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden"><div className="ml-6 pl-3 border-l border-[#DCE5E3] py-1 space-y-0.5">
-                                {group.items.map(item => {
-                                    const active = item.id ? activeView === item.id : false
-                                    const cls = `w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-[12px] font-semibold transition-colors ${active ? 'bg-[#EAF5F2] text-[#0D7166]' : 'text-[#5C6B67] hover:bg-[#F4F7F6] hover:text-[#1C2B27]'}`
-                                    const content = <><span>{item.label}</span>{item.badge && pendingApprovals > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center">{pendingApprovals > 9 ? '9+' : pendingApprovals}</span>}</>
-                                    return item.href ? <Link key={item.href} href={item.href} className={cls}>{content}</Link> : <button key={item.id} onClick={() => item.id && navigate(item.id)} className={cls}>{content}</button>
-                                })}
-                            </div></motion.div>}</AnimatePresence>
-                        </div>
-                    })}
-                </nav>
-                {!collapsed && <div className="border-t border-[#E0E8E6] p-3"><Link href="/admin/settings/vital" className="flex items-center gap-3 rounded-xl border border-[#B8DED5] bg-[#F1F9F7] px-3 py-3 text-[#0D7166] hover:bg-[#E2F3EF] transition-colors"><SlidersHorizontal size={17} /><div className="min-w-0"><p className="text-xs font-black">Chaves e integrações</p><p className="text-[10px] text-[#5E726D] mt-0.5">Central de serviços vitais</p></div></Link></div>}
-            </aside>
-            <main style={{ marginLeft: sidebarWidth }} className="flex-1 flex flex-col min-h-screen transition-[margin] duration-200 min-w-0">
-                <header className="h-20 px-5 md:px-8 flex items-center justify-between bg-white/92 backdrop-blur border-b border-[#D3DEDB] sticky top-0 z-30">
-                    <div className="min-w-0"><div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#6B7975]"><ShieldCheck size={13} className="text-[#118C7E]" />Operação da clínica</div><p className="mt-1 text-sm font-bold text-[#1C2B27] truncate">{navGroups.find(g => g.id === activeGroupId)?.label || 'Painel'}</p></div>
+        <div className="theme-admin-light min-h-screen bg-[#F4F7F6] text-[#1C2B27] flex">
+            <div className="fixed inset-y-0 left-0 z-50 hidden md:block"><Sidebar /></div>
+            <AnimatePresence>{mobileOpen && <><motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-[70] bg-black/35 backdrop-blur-sm md:hidden" onClick={() => setMobileOpen(false)} /><motion.div initial={{x:'-100%'}} animate={{x:0}} exit={{x:'-100%'}} transition={{duration:.2}} className="fixed inset-y-0 left-0 z-[80] md:hidden"><Sidebar mobile /></motion.div></>}</AnimatePresence>
+            <main style={{ marginLeft: undefined }} className={`flex-1 flex flex-col min-h-screen min-w-0 md:transition-[margin] md:duration-200 ${collapsed ? 'md:ml-[76px]' : 'md:ml-[272px]'}`}>
+                <header className="h-20 px-4 md:px-8 flex items-center justify-between bg-white/92 backdrop-blur border-b border-[#D3DEDB] sticky top-0 z-30">
+                    <div className="flex items-center gap-3 min-w-0"><button onClick={() => setMobileOpen(true)} className="md:hidden h-10 w-10 rounded-xl border border-[#D3DEDB] bg-white flex items-center justify-center text-[#52615D]" aria-label="Abrir menu"><Menu size={19} /></button><div className="min-w-0"><div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#6B7975]"><ShieldCheck size={13} className="text-[#118C7E]" />Operação da clínica</div><p className="mt-1 text-sm font-bold text-[#1C2B27] truncate">{navGroups.find(g => g.id === activeGroupId)?.label || 'Painel'}</p></div></div>
                     <div className="flex items-center gap-3"><Link href="/admin/attention" className="hidden lg:flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100"><HeartPulse size={15} /> Prioridades do dia</Link><UserDropdown userName={userName} role={role} openOverlay={openOverlay} router={router} /></div>
                 </header>
-                <div className="flex-1 overflow-y-auto custom-scrollbar"><AnimatePresence mode="wait"><motion.div key={activeView} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.16 }} className="p-4 md:p-7 xl:p-8 max-w-[1500px] mx-auto">{renderView()}</motion.div></AnimatePresence></div>
+                <div className="flex-1 overflow-y-auto custom-scrollbar"><AnimatePresence mode="wait"><motion.div key={activeView} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.16 }} className="p-4 md:p-7 xl:p-8 max-w-[1500px] mx-auto w-full">{renderView()}</motion.div></AnimatePresence></div>
             </main>
         </div>
     )

@@ -3,23 +3,22 @@
 @tailwind utilities;
 
 /*
- * Design system v2 — clínica premium, legível e consistente.
- * A base visual agora prioriza contraste WCAG, hierarquia clara e estados
- * semânticos. O dourado continua como acento; teal assume ações/links.
+ * Design system v3 — temas escopados por contexto.
+ * Nunca imponha cor de heading ou identidade visual de uma área no :root.
  */
 @layer base {
   :root {
-    --background: 165 12% 96%;       /* #F4F7F6 */
-    --foreground: 165 20% 14%;       /* #1C2B27 */
+    --background: 165 12% 96%;
+    --foreground: 165 20% 14%;
     --card: 0 0% 100%;
     --card-foreground: 165 20% 14%;
     --muted: 162 16% 93%;
     --muted-foreground: 165 10% 38%;
-    --primary: 172 78% 31%;          /* teal #118C7E */
+    --primary: 172 78% 31%;
     --primary-foreground: 0 0% 100%;
     --secondary: 42 46% 93%;
     --secondary-foreground: 165 20% 14%;
-    --border: 164 15% 84%;           /* #D3DEDB */
+    --border: 164 15% 84%;
     --input: 164 15% 80%;
     --ring: 172 78% 31%;
     --success: 151 64% 34%;
@@ -27,115 +26,51 @@
     --danger: 0 58% 47%;
     --info: 217 73% 51%;
   }
-
-  * {
-    border-color: hsl(var(--border));
-  }
-
-  html {
-    color-scheme: light;
-  }
-
-  body {
-    @apply bg-background text-foreground antialiased;
-    min-width: 320px;
-  }
-
-  h1, h2, h3 {
-    @apply font-serif text-foreground;
-  }
-
-  input, textarea, select, button {
-    font: inherit;
-  }
-
-  input::placeholder,
-  textarea::placeholder {
-    color: #71807C;
-    opacity: 1;
-  }
-
-  :focus-visible {
-    outline: 2px solid hsl(var(--ring));
-    outline-offset: 2px;
-  }
+  * { border-color: hsl(var(--border)); }
+  html { color-scheme: light; }
+  body { @apply bg-background text-foreground antialiased; min-width: 320px; }
+  h1, h2, h3 { @apply font-serif; }
+  input, textarea, select, button { font: inherit; }
+  input::placeholder, textarea::placeholder { color: currentColor; opacity: .48; }
+  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 }
 
 @layer components {
-  .surface {
-    @apply bg-white border border-[#D3DEDB] shadow-sm;
+  .theme-admin-light {
+    --background: 165 12% 96%; --foreground: 165 20% 14%; --card: 0 0% 100%; --card-foreground: 165 20% 14%;
+    --muted: 162 16% 93%; --muted-foreground: 165 10% 38%; --primary: 172 78% 31%; --primary-foreground: 0 0% 100%;
+    --border: 164 15% 84%; --input: 164 15% 80%; --ring: 172 78% 31%; color-scheme: light;
   }
-
-  .surface-muted {
-    @apply bg-[#F0F4F3] border border-[#D3DEDB];
+  .theme-admin-dark, .theme-auth {
+    --background: 222 47% 3%; --foreground: 0 0% 100%; --card: 222 30% 8%; --card-foreground: 0 0% 100%;
+    --muted: 215 28% 17%; --muted-foreground: 215 20% 65%; --primary: 239 84% 67%; --primary-foreground: 0 0% 100%;
+    --border: 0 0% 100% / .10; --input: 0 0% 100% / .10; --ring: 239 84% 67%; color-scheme: dark;
   }
-
-  .text-primary-strong {
-    @apply text-[#1C2B27];
+  .theme-patient {
+    --background: 42 43% 93%; --foreground: 24 47% 12%; --card: 0 0% 100%; --card-foreground: 24 47% 12%;
+    --muted: 42 32% 90%; --muted-foreground: 24 16% 36%; --primary: 45 57% 50%; --primary-foreground: 24 47% 12%;
+    --border: 24 25% 82%; --input: 24 25% 78%; --ring: 45 57% 50%; color-scheme: light;
   }
-
-  .text-secondary-readable {
-    @apply text-[#52615D];
-  }
-
-  .text-muted-readable {
-    @apply text-[#6B7975];
-  }
-
-  .action-primary {
-    @apply bg-[#118C7E] text-white hover:bg-[#0D7166] disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-
-  .action-secondary {
-    @apply bg-white text-[#1C2B27] border border-[#C7D4D1] hover:bg-[#F0F4F3];
-  }
-
-  .nav-active {
-    @apply bg-[#E2F3EF] text-[#0D7166] border border-[#B8DED5];
-  }
-
-  .status-success {
-    @apply bg-emerald-50 text-emerald-800 border border-emerald-200;
-  }
-
-  .status-warning {
-    @apply bg-amber-50 text-amber-900 border border-amber-200;
-  }
-
-  .status-danger {
-    @apply bg-red-50 text-red-800 border border-red-200;
-  }
+  .surface { @apply bg-white border border-[#D3DEDB] shadow-sm; }
+  .surface-muted { @apply bg-[#F0F4F3] border border-[#D3DEDB]; }
+  .text-primary-strong { @apply text-[#1C2B27]; }
+  .text-secondary-readable { @apply text-[#52615D]; }
+  .text-muted-readable { @apply text-[#6B7975]; }
+  .action-primary { @apply bg-[#118C7E] text-white hover:bg-[#0D7166] disabled:opacity-50 disabled:cursor-not-allowed; }
+  .action-secondary { @apply bg-white text-[#1C2B27] border border-[#C7D4D1] hover:bg-[#F0F4F3]; }
+  .nav-active { @apply bg-[#E2F3EF] text-[#0D7166] border border-[#B8DED5]; }
+  .status-success { @apply bg-emerald-50 text-emerald-800 border border-emerald-200; }
+  .status-warning { @apply bg-amber-50 text-amber-900 border border-amber-200; }
+  .status-danger { @apply bg-red-50 text-red-800 border border-red-200; }
 }
 
-/* No Scrollbar */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-/* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar { width: 5px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(17, 140, 126, 0.28); border-radius: 6px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(17, 140, 126, 0.48); }
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-.animate-shimmer {
-  background-size: 200% 100%;
-  animation: shimmer 3s ease-in-out infinite;
-}
-
-textarea[placeholder="O que você conseguiu fazer por você hoje?"] {
-  min-height: 2.75rem;
-  height: 2.75rem;
-  overflow: hidden;
-  transition: height 180ms ease, min-height 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
-}
-
-textarea[placeholder="O que você conseguiu fazer por você hoje?"]:focus {
-  min-height: 5.5rem;
-  height: 5.5rem;
-  overflow: auto;
-  box-shadow: 0 8px 24px rgba(17, 140, 126, 0.10);
-}
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+.animate-shimmer { background-size: 200% 100%; animation: shimmer 3s ease-in-out infinite; }
+textarea[placeholder="O que você conseguiu fazer por você hoje?"] { min-height: 2.75rem; height: 2.75rem; overflow: hidden; transition: height 180ms ease, min-height 180ms ease, background-color 180ms ease, box-shadow 180ms ease; }
+textarea[placeholder="O que você conseguiu fazer por você hoje?"]:focus { min-height: 5.5rem; height: 5.5rem; overflow: auto; box-shadow: 0 8px 24px rgba(201, 164, 53, 0.12); }
