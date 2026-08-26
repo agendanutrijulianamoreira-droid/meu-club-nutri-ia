@@ -6,11 +6,11 @@ import { useState } from "react"
 import {
   LayoutDashboard, Users, Briefcase, CalendarDays, Stethoscope,
   MessageSquareText, WalletCards, Bot, Settings, SlidersHorizontal,
-  Menu, X, ChevronRight,
+  Menu, X, ChevronRight, Gauge,
 } from "lucide-react"
 
 const PRIMARY = [
-  { label: "Início", href: "/admin", icon: LayoutDashboard, match: (p: string) => p === "/admin" },
+  { label: "Início", href: "/admin/dashboard", icon: LayoutDashboard, match: (p: string) => p === "/admin" || p.startsWith("/admin/dashboard") },
   { label: "Pacientes", href: "/admin?view=patients", icon: Users, match: (p: string) => p.startsWith("/admin/patient") || p.startsWith("/admin/followup") },
   { label: "CRM", href: "/admin/crm", icon: Briefcase, match: (p: string) => p.startsWith("/admin/crm") },
   { label: "Atendimento", href: "/admin?view=appointments", icon: CalendarDays, match: (p: string) => p.startsWith("/admin/appointment") || p.startsWith("/admin/appointments") },
@@ -25,7 +25,7 @@ const EXCLUDED = ["/admin/clinic", "/admin/reset-password"]
 function Nav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   return <div className="flex h-full flex-col bg-white text-[#1C2B27]">
     <div className="h-20 border-b border-[#E0E8E6] px-5 flex items-center">
-      <Link href="/admin" onClick={onNavigate} className="flex items-center gap-3 min-w-0">
+      <Link href="/admin/dashboard" onClick={onNavigate} className="flex items-center gap-3 min-w-0">
         <div className="h-10 w-10 shrink-0 rounded-2xl bg-[#E2F3EF] border border-[#B8DED5] flex items-center justify-center font-black text-[#0D7166]">N</div>
         <div className="min-w-0"><p className="font-black text-sm truncate">NutriOS</p><p className="text-[10px] uppercase tracking-[.16em] text-[#6B7975] font-bold">Gestão clínica</p></div>
       </Link>
@@ -40,6 +40,7 @@ function Nav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => vo
       })}
     </nav>
     <div className="border-t border-[#E0E8E6] p-3 space-y-1">
+      <Link href="/admin/dashboard/settings" onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-[12px] font-bold ${pathname.startsWith('/admin/dashboard/') ? 'bg-[#E2F3EF] text-[#0D7166]' : 'text-[#52615D] hover:bg-[#F0F4F3] hover:text-[#0D7166]'}`}><Gauge size={17} />Configurar painel</Link>
       <Link href="/admin?view=settings" onClick={onNavigate} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[12px] font-bold text-[#52615D] hover:bg-[#F0F4F3] hover:text-[#1C2B27]"><Settings size={17} />Configurações</Link>
       <Link href="/admin/settings/vital" onClick={onNavigate} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-[12px] font-bold ${pathname.startsWith('/admin/settings/vital') ? 'bg-[#E2F3EF] text-[#0D7166]' : 'text-[#52615D] hover:bg-[#F0F4F3] hover:text-[#0D7166]'}`}><SlidersHorizontal size={17} />Integrações</Link>
     </div>
@@ -57,7 +58,7 @@ export function AdminRouteShell({ children }: { children: React.ReactNode }) {
     <div className="lg:ml-[248px] min-h-screen">
       <div className="lg:hidden sticky top-0 z-40 h-16 bg-white/95 backdrop-blur border-b border-[#D3DEDB] px-4 flex items-center justify-between">
         <button onClick={() => setOpen(true)} className="h-10 w-10 rounded-xl border border-[#D3DEDB] flex items-center justify-center text-[#52615D]" aria-label="Abrir navegação"><Menu size={19} /></button>
-        <Link href="/admin" className="font-black text-sm">NutriOS</Link>
+        <Link href="/admin/dashboard" className="font-black text-sm">NutriOS</Link>
         <Link href="/admin/settings/vital" className="h-10 w-10 rounded-xl border border-[#D3DEDB] flex items-center justify-center text-[#52615D]" aria-label="Integrações"><SlidersHorizontal size={18} /></Link>
       </div>
       <div className="legacy-admin-light-bridge">{children}</div>
