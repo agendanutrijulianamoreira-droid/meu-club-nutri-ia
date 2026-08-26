@@ -2,6 +2,7 @@
 
 import { DashboardQuickActions } from "../dashboard/DashboardQuickActions"
 import { DashboardHomeV5 } from "./DashboardHomeV5"
+import "../dashboard/dashboard-final.css"
 
 export function DashboardView({
   setView,
@@ -18,8 +19,8 @@ export function DashboardView({
   onGoToVipPatients?: () => void
   onGoToTrackingPatients?: () => void
 }) {
-  return <>
-    <DashboardQuickActions tenantId={tenantId} />
+  return <div className="dashboard-final">
+    <div className="dashboard-mobile-safe-actions"><DashboardQuickActions tenantId={tenantId} /></div>
     <DashboardHomeV5
       setView={setView}
       userName={userName}
@@ -27,5 +28,5 @@ export function DashboardView({
       tenantId={tenantId}
       onNewPatient={onNewPatient}
     />
-  </>
+  </div>
 }
