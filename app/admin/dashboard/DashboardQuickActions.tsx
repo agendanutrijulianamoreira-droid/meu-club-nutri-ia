@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { CalendarCheck2, CalendarDays, Check, HeartPulse, MessageCircle, RefreshCw, Users } from "lucide-react"
 import { supabase } from "@/lib/supabase"
@@ -21,31 +21,45 @@ export function DashboardQuickActions({tenantId}:{tenantId:string}){
   const [confirming,setConfirming]=useState(false)
   const [notice,setNotice]=useState('')
 
-  const load=async()=>{
-    if(!tenantId)return
-    setLoading(true)
+  const load=useCallback(async()=>{
+    if(!tenantId){setLoading(false);return}
+    setLoading(true);setNotice('')
     try{
       const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);const end=dateKey(tomorrow)
-      const [aRes,cRes,pRes]=await Promise.all([
+      const [aRes,cRes]=await Promise.all([
         supabase.from('appointments').select('id,patient_id,scheduled_at,status').eq('tenant_id',tenantId).gte('scheduled_at',new Date().toISOString()).lt('scheduled_at',`${end}T00:00:00-03:00`).in('status',['scheduled','confirmed']).order('scheduled_at').limit(1),
         supabase.from('crm_contacts').select('id,name,phone,whatsapp,next_action_at').eq('tenant_id',tenantId).eq('do_not_contact',false).not('next_action_at','is',null).lte('next_action_at',new Date().toISOString()).order('next_action_at').limit(1),
-        supabase.from('profiles').select('id,name').eq('tenant_id',tenantId).eq('role','patient'),
       ])
+      if(aRes.error)throw aRes.error
+      if(cRes.error)throw cRes.error
       const a=(aRes.data||[])[0] as any
-      const names=new Map((pRes.data||[]).map((p:any)=>[p.id,p.name||'Paciente']))
-      setAppointment(a?{...a,patient_name:names.get(a.patient_id)||'Paciente'}:null)
+      let patientName='Paciente'
+      if(a?.patient_id){
+        const {data:patient}=await supabase.from('profiles').select('name').eq('tenant_id',tenantId).eq('user_id',a.patient_id).maybeSingle()
+        if(patient?.name)patientName=patient.name
+      }
+      setAppointment(a?{...a,patient_name:patientName}:null)
       setCrm(((cRes.data||[])[0]||null) as Crm|null)
+    }catch(err:any){
+      console.error('[dashboard-actions] load failed',err)
+      setAppointment(null);setCrm(null);setNotice(err?.message||'Não foi possível carregar as ações rápidas.')
     }finally{setLoading(false)}
-  }
-  useEffect(()=>{load()},[tenantId])
+  },[tenantId])
+
+  useEffect(()=>{load()},[load])
 
   const confirm=async()=>{
     if(!appointment||appointment.status==='confirmed')return
     setConfirming(true);setNotice('')
-    const {error}=await supabase.rpc('staff_transition_appointment',{p_appointment_id:appointment.id,p_to_status:'confirmed',p_reason:null})
-    if(error)setNotice(error.message||'Não foi possível confirmar.')
-    else{setAppointment({...appointment,status:'confirmed'});setNotice('Consulta confirmada.')}
-    setConfirming(false)
+    try{
+      const {error}=await supabase.rpc('staff_transition_appointment',{p_appointment_id:appointment.id,p_to_status:'confirmed',p_reason:null})
+      if(error)throw error
+      setAppointment({...appointment,status:'confirmed'})
+      setNotice('Consulta confirmada.')
+      window.dispatchEvent(new Event('dashboard:refresh'))
+    }catch(err:any){
+      setNotice(err?.message||'Não foi possível confirmar.')
+    }finally{setConfirming(false)}
   }
 
   const whatsapp=()=>{
@@ -55,7 +69,7 @@ export function DashboardQuickActions({tenantId}:{tenantId:string}){
   }
 
   if(loading)return <div className="mx-auto mb-3 max-w-7xl px-0 sm:px-6 lg:px-8"><div className="h-24 animate-pulse rounded-2xl border border-[#DCE6E3] bg-white"/></div>
-  if(!appointment&&!crm)return null
+  if(!appointment&&!crm&&!notice)return null
 
   return <section className="mx-auto mb-3 max-w-7xl px-0 sm:px-6 lg:px-8" aria-label="Ações rápidas do painel">
     <div className="rounded-2xl border border-[#D6E2DF] bg-white p-3 shadow-sm sm:p-4">

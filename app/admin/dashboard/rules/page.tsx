@@ -1,7 +1,7 @@
-import { DashboardPreferencesClient } from "../DashboardPreferencesClient"
+import { DashboardPreferencesClientV2 } from "../DashboardPreferencesClientV2"
 
 export const dynamic = 'force-dynamic'
 
 export default function DashboardRulesPage() {
-  return <DashboardPreferencesClient section="rules" />
+  return <DashboardPreferencesClientV2 section="rules" />
 }
