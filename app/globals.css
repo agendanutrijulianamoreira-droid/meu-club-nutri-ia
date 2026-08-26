@@ -64,6 +64,151 @@
   .status-danger { @apply bg-red-50 text-red-800 border border-red-200; }
 }
 
+/*
+ * Compatibility bridge v1
+ * -----------------------
+ * Muitas views antigas foram desenhadas para fundo escuro e usam utilitários
+ * locais (text-white, bg-white/5, bg-slate-950...). O shell novo é claro.
+ * Esta ponte converte somente o conteúdo legado, sem alterar autenticação,
+ * captura de câmera ou outros fluxos dark intencionais.
+ */
+
+/* Paciente — creme, chocolate, dourado/oliva */
+.legacy-patient-light-bridge {
+  color: #2B1A10;
+}
+.legacy-patient-light-bridge .text-white { color: #2B1A10 !important; }
+.legacy-patient-light-bridge [class*="text-slate-2"],
+.legacy-patient-light-bridge [class*="text-slate-3"],
+.legacy-patient-light-bridge [class*="text-slate-4"] { color: #4F4035 !important; }
+.legacy-patient-light-bridge [class*="text-slate-5"],
+.legacy-patient-light-bridge [class*="text-slate-6"],
+.legacy-patient-light-bridge [class*="text-slate-7"] { color: #756457 !important; }
+.legacy-patient-light-bridge [class*="bg-slate-9"],
+.legacy-patient-light-bridge [class*="bg-slate-8"],
+.legacy-patient-light-bridge [class*="bg-white/"],
+.legacy-patient-light-bridge [class*="bg-white["] {
+  background-color: #FFFDF8 !important;
+}
+.legacy-patient-light-bridge [class*="border-white/"] { border-color: rgba(43, 26, 16, .13) !important; }
+.legacy-patient-light-bridge [class*="divide-white"] > :not([hidden]) ~ :not([hidden]) { border-color: rgba(43, 26, 16, .10) !important; }
+.legacy-patient-light-bridge [class*="from-slate-"],
+.legacy-patient-light-bridge [class*="from-indigo-9"],
+.legacy-patient-light-bridge [class*="from-violet-9"],
+.legacy-patient-light-bridge [class*="from-purple-9"],
+.legacy-patient-light-bridge [class*="from-orange-9"],
+.legacy-patient-light-bridge [class*="from-rose-9"],
+.legacy-patient-light-bridge [class*="from-emerald-9"],
+.legacy-patient-light-bridge [class*="from-teal-9"],
+.legacy-patient-light-bridge [class*="from-amber-9"],
+.legacy-patient-light-bridge [class*="from-yellow-9"] {
+  background-image: none !important;
+  background-color: #FFFDF8 !important;
+}
+.legacy-patient-light-bridge [class*="text-indigo-"],
+.legacy-patient-light-bridge [class*="text-violet-"],
+.legacy-patient-light-bridge [class*="text-purple-"] { color: #806817 !important; }
+.legacy-patient-light-bridge [class*="border-indigo-"],
+.legacy-patient-light-bridge [class*="border-violet-"],
+.legacy-patient-light-bridge [class*="border-purple-"] { border-color: rgba(201, 164, 53, .38) !important; }
+.legacy-patient-light-bridge [class*="bg-indigo-500/"] ,
+.legacy-patient-light-bridge [class*="bg-indigo-600/"] ,
+.legacy-patient-light-bridge [class*="bg-violet-500/"] ,
+.legacy-patient-light-bridge [class*="bg-violet-600/"] ,
+.legacy-patient-light-bridge [class*="bg-purple-500/"] ,
+.legacy-patient-light-bridge [class*="bg-purple-600/"] {
+  background-color: rgba(201, 164, 53, .12) !important;
+}
+.legacy-patient-light-bridge input,
+.legacy-patient-light-bridge textarea,
+.legacy-patient-light-bridge select {
+  background-color: #FFFDF8 !important;
+  color: #2B1A10 !important;
+  border-color: rgba(43, 26, 16, .16) !important;
+}
+.legacy-patient-light-bridge input::placeholder,
+.legacy-patient-light-bridge textarea::placeholder { color: #8A786B !important; opacity: 1 !important; }
+.legacy-patient-light-bridge .bg-indigo-600,
+.legacy-patient-light-bridge .bg-indigo-500,
+.legacy-patient-light-bridge .bg-violet-600,
+.legacy-patient-light-bridge .bg-purple-600 {
+  background-color: #71845A !important;
+  border-color: #71845A !important;
+  color: #FFFFFF !important;
+}
+.legacy-patient-light-bridge .bg-indigo-600 *,
+.legacy-patient-light-bridge .bg-indigo-500 *,
+.legacy-patient-light-bridge .bg-violet-600 *,
+.legacy-patient-light-bridge .bg-purple-600 * { color: #FFFFFF !important; }
+.legacy-patient-light-bridge button:disabled { opacity: .52; }
+.legacy-patient-light-bridge [class*="shadow-2xl"],
+.legacy-patient-light-bridge [class*="shadow-xl"] { box-shadow: 0 16px 40px rgba(43, 26, 16, .12) !important; }
+
+/* Admin — branco suave, teal, alto contraste */
+.legacy-admin-light-bridge {
+  color: #1C2B27;
+}
+.legacy-admin-light-bridge .text-white { color: #1C2B27 !important; }
+.legacy-admin-light-bridge [class*="text-slate-2"],
+.legacy-admin-light-bridge [class*="text-slate-3"],
+.legacy-admin-light-bridge [class*="text-slate-4"] { color: #40514C !important; }
+.legacy-admin-light-bridge [class*="text-slate-5"],
+.legacy-admin-light-bridge [class*="text-slate-6"],
+.legacy-admin-light-bridge [class*="text-slate-7"] { color: #687873 !important; }
+.legacy-admin-light-bridge [class*="bg-slate-9"],
+.legacy-admin-light-bridge [class*="bg-slate-8"],
+.legacy-admin-light-bridge [class*="bg-white/"],
+.legacy-admin-light-bridge [class*="bg-white["] {
+  background-color: #FFFFFF !important;
+}
+.legacy-admin-light-bridge [class*="border-white/"] { border-color: #D3DEDB !important; }
+.legacy-admin-light-bridge [class*="divide-white"] > :not([hidden]) ~ :not([hidden]) { border-color: #E0E8E6 !important; }
+.legacy-admin-light-bridge [class*="from-slate-"],
+.legacy-admin-light-bridge [class*="from-indigo-9"],
+.legacy-admin-light-bridge [class*="from-violet-9"],
+.legacy-admin-light-bridge [class*="from-purple-9"] {
+  background-image: none !important;
+  background-color: #FFFFFF !important;
+}
+.legacy-admin-light-bridge [class*="text-indigo-"],
+.legacy-admin-light-bridge [class*="text-violet-"],
+.legacy-admin-light-bridge [class*="text-purple-"] { color: #0D7166 !important; }
+.legacy-admin-light-bridge [class*="border-indigo-"],
+.legacy-admin-light-bridge [class*="border-violet-"],
+.legacy-admin-light-bridge [class*="border-purple-"] { border-color: #B8DED5 !important; }
+.legacy-admin-light-bridge [class*="bg-indigo-500/"] ,
+.legacy-admin-light-bridge [class*="bg-indigo-600/"] ,
+.legacy-admin-light-bridge [class*="bg-violet-500/"] ,
+.legacy-admin-light-bridge [class*="bg-violet-600/"] ,
+.legacy-admin-light-bridge [class*="bg-purple-500/"] ,
+.legacy-admin-light-bridge [class*="bg-purple-600/"] {
+  background-color: #EAF5F2 !important;
+}
+.legacy-admin-light-bridge input,
+.legacy-admin-light-bridge textarea,
+.legacy-admin-light-bridge select {
+  background-color: #FFFFFF !important;
+  color: #1C2B27 !important;
+  border-color: #C7D4D1 !important;
+}
+.legacy-admin-light-bridge input::placeholder,
+.legacy-admin-light-bridge textarea::placeholder { color: #74827E !important; opacity: 1 !important; }
+.legacy-admin-light-bridge .bg-indigo-600,
+.legacy-admin-light-bridge .bg-indigo-500,
+.legacy-admin-light-bridge .bg-violet-600,
+.legacy-admin-light-bridge .bg-purple-600 {
+  background-color: #118C7E !important;
+  border-color: #118C7E !important;
+  color: #FFFFFF !important;
+}
+.legacy-admin-light-bridge .bg-indigo-600 *,
+.legacy-admin-light-bridge .bg-indigo-500 *,
+.legacy-admin-light-bridge .bg-violet-600 *,
+.legacy-admin-light-bridge .bg-purple-600 * { color: #FFFFFF !important; }
+.legacy-admin-light-bridge button:disabled { opacity: .50; }
+.legacy-admin-light-bridge [class*="shadow-2xl"],
+.legacy-admin-light-bridge [class*="shadow-xl"] { box-shadow: 0 16px 40px rgba(28, 43, 39, .12) !important; }
+
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 .custom-scrollbar::-webkit-scrollbar { width: 5px; }
