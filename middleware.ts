@@ -31,32 +31,31 @@ export async function middleware(req: NextRequest) {
                     return req.cookies.get(name)?.value
                 },
                 set(name: string, value: string, options: CookieOptions) {
-                    res.cookies.set({
-                        name,
-                        value,
-                        ...options,
-                    })
+                    // Mantém request e response sincronizados para que o refresh
+                    // de sessão seja visível na mesma navegação.
+                    req.cookies.set({ name, value })
+                    res.cookies.set({ name, value, ...options })
                 },
                 remove(name: string, options: CookieOptions) {
-                    res.cookies.set({
-                        name,
-                        value: '',
-                        ...options,
-                    })
+                    req.cookies.set({ name, value: '' })
+                    res.cookies.set({ name, value: '', ...options })
                 },
             },
         }
     )
 
-    // Refresh session if expired - required for Server Components
-    const { data: { session } } = await supabase.auth.getSession()
+    // getUser() valida a sessão e força o refresh do token quando necessário.
+    // Isso evita que a nutricionista seja enviada de volta ao login apenas
+    // porque o access token venceu enquanto o refresh token ainda é válido.
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    const isAuthenticated = Boolean(user) && !userError
 
-    const userMetadata = session?.user?.user_metadata
-    const userRole = userMetadata?.user_type || userMetadata?.role // Aceita ambos os campos comuns
+    const userMetadata = user?.user_metadata
+    const userRole = userMetadata?.user_type || userMetadata?.role
 
     // 1. Proteger rotas /admin
-    if (req.nextUrl.pathname.startsWith('/admin')) {
-        if (!session) {
+    if (pathname.startsWith('/admin')) {
+        if (!isAuthenticated) {
             return NextResponse.redirect(new URL('/login', req.url))
         }
 
@@ -64,54 +63,40 @@ export async function middleware(req: NextRequest) {
         if (userRole === 'patient') {
             return NextResponse.redirect(new URL('/patient/home', req.url))
         }
-
-        // Se for nutri, admin ou undefined (old session), permite passar. 
-        // A página/layout de destino cuidará da validação DB se necessário.
     }
 
     // 2. Proteger rotas /patient ou /dashboard
-    const isPatientRoute = req.nextUrl.pathname.startsWith('/patient') || req.nextUrl.pathname.startsWith('/dashboard')
+    const isPatientRoute = pathname.startsWith('/patient') || pathname.startsWith('/dashboard')
     if (isPatientRoute) {
-        if (!session) {
+        if (!isAuthenticated) {
             return NextResponse.redirect(new URL('/login', req.url))
         }
 
-        // Se acessar /dashboard, redireciona para /patient/home (Unificação MVP)
-        if (req.nextUrl.pathname === '/dashboard' || req.nextUrl.pathname.startsWith('/dashboard')) {
+        if (pathname === '/dashboard' || pathname.startsWith('/dashboard')) {
             if (userRole === 'admin' || userRole === 'nutritionist' || userRole === 'nutri') {
-                return NextResponse.redirect(new URL('/admin', req.url))
+                return NextResponse.redirect(new URL('/admin/dashboard', req.url))
             }
             return NextResponse.redirect(new URL('/patient/home', req.url))
         }
     }
 
     // 3. Redirecionar / (Root) se já estiver logado
-    if (req.nextUrl.pathname === '/') {
-        if (session) {
-            // Só redireciona automaticamente se o papel for conhecido no metadata
+    if (pathname === '/') {
+        if (isAuthenticated) {
             if (userRole === 'admin' || userRole === 'nutritionist' || userRole === 'nutri') {
-                return NextResponse.redirect(new URL('/admin', req.url))
+                return NextResponse.redirect(new URL('/admin/dashboard', req.url))
             }
             if (userRole === 'patient') {
                 return NextResponse.redirect(new URL('/patient/home', req.url))
             }
-            // Papel desconhecido (metadata antigo): Não redireciona. 
-            // Permite que o usuário veja a Home e o self-healing do app/page.tsx aja.
         }
     }
 
     return res
 }
 
-// Ensure middleware is only called for relevant paths
 export const config = {
     matcher: [
-        /*
-         * Match all request paths except for the ones starting with:
-         * - _next/static (static files)
-         * - _next/image (image optimization files)
-         * - favicon.ico (favicon file)
-         */
         '/((?!_next/static|_next/image|favicon.ico).*)',
     ],
 }
