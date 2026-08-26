@@ -35,7 +35,7 @@ export function DashboardQuickActions({tenantId}:{tenantId:string}){
       const a=(aRes.data||[])[0] as any
       let patientName='Paciente'
       if(a?.patient_id){
-        const {data:patient}=await supabase.from('profiles').select('name').eq('tenant_id',tenantId).eq('id',a.patient_id).maybeSingle()
+        const {data:patient}=await supabase.from('profiles').select('name').eq('tenant_id',tenantId).eq('user_id',a.patient_id).maybeSingle()
         if(patient?.name)patientName=patient.name
       }
       setAppointment(a?{...a,patient_name:patientName}:null)
