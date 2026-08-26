@@ -11,12 +11,28 @@ Transformar o produto em uma operação mais legível, previsível e rápida par
 5. **Segredos ficam no Vault:** a UI só cadastra/rotaciona; nunca reexibe credenciais privadas.
 6. **Go-live controlado:** integração externa nasce desligada e só entra em produção depois de teste com conta real.
 
+## Arquitetura visual v3
+O produto não possui um único tema global. Cada contexto tem identidade e tokens próprios:
+- **Admin operacional:** `theme-admin-light` — fundo claro, superfícies brancas, texto escuro e teal para ação/navegação.
+- **Views administrativas legadas densas:** podem manter superfícies dark localmente durante a migração, mas nunca alterando `:root`.
+- **Paciente:** `theme-patient` — creme `#F4EFE4`, chocolate `#2B1A10`, dourado `#C9A435` e superfícies brancas.
+- **Autenticação:** `theme-auth` — dark/indigo, isolado das áreas autenticadas.
+
+Regras de segurança visual:
+- nunca definir `text-white` ou outra cor de texto em `h1,h2,h3` globais;
+- nunca trocar `--background` global para resolver uma única área;
+- componentes de shell devem declarar explicitamente seu tema;
+- contraste deve ser validado no contexto real da rota, não só por build;
+- Admin e Paciente devem ser auditados separadamente.
+
 ## Onda 1 — Base visual e navegação
 ### Entregas
-- tokens semânticos de cor e contraste;
+- tokens semânticos de cor e contraste escopados por contexto;
 - reforço de placeholders, textos secundários, bordas, foco e estados;
-- navegação da paciente com contraste superior;
-- nova sidebar administrativa com grupos recolhíveis e nomes sempre visíveis;
+- identidade creme/dourado preservada na navegação da paciente;
+- nova sidebar administrativa com um grupo aberto por vez;
+- drawer responsivo no Admin para telas menores;
+- shell persistente nas rotas administrativas independentes (CRM, agenda, comunicação, configurações etc.);
 - remoção do trilho de ícones com flyout;
 - remoção da pilha de atalhos flutuantes da Home do Admin;
 - acessos diretos para CRM, atendimento, planejamento clínico e configurações vitais.
@@ -25,7 +41,9 @@ Transformar o produto em uma operação mais legível, previsível e rápida par
 - build e type-check sem erro novo;
 - preview Vercel READY;
 - nenhum item crítico do menu depende apenas de ícone;
-- estados ativo/inativo têm contraste perceptível.
+- estados ativo/inativo têm contraste perceptível;
+- abrir uma rota administrativa independente não elimina a navegação principal;
+- Home da paciente mantém fundo creme, texto chocolate e navegação dourada coerente.
 
 ## Onda 2 — Central de serviços vitais
 ### Prioridade essencial
