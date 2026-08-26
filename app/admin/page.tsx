@@ -15,11 +15,15 @@ type DashboardProps = {
     needsRepair?: boolean;
 };
 
+type AdminPageProps = { searchParams?: { view?: string } };
+
 function AdminDashboard(props: DashboardProps) {
     return <AdminDashboardClient {...props} />;
 }
 
-export default async function AdminPage() {
+export default async function AdminPage({ searchParams }: AdminPageProps) {
+    if (!searchParams?.view) redirect('/admin/dashboard');
+
     const supabase = createSupabaseServerClient(cookies());
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) redirect('/login');
