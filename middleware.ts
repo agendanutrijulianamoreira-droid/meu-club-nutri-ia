@@ -2,15 +2,17 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+const ADMIN_ROLES = ['admin', 'nutritionist', 'nutri']
+
 export async function middleware(req: NextRequest) {
     const res = NextResponse.next()
-
     const pathname = req.nextUrl.pathname
 
-    // Public routes — password recovery must render before the browser can
-    // consume an implicit-flow URL fragment and establish the session.
+    // Public routes. Recovery pages must render before the browser establishes
+    // the recovery session from the URL fragment/code.
     if (
         pathname === '/admin/reset-password' ||
+        pathname === '/auth/reset-password' ||
         pathname.includes('/checkout') ||
         pathname.startsWith('/api/webhooks') ||
         pathname.startsWith('/api/tenant-info') ||
@@ -19,7 +21,6 @@ export async function middleware(req: NextRequest) {
         return res
     }
 
-    // If env vars are missing, do not crash during cold start.
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
         console.error('[Middleware] NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY não configurados no Vercel')
         return res
@@ -43,43 +44,63 @@ export async function middleware(req: NextRequest) {
         }
     )
 
-    // Refresh/validate auth before applying route guards.
+    // Refresh/validate the Supabase session before route guards.
     const { data: { user } } = await supabase.auth.getUser()
     const { data: { session } } = await supabase.auth.getSession()
+    const currentUser = user || session?.user || null
 
-    const userMetadata = user?.user_metadata || session?.user?.user_metadata
-    const userRole = userMetadata?.user_type || userMetadata?.role
+    let resolvedRole: string | null = null
+
+    if (currentUser) {
+        // Authorization source of truth: profiles.role in the database.
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('user_id', currentUser.id)
+            .maybeSingle()
+
+        resolvedRole = String(profile?.role || currentUser.app_metadata?.role || '').toLowerCase() || null
+    }
+
+    const isAdminRole = !!resolvedRole && ADMIN_ROLES.includes(resolvedRole)
+    const isPatientRole = resolvedRole === 'patient'
 
     if (pathname.startsWith('/admin')) {
-        if (!user && !session) {
-            return NextResponse.redirect(new URL('/login', req.url))
+        if (!currentUser) {
+            return NextResponse.redirect(new URL('/login/nutricionista', req.url))
         }
 
-        if (userRole === 'patient') {
+        if (!isAdminRole) {
             return NextResponse.redirect(new URL('/patient/home', req.url))
         }
     }
 
     const isPatientRoute = pathname.startsWith('/patient') || pathname.startsWith('/dashboard')
     if (isPatientRoute) {
-        if (!user && !session) {
-            return NextResponse.redirect(new URL('/login', req.url))
+        if (!currentUser) {
+            return NextResponse.redirect(new URL('/login/paciente', req.url))
         }
 
-        if (pathname === '/dashboard' || pathname.startsWith('/dashboard')) {
-            if (userRole === 'admin' || userRole === 'nutritionist' || userRole === 'nutri') {
-                return NextResponse.redirect(new URL('/admin', req.url))
-            }
+        // A nutritionist/admin can never remain inside the patient portal.
+        if (isAdminRole) {
+            return NextResponse.redirect(new URL('/admin', req.url))
+        }
+
+        if (!isPatientRole && resolvedRole) {
+            return NextResponse.redirect(new URL('/login/paciente?error=wrong_role', req.url))
+        }
+
+        if (pathname.startsWith('/dashboard')) {
             return NextResponse.redirect(new URL('/patient/home', req.url))
         }
     }
 
     if (pathname === '/') {
-        if (user || session) {
-            if (userRole === 'admin' || userRole === 'nutritionist' || userRole === 'nutri') {
+        if (currentUser) {
+            if (isAdminRole) {
                 return NextResponse.redirect(new URL('/admin', req.url))
             }
-            if (userRole === 'patient') {
+            if (isPatientRole) {
                 return NextResponse.redirect(new URL('/patient/home', req.url))
             }
         }
