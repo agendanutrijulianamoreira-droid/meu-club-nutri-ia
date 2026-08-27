@@ -1,14 +1,13 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase-browser'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, Lock, CheckCircle2, AlertCircle, Eye, EyeOff, Sparkles } from 'lucide-react'
 
 function ResetPasswordForm() {
     const router = useRouter()
-    const searchParams = useSearchParams()
     const [password, setPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
@@ -18,13 +17,52 @@ function ResetPasswordForm() {
     const [hasSession, setHasSession] = useState<boolean | null>(null)
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data }) => {
-            setHasSession(!!data.session)
-            if (!data.session) {
-                setTimeout(() => router.push('/login'), 3000)
+        let active = true
+
+        const prepareRecoverySession = async () => {
+            try {
+                const hash = window.location.hash.startsWith('#')
+                    ? window.location.hash.slice(1)
+                    : window.location.hash
+                const params = new URLSearchParams(hash)
+                const accessToken = params.get('access_token')
+                const refreshToken = params.get('refresh_token')
+                const errorDescription = params.get('error_description')
+
+                if (errorDescription) {
+                    throw new Error(decodeURIComponent(errorDescription.replace(/\+/g, ' ')))
+                }
+
+                if (accessToken && refreshToken) {
+                    const { error: setSessionError } = await supabase.auth.setSession({
+                        access_token: accessToken,
+                        refresh_token: refreshToken,
+                    })
+                    if (setSessionError) throw setSessionError
+
+                    window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+                }
+
+                const { data, error: sessionError } = await supabase.auth.getSession()
+                if (sessionError) throw sessionError
+                if (!data.session) {
+                    throw new Error('Link inválido ou expirado. Solicite um novo link de redefinição.')
+                }
+
+                if (active) setHasSession(true)
+            } catch (err: any) {
+                if (!active) return
+                setHasSession(false)
+                setError(err?.message || 'Link inválido ou expirado. Solicite um novo link de redefinição.')
             }
-        })
-    }, [router])
+        }
+
+        prepareRecoverySession()
+
+        return () => {
+            active = false
+        }
+    }, [])
 
     const handleReset = async () => {
         if (!password) { setError('Digite a nova senha.'); return }
@@ -35,31 +73,16 @@ function ResetPasswordForm() {
         setError(null)
 
         const { error: updateError } = await supabase.auth.updateUser({ password })
-
         if (updateError) {
             setError(updateError.message)
             setLoading(false)
             return
         }
 
+        await supabase.auth.signOut()
         setSuccess(true)
-
-        const { data: { session } } = await supabase.auth.getSession()
-        const role = session?.user?.user_metadata?.user_type || session?.user?.user_metadata?.role
-
-        setTimeout(async () => {
-            if (!role) {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('role')
-                    .eq('user_id', session?.user?.id)
-                    .single()
-                const resolvedRole = profile?.role
-                router.push(['nutri', 'nutritionist', 'admin'].includes(resolvedRole || '') ? '/admin' : '/patient/home')
-            } else {
-                router.push(['nutri', 'nutritionist', 'admin'].includes(role) ? '/admin' : '/patient/home')
-            }
-        }, 2500)
+        setLoading(false)
+        setTimeout(() => router.push('/login/paciente'), 1200)
     }
 
     if (hasSession === null) {
@@ -75,8 +98,11 @@ function ResetPasswordForm() {
             <div className="flex items-center justify-center min-h-screen bg-slate-950 p-6">
                 <div className="text-center">
                     <AlertCircle size={48} className="text-rose-400 mx-auto mb-4" />
-                    <h2 className="text-xl font-bold text-white mb-2">Link expirado</h2>
-                    <p className="text-slate-400 text-sm">Redirecionando para o login...</p>
+                    <h2 className="text-xl font-bold text-white mb-2">Link inválido ou expirado</h2>
+                    <p className="text-slate-400 text-sm mb-5">{error || 'Solicite um novo link de redefinição.'}</p>
+                    <button onClick={() => router.push('/login/paciente')} className="text-sm font-bold text-indigo-400 hover:text-indigo-300">
+                        Voltar para o login
+                    </button>
                 </div>
             </div>
         )
@@ -93,7 +119,6 @@ function ResetPasswordForm() {
                 transition={{ duration: 0.4 }}
                 className="w-full max-w-md"
             >
-                {/* Logo */}
                 <div className="flex items-center gap-2 mb-10 justify-center">
                     <Sparkles size={20} className="text-indigo-400" />
                     <span className="font-black text-white text-lg tracking-tight">VitaClub</span>
@@ -111,11 +136,10 @@ function ResetPasswordForm() {
                                 <CheckCircle2 size={40} className="text-emerald-400" />
                             </div>
                             <h2 className="text-2xl font-black text-white mb-2">Senha atualizada!</h2>
-                            <p className="text-slate-400 text-sm">Redirecionando para o seu painel...</p>
+                            <p className="text-slate-400 text-sm">Voltando para o login...</p>
                         </motion.div>
                     ) : (
                         <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                            {/* Header */}
                             <div className="mb-8">
                                 <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center mb-4">
                                     <Lock size={22} className="text-indigo-400" />
@@ -124,7 +148,6 @@ function ResetPasswordForm() {
                                 <p className="text-slate-400 text-sm">Escolha uma senha forte para proteger sua conta.</p>
                             </div>
 
-                            {/* Error */}
                             <AnimatePresence>
                                 {error && (
                                     <motion.div
@@ -139,12 +162,9 @@ function ResetPasswordForm() {
                                 )}
                             </AnimatePresence>
 
-                            {/* Fields */}
                             <div className="space-y-4 mb-6">
                                 <div>
-                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-2">
-                                        Nova senha
-                                    </label>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-2">Nova senha</label>
                                     <div className="relative">
                                         <input
                                             type={showPassword ? 'text' : 'password'}
@@ -164,9 +184,7 @@ function ResetPasswordForm() {
                                 </div>
 
                                 <div>
-                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-2">
-                                        Confirmar senha
-                                    </label>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-2">Confirmar senha</label>
                                     <input
                                         type={showPassword ? 'text' : 'password'}
                                         value={confirmPassword}
@@ -178,7 +196,6 @@ function ResetPasswordForm() {
                                 </div>
                             </div>
 
-                            {/* Password strength indicator */}
                             {password.length > 0 && (
                                 <div className="mb-5">
                                     <div className="flex gap-1 mb-1">
@@ -196,24 +213,17 @@ function ResetPasswordForm() {
                                         ))}
                                     </div>
                                     <p className="text-[10px] text-slate-500">
-                                        {password.length < 6 ? 'Senha muito curta'
-                                            : password.length < 10 ? 'Senha razoável'
-                                            : 'Senha forte'}
+                                        {password.length < 6 ? 'Senha muito curta' : password.length < 10 ? 'Senha razoável' : 'Senha forte'}
                                     </p>
                                 </div>
                             )}
 
-                            {/* Submit */}
                             <button
                                 onClick={handleReset}
                                 disabled={loading || !password || !confirmPassword}
                                 className="w-full h-12 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2"
                             >
-                                {loading ? (
-                                    <><Loader2 size={18} className="animate-spin" /> Atualizando...</>
-                                ) : (
-                                    'Redefinir senha'
-                                )}
+                                {loading ? <><Loader2 size={18} className="animate-spin" /> Atualizando...</> : 'Redefinir senha'}
                             </button>
                         </motion.div>
                     )}

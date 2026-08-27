@@ -15,17 +15,58 @@ export default function ResetPasswordPage() {
     const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
     const [sessionReady, setSessionReady] = useState(false)
 
-    // Supabase envia o token via hash (#access_token=...) ao clicar no link do e-mail.
-    // O SDK detecta e processa automaticamente ao inicializar.
     useEffect(() => {
-        supabase.auth.getSession().then(({ data }: { data: any }) => {
-            const session = data.session
-            if (session) {
-                setSessionReady(true)
-            } else {
-                setToast({ type: 'error', msg: 'Link inválido ou expirado. Solicite um novo link de redefinição.' })
+        let active = true
+
+        const prepareRecoverySession = async () => {
+            try {
+                const hash = window.location.hash.startsWith('#')
+                    ? window.location.hash.slice(1)
+                    : window.location.hash
+                const params = new URLSearchParams(hash)
+                const accessToken = params.get('access_token')
+                const refreshToken = params.get('refresh_token')
+                const errorDescription = params.get('error_description')
+
+                if (errorDescription) {
+                    throw new Error(decodeURIComponent(errorDescription.replace(/\+/g, ' ')))
+                }
+
+                if (accessToken && refreshToken) {
+                    const { error: setSessionError } = await supabase.auth.setSession({
+                        access_token: accessToken,
+                        refresh_token: refreshToken,
+                    })
+
+                    if (setSessionError) throw setSessionError
+
+                    // Remove tokens sensíveis da barra de endereço depois de consumidos.
+                    window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+                }
+
+                const { data, error: sessionError } = await supabase.auth.getSession()
+                if (sessionError) throw sessionError
+
+                if (!data.session) {
+                    throw new Error('Link inválido ou expirado. Solicite um novo link de redefinição.')
+                }
+
+                if (active) setSessionReady(true)
+            } catch (err: any) {
+                if (!active) return
+                setSessionReady(false)
+                setToast({
+                    type: 'error',
+                    msg: err?.message || 'Link inválido ou expirado. Solicite um novo link de redefinição.',
+                })
             }
-        })
+        }
+
+        prepareRecoverySession()
+
+        return () => {
+            active = false
+        }
     }, [])
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -44,14 +85,17 @@ export default function ResetPasswordPage() {
 
         const { error } = await supabase.auth.updateUser({ password })
 
-        setLoading(false)
-
         if (error) {
+            setLoading(false)
             setToast({ type: 'error', msg: error.message || 'Erro ao atualizar senha. Tente novamente.' })
-        } else {
-            setToast({ type: 'success', msg: 'Senha atualizada com sucesso! Redirecionando...' })
-            setTimeout(() => router.push('/admin'), 2000)
+            return
         }
+
+        // Encerra a sessão temporária de recuperação para exigir login com a nova senha.
+        await supabase.auth.signOut()
+        setLoading(false)
+        setToast({ type: 'success', msg: 'Senha atualizada com sucesso! Redirecionando...' })
+        setTimeout(() => router.push('/login/nutricionista'), 1200)
     }
 
     return (
@@ -62,7 +106,6 @@ export default function ResetPasswordPage() {
                 transition={{ duration: 0.5 }}
                 className="w-full max-w-md bg-white/[0.03] border border-white/10 rounded-3xl p-10"
             >
-                {/* Icon */}
                 <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-8 mx-auto">
                     <ShieldCheck size={28} className="text-indigo-400" />
                 </div>
@@ -72,7 +115,6 @@ export default function ResetPasswordPage() {
                     Escolha uma senha forte com pelo menos 6 caracteres.
                 </p>
 
-                {/* Toast */}
                 {toast && (
                     <motion.div
                         initial={{ opacity: 0, y: -8 }}
@@ -89,6 +131,12 @@ export default function ResetPasswordPage() {
                         }
                         {toast.msg}
                     </motion.div>
+                )}
+
+                {!sessionReady && !toast && (
+                    <div className="flex items-center justify-center gap-2 text-sm text-slate-400 py-4">
+                        <Loader2 size={18} className="animate-spin" /> Validando link de recuperação...
+                    </div>
                 )}
 
                 {sessionReady && (
@@ -145,7 +193,7 @@ export default function ResetPasswordPage() {
                 )}
 
                 <button
-                    onClick={() => router.push('/login')}
+                    onClick={() => router.push('/login/nutricionista')}
                     className="w-full mt-6 text-center text-[10px] font-black uppercase tracking-widest text-slate-600 hover:text-slate-400 transition-colors"
                 >
                     Voltar para o login
