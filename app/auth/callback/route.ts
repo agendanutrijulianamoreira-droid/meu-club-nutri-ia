@@ -3,44 +3,53 @@ import { cookies } from "next/headers"
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+const ADMIN_ROLES = ['nutri', 'nutritionist', 'admin']
+
 export async function GET(request: NextRequest) {
     const requestUrl = new URL(request.url)
     const code = requestUrl.searchParams.get('code')
     const next = requestUrl.searchParams.get('next')
 
-    // PKCE flow: exchange the authorization code for a cookie-backed session.
     if (code) {
         const supabase = createSupabaseServerClient(cookies())
         const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
         if (!error && data.user) {
-            // Explicit destinations are used by flows such as password recovery.
-            if (next) {
-                return NextResponse.redirect(new URL(next, request.url))
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('user_id', data.user.id)
+                .maybeSingle()
+
+            const role = String(profile?.role || data.user.app_metadata?.role || '').toLowerCase()
+            const isAdmin = ADMIN_ROLES.includes(role)
+            const isPatient = role === 'patient'
+
+            // Password recovery keeps separate destinations for professional and patient accounts.
+            if (next?.includes('reset-password')) {
+                const recoveryDestination = isAdmin
+                    ? '/admin/reset-password'
+                    : '/auth/reset-password'
+                return NextResponse.redirect(new URL(recoveryDestination, request.url))
             }
 
-            const userMetadata = data.user.user_metadata
-            let role = userMetadata?.user_type || userMetadata?.role
-
-            if (!role) {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('role')
-                    .eq('user_id', data.user.id)
-                    .single()
-                if (profile) role = profile.role
+            if (isAdmin) {
+                return NextResponse.redirect(new URL('/admin', request.url))
             }
 
-            const isAdmin = ['nutri', 'nutritionist', 'admin'].includes(role || '')
-            return NextResponse.redirect(new URL(isAdmin ? '/admin' : '/patient/home', request.url))
+            if (isPatient) {
+                return NextResponse.redirect(new URL('/patient/home', request.url))
+            }
+
+            // Unknown role: do not guess which portal the user belongs to.
+            return NextResponse.redirect(new URL('/login?error=role_not_configured', request.url))
         }
     }
 
-    // Legacy/implicit recovery flow: Supabase returns access tokens in the URL
-    // fragment. Fragments are browser-only and never reach this Route Handler.
-    // Redirect to the requested recovery page and let the browser preserve the
-    // fragment so supabase-js can establish the recovery session client-side.
-    if (next) {
+    // In the implicit recovery flow the access token lives in the URL fragment,
+    // which the server cannot read. Preserve the requested recovery destination;
+    // once the browser establishes the session, route guards enforce the DB role.
+    if (next?.includes('reset-password')) {
         return NextResponse.redirect(new URL(next, request.url))
     }
 
