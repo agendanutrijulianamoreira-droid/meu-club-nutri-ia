@@ -3,34 +3,63 @@ import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { triggerOrchestrator } from '@/lib/services/anthropic'
 
+const CLIENT_EVENTS = new Set([
+    'checkin_submitted',
+    'meal_logged',
+    'post_created',
+    'chat_message',
+    'photo_submitted',
+])
+
+const MAX_PAYLOAD_BYTES = 50_000
+
 /**
- * POST /api/trigger-agent
- * Client-side bridge to fire agent orchestrator events.
- * Authenticates user, resolves tenant, and triggers fire-and-forget.
- * 
- * Body: { type: 'meal_logged' | 'post_created' | ..., payload?: any }
+ * Client bridge for low-privilege user events only.
+ * Privileged events (manual, cron_daily, stripe_webhook) must be emitted by
+ * trusted server-side flows, never selected by a browser request.
  */
 export async function POST(request: NextRequest) {
     const supabase = createSupabaseServerClient(cookies())
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const body = await request.json().catch(() => ({}))
-    const { type, payload } = body
+    const body = await request.json().catch(() => null)
+    if (!body || typeof body !== 'object') {
+        return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
+    }
 
-    if (!type) return NextResponse.json({ error: 'type is required' }, { status: 400 })
+    const type = typeof body.type === 'string' ? body.type : ''
+    const payload = body.payload == null ? {} : body.payload
 
-    // Resolve tenant_id from profile
-    const { data: profile } = await supabase
+    if (!CLIENT_EVENTS.has(type)) {
+        return NextResponse.json({ error: 'Event type not allowed' }, { status: 400 })
+    }
+
+    if (typeof payload !== 'object' || Array.isArray(payload)) {
+        return NextResponse.json({ error: 'payload must be an object' }, { status: 400 })
+    }
+
+    if (Buffer.byteLength(JSON.stringify(payload), 'utf8') > MAX_PAYLOAD_BYTES) {
+        return NextResponse.json({ error: 'Payload too large' }, { status: 413 })
+    }
+
+    const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('tenant_id')
+        .select('tenant_id, role')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
-    if (!profile?.tenant_id) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+    if (profileError || !profile?.tenant_id) {
+        return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+    }
 
-    // Fire-and-forget to orchestrator
-    triggerOrchestrator(type, profile.tenant_id, user.id, payload)
+    // Client events represent the current user only; user_id and tenant_id are
+    // derived server-side and cannot be overridden by payload.
+    const triggered = await triggerOrchestrator(type, profile.tenant_id, user.id, payload)
+
+    if (!triggered) {
+        return NextResponse.json({ error: 'Agent service unavailable' }, { status: 503 })
+    }
 
     return NextResponse.json({ triggered: true, type })
 }
