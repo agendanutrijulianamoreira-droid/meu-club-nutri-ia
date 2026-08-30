@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
     const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('tenant_id, role')
+        .select('tenant_id')
         .eq('user_id', user.id)
         .maybeSingle()
 
@@ -55,11 +55,7 @@ export async function POST(request: NextRequest) {
 
     // Client events represent the current user only; user_id and tenant_id are
     // derived server-side and cannot be overridden by payload.
-    const triggered = await triggerOrchestrator(type, profile.tenant_id, user.id, payload)
-
-    if (!triggered) {
-        return NextResponse.json({ error: 'Agent service unavailable' }, { status: 503 })
-    }
+    triggerOrchestrator(type, profile.tenant_id, user.id, payload)
 
     return NextResponse.json({ triggered: true, type })
 }
