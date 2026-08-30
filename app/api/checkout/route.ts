@@ -1,88 +1,124 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getStripe } from '@/lib/stripe'
+import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { getStripe } from '@/lib/stripe'
+
+const ALLOWED_PLANS = new Set(['community', 'tech_diet', 'vip'])
 
 function getSupabaseAdmin() {
     return createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { persistSession: false, autoRefreshToken: false } }
     )
+}
+
+function getTrustedOrigin(request: NextRequest) {
+    const configured = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
+    if (configured) return configured
+
+    // Safe local/preview fallback. Production should always set NEXT_PUBLIC_APP_URL.
+    return request.nextUrl.origin.replace(/\/$/, '')
 }
 
 /**
  * POST /api/checkout
- * Cria uma Stripe Checkout Session para assinatura de um plano.
- * 
- * Body: {
- *   planId: 'tech_diet' | 'vip',
- *   tenantSlug: string,
- *   userId: string,       // Auth user id (já criado no frontend)
- *   customerEmail: string,
- *   customerName?: string
- * }
- * Returns: { url: string } (Stripe Checkout URL para redirect)
+ * Creates a Stripe Checkout Session for the authenticated user.
+ * Identity is always derived from the server-side Supabase session; callers
+ * cannot choose another userId/email through the request body.
  */
 export async function POST(request: NextRequest) {
     try {
-        const supabaseAdmin = getSupabaseAdmin()
-        const body = await request.json()
-        const { planId, tenantSlug, userId, customerEmail, customerName, referralCode } = body
+        const supabase = createSupabaseServerClient(cookies())
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-        if (!planId || !tenantSlug || !userId) {
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+        }
+
+        const body = await request.json()
+        const { planId, tenantSlug, customerName, referralCode } = body ?? {}
+
+        if (!planId || !tenantSlug) {
             return NextResponse.json(
-                { error: 'planId, tenantSlug e userId são obrigatórios' },
+                { error: 'planId e tenantSlug são obrigatórios' },
                 { status: 400 }
             )
         }
 
-        if (!['community', 'tech_diet', 'vip'].includes(planId)) {
+        if (!ALLOWED_PLANS.has(planId)) {
             return NextResponse.json(
                 { error: 'Plano inválido. Use community, tech_diet ou vip' },
                 { status: 400 }
             )
         }
 
-        // Buscar tenant pelo slug
+        const supabaseAdmin = getSupabaseAdmin()
+
         const { data: tenant, error: tenantError } = await supabaseAdmin
             .from('tenants')
             .select('id, brand_name')
             .eq('slug', tenantSlug)
+            .eq('is_active', true)
             .single()
 
         if (tenantError || !tenant) {
+            return NextResponse.json({ error: 'Clínica não encontrada' }, { status: 404 })
+        }
+
+        const { data: existingProfile, error: profileReadError } = await supabaseAdmin
+            .from('profiles')
+            .select('id, tenant_id, email, name')
+            .eq('user_id', user.id)
+            .maybeSingle()
+
+        if (profileReadError) {
+            console.error('[Checkout] Profile read error:', profileReadError)
+            return NextResponse.json({ error: 'Não foi possível validar o perfil' }, { status: 500 })
+        }
+
+        // Never silently move an existing profile between tenants during checkout.
+        if (existingProfile?.tenant_id && existingProfile.tenant_id !== tenant.id) {
             return NextResponse.json(
-                { error: 'Clínica não encontrada' },
-                { status: 404 }
+                { error: 'Este usuário já pertence a outra clínica' },
+                { status: 409 }
             )
         }
 
-        // Garantir que o profile existe e está vinculado ao tenant
-        const { data: existingProfile } = await supabaseAdmin
-            .from('profiles')
-            .select('id')
-            .eq('user_id', userId)
-            .single()
-
-        if (!existingProfile) {
-            // Criar profile básico — webhook vai completar com o plano
-            await supabaseAdmin.from('profiles').insert({
-                user_id: userId,
-                tenant_id: tenant.id,
-                name: customerName || customerEmail?.split('@')[0] || 'Paciente',
-                email: customerEmail,
-                role: 'patient',
-                current_plan: 'community', // Webhook atualiza para o plano pago
-            })
-        } else {
-            // Vincular ao tenant caso ainda não esteja
-            await supabaseAdmin
-                .from('profiles')
-                .update({ tenant_id: tenant.id })
-                .eq('user_id', userId)
+        const customerEmail = user.email || existingProfile?.email
+        if (!customerEmail) {
+            return NextResponse.json({ error: 'Usuário sem e-mail válido' }, { status: 400 })
         }
 
-        // Buscar preço configurado para o plano
-        const { data: planConfig } = await supabaseAdmin
+        if (!existingProfile) {
+            const { error: insertError } = await supabaseAdmin.from('profiles').insert({
+                user_id: user.id,
+                tenant_id: tenant.id,
+                name: String(customerName || user.user_metadata?.full_name || customerEmail.split('@')[0] || 'Paciente').slice(0, 120),
+                email: customerEmail,
+                role: 'patient',
+                current_plan: 'community',
+            })
+
+            if (insertError) {
+                console.error('[Checkout] Profile insert error:', insertError)
+                return NextResponse.json({ error: 'Não foi possível preparar o perfil' }, { status: 500 })
+            }
+        } else if (!existingProfile.tenant_id) {
+            const { error: updateError } = await supabaseAdmin
+                .from('profiles')
+                .update({ tenant_id: tenant.id })
+                .eq('user_id', user.id)
+                .is('tenant_id', null)
+
+            if (updateError) {
+                console.error('[Checkout] Profile tenant update error:', updateError)
+                return NextResponse.json({ error: 'Não foi possível vincular o perfil à clínica' }, { status: 500 })
+            }
+        }
+
+        const { data: planConfig, error: planError } = await supabaseAdmin
             .from('tenant_plans')
             .select('price_cents, stripe_price_id, description')
             .eq('tenant_id', tenant.id)
@@ -90,22 +126,21 @@ export async function POST(request: NextRequest) {
             .eq('is_active', true)
             .single()
 
-        if (!planConfig) {
-            return NextResponse.json(
-                { error: 'Plano não configurado para esta clínica' },
-                { status: 404 }
-            )
+        if (planError || !planConfig) {
+            return NextResponse.json({ error: 'Plano não configurado para esta clínica' }, { status: 404 })
         }
 
-        // Construir URL base
-        const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+        const origin = getTrustedOrigin(request)
         const successUrl = `${origin}/${tenantSlug}/checkout/success?session_id={CHECKOUT_SESSION_ID}`
-        const cancelUrl = `${origin}/${tenantSlug}/checkout?plan=${planId}&cancelled=true`
+        const cancelUrl = `${origin}/${tenantSlug}/checkout?plan=${encodeURIComponent(planId)}&cancelled=true`
 
-        // Criar Checkout Session com client_reference_id
+        const safeReferralCode = typeof referralCode === 'string'
+            ? referralCode.trim().slice(0, 80)
+            : undefined
+
         const sessionConfig: any = {
             mode: 'subscription',
-            client_reference_id: userId, // ← CHAVE: identifica o user no webhook
+            client_reference_id: user.id,
             customer_email: customerEmail,
             success_url: successUrl,
             cancel_url: cancelUrl,
@@ -113,26 +148,22 @@ export async function POST(request: NextRequest) {
                 tenant_id: tenant.id,
                 tenant_slug: tenantSlug,
                 plan: planId,
-                user_id: userId,
-                ...(referralCode ? { referral_code: referralCode } : {}),
+                user_id: user.id,
+                ...(safeReferralCode ? { referral_code: safeReferralCode } : {}),
             },
             subscription_data: {
                 metadata: {
                     tenant_id: tenant.id,
                     plan: planId,
-                    user_id: userId,
-                    ...(referralCode ? { referral_code: referralCode } : {}),
+                    user_id: user.id,
+                    ...(safeReferralCode ? { referral_code: safeReferralCode } : {}),
                 },
             },
             allow_promotion_codes: true,
         }
 
-        // Se tem stripe_price_id configurado, usar; senão, criar price ad-hoc
         if (planConfig.stripe_price_id) {
-            sessionConfig.line_items = [{
-                price: planConfig.stripe_price_id,
-                quantity: 1,
-            }]
+            sessionConfig.line_items = [{ price: planConfig.stripe_price_id, quantity: 1 }]
         } else {
             sessionConfig.line_items = [{
                 price_data: {
@@ -140,7 +171,7 @@ export async function POST(request: NextRequest) {
                     unit_amount: planConfig.price_cents,
                     recurring: { interval: 'month' },
                     product_data: {
-                        name: `${tenant.brand_name} - Plano ${planId === 'tech_diet' ? 'Tech Diet' : 'VIP Premium'}`,
+                        name: `${tenant.brand_name} - Plano ${planId === 'tech_diet' ? 'Tech Diet' : planId === 'vip' ? 'VIP Premium' : 'Community'}`,
                         description: planConfig.description || `Assinatura mensal do ${tenant.brand_name}`,
                     },
                 },
@@ -149,12 +180,11 @@ export async function POST(request: NextRequest) {
         }
 
         const session = await getStripe().checkout.sessions.create(sessionConfig)
-
         return NextResponse.json({ url: session.url })
     } catch (error: any) {
         console.error('[Checkout] Error:', error)
         return NextResponse.json(
-            { error: error.message || 'Erro ao criar sessão de checkout' },
+            { error: 'Erro ao criar sessão de checkout' },
             { status: 500 }
         )
     }
