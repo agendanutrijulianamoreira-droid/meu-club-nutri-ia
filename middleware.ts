@@ -8,21 +8,31 @@ export async function middleware(req: NextRequest) {
     const res = NextResponse.next()
     const pathname = req.nextUrl.pathname
 
-    // Public routes. Recovery pages must render before the browser establishes
-    // the recovery session from the URL fragment/code.
+    const isProtectedUi = pathname.startsWith('/admin') || pathname.startsWith('/patient') || pathname.startsWith('/dashboard')
+    const isProtectedApi = pathname.startsWith('/api/admin') || pathname.startsWith('/api/trigger-agent')
+
+    // Recovery pages and externally signed/public endpoints.
     if (
         pathname === '/admin/reset-password' ||
         pathname === '/auth/reset-password' ||
-        pathname.includes('/checkout') ||
+        pathname.includes('/checkout/success') ||
         pathname.startsWith('/api/webhooks') ||
-        pathname.startsWith('/api/tenant-info') ||
-        pathname.startsWith('/api/checkout')
+        pathname.startsWith('/api/tenant-info')
     ) {
         return res
     }
 
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-        console.error('[Middleware] NEXT_PUBLIC_SUPABASE_URL ou NEXT_PUBLIC_SUPABASE_ANON_KEY não configurados no Vercel')
+        console.error('[Middleware] Supabase env missing; protected route denied')
+
+        if (isProtectedApi) {
+            return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
+        }
+
+        if (isProtectedUi) {
+            return new NextResponse('Service unavailable', { status: 503 })
+        }
+
         return res
     }
 
@@ -44,22 +54,23 @@ export async function middleware(req: NextRequest) {
         }
     )
 
-    // Refresh/validate the Supabase session before route guards.
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: { session } } = await supabase.auth.getSession()
-    const currentUser = user || session?.user || null
+    // getUser() validates the access token with Supabase Auth and is the only
+    // identity source accepted by route guards.
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const currentUser = authError ? null : user
 
     let resolvedRole: string | null = null
 
     if (currentUser) {
-        // Authorization source of truth: profiles.role in the database.
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('role')
             .eq('user_id', currentUser.id)
             .maybeSingle()
 
-        resolvedRole = String(profile?.role || currentUser.app_metadata?.role || '').toLowerCase() || null
+        if (!profileError && profile?.role) {
+            resolvedRole = String(profile.role).toLowerCase()
+        }
     }
 
     const isAdminRole = !!resolvedRole && ADMIN_ROLES.includes(resolvedRole)
@@ -71,7 +82,7 @@ export async function middleware(req: NextRequest) {
         }
 
         if (!isAdminRole) {
-            return NextResponse.redirect(new URL('/patient/home', req.url))
+            return NextResponse.redirect(new URL('/login/nutricionista?error=wrong_role', req.url))
         }
     }
 
@@ -81,12 +92,11 @@ export async function middleware(req: NextRequest) {
             return NextResponse.redirect(new URL('/login/paciente', req.url))
         }
 
-        // A nutritionist/admin can never remain inside the patient portal.
         if (isAdminRole) {
             return NextResponse.redirect(new URL('/admin', req.url))
         }
 
-        if (!isPatientRole && resolvedRole) {
+        if (!isPatientRole) {
             return NextResponse.redirect(new URL('/login/paciente?error=wrong_role', req.url))
         }
 
@@ -96,13 +106,11 @@ export async function middleware(req: NextRequest) {
     }
 
     if (pathname === '/') {
-        if (currentUser) {
-            if (isAdminRole) {
-                return NextResponse.redirect(new URL('/admin', req.url))
-            }
-            if (isPatientRole) {
-                return NextResponse.redirect(new URL('/patient/home', req.url))
-            }
+        if (currentUser && isAdminRole) {
+            return NextResponse.redirect(new URL('/admin', req.url))
+        }
+        if (currentUser && isPatientRole) {
+            return NextResponse.redirect(new URL('/patient/home', req.url))
         }
     }
 

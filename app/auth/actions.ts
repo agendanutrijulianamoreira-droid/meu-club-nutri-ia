@@ -1,17 +1,10 @@
-'use server';
+'use server'
 
-import { createClient } from '@supabase/supabase-js'
-
-function getAdminClient() {
-    return createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        { auth: { autoRefreshToken: false, persistSession: false } }
-    )
-}
+import { cookies } from 'next/headers'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 export async function signupUser(formData: FormData) {
-    const email = (formData.get('email') as string)?.trim()
+    const email = (formData.get('email') as string)?.trim().toLowerCase()
     const password = formData.get('password') as string
     const fullName = (formData.get('fullName') as string)?.trim()
     const userType = (formData.get('userType') as string) || 'patient'
@@ -19,38 +12,48 @@ export async function signupUser(formData: FormData) {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return { success: false, error: 'E-mail inválido' }
     }
-    if (!password || password.length < 6) {
-        return { success: false, error: 'Senha deve ter no mínimo 6 caracteres' }
+    if (!password || password.length < 8) {
+        return { success: false, error: 'Senha deve ter no mínimo 8 caracteres' }
     }
     if (!fullName || fullName.length < 2) {
         return { success: false, error: 'Nome deve ter no mínimo 2 caracteres' }
     }
 
-    const supabaseAdmin = getAdminClient()
+    // Release v1: professional accounts are provisioned/approved through the
+    // administrative flow. A public form must never create a confirmed
+    // nutritionist/admin account with service-role privileges.
+    if (userType === 'nutritionist' || userType === 'nutri' || userType === 'admin') {
+        return {
+            success: false,
+            error: 'O cadastro profissional está disponível apenas por convite nesta versão.',
+        }
+    }
+
+    const supabase = createSupabaseServerClient(cookies())
 
     try {
-        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        const { data, error } = await supabase.auth.signUp({
             email,
             password,
-            email_confirm: true,
-            user_metadata: {
-                full_name: fullName,
-                user_type: userType,
+            options: {
+                data: { full_name: fullName },
             },
         })
 
-        if (authError) throw authError
-        if (!authData.user) throw new Error('Falha ao criar usuário')
+        if (error) throw error
+        if (!data.user) throw new Error('Falha ao criar usuário')
 
-        console.log('[signupUser] Usuário criado:', authData.user.id, 'tipo:', userType)
-
-        return { success: true, message: 'Conta criada com sucesso! Você já pode fazer login.' }
+        return {
+            success: true,
+            message: data.session
+                ? 'Conta criada com sucesso.'
+                : 'Conta criada. Confirme seu e-mail para continuar.',
+        }
     } catch (error: any) {
         console.error('[signupUser]', error)
-
-        if (error.message?.includes('already registered') || error.message?.includes('already exists')) {
+        if (error?.code === 'user_already_exists' || error?.message?.includes('already registered')) {
             return { success: false, error: 'Este e-mail já está cadastrado.' }
         }
-        return { success: false, error: error.message || 'Erro ao criar conta. Tente novamente.' }
+        return { success: false, error: 'Erro ao criar conta. Tente novamente.' }
     }
 }

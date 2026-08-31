@@ -3,9 +3,17 @@ import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 async function getTenant(supabase: any, userId: string) {
-  const { data } = await supabase
-    .from('tenants').select('id').eq('owner_id', userId).single()
-  return data
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('tenant_id, role')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (!profile?.tenant_id || !['admin', 'nutritionist', 'nutri'].includes(String(profile.role || '').toLowerCase())) {
+    return null
+  }
+
+  return { id: profile.tenant_id }
 }
 
 // GET: listar fila de aprovações
@@ -19,13 +27,17 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('status') || 'pending'
+  const allowedStatuses = new Set(['pending', 'approved', 'rejected', 'executed', 'expired'])
+  if (!allowedStatuses.has(status)) {
+    return NextResponse.json({ error: 'Status inválido' }, { status: 400 })
+  }
 
-  const { data: items, error } = await supabase
+  // target_user_id references auth.users, not profiles. Fetch queue first and
+  // resolve display profiles in a second query instead of forcing an invalid
+  // PostgREST relationship hint.
+  const { data: queueItems, error } = await supabase
     .from('agent_approval_queue')
-    .select(`
-      *,
-      target_profile:profiles!agent_approval_queue_target_user_id_fkey(name, email)
-    `)
+    .select('*')
     .eq('tenant_id', tenant.id)
     .eq('status', status)
     .order('priority', { ascending: false })
@@ -37,14 +49,40 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Contagem de pendentes para o badge
+  const targetUserIds = Array.from(new Set(
+    (queueItems || []).map((item: any) => item.target_user_id).filter(Boolean)
+  ))
+
+  let profilesByUserId = new Map<string, { name: string | null; email: string | null }>()
+
+  if (targetUserIds.length > 0) {
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('user_id, name, email')
+      .eq('tenant_id', tenant.id)
+      .in('user_id', targetUserIds)
+
+    if (profilesError) {
+      console.error('[/api/admin/approvals GET profiles]', profilesError)
+    } else {
+      profilesByUserId = new Map(
+        (profiles || []).map((profile: any) => [profile.user_id, { name: profile.name, email: profile.email }])
+      )
+    }
+  }
+
+  const items = (queueItems || []).map((item: any) => ({
+    ...item,
+    target_profile: item.target_user_id ? profilesByUserId.get(item.target_user_id) || null : null,
+  }))
+
   const { count: pendingCount } = await supabase
     .from('agent_approval_queue')
     .select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenant.id)
     .eq('status', 'pending')
 
-  return NextResponse.json({ items: items || [], pending_count: pendingCount || 0 })
+  return NextResponse.json({ items, pending_count: pendingCount || 0 })
 }
 
 // PATCH: aprovar, rejeitar ou editar uma ação
@@ -64,7 +102,6 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'decision deve ser approved ou rejected' }, { status: 400 })
   }
 
-  // Verifica que o item pertence ao tenant
   const { data: item } = await supabase
     .from('agent_approval_queue')
     .select('id, status, action_type, payload, agent_name, target_user_id')
@@ -80,7 +117,6 @@ export async function PATCH(request: NextRequest) {
   const wasEdited = decision === 'approved' && edited_payload != null
   const executionPayload = wasEdited ? edited_payload : (item.payload || {})
 
-  // Executar ação quando aprovada
   if (decision === 'approved') {
     const actionType: string = item.action_type
 
@@ -101,6 +137,7 @@ export async function PATCH(request: NextRequest) {
         await supabase.from('protocol_assignments')
           .update({ status: 'cancelled' })
           .eq('user_id', targetUserId)
+          .eq('tenant_id', tenant.id)
           .eq('status', 'active')
         await supabase.from('protocol_assignments').insert({
           user_id: targetUserId,
@@ -131,7 +168,6 @@ export async function PATCH(request: NextRequest) {
           },
         })
 
-        // Registrar conversão em upsell_events
         if (actionType === 'send_offer' && executionPayload.product_id) {
           await supabase.from('upsell_events').insert({
             tenant_id: tenant.id,
@@ -164,6 +200,7 @@ export async function PATCH(request: NextRequest) {
       edited_payload: wasEdited ? edited_payload : null,
     })
     .eq('id', id)
+    .eq('tenant_id', tenant.id)
     .select().single()
 
   if (error) {
@@ -171,7 +208,6 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Registra feedback para aprendizado do gerente
   await supabase.from('agent_feedback').insert({
     tenant_id: tenant.id,
     approval_id: id,

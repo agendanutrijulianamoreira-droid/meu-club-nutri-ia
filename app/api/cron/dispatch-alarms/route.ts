@@ -6,7 +6,6 @@ import type { TipoNotificacao } from '@/lib/config/mensagensNotificacao'
 
 const CRON_SECRET = process.env.CRON_SECRET || ''
 
-// Mensagens padrão por tipo de alarme
 const DEFAULT_PUSH: Record<string, { title: string; body: string }> = {
   water:      { title: '💧 Hora de hidratar!', body: 'Beba um copo de água agora. Seu corpo agradece.' },
   meal:       { title: '🥗 Hora da refeição!', body: 'Não pule essa refeição — ela faz parte do seu protocolo.' },
@@ -15,14 +14,10 @@ const DEFAULT_PUSH: Record<string, { title: string; body: string }> = {
   custom:     { title: '⏰ Lembrete', body: 'Você tem um lembrete agendado para agora.' },
 }
 
-// Horários fixos para os tipos de notificação de fase que não têm
-// horário customizável em preferencias_notificacao (apenas refeições têm).
 const HORARIOS_HIDRATACAO = ['10:00', '15:30']
 const HORARIO_CHECKIN = '20:00'
 const HORARIO_MOTIVACAO = '08:00'
 
-// GET: verificação de saúde (Vercel Cron chama via GET)
-// POST: trigger manual (admin)
 export async function GET(request: NextRequest) {
   return handleDispatch(request)
 }
@@ -32,32 +27,37 @@ export async function POST(request: NextRequest) {
 }
 
 async function handleDispatch(request: NextRequest) {
-  // Autenticação: secret no header ou query param
+  // Fail closed: a missing secret must never make a privileged cron public.
+  if (!CRON_SECRET) {
+    console.error('[dispatch-alarms] CRON_SECRET ausente; execução bloqueada por segurança.')
+    return NextResponse.json({ error: 'Cron not configured' }, { status: 503 })
+  }
+
   const authHeader = request.headers.get('x-cron-secret')
-  const querySecret = new URL(request.url).searchParams.get('secret')
-  if (CRON_SECRET && authHeader !== CRON_SECRET && querySecret !== CRON_SECRET) {
+  const bearerToken = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
+  if (authHeader !== CRON_SECRET && bearerToken !== CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Supabase service role para leitura irrestrita
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
   )
 
-  // Hora atual em BRT (UTC-3) no formato HH:MM
   const now = new Date()
   const brtOffset = -3 * 60
   const brtNow = new Date(now.getTime() + brtOffset * 60000)
   const hh = String(brtNow.getUTCHours()).padStart(2, '0')
   const mm = String(brtNow.getUTCMinutes()).padStart(2, '0')
   const currentTime = `${hh}:${mm}`
-  const currentDay = brtNow.getUTCDay() // 0=domingo
+  const currentDay = brtNow.getUTCDay()
 
-  // Buscar alarmes que disparam agora (±1 min de tolerância já é coberto pelo cron a cada minuto)
+  // patient_alarms.user_id references auth.users, not profiles. The push helper
+  // already addresses the user by externalUserId, so no profile join is needed.
   const { data: alarms, error } = await supabase
     .from('patient_alarms')
-    .select('*, profiles!patient_alarms_user_id_fkey(onesignal_player_id)')
+    .select('*')
     .eq('is_active', true)
     .eq('time_hhmm', currentTime)
     .contains('days_of_week', [currentDay])
@@ -83,7 +83,6 @@ async function handleDispatch(request: NextRequest) {
 
     results.push({ alarm_id: alarm.id, success: result.success, error: result.error })
 
-    // Atualiza last_fired_at
     await supabase.from('patient_alarms')
       .update({ last_fired_at: now.toISOString() })
       .eq('id', alarm.id)
@@ -107,8 +106,6 @@ async function handleDispatch(request: NextRequest) {
   })
 }
 
-// Dispara notificações personalizadas pela fase atual da jornada da paciente,
-// respeitando os horários preferidos e opt-ins de cada paciente.
 async function dispatchReinoNotifications(
   supabase: any,
   currentTime: string
@@ -147,7 +144,7 @@ async function dispatchReinoNotifications(
   const disparos: { pacienteId: string; tipo: TipoNotificacao }[] = []
 
   for (const pref of preferencias as any[]) {
-    if (!faseByPaciente.has(pref.paciente_id)) continue // sem fase atribuída
+    if (!faseByPaciente.has(pref.paciente_id)) continue
 
     if (pref.notif_refeicao && [pref.horario_cafe, pref.horario_almoco, pref.horario_lanche, pref.horario_jantar]
       .some((h: string | null) => h?.slice(0, 5) === currentTime)) {
