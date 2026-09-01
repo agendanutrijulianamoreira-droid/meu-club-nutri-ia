@@ -1,3 +1,15 @@
 {
-  "extends": ["next/core-web-vitals", "next/typescript"]
+  "extends": ["next/core-web-vitals", "next/typescript"],
+  "rules": {
+    "react-hooks/rules-of-hooks": "error",
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-unused-vars": "warn",
+    "@typescript-eslint/no-unused-expressions": "warn",
+    "react/no-unescaped-entities": "warn",
+    "react/jsx-key": "warn",
+    "react-hooks/exhaustive-deps": "warn",
+    "prefer-const": "warn",
+    "jsx-a11y/alt-text": "warn",
+    "@next/next/no-img-element": "warn"
+  }
 }

@@ -37,7 +37,6 @@ function tagsToArray(tags: string): string[] {
     return tags.split(',').map(t => t.trim()).filter(Boolean)
 }
 
-// ─── Dashboard ──────────────────────────────────────────────────────────────
 function DashboardTab() {
     const [stats, setStats] = useState<any[] | null>(null)
     useEffect(() => {
@@ -76,7 +75,6 @@ function DashboardTab() {
     )
 }
 
-// ─── Todos (busca global) ───────────────────────────────────────────────────
 function AllTab() {
     const [q, setQ] = useState('')
     const [results, setResults] = useState<any[]>([])
@@ -129,7 +127,6 @@ function AllTab() {
     )
 }
 
-// ─── Alimentos (foods — base global, somente leitura) ───────────────────────
 function FoodsTab() {
     const [query, setQuery] = useState('')
     const [foods, setFoods] = useState<any[]>([])
@@ -175,7 +172,6 @@ function FoodsTab() {
     )
 }
 
-// ─── Toast compartilhado ─────────────────────────────────────────────────────
 function useToast() {
     const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
     const showToast = (type: 'success' | 'error', msg: string) => {
@@ -197,15 +193,10 @@ function useToast() {
     return { showToast, ToastNode }
 }
 
-// ─── Fábrica de abas de Ativo Clínico (Receitas/Refeições/Shots/Chás/Suplementos/Materiais) ───
 interface EntityTabConfig {
     entityType: 'recipe' | 'meal' | 'shot' | 'tea' | 'supplement' | 'material'
     entityLabel: string
     entityLabelPlural: string
-    // Endpoint de geração por IA (POST { theme, category_id }). Omitir para
-    // entidades sem geração por IA (ex.: materiais são sempre um arquivo/link
-    // anexado manualmente, não conteúdo autorável por IA) — some o botão
-    // "Gerar com IA" em vez de deixar um botão que sempre falharia.
     generatePath?: string
     extraFields?: (values: AssetFormValues, setValue: (k: string, v: any) => void) => ReactNode
     renderExtra?: (item: any) => ReactNode
@@ -307,7 +298,26 @@ function EntityTab({
     )
 }
 
-// ─── Metas (reaproveita CreateGoalForm/GoalCard existentes) ──────────────────
+function RecipeComponentsField({ recipeId, tenantId }: { recipeId: string; tenantId: string }) {
+    const hook = useRecipeComponents(recipeId)
+    return <ComponentsEditor hook={hook} tenantId={tenantId} />
+}
+
+function MealComponentsField({ mealId, tenantId }: { mealId: string; tenantId: string }) {
+    const hook = useMealComponents(mealId)
+    return <ComponentsEditor hook={hook} tenantId={tenantId} />
+}
+
+function ShotComponentsField({ shotId, tenantId }: { shotId: string; tenantId: string }) {
+    const hook = useShotComponents(shotId)
+    return <ComponentsEditor hook={hook} tenantId={tenantId} />
+}
+
+function TeaComponentsField({ teaId, tenantId }: { teaId: string; tenantId: string }) {
+    const hook = useTeaComponents(teaId)
+    return <ComponentsEditor hook={hook} tenantId={tenantId} />
+}
+
 function GoalsTab({ tenantId }: { tenantId: string }) {
     const { goals, loading, createGoal, deleteGoal, toggleGoalFavorite } = useGoals(tenantId)
     const [showCreate, setShowCreate] = useState(false)
@@ -356,7 +366,6 @@ function GoalsTab({ tenantId }: { tenantId: string }) {
     )
 }
 
-// ─── View principal ───────────────────────────────────────────────────────────
 export function ClinicalLibraryView({ tenantId = '' }: { setView: (v: any) => void; tenantId?: string }) {
     const [activeTab, setActiveTab] = useState<LibTab>('dashboard')
 
@@ -424,7 +433,7 @@ export function ClinicalLibraryView({ tenantId = '' }: { setView: (v: any) => vo
                                         </div>
                                         {values.id && (
                                             <div className="col-span-3">
-                                                <ComponentsEditor hook={useRecipeComponents(values.id)} tenantId={tenantId} />
+                                                <RecipeComponentsField recipeId={values.id} tenantId={tenantId} />
                                             </div>
                                         )}
                                     </div>
@@ -446,7 +455,7 @@ export function ClinicalLibraryView({ tenantId = '' }: { setView: (v: any) => vo
                                             <input value={values.notes || ''} onChange={e => setValue('notes', e.target.value)} placeholder="ex: sirva gelado"
                                                 className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50" />
                                         </div>
-                                        {values.id && <ComponentsEditor hook={useMealComponents(values.id)} tenantId={tenantId} />}
+                                        {values.id && <MealComponentsField mealId={values.id} tenantId={tenantId} />}
                                     </div>
                                 ),
                             }}
@@ -483,7 +492,7 @@ export function ClinicalLibraryView({ tenantId = '' }: { setView: (v: any) => vo
                                             <input value={values.contraindications || ''} onChange={e => setValue('contraindications', e.target.value)} placeholder="ex: gastrite, úlcera"
                                                 className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50" />
                                         </div>
-                                        {values.id && <ComponentsEditor hook={useShotComponents(values.id)} tenantId={tenantId} />}
+                                        {values.id && <ShotComponentsField shotId={values.id} tenantId={tenantId} />}
                                     </div>
                                 ),
                             }}
@@ -508,7 +517,7 @@ export function ClinicalLibraryView({ tenantId = '' }: { setView: (v: any) => vo
                                             <textarea value={values.instructions || ''} onChange={e => setValue('instructions', e.target.value)} rows={2}
                                                 className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white resize-none focus:outline-none focus:border-indigo-500/50" />
                                         </div>
-                                        {values.id && <ComponentsEditor hook={useTeaComponents(values.id)} tenantId={tenantId} />}
+                                        {values.id && <TeaComponentsField teaId={values.id} tenantId={tenantId} />}
                                     </div>
                                 ),
                             }}
