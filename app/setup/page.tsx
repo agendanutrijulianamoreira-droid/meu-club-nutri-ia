@@ -24,7 +24,20 @@ interface FormData {
     name: string
     specialty: string
     methodName: string
-    niche: 'emagrecimento' | 'hipertrofia'
+    niche: string
+    nicheFocus: string
+    instagram: string
+    methodDescription: string
+    offerName: string
+    offerPrice: string
+    offerDuration: string
+    goals: string
+    archetypeAnswers: {
+        perception: string
+        transformation: string
+        approach: string
+        values: string
+    }
     archetype: 'sage' | 'hero' | 'ruler' | 'lover'
     tone: 'acolhedora' | 'general' | 'cientifica'
 }
@@ -40,6 +53,14 @@ export default function SetupWizard() {
         specialty: "",
         methodName: "",
         niche: "emagrecimento",
+        nicheFocus: "",
+        instagram: "",
+        methodDescription: "",
+        offerName: "",
+        offerPrice: "",
+        offerDuration: "6",
+        goals: "",
+        archetypeAnswers: { perception: "", transformation: "", approach: "", values: "" },
         archetype: "sage",
         tone: "acolhedora",
     })
@@ -206,7 +227,7 @@ export default function SetupWizard() {
                             </div>
 
                             <div className="space-y-3">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Seu Nicho Principal</label>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Seu Nicho Principal</label>
                                 <div className="grid grid-cols-2 gap-4">
                                     {[
                                         { id: 'emagrecimento' as const, label: 'Emagrecimento', icon: '🥗', desc: 'Perda de peso funcional e sustentável' },
@@ -227,11 +248,30 @@ export default function SetupWizard() {
                                         </button>
                                     ))}
                                 </div>
+                                <input
+                                    value={formData.nicheFocus}
+                                    onChange={e => update({ nicheFocus: e.target.value })}
+                                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder:text-slate-600 outline-none focus:border-indigo-500 transition"
+                                    placeholder="Descreva seu nicho com mais precisão (ex.: mulheres 35+ com resistência à insulina)"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Instagram principal</label>
+                                    <input
+                                        value={formData.instagram}
+                                        onChange={e => update({ instagram: e.target.value })}
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder:text-slate-600 outline-none focus:border-indigo-500 transition"
+                                        placeholder="@seuinstagram ou URL do perfil"
+                                    />
+                                    <p className="text-[10px] text-slate-600">Será usado como referência pública da marca. A conexão OAuth será ativada depois com o App da Meta.</p>
+                                </div>
                             </div>
 
                             <button
                                 onClick={handleNext}
-                                disabled={!formData.name || !formData.specialty}
+                                disabled={!formData.name || !formData.specialty || !formData.nicheFocus}
                                 className="flex items-center gap-2 px-8 py-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-black rounded-2xl transition-all"
                             >
                                 Próximo Passo <ArrowRight size={16} />
@@ -269,6 +309,24 @@ export default function SetupWizard() {
                                     />
                                 </div>
 
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Promessa e filosofia do método</label>
+                                    <textarea
+                                        value={formData.methodDescription}
+                                        onChange={e => update({ methodDescription: e.target.value })}
+                                        className="min-h-24 w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder:text-slate-600 outline-none focus:border-violet-500 transition"
+                                        placeholder="O que torna sua forma de acompanhar diferente?"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <input value={formData.offerName} onChange={e => update({ offerName: e.target.value })} className="bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder:text-slate-600 outline-none focus:border-violet-500" placeholder="Nome da oferta" />
+                                    <input value={formData.offerPrice} onChange={e => update({ offerPrice: e.target.value })} className="bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder:text-slate-600 outline-none focus:border-violet-500" placeholder="Valor (ex.: 997)" inputMode="decimal" />
+                                    <input value={formData.offerDuration} onChange={e => update({ offerDuration: e.target.value })} className="bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder:text-slate-600 outline-none focus:border-violet-500" placeholder="Duração em meses" inputMode="numeric" />
+                                </div>
+
+                                <textarea value={formData.goals} onChange={e => update({ goals: e.target.value })} className="min-h-20 w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white placeholder:text-slate-600 outline-none focus:border-violet-500" placeholder="Metas principais do clube, separadas por vírgula" />
+
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Arquétipo da Nutricionista</label>
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -293,6 +351,14 @@ export default function SetupWizard() {
                                             </button>
                                         ))}
                                     </div>
+                                </div>
+
+                                <div className="space-y-3 rounded-3xl border border-violet-500/20 bg-violet-500/5 p-5">
+                                    <div><label className="text-[10px] font-black uppercase tracking-widest text-violet-300">Perguntas do arquétipo</label><p className="mt-1 text-xs text-slate-500">A IA usa suas respostas para sugerir o perfil de comunicação mais coerente.</p></div>
+                                    <input value={formData.archetypeAnswers.perception} onChange={e => update({ archetypeAnswers: { ...formData.archetypeAnswers, perception: e.target.value } })} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white placeholder:text-slate-600 outline-none" placeholder="Como você quer ser percebida pelas pacientes?" />
+                                    <input value={formData.archetypeAnswers.transformation} onChange={e => update({ archetypeAnswers: { ...formData.archetypeAnswers, transformation: e.target.value } })} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white placeholder:text-slate-600 outline-none" placeholder="Qual transformação você mais gosta de conduzir?" />
+                                    <input value={formData.archetypeAnswers.approach} onChange={e => update({ archetypeAnswers: { ...formData.archetypeAnswers, approach: e.target.value } })} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white placeholder:text-slate-600 outline-none" placeholder="Como você conduz uma paciente com dificuldade?" />
+                                    <input value={formData.archetypeAnswers.values} onChange={e => update({ archetypeAnswers: { ...formData.archetypeAnswers, values: e.target.value } })} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white placeholder:text-slate-600 outline-none" placeholder="Quais valores não podem faltar no seu clube?" />
                                 </div>
                             </div>
 

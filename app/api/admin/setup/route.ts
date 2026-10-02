@@ -1,14 +1,103 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { callClaudeJSON } from '@/lib/services/anthropic'
 
 interface SetupPayload {
     name: string
     specialty: string
     methodName: string
     niche: string
+    nicheFocus?: string
+    instagram?: string
+    methodDescription?: string
+    offerName?: string
+    offerPrice?: string
+    offerDuration?: string
+    goals?: string
+    archetypeAnswers?: Record<string, string>
     archetype: string
     tone: string
+}
+
+type GeneratedBlueprint = {
+    suggestedArchetype: string
+    methodDescription: string
+    phases: Array<{ name: string; description: string; goals: string[] }>
+    months: Array<{
+        month: number
+        title: string
+        objective: string
+        challengeTitle: string
+        protocolTitle: string
+        posts: Array<{ title: string; body: string }>
+    }>
+}
+
+function fallbackBlueprint(data: SetupPayload): GeneratedBlueprint {
+    const focus = data.nicheFocus || data.niche || 'transformação alimentar'
+    const phaseNames = ['Consciência e base', 'Rotina e consistência', 'Autonomia e evolução']
+    return {
+        suggestedArchetype: data.archetype,
+        methodDescription: data.methodDescription || `Uma jornada de ${focus} com educação, prática e acompanhamento próximo.`,
+        phases: phaseNames.map((name, index) => ({
+            name,
+            description: `Etapa ${index + 1} da jornada para ${focus}.`,
+            goals: (data.goals || 'consistência, energia e autonomia').split(',').map(goal => goal.trim()).filter(Boolean).slice(0, 4),
+        })),
+        months: Array.from({ length: 6 }, (_, index) => ({
+            month: index + 1,
+            title: `Mês ${index + 1} · ${focus}`,
+            objective: `Construir um avanço sustentável em ${focus}.`,
+            challengeTitle: `Desafio ${index + 1}: Pequenas vitórias`,
+            protocolTitle: `Protocolo ${index + 1}: Jornada ${focus}`,
+            posts: [
+                { title: 'Boas-vindas do mês', body: 'Vamos começar com uma ação simples e possível para esta etapa da sua jornada.' },
+                { title: 'Check-in da semana', body: 'Como foi colocar o método em prática? Compartilhe uma vitória e uma dificuldade.' },
+            ],
+        })),
+    }
+}
+
+async function createBlueprint(data: SetupPayload): Promise<GeneratedBlueprint> {
+    if (!process.env.GEMINI_API_KEY) return fallbackBlueprint(data)
+    try {
+        const generated = await callClaudeJSON<GeneratedBlueprint>({
+            system: 'Você é uma estrategista de clubes de nutrição. Gere conteúdo seguro, educativo e não-diagnóstico. Nunca publique nada: tudo deve ser salvo como rascunho para revisão profissional.',
+            maxTokens: 7000,
+            messages: [{
+                role: 'user',
+                content: JSON.stringify({
+                    task: 'Criar a fundação de um clube de nutrição para seis meses.',
+                    professional: data.name,
+                    specialty: data.specialty,
+                    niche: data.niche,
+                    nicheFocus: data.nicheFocus,
+                    methodName: data.methodName,
+                    methodDescription: data.methodDescription,
+                    offer: { name: data.offerName, price: data.offerPrice, durationMonths: data.offerDuration || 6 },
+                    goals: data.goals,
+                    archetypeAnswers: data.archetypeAnswers,
+                    requestedShape: {
+                        suggestedArchetype: 'sage|hero|ruler|lover',
+                        methodDescription: 'string',
+                        phases: '[3 items with name, description and goals array]',
+                        months: '[exactly 6 items; each with month, title, objective, challengeTitle, protocolTitle and 2-4 posts with title/body]',
+                    },
+                }),
+            }],
+        })
+        const valid = generated
+            && Array.isArray(generated.phases)
+            && generated.phases.length >= 3
+            && Array.isArray(generated.months)
+            && generated.months.length >= 6
+            && generated.months.slice(0, 6).every(month => Array.isArray(month.posts) && month.posts.length > 0)
+        return valid ? generated : fallbackBlueprint(data)
+    } catch (error) {
+        console.error('[Setup] blueprint generation failed; using safe fallback', error)
+        return fallbackBlueprint(data)
+    }
 }
 
 const TEMPLATES = {
@@ -113,18 +202,29 @@ export async function POST(request: NextRequest) {
     }
 
     const currentSettings = (tenant.settings as Record<string, unknown>) || {}
+    const blueprint = await createBlueprint(body)
     const newSettings = {
         ...currentSettings,
         ai: { tone, emojiLevel: 2 },
-        wizard: { archetype, niche, specialty },
+        wizard: {
+            archetype,
+            niche,
+            nicheFocus: body.nicheFocus || niche,
+            specialty,
+            instagram: body.instagram || null,
+            archetypeAnswers: body.archetypeAnswers || {},
+            offer: { name: body.offerName || null, price: body.offerPrice || null, durationMonths: body.offerDuration || '6' },
+        },
+        clubFoundation: blueprint,
     }
 
     const { error: updateError } = await supabase
         .from('tenants')
         .update({
             method_name: methodName,
-            gpt_system_prompt: buildSystemPrompt(body),
+            gpt_system_prompt: buildSystemPrompt({ ...body, niche: body.nicheFocus || niche }),
             club_tone: tone,
+            clinic_instagram: body.instagram || null,
             club_setup_done: true,
             settings: newSettings,
         })
@@ -135,18 +235,81 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Erro ao salvar configurações' }, { status: 500 })
     }
 
-    const template = TEMPLATES[niche as keyof typeof TEMPLATES] || TEMPLATES.emagrecimento
-    const currentMonth = new Date().getMonth()
+    // Persist the method and phases in the relational clinical-method model.
+    const { data: method, error: methodError } = await supabase
+        .from('methods')
+        .insert({
+            tenant_id: tenant.id,
+            name: methodName,
+            description: blueprint.methodDescription,
+        })
+        .select('id')
+        .single()
 
-    const protocolRows = template.protocols.map((p) => ({
+    if (methodError || !method) {
+        console.error('[Setup] method insert error:', methodError)
+        return NextResponse.json({ error: 'Não foi possível criar o método do clube' }, { status: 500 })
+    }
+
+    const phases = blueprint.phases.slice(0, 6).map((phase, index) => ({
+        method_id: method.id,
         tenant_id: tenant.id,
-        title: p.title,
-        description: p.description,
-        category: p.category as 'detox' | 'lowcarb' | 'maintenance' | 'challenge' | 'seasonal' | 'custom',
-        duration_days: 7,
-        is_active: p.month === currentMonth,
-        content: p.month === currentMonth ? SAMPLE_PROTOCOL_CONTENT : [],
-        total_points_available: p.month === currentMonth ? 160 : 0,
+        name: phase.name,
+        description: phase.description,
+        order_index: index,
+    }))
+    const { error: phasesError } = await supabase.from('method_phases').insert(phases)
+    if (phasesError) {
+        console.error('[Setup] method phases insert error:', phasesError)
+        return NextResponse.json({ error: 'Não foi possível criar as fases do método' }, { status: 500 })
+    }
+
+    const monthPlans = blueprint.months.slice(0, 6)
+    const draftRows = monthPlans.flatMap(month => [
+        {
+            tenant_id: tenant.id,
+            kind: 'challenge',
+            month_index: month.month,
+            title: month.challengeTitle,
+            body: month.objective,
+            metadata: { source: 'club_foundation', objective: month.objective },
+            created_by: user.id,
+        },
+        {
+            tenant_id: tenant.id,
+            kind: 'protocol',
+            month_index: month.month,
+            title: month.protocolTitle,
+            body: month.objective,
+            metadata: { source: 'club_foundation', status: 'draft' },
+            created_by: user.id,
+        },
+        ...month.posts.map((post, index) => ({
+            tenant_id: tenant.id,
+            kind: 'post',
+            month_index: month.month,
+            week_index: Math.min(index + 1, 5),
+            title: post.title,
+            body: post.body,
+            metadata: { source: 'club_foundation' },
+            created_by: user.id,
+        })),
+    ])
+    const { error: draftsError } = await supabase.from('club_content_drafts').insert(draftRows)
+    if (draftsError) {
+        console.error('[Setup] drafts insert error:', draftsError)
+        return NextResponse.json({ error: 'Método criado, mas não foi possível salvar os rascunhos. Aplique a migration do Clube.' }, { status: 500 })
+    }
+
+    const protocolRows = monthPlans.map((month, index) => ({
+        tenant_id: tenant.id,
+        title: month.protocolTitle,
+        description: month.objective,
+        category: index % 2 === 0 ? 'custom' : 'challenge',
+        duration_days: 30,
+        is_active: index === 0,
+        content: index === 0 ? SAMPLE_PROTOCOL_CONTENT : [],
+        total_points_available: index === 0 ? 160 : 0,
     }))
 
     const { error: protocolError } = await supabase
