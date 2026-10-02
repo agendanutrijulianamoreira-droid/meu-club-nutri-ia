@@ -26,10 +26,13 @@ type Post = {
     created_at: string
     is_own: boolean
     locked?: boolean
+    channel_id?: string | null
     nivel_minimo?: number
     author: { name: string; initials: string; streak: number; level: number }
     reactions: Reaction[]
 }
+
+type Channel = { id: string; name: string; slug: string; description?: string | null; sort_order: number }
 
 const TYPE_STYLES: Record<string, { bg: string; border: string; badge: string; icon: JSX.Element }> = {
     streak: {
@@ -455,10 +458,16 @@ export default function FeedPage() {
     const [challenges, setChallenges] = useState<Challenge[]>([])
     const [selectedChallenge, setSelectedChallenge] = useState<string | null>(null)
     const [activeChallengeMeta, setActiveChallengeMeta] = useState<Challenge | null>(null)
+    const [channels, setChannels] = useState<Channel[]>([])
+    const [selectedChannel, setSelectedChannel] = useState<string | null>(null)
     const loaderRef = useRef<HTMLDivElement>(null)
 
     const loadFeed = useCallback(async (cursor?: string) => {
-        const url = `/api/patient/feed${cursor ? `?cursor=${cursor}` : ""}`
+        const params = new URLSearchParams()
+        if (cursor) params.set("cursor", cursor)
+        if (selectedChannel) params.set("channel_id", selectedChannel)
+        const query = params.toString()
+        const url = `/api/patient/feed${query ? `?${query}` : ""}`
         const res = await fetch(url)
         if (!res.ok) return
         const data = await res.json()
@@ -467,9 +476,10 @@ export default function FeedPage() {
         } else {
             setPosts(data.posts || [])
         }
+        setChannels(data.channels || [])
         setHasMore(data.hasMore)
         setNextCursor(data.nextCursor)
-    }, [])
+    }, [selectedChannel])
 
     const loadChallenges = useCallback(async () => {
         const res = await fetch("/api/patient/ranking?mode=challenges")
@@ -532,7 +542,7 @@ export default function FeedPage() {
         const res = await fetch("/api/patient/feed", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ body: text }),
+            body: JSON.stringify({ body: text, channel_id: selectedChannel }),
         })
         if (res.ok) {
             await loadFeed()  // refresh
@@ -596,6 +606,19 @@ export default function FeedPage() {
                         >
                             {tab === "feed" ? "🏡 Feed" : "🏆 Ranking"}
                         </button>
+                    ))}
+                </div>
+                <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                    <button
+                        onClick={() => { setSelectedChannel(null); setPosts([]) }}
+                        className={`flex-shrink-0 rounded-xl border px-3 py-1.5 text-[11px] font-bold transition-all ${!selectedChannel ? "border-indigo-500 bg-indigo-600 text-white" : "border-white/10 bg-white/5 text-slate-500"}`}
+                    >Todos</button>
+                    {channels.map(channel => (
+                        <button
+                            key={channel.id}
+                            onClick={() => { setSelectedChannel(channel.id); setPosts([]) }}
+                            className={`flex-shrink-0 rounded-xl border px-3 py-1.5 text-[11px] font-bold transition-all ${selectedChannel === channel.id ? "border-indigo-500 bg-indigo-600 text-white" : "border-white/10 bg-white/5 text-slate-500"}`}
+                        >{channel.name}</button>
                     ))}
                 </div>
             </div>

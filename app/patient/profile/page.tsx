@@ -51,6 +51,8 @@ export default function PatientProfilePage() {
 
     // Campos editáveis
     const [editName,         setEditName]         = useState("")
+    const [editPublicName,   setEditPublicName]   = useState("")
+    const [editHideFace,     setEditHideFace]     = useState(false)
     const [editWeight,       setEditWeight]       = useState("")
     const [editGoal,         setEditGoal]         = useState("")
     const [editRestrictions, setEditRestrictions] = useState<string[]>([])
@@ -78,6 +80,8 @@ export default function PatientProfilePage() {
 
     const openEdit = () => {
         setEditName(profile?.name || "")
+        setEditPublicName(profile?.public_name || "")
+        setEditHideFace(Boolean(profile?.hide_face_default))
         setEditWeight(profile?.current_weight?.toString() || "")
         setEditGoal(profile?.primary_goal || "")
         setEditRestrictions(profile?.dietary_restrictions || [])
@@ -90,6 +94,9 @@ export default function PatientProfilePage() {
         setSaving(true)
         const updates: any = {
             name:                 editName.trim() || profile?.name,
+            public_name:          editPublicName.trim() || null,
+            public_identity_mode: editPublicName.trim() ? "nickname" : "name",
+            hide_face_default:    editHideFace,
             primary_goal:         editGoal || null,
             dietary_restrictions: editRestrictions,
         }
@@ -174,6 +181,7 @@ export default function PatientProfilePage() {
                     {profile?.name || "Rainha do Reino"}
                 </h1>
                 <p className="text-sm text-slate-400">{user?.email}</p>
+                <p className="mt-2 text-xs text-indigo-300">No Clube: {profile?.public_name || profile?.name || "seu nome"}</p>
 
                 {goalMeta && (
                     <span className="inline-flex items-center gap-1.5 mt-2 text-xs font-semibold text-indigo-300 bg-indigo-500/15 px-3 py-1 rounded-full">
@@ -333,6 +341,23 @@ export default function PatientProfilePage() {
                                         className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50"
                                         placeholder="Como quer ser chamada?"
                                     />
+                                </div>
+
+                                <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-4">
+                                    <p className="text-xs font-bold uppercase tracking-wider text-indigo-300">Identidade no Clube</p>
+                                    <p className="mt-1 text-xs leading-5 text-slate-400">Escolha como as outras participantes verão você. Seu nome real continua reservado à equipe autorizada.</p>
+                                    <label className="mt-3 block text-xs font-bold text-slate-300">Nome público ou apelido</label>
+                                    <input
+                                        value={editPublicName}
+                                        onChange={e => setEditPublicName(e.target.value.slice(0, 40))}
+                                        className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:border-indigo-500/50 focus:outline-none"
+                                        placeholder="Ex.: Luna"
+                                        maxLength={40}
+                                    />
+                                    <label className="mt-3 flex cursor-pointer items-center gap-3 text-sm text-slate-300">
+                                        <input type="checkbox" checked={editHideFace} onChange={e => setEditHideFace(e.target.checked)} className="h-4 w-4 accent-indigo-500" />
+                                        Ocultar meu rosto automaticamente nas fotos
+                                    </label>
                                 </div>
 
                                 {/* Peso */}

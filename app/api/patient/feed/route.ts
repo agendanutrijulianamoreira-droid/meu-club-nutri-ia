@@ -17,7 +17,15 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url)
     const cursor = url.searchParams.get('cursor')  // created_at for pagination
+    const channelId = url.searchParams.get('channel_id')
     const limit = 20
+
+    const { data: channels } = await supabase
+        .from('community_channels')
+        .select('id, name, slug, description, sort_order')
+        .eq('tenant_id', profile.tenant_id)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
 
     // Buscar nível de acesso do paciente neste tenant
     const { data: nivelRow } = await supabase
@@ -33,7 +41,7 @@ export async function GET(request: NextRequest) {
     // Fetch posts — inclui todos do tenant (inclusive bloqueados, para mostrar lock visual)
     let q = supabase
         .from('community_posts')
-        .select('id, type, body, meta, is_pinned, nivel_minimo, created_at, user_id')
+        .select('id, type, body, meta, is_pinned, nivel_minimo, channel_id, created_at, user_id')
         .eq('tenant_id', profile.tenant_id)
         .eq('oculto', false)
         .order('is_pinned', { ascending: false })
@@ -41,12 +49,13 @@ export async function GET(request: NextRequest) {
         .limit(limit)
 
     if (cursor) q = q.lt('created_at', cursor)
+    if (channelId) q = q.eq('channel_id', channelId)
 
     const { data: posts, error } = await q
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     if (!posts || posts.length === 0) {
-        return NextResponse.json({ posts: [], hasMore: false })
+        return NextResponse.json({ posts: [], channels: channels || [], hasMore: false })
     }
 
     const postIds = posts.map(p => p.id)
@@ -55,10 +64,10 @@ export async function GET(request: NextRequest) {
     // Fetch authors
     const { data: authors } = await supabase
         .from('profiles')
-        .select('user_id, name, current_streak, current_level')
+        .select('user_id, name, public_name, public_identity_mode, current_streak, current_level')
         .in('user_id', authorIds)
 
-    const authorMap: Record<string, { user_id: string; name: string; current_streak: number; current_level: number }> = {}
+    const authorMap: Record<string, { user_id: string; name: string; public_name?: string | null; public_identity_mode?: string | null; current_streak: number; current_level: number }> = {}
     for (const a of authors || []) authorMap[a.user_id] = a
 
     // Fetch reactions per post
@@ -91,7 +100,9 @@ export async function GET(request: NextRequest) {
     // Assemble — posts bloqueados chegam como locked (sem body/reações)
     const enriched = posts.map(p => {
         const author = authorMap[p.user_id]
-        const name = author?.name || 'Rainha'
+        const name = author?.public_identity_mode === 'nickname' && author.public_name
+            ? author.public_name
+            : author?.name || 'Rainha'
         const nivelPost: number = p.nivel_minimo ?? 1
         const bloqueado = nivelPost > ordemDoUsuario && p.user_id !== user.id
 
@@ -102,6 +113,7 @@ export async function GET(request: NextRequest) {
                 body: null,
                 meta: {},
                 is_pinned: p.is_pinned,
+                channel_id: p.channel_id,
                 created_at: p.created_at,
                 is_own: false,
                 locked: true,
@@ -117,6 +129,7 @@ export async function GET(request: NextRequest) {
             body: p.body,
             meta: p.meta,
             is_pinned: p.is_pinned,
+            channel_id: p.channel_id,
             created_at: p.created_at,
             is_own: p.user_id === user.id,
             locked: false,
@@ -134,7 +147,7 @@ export async function GET(request: NextRequest) {
     const hasMore = posts.length === limit
     const nextCursor = hasMore ? posts[posts.length - 1].created_at : null
 
-    return NextResponse.json({ posts: enriched, hasMore, nextCursor })
+    return NextResponse.json({ posts: enriched, channels: channels || [], hasMore, nextCursor })
 }
 
 export async function POST(request: NextRequest) {
@@ -155,6 +168,18 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Texto inválido (1-500 caracteres)' }, { status: 400 })
     }
 
+    let channelId: string | null = typeof body.channel_id === 'string' ? body.channel_id : null
+    if (channelId) {
+        const { data: channel } = await supabase
+            .from('community_channels')
+            .select('id')
+            .eq('id', channelId)
+            .eq('tenant_id', profile.tenant_id)
+            .eq('is_active', true)
+            .maybeSingle()
+        if (!channel) return NextResponse.json({ error: 'Canal inválido' }, { status: 400 })
+    }
+
     const { data: post, error } = await supabase
         .from('community_posts')
         .insert({
@@ -162,6 +187,7 @@ export async function POST(request: NextRequest) {
             user_id: user.id,
             type: 'text',
             body: text,
+            channel_id: channelId,
         })
         .select()
         .single()

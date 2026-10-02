@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Sparkles, ClipboardList, BookOpen, Users, type LucideIcon } from "lucide-react"
+import { Home, ClipboardList, BookOpen, Users, UserRound, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface NavItem {
@@ -13,11 +13,11 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-    { href: "/patient/home", label: "Início", icon: Home },
-    { href: "/patient/diario", label: "Diário IA", icon: Sparkles, highlight: true },
-    { href: "/patient/diet", label: "Meu Plano", icon: ClipboardList },
-    { href: "/patient/recipes", label: "Acervo", icon: BookOpen },
-    { href: "/patient/feed", label: "Comunidade", icon: Users },
+    { href: "/patient/home", label: "Hoje", icon: Home },
+    { href: "/patient/feed", label: "Clube", icon: Users },
+    { href: "/patient/jornada", label: "Jornada", icon: ClipboardList, highlight: true },
+    { href: "/patient/recipes", label: "Biblioteca", icon: BookOpen },
+    { href: "/patient/profile", label: "Perfil", icon: UserRound },
 ]
 
 export function BottomNav() {
