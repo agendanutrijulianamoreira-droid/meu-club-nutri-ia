@@ -66,6 +66,8 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
   const [targetProtein, setTargetProtein] = useState(100)
   const [restrictions, setRestrictions] = useState<string[]>([])
   const [preferences, setPreferences] = useState('')
+  const [patients, setPatients] = useState<Array<{ id: string; name: string }>>([])
+  const [selectedPatientId, setSelectedPatientId] = useState('')
   const [generating, setGenerating] = useState(false)
   // Plan state
   const [plan, setPlan] = useState<MealPlan | null>(null)
@@ -89,6 +91,14 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
   // Load existing plans
   useEffect(() => { if (tab === 'plans') loadPlans() }, [tab])
 
+  useEffect(() => {
+    if (tab !== 'generate' || patients.length > 0) return
+    fetch('/api/admin/patients')
+      .then(res => res.json())
+      .then(data => setPatients((data.patients || []).map((patient: any) => ({ id: patient.id, name: patient.name }))))
+      .catch(() => setPatients([]))
+  }, [tab, patients.length])
+
   const loadPlans = async () => {
     setLoadingPlans(true)
     try {
@@ -106,7 +116,7 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
       const res = await fetch('/api/admin/meal-plans/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ goal, duration_days: days, target_kcal: targetKcal, target_protein_g: targetProtein, restrictions, preferences, plan_mode: planMode }),
+        body: JSON.stringify({ goal, duration_days: days, target_kcal: targetKcal, target_protein_g: targetProtein, restrictions, preferences, plan_mode: planMode, patient_id: selectedPatientId || undefined }),
       })
       const data = await res.json()
       if (!data.success) throw new Error(data.error)
@@ -353,6 +363,15 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Vincular a uma paciente (opcional)</label>
+              <select value={selectedPatientId} onChange={e => setSelectedPatientId(e.target.value)} className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-white text-sm">
+                <option value="">Criar como modelo do clube</option>
+                {patients.map(patient => <option key={patient.id} value={patient.id}>{patient.name}</option>)}
+              </select>
+              <p className="text-[10px] text-slate-600 mt-1.5">O cardápio continua como rascunho e só ficará disponível após publicação/aprovação.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
