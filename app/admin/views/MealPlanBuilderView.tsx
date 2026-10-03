@@ -34,7 +34,7 @@ interface DayPlan { day_number: number; day_theme?: string; meals: MealGroup[] }
 interface MealPlan {
   id?: string; title: string; description?: string; goal: string; duration_days: number;
   target_kcal: number; target_protein_g: number; target_carbs_g: number; target_fat_g: number;
-  status: string; is_ai_generated: boolean; days: DayPlan[];
+  status: string; is_ai_generated: boolean; plan_mode?: 'basic' | 'premium'; days: DayPlan[];
 }
 
 const MEAL_TYPES = [
@@ -77,6 +77,7 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
   const [searchResults, setSearchResults] = useState<Food[]>([])
   const [searching, setSearching] = useState(false)
   const [editingItem, setEditingItem] = useState<string | null>(null)
+  const [addingMeal, setAddingMeal] = useState<string | null>(null)
   // Toast
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
 
@@ -120,7 +121,7 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
           meal_label: m.meal_label,
           time: m.time,
           items: (m.items || []).map((i: any) => ({
-            food_id: i.food_id, food_name: i.food_name, quantity_g: i.quantity_g,
+            id: i.id, food_id: i.food_id, food_name: i.food_name, quantity_g: i.quantity_g,
             serving_qty: i.serving_qty, serving_label: i.serving_label,
             calc_kcal: i.calc_kcal || 0, calc_protein_g: i.calc_protein_g || 0,
             calc_carbs_g: i.calc_carbs_g || 0, calc_fat_g: i.calc_fat_g || 0, calc_fiber_g: i.calc_fiber_g || 0,
@@ -137,7 +138,7 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
         target_kcal: targetKcal, target_protein_g: targetProtein,
         target_carbs_g: Math.round((targetKcal * 0.45) / 4),
         target_fat_g: Math.round((targetKcal * 0.30) / 9),
-        status: 'draft', is_ai_generated: true,
+        status: 'draft', is_ai_generated: true, plan_mode: planMode,
         days: planDays,
       })
       setActiveDay(1)
@@ -225,6 +226,40 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
     setPlan({ ...newPlan })
     if (plan.id && removed.id) {
       fetch(`/api/admin/meal-plans?item_id=${removed.id}`, { method: 'DELETE' }).catch(() => {})
+    }
+  }
+
+  const addFoodToMeal = async (dayNum: number, mealType: string, food: Food) => {
+    if (!plan?.id) return
+    const quantity_g = food.serving_size_g || 100
+    try {
+      const res = await fetch('/api/admin/meal-plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          meal_plan_id: plan.id,
+          day_number: dayNum,
+          meal_type: mealType,
+          meal_label: plan.days.find(day => day.day_number === dayNum)?.meals.find(meal => meal.meal_type === mealType)?.meal_label,
+          food_id: food.id,
+          food_name: food.name,
+          quantity_g,
+          serving_label: food.serving_label,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.item) throw new Error(data.error || 'Não foi possível adicionar o alimento')
+      const nextPlan = { ...plan, days: plan.days.map(day => day.day_number !== dayNum ? day : {
+        ...day,
+        meals: day.meals.map(meal => meal.meal_type !== mealType ? meal : { ...meal, items: [...meal.items, data.item] }),
+      }) }
+      setPlan(nextPlan)
+      setAddingMeal(null)
+      setSearchQuery('')
+      setSearchResults([])
+      showToast('Alimento adicionado ao cardápio')
+    } catch (err: any) {
+      showToast(err.message || 'Erro ao adicionar alimento', 'error')
     }
   }
 
@@ -480,9 +515,14 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
                             </span>
                           )}
                         </h4>
-                        <span className="text-xs text-slate-500">
-                          {Math.round(meal.items.reduce((s, i) => s + (i.calc_kcal || 0), 0))} kcal
-                        </span>
+                        <div className="flex items-center gap-3">
+                          {plan.id && <button onClick={() => { setAddingMeal(`${day.day_number}-${meal.meal_type}`); setSearchQuery(''); setSearchResults([]) }} className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                            <Plus size={13} /> Adicionar alimento
+                          </button>}
+                          <span className="text-xs text-slate-500">
+                            {Math.round(meal.items.reduce((s, i) => s + (i.calc_kcal || 0), 0))} kcal
+                          </span>
+                        </div>
                       </div>
                       <div className="divide-y divide-slate-700/20">
                         {meal.items.map((item, itemIdx) => {
@@ -540,6 +580,22 @@ export function MealPlanBuilderView({ setView, tenantId }: MealPlanBuilderViewPr
                           )
                         })}
                       </div>
+                      {addingMeal === `${day.day_number}-${meal.meal_type}` && (
+                        <div className="border-t border-indigo-500/20 bg-indigo-500/5 p-3 space-y-2">
+                          <div className="relative">
+                            <Search size={14} className="absolute left-2.5 top-2.5 text-slate-500" />
+                            <input autoFocus value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar alimento TACO..." className="w-full bg-slate-700 border border-indigo-500/50 rounded-lg pl-8 pr-3 py-2 text-sm text-white" />
+                          </div>
+                          {searching && <p className="text-xs text-slate-500">Buscando alimentos…</p>}
+                          {searchResults.length > 0 && <div className="bg-slate-700 rounded-lg border border-slate-600 max-h-48 overflow-y-auto">
+                            {searchResults.map(food => <button key={food.id} onClick={() => addFoodToMeal(day.day_number, meal.meal_type, food)} className="w-full text-left px-3 py-2 hover:bg-slate-600 transition-colors border-b border-slate-600/30 last:border-0">
+                              <div className="text-sm text-white">{food.name}</div>
+                              <div className="text-xs text-slate-400">{food.energy_kcal}kcal · P:{food.protein_g}g · {food.serving_label}</div>
+                            </button>)}
+                          </div>}
+                          <button onClick={() => { setAddingMeal(null); setSearchQuery(''); setSearchResults([]) }} className="text-xs text-slate-500 hover:text-white">Cancelar</button>
+                        </div>
+                      )}
                     </div>
                   )
                 })}

@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
     duration_days    = 7,
     target_kcal      = 1800,
     target_protein_g = 90,
+    plan_mode       = 'premium',
     restrictions     = [],
     preferences      = '',
     patient_id,
@@ -145,6 +146,7 @@ export async function POST(request: NextRequest) {
         target_protein_g,
         target_carbs_g:  targetCarbs,
         target_fat_g:    targetFat,
+        plan_mode:       plan_mode === 'basic' ? 'basic' : 'premium',
         target_fiber_g:  25,
         status:          'draft',
         is_ai_generated: true,
@@ -179,8 +181,17 @@ export async function POST(request: NextRequest) {
       substitution_note: item.substitution_note,
     }))
 
+    let insertedItems: any[] = []
     if (dbItems.length > 0) {
-      await supabase.from('meal_plan_items').insert(dbItems)
+      const { data, error: itemsError } = await supabase
+        .from('meal_plan_items')
+        .insert(dbItems)
+        .select('id, day_number, meal_type, sort_order')
+      if (itemsError) {
+        await supabase.from('meal_plans').delete().eq('id', plan.id)
+        return NextResponse.json({ error: `Erro ao salvar itens do cardápio: ${itemsError.message}` }, { status: 500 })
+      }
+      insertedItems = data || []
     }
 
     // 9. Atribuir à paciente se especificada
@@ -219,7 +230,8 @@ export async function POST(request: NextRequest) {
             meal_type:  m.meal_type,
             meal_label: m.meal_label,
             time:       m.time,
-            items: m.items.map(i => ({
+            items: m.items.map((i, itemIndex) => ({
+              id: insertedItems.find(row => row.day_number === d.day_number && row.meal_type === m.meal_type && row.sort_order === itemIndex)?.id,
               food_id:           i.food_id,
               food_name:         i.food_name,
               quantity_g:        i.quantity_g,

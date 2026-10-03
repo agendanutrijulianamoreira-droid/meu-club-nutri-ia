@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
     // Lista
     const { data: plans } = await supabase
         .from('meal_plans')
-        .select('id, title, description, goal, duration_days, target_kcal, target_protein_g, status, is_ai_generated, tags, created_at')
+        .select('id, title, description, goal, duration_days, target_kcal, target_protein_g, status, is_ai_generated, plan_mode, tags, created_at')
         .eq('tenant_id', profile.tenant_id)
         .order('created_at', { ascending: false })
 
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await request.json()
-    const { meal_plan_id, day_number, meal_type, food_id, food_name, quantity_g, serving_qty, serving_label, preparation_notes, substitution_note } = body
+    const { meal_plan_id, day_number, meal_type, meal_label, food_id, food_name, quantity_g, serving_qty, serving_label, preparation_notes, substitution_note } = body
 
     if (!meal_plan_id || !day_number || !meal_type || !food_name) {
         return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -186,6 +186,7 @@ export async function POST(request: NextRequest) {
             meal_plan_id,
             day_number,
             meal_type,
+            meal_label,
             food_id,
             food_name,
             quantity_g,
