@@ -67,13 +67,13 @@ const navGroups: NavGroup[] = [
     ]},
     { id: 'patients', icon: Users, label: 'Pacientes', items: [
         { id: 'patients', label: 'Minhas pacientes' }, { id: 'checkins', label: 'Check-ins' },
-        { id: 'patient-journey', label: 'Jornada das pacientes' }, { id: 'questionnaires', label: 'Questionários' },
+        { id: 'patient-journey', label: 'Evolução clínica' }, { id: 'questionnaires', label: 'Questionários' },
         { href: '/admin/followups/metrics', label: 'Métricas de acompanhamento' },
     ]},
     { id: 'crm', icon: Briefcase, label: 'CRM', items: [
         { href: '/admin/crm', label: 'Painel e contatos' }, { href: '/admin/crm/rescue', label: 'Fila de resgate' },
         { href: '/admin/crm/outcomes', label: 'Resultados' }, { href: '/admin/crm/metrics', label: 'Métricas' },
-        { href: '/admin/crm/stages', label: 'Etapas e jornada' },
+        { href: '/admin/crm/stages', label: 'Funil comercial' },
     ]},
     { id: 'attendance', icon: CalendarDays, label: 'Atendimento', items: [
         { id: 'appointments', label: 'Agenda' }, { href: '/admin/appointments/availability', label: 'Disponibilidade' },
@@ -83,11 +83,11 @@ const navGroups: NavGroup[] = [
     { id: 'clinical', icon: Stethoscope, label: 'Planejamento clínico', items: [
         { id: 'methods', label: 'Métodos e fases' }, { id: 'clinical-library', label: 'Biblioteca clínica' },
         { id: 'protocols', label: 'Protocolos e desafios' }, { id: 'meal-plans', label: 'Dietas e cardápios' },
-        { id: 'habits', label: 'Hábitos' }, { href: '/admin/methods/phases', label: 'Critérios de avanço' },
+        { id: 'habits', label: 'Hábitos' }, { href: '/admin/methods/phases', label: 'Avanço de fases' },
     ]},
     { id: 'communication', icon: MessageSquareText, label: 'Comunicação', items: [
         { id: 'communication', label: 'Central de comunicação' }, { href: '/admin/appointments/communications/whatsapp', label: 'WhatsApp' },
-        { href: '/admin/appointments/communications/whatsapp/go-live', label: 'Go-live do WhatsApp' },
+        { href: '/admin/appointments/communications/whatsapp/go-live', label: 'Piloto do WhatsApp' },
         { id: 'community', label: 'Comunidade' }, { id: 'rewards', label: 'Recompensas' },
     ]},
     { id: 'business', icon: WalletCards, label: 'Negócio', items: [
@@ -102,9 +102,8 @@ const navGroups: NavGroup[] = [
     ]},
 ]
 
-const settingsLinks = [
+const settingsLinks: Array<{ id?: ViewType; label: string; href?: string }> = [
     { id: 'settings' as ViewType, label: 'Configurações do clube' },
-    { href: '/admin/settings/vital', label: 'Chaves e integrações' },
 ]
 
 const SIDEBAR_EXPANDED = 272
